@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.log
+tmp/
+*.tsbuildinfo
+.qoder
+package-lock.json
