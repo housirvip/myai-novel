@@ -2,9 +2,15 @@ import { Command } from 'commander';
 import { resolve } from 'node:path';
 
 import { MarkdownSyncService } from './core/markdown-sync/service.js';
+import { ContextBuilder } from './core/context-builder.js';
+import { DraftWriter } from './core/generation/draft-writer.js';
+import { Reviewer } from './core/review/reviewer.js';
+import { Rewriter } from './core/rewrite/rewriter.js';
 import { ProjectService } from './core/project-service.js';
+import { PostWriteUpdater } from './core/post-write/updater.js';
 import { JsonStore } from './infra/storage/json-store.js';
 import { PROJECT_FILES } from './infra/storage/project-layout.js';
+import { MockLlmAdapter } from './infra/llm/mock-adapter.js';
 import type { Book, BookProject, Character, Chapter, Faction, Hook, Location, Outline, ShortTermMemory, StoryState, Volume } from './types/index.js';
 
 const store = new JsonStore();
@@ -209,9 +215,10 @@ program
   .requiredOption('--volume-id <id>', '所属分卷 ID')
   .requiredOption('--title <text>', '标题')
   .requiredOption('--objective <text>', '目标')
+  .option('--summary <text>', '章节总结', '')
   .option('--beat <text...>', '节拍，可传多个', [])
   .option('--root <path>', '项目根目录', '.')
-  .action(async (options: { volumeId: string; title: string; objective: string; beat: string[]; root: string }) => {
+  .action(async (options: { volumeId: string; title: string; objective: string; summary: string; beat: string[]; root: string }) => {
     const service = new ProjectService(resolve(options.root));
     const chapters = await service.listChapters();
     const volumes = await service.listVolumes();
@@ -221,6 +228,7 @@ program
       index: chapters.filter((item) => item.volumeId === options.volumeId).length + 1,
       title: options.title,
       objective: options.objective,
+      summary: options.summary,
       plannedBeats: options.beat,
       status: 'planned',
     };
@@ -351,6 +359,81 @@ program
     hooks.push(hook);
     await service.saveHooks(hooks);
     console.log(JSON.stringify(hook, null, 2));
+  });
+
+program
+  .command('write')
+  .description('写作相关命令')
+  .command('next')
+  .requiredOption('--chapter-id <id>', '目标章节 ID')
+  .option('--root <path>', '项目根目录', '.')
+  .action(async (options: { chapterId: string; root: string }) => {
+    const rootDir = resolve(options.root);
+    const contextBuilder = new ContextBuilder(rootDir);
+    const writer = new DraftWriter(rootDir, new MockLlmAdapter());
+    const projectService = new ProjectService(rootDir);
+    const updater = new PostWriteUpdater(rootDir);
+    const context = await contextBuilder.buildForChapter(options.chapterId);
+    const draft = await writer.generate(context);
+    const chapters = await projectService.listChapters();
+    const nextChapters = chapters.map((item) => (item.id === draft.chapter.id ? draft.chapter : item));
+
+    await projectService.saveChapters(nextChapters);
+    const updateResult = await updater.updateAfterDraft(draft.chapter);
+    console.log(JSON.stringify({ chapterId: draft.chapter.id, draftPath: draft.draftPath, updateResult }, null, 2));
+  });
+
+program
+  .command('review')
+  .description('审查相关命令')
+  .command('chapter <id>')
+  .option('--root <path>', '项目根目录', '.')
+  .action(async (id: string, options: { root: string }) => {
+    const rootDir = resolve(options.root);
+    const project = await loadProject(rootDir);
+    const chapter = project.chapters.find((item) => item.id === id);
+    if (!chapter?.draftPath) {
+      throw new Error(`Draft not found for chapter: ${id}`);
+    }
+
+    const reviewer = new Reviewer();
+    const report = await reviewer.reviewDraft(
+      chapter.draftPath,
+      project.book.defaultChapterWordCount,
+      project.book.chapterWordCountToleranceRatio,
+    );
+
+    console.log(JSON.stringify(report, null, 2));
+  });
+
+program
+  .command('chapter')
+  .description('章节附加命令')
+  .command('rewrite <id>')
+  .requiredOption('--goal <text...>', '重写目标')
+  .option('--strategy <type>', '重写策略', 'full')
+  .option('--length-policy <policy>', '长度策略', 'keep')
+  .option('--root <path>', '项目根目录', '.')
+  .action(async (id: string, options: { goal: string[]; strategy: 'full' | 'partial'; lengthPolicy: 'keep' | 'expand-to-target' | 'shrink-to-target'; root: string }) => {
+    const rootDir = resolve(options.root);
+    const project = await loadProject(rootDir);
+    const chapter = project.chapters.find((item) => item.id === id);
+    if (!chapter?.draftPath) {
+      throw new Error(`Draft not found for chapter: ${id}`);
+    }
+
+    const rewriter = new Rewriter();
+    const content = await rewriter.rewriteDraft(chapter.draftPath, {
+      chapterId: id,
+      strategy: options.strategy,
+      lengthPolicy: options.lengthPolicy,
+      goals: options.goal,
+      preserveFacts: true,
+      preserveHooks: true,
+      preserveEndingBeat: true,
+    });
+
+    console.log(JSON.stringify({ chapterId: id, draftPath: chapter.draftPath, contentLength: content.length }, null, 2));
   });
 
 program.parseAsync(process.argv);
