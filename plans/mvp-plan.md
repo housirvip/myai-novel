@@ -4,9 +4,9 @@
 
 - 形态：本地单用户命令行工具
 - 技术栈：Node.js + TypeScript
-- 存储：数据库持久化，支持 MySQL 与 SQLite
+- 存储：数据库持久化，第一版默认 SQLite，后续再扩展 MySQL
 - 模型：第一版只接入一个大模型供应商
-- 目标：优先跑通从设定到生成、自审、优化、状态更新、钩子续埋、记忆沉淀的完整闭环
+- 目标：优先跑通从设定录入、章节规划、正文生成、自审、定向重写、确认发布到最小状态更新的完整闭环
 
 ## 2. MVP 功能范围
 
@@ -19,34 +19,40 @@
    - 核心人物设定
    - 地点设定
    - 势力设定
-   - 支持设定单章目标字数
-2. 世界状态追踪
+   - 支持设定全书默认单章目标字数
+2. 核心状态追踪
    - 主角当前位置
-   - 角色持有物品
    - 关键事件进展
+   - 当前活跃钩子
 3. 钩子管理
    - 已埋钩子
    - 待回收钩子
    - 新钩子建议
 4. 自动写作链路
-   - 基于当前章节目标生成正文
-   - 支持章节重写
+   - 先生成章节计划包，再基于计划包生成正文
    - 写后自审
-   - 自动优化改写
+   - 定向重写
+   - 人工确认后发布终稿
 5. 记忆机制
    - 短期记忆：最近章节上下文
-   - 长期记忆：稳定设定、事实、角色关系、已发生事件
+   - 轻量长期记忆：稳定设定、关键事实、已发生事件
 6. 写后更新
-   - 更新章节结果
-   - 更新状态与物品
-   - 更新钩子状态
-   - 生成后续伏笔建议
+    - 更新章节结果
+    - 更新核心状态
+    - 更新钩子状态
+    - 沉淀记忆条目
+    - 生成后续伏笔建议
 
 ### 第一版暂不做
 
 - 多用户
 - 云端同步
 - 图形界面
+- MySQL 支持
+- 跨章节回滚后自动向下重放
+- 完整物品审计与全局唯一性校验闭环
+- 深度长期记忆去重与优先级调度
+- 运维型 admin/debug 子命令
 - 多模型切换
 - 自动插画
 - 自动发布平台对接
@@ -54,11 +60,24 @@
 
 ## 3. 核心领域模型
 
+类型分层约定：
+
+1. Entity：数据库真源类型，只表达稳定字段与主写入入口
+2. View：面向查询、上下文组装与 CLI 展示的派生视图
+3. Contract：面向工作流输入输出、章节处理和模型交互的流程契约
+
 ### 3.1 Book
 
 单小说项目根对象，统一承载全书级配置，包括默认单章目标字数。
 
 ```ts
+type ModelConfig = {
+  provider: string
+  modelName: string
+  temperature?: number
+  maxTokens?: number
+}
+
 /**
  * 书籍根配置。
  * 负责描述整本书的元信息、默认章节字数规则与模型配置。
@@ -160,10 +179,16 @@ type Chapter = {
   plannedBeats: string[]
   /** 当前处理状态 */
   status: 'planned' | 'drafted' | 'reviewed' | 'finalized'
+  /** 当前确认的计划包版本 ID */
+  currentPlanVersionId?: string
+  /** 当前终稿版本 ID */
+  currentVersionId?: string
   /** 草稿文件路径 */
   draftPath?: string
   /** 最终稿文件路径 */
   finalPath?: string
+  /** 终稿确认时间 */
+  approvedAt?: string
 }
 ```
 
@@ -171,24 +196,42 @@ type Chapter = {
 
 ```ts
 /**
- * 角色信息。
- * 记录角色身份、动机、关系、当前位置、持有物、势力归属与当前成长体系。
+ * 角色实体。
+ * 聚合角色静态设定、关系与当前状态。
  */
 type Character = {
   /** 角色唯一标识 */
   id: string
+  /** 角色静态设定 */
+  profile: CharacterProfile
+  /** 角色关系集合 */
+  relationships: CharacterRelation[]
+  /** 角色当前状态 */
+  currentState: CharacterCurrentState
+}
+
+/**
+ * 角色静态设定。
+ * 描述较少随章节变化的基础信息。
+ */
+type CharacterProfile = {
   /** 角色名 */
   name: string
   /** 角色定位，例如主角、反派、导师 */
   role: string
   /** 角色简介 */
-  profile: string
+  summary: string
   /** 角色核心动机 */
   motivation: string
   /** 角色秘密或隐藏信息 */
   secrets: string[]
-  /** 角色关系集合 */
-  relationships: CharacterRelation[]
+}
+
+/**
+ * 角色当前状态。
+ * 记录会随着章节推进变化的信息。
+ */
+type CharacterCurrentState = {
   /** 当前持有物品 */
   inventory: ItemRef[]
   /** 当前所在地点 ID */
@@ -199,6 +242,17 @@ type Character = {
   progression: CharacterProgression
   /** 角色阶段状态补充 */
   statusNotes: string[]
+}
+
+/**
+ * 角色关系定义。
+ * 用于表达角色之间的稳定关系与当前关系状态。
+ */
+type CharacterRelation = {
+  targetCharacterId: string
+  relationType: 'ally' | 'enemy' | 'family' | 'mentor' | 'lover' | 'subordinate' | 'other'
+  summary: string
+  intensity?: number
 }
 ```
 
@@ -229,6 +283,8 @@ type CharacterProgression = {
   className: string
   /** 当前等级描述，例如练气一层、Lv.12、三级调查员 */
   rank: string
+  /** 便于排序和规则比较的数值等级，可选 */
+  levelValue?: number
   /** 当前能力列表 */
   abilities: CharacterAbility[]
 }
@@ -258,48 +314,71 @@ type CharacterAbility = {
 ```ts
 /**
  * 全局故事状态。
- * 记录当前推进位置、地点状态、物品状态与主线线程。
+ * 记录当前推进位置、主线线程与最近事件。
  */
 type StoryState = {
   /** 当前推进到的章节 ID */
   currentChapterId: string
   /** 当前主角 ID */
   protagonistId: string
-  /** 地点状态列表 */
-  locations: LocationState[]
-  /** 物品状态列表 */
-  itemStates: ItemState[]
   /** 当前活跃中的故事线 */
-  activeThreads: string[]
+  activeThreads: StoryThread[]
   /** 已解决的故事线 */
-  resolvedThreads: string[]
+  resolvedThreads: StoryThread[]
   /** 最近发生的重要事件 */
-  recentEvents: string[]
+  recentEvents: StoryEvent[]
+}
+
+type StoryThread = {
+  id: string
+  title: string
+  status: 'active' | 'resolved'
+  summary: string
+  relatedCharacterIds?: string[]
+  relatedHookIds?: string[]
+}
+
+type StoryEvent = {
+  id: string
+  chapterId: string
+  summary: string
+  tags: string[]
 }
 ```
 
 ```ts
 /**
- * 角色持有物引用。
- * 用于记录角色当前拥有的具体物品信息。
+ * 物品实体。
+ * 描述相对稳定的基础定义。
  */
-type ItemRef = {
+type Item = {
   /** 物品唯一标识 */
   id: string
-  /** 物品名称，例如灵石、照妖镜 */
+  /** 物品名称 */
   name: string
-  /** 数量值，例如 10000、1 */
-  quantity: number
   /** 数量单位，例如颗、个、把、枚 */
   unit: string
   /** 物品类型，例如法宝、货币、丹药、材料 */
   type: string
   /** 是否为全世界唯一 */
   isUniqueWorldwide: boolean
-  /** 当前状态，例如完好、破损、封印中、已认主 */
-  status: string
   /** 扩展描述，例如来历、能力、外观、限制 */
   description?: string
+}
+
+/**
+ * 角色持有物视图。
+ * 用于记录角色当前拥有的物品及其状态。
+ */
+type ItemRef = {
+  /** 物品 ID */
+  itemId: string
+  /** 展示名称快照，便于上下文直接使用 */
+  name: string
+  /** 数量值，例如 10000、1 */
+  quantity: number
+  /** 当前状态，例如完好、破损、封印中、已认主 */
+  status: string
 }
 
 /**
@@ -307,26 +386,16 @@ type ItemRef = {
  * 用于从世界状态角度追踪关键物品的归属、位置与变化。
  */
 type ItemState = {
-  /** 物品唯一标识 */
-  id: string
-  /** 物品名称 */
-  name: string
+  /** 物品 ID */
+  itemId: string
   /** 当前数量 */
   quantity: number
-  /** 数量单位 */
-  unit: string
-  /** 物品类型 */
-  type: string
-  /** 是否为全世界唯一 */
-  isUniqueWorldwide: boolean
   /** 当前持有角色 ID，可选 */
   ownerCharacterId?: string
   /** 当前所在地点 ID，可选 */
   locationId?: string
   /** 当前状态 */
   status: string
-  /** 扩展描述 */
-  description?: string
 }
 ```
 
@@ -348,8 +417,6 @@ type Location = {
   parentRegion?: string
   /** 当前控制该地点的势力 ID，可选 */
   controllingFactionId?: string
-  /** 当前位于该地点的关键角色 ID */
-  residentCharacterIds?: string[]
   /** 地点描述 */
   description: string
   /** 地点规则、禁忌或特殊机制 */
@@ -358,6 +425,11 @@ type Location = {
   status: string
   /** 与剧情相关的重要标签 */
   tags: string[]
+}
+
+type LocationView = Location & {
+  /** 当前位于该地点的关键角色 ID，派生字段 */
+  residentCharacterIds: string[]
 }
 ```
 
@@ -381,8 +453,6 @@ type Faction = {
   description: string
   /** 关键成员或核心人物 ID */
   keyCharacterIds: string[]
-  /** 势力内的角色职务映射 */
-  memberRoles?: FactionMemberRole[]
   /** 主要据点或控制地点 ID */
   locationIds: string[]
   /** 盟友势力 ID */
@@ -391,6 +461,11 @@ type Faction = {
   rivalFactionIds: string[]
   /** 当前势力状态，例如扩张、衰落、潜伏 */
   status: string
+}
+
+type FactionView = Faction & {
+  /** 势力内的角色职务映射，派生字段 */
+  memberRoles: FactionMemberRole[]
 }
 ```
 
@@ -425,6 +500,8 @@ type Hook = {
   description: string
   /** 预期回收方式或效果 */
   payoffExpectation: string
+  /** 预期回收章节或窗口，可选 */
+  expectedPayoffChapterId?: string
   /** 优先级 */
   priority: 'low' | 'medium' | 'high'
   /** 当前状态 */
@@ -456,6 +533,12 @@ type MemoryEntry = {
   lastUsedAt?: string
 }
 ```
+
+重要度建议：
+
+1. [`MemoryEntry.importance`](plans/mvp-plan.md:458) 建议约束在 `1` 到 `5`
+2. `1` 表示低价值背景补充，`5` 表示不可违背的核心事实
+3. 召回阶段优先注入 `4` 与 `5` 的记忆条目
 
 ## 4. 数据目录规划
 
@@ -489,10 +572,11 @@ project/
 1. 所有核心数据以数据库为唯一真相源，不再使用 JSON 文件持久化业务数据
 2. 数据库只维护一套“当前主线状态”，不再引入快照树或时间线分支机制
 3. SQLite 模式下数据落在 [`data/novel.sqlite`](plans/mvp-plan.md)
-4. MySQL 模式下数据落在用户指定数据库中，本地项目目录只保留配置、日志与已完成章节文件
-5. 当前状态表始终代表“此刻主线真相”
-6. 章节重写通过“回滚到目标章节前状态 + 重新向下推进”实现，但数据库中只保留一条当前主线
-7. 若需要追溯历史，依赖章节计划、草稿、审查、重写记录与审计日志，而不是依赖快照树
+4. 第一版只实现 SQLite，本地项目目录保留配置、日志与已完成章节文件
+5. MySQL 模式留待后续版本扩展，业务层提前保持仓储抽象
+6. 当前状态表始终代表“此刻主线真相”
+7. 第一版章节重写仅作用于当前处理章节，不实现跨章节回滚与整链重放
+8. 若需要追溯历史，依赖章节计划、草稿、审查、重写记录与审计日志，而不是依赖快照树
 
 ## 5. 核心工作流
 
@@ -593,21 +677,19 @@ flowchart TD
 
 completed-chapters 命名规则建议：
 
-1. 文件名格式为 `<三位章节序号>-<章节名>.md`
+1. 文件名格式为 `<四位章节序号>-<章节名>.md`
 2. 例如 `0001-文明余烬.md`、`0002-避难所初醒.md`
-3. 文件名格式为 `<四位章节序号>-<章节名>.md`
-4. 章节序号保证排序稳定，章节名保证人工可读
-5. 若章节名包含文件系统不安全字符，落盘前应自动清洗
+3. 章节序号保证排序稳定，章节名保证人工可读
+4. 若章节名包含文件系统不安全字符，落盘前应自动清洗
 
-### 5.5 章节回滚重写规则
+### 5.5 首版章节重写规则
 
-1. 假设当前已推进到第 10 章，数据库中的主线状态已包含第 1 到第 10 章的累计结果
-2. 若用户决定重写第 3 章，则系统先定位“第 2 章完成后”的可恢复状态基线
-3. 系统将当前主线状态回滚到该基线
-4. 原先第 3 章到第 10 章的最终正文、计划包、审查、重写记录保留为历史版本，不物理删除
-5. 然后重新生成第 3 章，并从该点继续生成第 4 章到后续章节
-6. 回滚后的主线只有一条，不引入新的时间线 ID
-7. 对外始终只暴露当前主线的章节序列与当前状态
+1. 第一版只支持重写当前正在处理的章节，不支持跨章节回滚后自动向下重放
+2. `rewrite` 基于当前章节的计划包、草稿与审查报告生成候选版本
+3. 候选版本在 `approve` 前不写入当前主线状态
+4. 当前章节的草稿、审查、重写记录保留为历史版本，不物理删除
+5. `approve` 后以最新确认版本覆盖该章节终稿，并提交该章节对应的状态更新
+6. 如需重写历史已完成章节，留待后续版本实现专门回滚链路
 
 ### 5.6 状态建模建议
 
@@ -615,9 +697,6 @@ completed-chapters 命名规则建议：
    - `books`、`outlines`、`volumes`、`chapters`、`locations`、`factions` 等低频变化实体优先走主表
 2. 当前状态表
    - `character_current_state`
-   - `location_current_state`
-   - `faction_current_state`
-   - `item_current_state`
    - `hook_current_state`
    - `story_current_state`
    - `short_term_memory_current`
@@ -628,12 +707,11 @@ completed-chapters 命名规则建议：
    - `chapter_reviews`
    - `chapter_rewrites`
    - `chapter_outputs`
-4. 状态回滚表
-   - `chapter_state_deltas`
-   - `chapter_memory_deltas`
-   - `chapter_hook_deltas`
-5. 第一版通过“章节增量变更 + 当前状态表”支持回滚和重放
-6. 对高频读取视图，可在 SQLite/MySQL 上通过缓存视图优化
+4. 审计与版本表
+   - `chapter_versions`
+   - `audit_logs`
+5. 第一版以“当前状态表 + 章节过程表 + 版本记录”支撑主流程，不实现完整章节重放机制
+6. 对高频读取视图，可在后续版本通过缓存视图优化
 
 ## 6. 短期记忆与长期记忆设计
 
@@ -652,12 +730,13 @@ completed-chapters 命名规则建议：
  * 保存最近几章的摘要、事件与临时约束，保障续写连贯性。
  */
 type ShortTermMemory = {
-  /** 纳入短期记忆的最近章节 ID */
-  recentChapterIds: string[]
-  /** 最近章节摘要 */
-  summaries: string[]
+  /** 纳入短期记忆的最近章节摘要 */
+  recentChapters: Array<{
+    chapterId: string
+    summary: string
+  }>
   /** 最近关键事件 */
-  recentEvents: string[]
+  recentEvents: StoryEvent[]
   /** 仅在短期内有效的临时约束 */
   temporaryConstraints: string[]
 }
@@ -680,7 +759,7 @@ type ShortTermMemory = {
 
 角色能力追踪建议：
 
-1. 角色职业变化、等级变化或能力变化应在章节完成后写入 [`characters.json`](plans/mvp-plan.md)
+1. 角色职业变化、等级变化或能力变化应在章节完成后写入数据库当前状态表与相关章节记录
 2. 新能力获取、旧能力失效、能力强化都应同步进入长期记忆
 3. 写作上下文中应优先注入与当前章节冲突、战斗、解谜相关的角色能力
 4. 自审阶段检查能力使用是否越级、遗忘或前后矛盾
@@ -702,8 +781,9 @@ type ShortTermMemory = {
 2. [`Faction.memberRoles`](plans/mvp-plan.md) 作为可重建视图或派生缓存，不作为主写入入口
 3. [`Character.currentLocationId`](plans/mvp-plan.md) 作为角色位置真源
 4. [`Location.residentCharacterIds`](plans/mvp-plan.md) 作为派生视图，可由角色位置聚合生成
-5. [`ItemState`](plans/mvp-plan.md) 作为关键物品全局审计真源，负责唯一性与归属校验
-6. [`ItemRef`](plans/mvp-plan.md) 作为角色库存视图，写入时需与 [`ItemState`](plans/mvp-plan.md) 同步校验
+5. [`LocationView.residentCharacterIds`](plans/mvp-plan.md) 作为派生视图，可由角色位置聚合生成
+6. [`ItemState`](plans/mvp-plan.md) 作为关键物品全局审计真源，负责唯一性与归属校验
+7. [`ItemRef`](plans/mvp-plan.md) 作为角色库存视图，写入时需与 [`ItemState`](plans/mvp-plan.md) 同步校验
 
 ## 7. 命令行模块设计
 
@@ -721,8 +801,9 @@ novel faction add
 novel hook add
 novel plan chapter <id>
 novel write next
-novel chapter rewrite <id>
 novel review chapter <id>
+novel chapter rewrite <id>
+novel chapter approve <id>
 ```
 
 CLI 精简原则：
@@ -731,33 +812,47 @@ CLI 精简原则：
 2. 将低频运维命令从默认 CLI 中移除，例如历史比对、数据库诊断等运维命令
 3. 将可由主命令自动触发的能力移出显式命令，例如 `db migrate`、`memory rebuild`、`state show`
 4. `optimize` 与 `rewrite` 语义重叠，第一版保留 `rewrite`，去掉 `optimize`
-5. 若后续进入多人协作或运维场景，再补充 `admin` 或 `debug` 子命令组
+5. `approve` 保留为显式命令，作为更新状态与落盘终稿的唯一入口
+6. 若后续进入多人协作或运维场景，再补充 `admin` 或 `debug` 子命令组
 
 ### 7.2 内部模块
 
 - [`src/cli`](plans/mvp-plan.md)：命令入口与参数解析
 - [`src/core/book`](plans/mvp-plan.md)：书籍配置加载与保存
-- [`src/core/state-history`](plans/mvp-plan.md)：章节级状态增量、回滚与重放
 - [`src/core/context`](plans/mvp-plan.md)：规划上下文与写作上下文组装
 - [`src/core/world`](plans/mvp-plan.md)：地点与势力管理
 - [`src/core/planning`](plans/mvp-plan.md)：章节计划包生成与校验
 - [`src/core/generation`](plans/mvp-plan.md)：基于计划包的章节生成
 - [`src/core/rewrite`](plans/mvp-plan.md)：章节重写与版本管理
 - [`src/core/review`](plans/mvp-plan.md)：自审
-- [`src/core/optimization`](plans/mvp-plan.md)：改写优化
 - [`src/core/memory`](plans/mvp-plan.md)：短期长期记忆管理
 - [`src/core/hooks`](plans/mvp-plan.md)：钩子提取与状态更新
 - [`src/core/state`](plans/mvp-plan.md)：人物位置、物品、事件状态
 - [`src/infra/llm`](plans/mvp-plan.md)：模型适配器
 - [`src/infra/db`](plans/mvp-plan.md)：数据库连接、方言适配、事务管理
 - [`src/infra/repository`](plans/mvp-plan.md)：Book、Chapter、Character 等仓储实现
-- [`src/infra/audit`](plans/mvp-plan.md)：章节变更审计与回滚日志
+- [`src/infra/audit`](plans/mvp-plan.md)：章节变更审计与版本日志
 
 ## 8. 关键接口设计
 
 ### 8.1 LLM Adapter
 
 ```ts
+type PromptInput = {
+  system?: string
+  user: string
+  context?: Record<string, unknown>
+}
+
+type GenerateResult = {
+  text: string
+  finishReason?: string
+  usage?: {
+    promptTokens: number
+    completionTokens: number
+  }
+}
+
 interface LlmAdapter {
   generateText(input: PromptInput): Promise<GenerateResult>
   generateStructured<T>(input: PromptInput, schemaName: string): Promise<T>
@@ -767,25 +862,28 @@ interface LlmAdapter {
 ### 8.2 Context Builder
 
 ```ts
-/**
- * 章节规划上下文。
- * 聚合章节计划包生成所需的输入。
- */
-interface PlanningContext {
+type ContextItem = Item & {
+  quantity?: number
+  ownerCharacterId?: string
+  locationId?: string
+  status?: string
+}
+
+interface BaseNarrativeContext {
   /** 全书大纲 */
   outline: Outline
-  /** 当前待规划章节 */
+  /** 当前章节 */
   chapter: Chapter
   /** 上一章总结 */
   previousChapterSummary?: string
   /** 当前章节相关角色 */
   relevantCharacters: Character[]
   /** 当前章节相关地点 */
-  relevantLocations: Location[]
+  relevantLocations: LocationView[]
   /** 当前章节相关势力 */
-  relevantFactions: Faction[]
+  relevantFactions: FactionView[]
   /** 当前重要物品 */
-  importantItems: Array<ItemRef | ItemState>
+  importantItems: ContextItem[]
   /** 当前需要关注的活跃钩子 */
   activeHooks: Hook[]
   /** 当前故事状态 */
@@ -794,79 +892,90 @@ interface PlanningContext {
   shortTermMemory: ShortTermMemory
   /** 召回的长期记忆 */
   longTermMemories: MemoryEntry[]
+}
+
+/**
+ * 章节规划上下文。
+ * 聚合章节计划包生成所需的输入。
+ */
+interface PlanningContext extends BaseNarrativeContext {
+  /** 当前待规划章节 */
+  chapter: Chapter
 }
 
 /**
  * 写作上下文。
  * 聚合基于章节计划包写正文所需的全部输入。
  */
-interface WritingContext {
-  /** 全书大纲 */
-  outline: Outline
+interface WritingContext extends BaseNarrativeContext {
   /** 当前待写章节 */
   chapter: Chapter
   /** 已确认的章节计划包 */
   chapterPlan: ChapterPlan
-  /** 上一章总结 */
-  previousChapterSummary?: string
-  /** 当前章节相关角色 */
-  relevantCharacters: Character[]
-  /** 当前章节相关地点 */
-  relevantLocations: Location[]
-  /** 当前章节相关势力 */
-  relevantFactions: Faction[]
-  /** 当前重要物品 */
-  importantItems: Array<ItemRef | ItemState>
-  /** 当前需要关注的活跃钩子 */
-  activeHooks: Hook[]
-  /** 当前故事状态 */
-  storyState: StoryState
-  /** 短期记忆 */
-  shortTermMemory: ShortTermMemory
-  /** 召回的长期记忆 */
-  longTermMemories: MemoryEntry[]
 }
 ```
 
-### 8.6 Chapter State Delta Contract
+### 8.3 Chapter State Update Contract
 
 ```ts
 /**
- * 章节状态增量。
- * 表示某一章对当前主线状态造成的变更集合。
+ * 章节状态更新输入。
+ * 表示某一章在确认发布时对当前主线状态造成的结构化变更集合。
  */
-type ChapterStateDelta = {
-  deltaId: string
+type ChapterStateUpdate = {
+  updateId: string
   bookId: string
   chapterId: string
   chapterIndex: number
-  stateChanges: string[]
-  memoryChanges: string[]
-  hookChanges: string[]
+  characterUpdates: CharacterStateUpdate[]
+  storyUpdates: StoryStateUpdate[]
+  hookUpdates: HookStateUpdate[]
+  memoryEntriesAdded: MemoryEntry[]
   createdAt: string
 }
 
-/**
- * 状态历史服务。
- * 负责提交章节变更、按章节回滚并从某章重新向下推进。
- */
-interface StateHistoryService {
-  commitChapterDelta(input: ChapterStateDeltaInput): Promise<ChapterStateDelta>
-  rollbackToChapter(bookId: string, chapterIndex: number): Promise<void>
-  replayFromChapter(bookId: string, chapterIndex: number): Promise<void>
+type CharacterStateUpdate = {
+  characterId: string
+  currentLocationId?: string
+  factionMemberships?: CharacterFactionMembership[]
+  progression?: CharacterProgression
+  inventory?: ItemRef[]
+  statusNotes?: string[]
 }
 
-type ChapterStateDeltaInput = {
+type StoryStateUpdate = {
+  currentChapterId?: string
+  activeThreads?: StoryThread[]
+  resolvedThreads?: StoryThread[]
+  recentEventsAdded?: StoryEvent[]
+}
+
+type HookStateUpdate = {
+  hookId: string
+  status: Hook['status']
+  note?: string
+}
+
+/**
+ * 状态更新服务。
+ * 负责在章节确认后提交当前状态、记忆与钩子变更。
+ */
+interface StateUpdateService {
+  commitChapterUpdate(input: ChapterStateUpdateInput): Promise<ChapterStateUpdate>
+}
+
+type ChapterStateUpdateInput = {
   bookId: string
   chapterId: string
   chapterIndex: number
-  stateChanges: string[]
-  memoryChanges: string[]
-  hookChanges: string[]
+  characterUpdates: CharacterStateUpdate[]
+  storyUpdates: StoryStateUpdate[]
+  hookUpdates: HookStateUpdate[]
+  memoryEntriesAdded: MemoryEntry[]
 }
 ```
 
-### 8.3 Chapter Plan Contract
+### 8.4 Chapter Plan Contract
 
 ```ts
 /**
@@ -876,6 +985,8 @@ type ChapterStateDeltaInput = {
 type ChapterPlan = {
   /** 目标章节 ID */
   chapterId: string
+  /** 计划包版本 ID */
+  versionId: string
   /** 本章核心推进目标 */
   objective: string
   /** 本章场景拆分 */
@@ -896,6 +1007,10 @@ type ChapterPlan = {
   statePredictions: string[]
   /** 记忆沉淀候选 */
   memoryCandidates: string[]
+  /** 计划生成时间 */
+  createdAt: string
+  /** 是否已被人工确认 */
+  approvedByUser: boolean
 }
 
 /**
@@ -905,7 +1020,7 @@ type ChapterPlan = {
 type SceneCard = {
   title: string
   purpose: string
-  beat: string[]
+  beats: string[]
   characterIds: string[]
   locationId?: string
   factionIds: string[]
@@ -923,12 +1038,12 @@ type HookPlan = {
 }
 ```
 
-### 8.4 Write Next Output
+### 8.5 Write Next Output
 
 ```ts
 type WriteNextResult = {
   chapterId: string
-  chapterStatus: 'reviewed'
+  chapterStatus: 'drafted'
   planningSummary: {
     objective: string
     sceneCount: number
@@ -939,8 +1054,8 @@ type WriteNextResult = {
     hookTitles: string[]
   }
   draftPath: string
-  reviewReport: ReviewReport
-  nextAction: 'approve' | 'rewrite'
+  actualWordCount: number
+  nextAction: 'review'
 }
 ```
 
@@ -962,7 +1077,7 @@ type WriteNextResult = {
 5. 若首次修正后仍超阈值，可再执行一次定向修正，但最多限制重试次数，避免无限循环
 6. 最终审查报告中输出目标字数、实际字数、偏差比例、是否达标
 
-### 8.5 Review Output
+### 8.6 Review Output
 
 ```ts
 /**
@@ -970,6 +1085,8 @@ type WriteNextResult = {
  * 汇总一致性、角色、节奏、钩子与字数检查结果。
  */
 type ReviewReport = {
+  /** 审查结论 */
+  decision: 'pass' | 'warning' | 'needs-rewrite'
   /** 设定一致性问题 */
   consistencyIssues: string[]
   /** 角色行为或动机问题 */
@@ -996,7 +1113,7 @@ type ReviewReport = {
 }
 ```
 
-### 8.6 Rewrite Input
+### 8.7 Rewrite Input
 
 ```ts
 /**
@@ -1008,6 +1125,8 @@ type RewriteRequest = {
   chapterId: string
   /** 重写策略，整体或局部 */
   strategy: 'full' | 'partial'
+  /** 定向重写关注点 */
+  focus?: Array<'dialogue' | 'pacing' | 'length' | 'conflict' | 'consistency'>
   /** 长度修正策略 */
   lengthPolicy?: 'keep' | 'expand-to-target' | 'shrink-to-target'
   /** 本次重写目标列表 */
@@ -1029,16 +1148,18 @@ type RewriteRequest = {
 4. 重写后再次执行一致性检查，并重新比对章节计划包
 5. `rewrite` 只更新候选版本，不直接提交最终状态
 
-### 8.7 Approve Contract
+### 8.8 Approve Contract
 
 ```ts
 type ApproveResult = {
   chapterId: string
-  chapterStatus: 'approved' | 'finalized'
+  chapterStatus: 'finalized'
+  versionId: string
   finalPath: string
   stateUpdated: boolean
   memoryUpdated: boolean
   hooksUpdated: boolean
+  approvedAt: string
 }
 ```
 
@@ -1046,64 +1167,59 @@ approve 规则建议：
 
 1. `approve` 只能作用于 `reviewed` 状态章节
 2. `approve` 会把当前草稿或当前重写结果视为确认版本
-3. `approve` 才真正触发状态更新、记忆更新、钩子推进、终稿输出
+3. `approve` 才真正触发状态更新、记忆更新、钩子推进、终稿输出，并将章节状态更新为 `finalized`
 4. 若用户先执行 `rewrite`，则 `approve` 基于最新重写版本生效
 5. 若 review 存在问题但用户仍确认，系统应保留人工确认记录
 
 数据库支持建议：
 
 1. SQLite 作为默认本地单机模式，零配置启动快，便于 MVP 落地
-2. MySQL 作为进阶模式，便于后续多人、远程部署与更大规模数据
+2. MySQL 作为后续扩展模式，在接口层提前保留方言抽象
 3. 在应用层统一仓储接口，避免业务层感知具体数据库方言
-4. `chapter_index` 作为章节级回滚与重放的主轴
+4. `chapter_index` 作为章节处理顺序与审计追溯主轴
 5. 通过迁移系统管理表结构，而不是依赖手工建表
-6. SQLite 模式优先采用“事务提交 + 章节增量重放”
-7. MySQL 模式可在后续引入只读视图、物化表或分区优化查询性能
+6. SQLite 模式优先采用“事务提交 + 当前状态表更新 + 章节版本留档”
+7. MySQL 模式可在后续版本引入只读视图、物化表或分区优化查询性能
 
 迁移策略建议：
 
 1. 初始化时执行 `db migrate` 创建基础表结构
-2. SQLite 使用本地文件数据库，MySQL 使用连接串
+2. SQLite 使用本地文件数据库；MySQL 连接串配置留待后续版本启用
 3. 若未来已有原型文件数据，可提供一次性迁移脚本写入数据库
 4. 第一版不提供导入导出能力，后续如有强需求再单独设计
 5. 所有章节状态变更提交必须走事务，避免出现“章节终稿已写入但状态未更新”的半完成状态
-6. 对章节完成后的提交记录建议增加审计日志，便于回放与排错
-7. 当回滚重写某章时，先回退当前状态到目标章节前，再按新结果向下重放
+6. 对章节完成后的提交记录增加审计日志与版本记录，便于排错与追溯
+7. 跨章节回滚与整链重放留待后续版本单独设计
 
 ## 9. 推荐实施顺序
 
 1. 初始化 TypeScript CLI 工程
-2. 建立数据库连接层、迁移系统与项目目录结构
+2. 建立 SQLite 连接层、迁移系统与项目目录结构
 3. 实现基础实体仓储与事务封装
 4. 实现书籍初始化与设定录入命令
-5. 实现当前状态表初始化与章节级状态增量提交机制
-6. 实现全书默认章节字数配置、偏差阈值与长度校验
-7. 实现章节规划上下文组装器
-8. 实现章节计划包生成与计划校验
-9. 实现基于计划包的章节生成
-10. 实现自审与定向重写链路
-11. 实现按章节回滚与从指定章重新向下推进的机制
-12. 实现状态更新、钩子更新、记忆更新
-13. 实现基于章节增量的历史重放与差异比对
-14. 增加数据库审计日志、计划包版本与可追溯性输出
+5. 实现全书默认章节字数配置、偏差阈值与长度校验
+6. 实现章节规划上下文组装器
+7. 实现章节计划包生成与计划校验
+8. 实现基于计划包的章节生成
+9. 实现自审、定向重写与 `approve` 主链路
+10. 实现核心状态更新、钩子更新、短期记忆更新
+11. 增加章节版本记录、审计日志与终稿导出
+12. 在后续版本再扩展 MySQL、历史回滚重放与高级记忆策略
 
 ## 10. MVP 验收标准
 
 1. 可以创建一个书籍项目
-2. 初始化后全部基础数据写入数据库，并建立当前主线状态
+2. 初始化后全部基础数据写入 SQLite，并建立当前主线状态
 3. 可以录入大纲、卷章、角色、地点、势力、钩子
 4. 角色支持记录所在位置、多个所属势力及各自职务，以及对象形式的职业、等级与能力，并可在章节推进后更新
 5. 可以在书籍级设置默认单章目标字数与偏差阈值，并在生成时作为约束使用
 6. 可以先为指定章节生成章节计划包，并可人工检查或修改后再写正文
 7. 可以指定当前章节并基于章节计划包自动生成草稿
 8. 可以对草稿执行包含字数检查和计划一致性检查的自审
-9. 可以对指定章节执行定向重写，并保留版本记录
-10. 每写完一章都会在数据库事务中提交该章对应的状态增量
-11. 物品支持记录名称、数量、单位、类型、唯一性、状态与扩展描述，并在章节推进后更新
-12. 可以在写完后更新主角位置、物品、事件状态
-13. 可以沉淀短期记忆与长期记忆
-14. 可以为下一章生成后续钩子建议
-15. 可以从第 N 章回滚到第 M-1 章状态，重写第 M 章，并从该点重新向下推进
-16. 回滚重写后，旧章节过程记录仍保留，但当前主线状态会被新结果覆盖
-17. 可以按章节增量日志重建任意时点的章节状态视图
-18. 全部数据可通过 MySQL 或 SQLite 持久化并再次读取
+9. 可以对当前处理章节执行定向重写，并保留版本记录
+10. `approve` 后会在数据库事务中提交该章对应的核心状态、记忆与钩子更新
+11. 可以在写完后更新主角位置、关键事件与活跃钩子状态
+12. 可以沉淀短期记忆与轻量长期记忆
+13. 可以为下一章生成后续钩子建议
+14. 最终确认后的章节正文会输出到 [`completed-chapters/`](plans/mvp-plan.md) 目录
+15. 全部数据可通过 SQLite 持久化并再次读取
