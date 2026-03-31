@@ -4,7 +4,7 @@
 
 - 形态：本地单用户命令行工具
 - 技术栈：Node.js + TypeScript
-- 存储：本地 JSON 文件
+- 存储：数据库持久化，支持 MySQL 与 SQLite
 - 模型：第一版只接入一个大模型供应商
 - 目标：优先跑通从设定到生成、自审、优化、状态更新、钩子续埋、记忆沉淀的完整闭环
 
@@ -41,11 +41,6 @@
    - 更新状态与物品
    - 更新钩子状态
    - 生成后续伏笔建议
-7. Markdown 双向导入导出
-   - 支持单个 JSON 数据文件导出为 Markdown
-   - 支持单个 Markdown 文件回导为 JSON
-   - 支持项目全部数据一键导出为 Markdown
-   - 支持项目全部 Markdown 一键导入回 JSON
 
 ### 第一版暂不做
 
@@ -466,24 +461,12 @@ type MemoryEntry = {
 
 ```text
 project/
-  book.json
-  outline.json
-  volumes.json
-  chapters.json
-  characters.json
-  locations.json
-  factions.json
-  hooks.json
-  state.json
-  memory/
-    short-term.json
-    long-term.json
-  drafts/
-    chapter-001.draft.md
-  reviews/
-    chapter-001.review.json
-  outputs/
-    chapter-001.final.md
+  config/
+    database.json
+  data/
+    novel.sqlite
+  completed-chapters/
+    0001-章节名.md
   exports/
     markdown/
       book.md
@@ -501,42 +484,83 @@ project/
     runs.jsonl
 ```
 
+数据库与 snapshot 规则建议：
+
+1. 所有核心数据以数据库为唯一真相源，不再使用 JSON 文件持久化业务数据
+2. `snapshot` 改为数据库中的快照版本号，例如 `snapshot_index`
+3. 初始化项目时生成 `snapshot_index = 0`，表示第 0 章前的初始世界状态
+4. 每次完成一个章节闭环时，在数据库中生成新的 `snapshot_index = N`
+5. `snapshot_index = N` 永远表示“第 N 章完成后”的项目真相
+6. SQLite 模式下数据落在 [`data/novel.sqlite`](plans/mvp-plan.md)
+7. MySQL 模式下数据落在用户指定数据库中，本地项目目录只保留配置、日志与已完成章节文件
+
 ## 5. 核心工作流
 
-### 5.1 写作主流程
+### 5.1 双阶段写作主流程
 
 ```mermaid
 flowchart TD
-  A[读取项目数据] --> B[装配章节写作上下文]
-  B --> C[提取短期记忆]
-  B --> D[召回长期记忆]
-  C --> E[生成章节草稿]
-  D --> E
-  E --> F[执行自审]
-  F --> G[执行优化改写]
-  G --> H[更新状态]
-  H --> I[更新记忆]
-  I --> J[生成后续钩子建议]
-  J --> K[保存 JSON 产物]
-  K --> L[按需导出 Markdown]
+  A[读取项目数据] --> B[构建章节规划上下文]
+  B --> C[生成章节计划包]
+  C --> D[校验计划一致性]
+  D --> E[确认计划包]
+  E --> F[构建正文写作包]
+  F --> G[生成章节草稿]
+  G --> H[执行正文自审]
+  H --> I[生成定向重写指令]
+  I --> J[执行定向重写]
+  J --> K[终稿确认]
+  K --> L[更新状态]
+  L --> M[更新记忆]
+  M --> N[推进钩子]
+  N --> O[保存数据库产物]
 ```
 
-### 5.2 各阶段职责
+### 5.2 阶段一：章节规划
 
-1. 装配上下文
+目标：在真正写正文之前，先产出一份可审查、可重用、可回退的章节计划包。
+
+1. 规划输入
    - 当前章节目标
    - 当前章节目标字数
-   - 上一章摘要
-   - 相关角色与地点
-   - 相关势力
-   - 活跃钩子
+   - 上一章总结
+   - 当前活跃冲突
+   - 当前可用角色、地点、势力、重要物品
+   - 当前活跃钩子与待回收钩子
+   - 当前短期记忆与高优先级长期记忆
+2. 规划输出
+   - 本章核心推进目标
+   - 本章必须出现的人物、地点、势力、物品
+   - 本章事件顺序
+   - 本章场景拆分
+   - 本章钩子推进点与禁止触碰点
+   - 本章状态变化预测
+   - 本章记忆沉淀候选
+3. 规划校验
+   - 是否推进至少一条核心冲突
+   - 是否承接上一章结尾
+   - 是否调用了不该出场的人物或物品
+   - 是否提前回收不该回收的钩子
+   - 是否与当前地点、势力、状态冲突
+
+### 5.3 阶段二：正文写作
+
+目标：严格基于章节计划包写正文，而不是直接从全局设定裸写。
+
+1. 写作输入
+   - 已确认的章节计划包
+   - 上一章总结
+   - 本章相关人物、地点、势力、重要物品
+   - 当前活跃钩子
    - 风格约束
-2. 生成草稿
-   - 输出章节正文
-   - 控制章节长度接近目标字数
-   - 输出本章事件列表
-   - 输出可能新增的设定变化
+   - 字数目标与偏差阈值
+2. 写作输出
+   - 章节正文
+   - 本章实际事件列表
+   - 本章新增或变更设定候选
+   - 本章钩子推进结果
 3. 自审
+   - 检查正文是否忠实执行章节计划包
    - 检查设定冲突
    - 检查角色行为合理性
    - 检查角色职业、等级与能力使用是否匹配
@@ -545,14 +569,45 @@ flowchart TD
    - 检查关键物品的数量、唯一性与归属是否一致
    - 检查钩子承接
    - 检查文风与节奏
-4. 优化
-   - 根据审查意见重写
-   - 保留核心事件不漂移
-5. 更新
-   - 写入最终正文
-   - 更新状态
-   - 更新记忆
-   - 更新钩子
+   - 检查字数是否达标
+4. 定向重写
+   - 根据自审报告生成重写指令，而不是整章盲重写
+   - 支持只改节奏、只改对白、只改长度、只改冲突强度
+   - 保留章节计划包定义的核心事件、结尾推进点、钩子约束
+
+### 5.4 写后更新
+
+1. 状态更新
+   - 更新人物位置、所属势力、职业等级、能力变化
+   - 更新地点状态、势力状态、物品状态
+2. 记忆更新
+   - 先提炼候选记忆
+   - 再按规则筛选进入短期记忆与长期记忆
+3. 钩子更新
+   - 标记本章已推进钩子
+   - 标记本章已回收钩子
+   - 生成后续待埋钩子建议
+4. 产物更新
+   - 从上一个 snapshot 复制生成下一个 snapshot
+   - 保存章节计划包、草稿、自审报告、重写记录、终稿到当前 snapshot 根目录
+   - 将最终确认后的章节正文额外输出到 [`completed-chapters/`](plans/mvp-plan.md) 目录，便于统一阅读
+
+completed-chapters 命名规则建议：
+
+1. 文件名格式为 `<三位章节序号>-<章节名>.md`
+2. 例如 `0001-文明余烬.md`、`0002-避难所初醒.md`
+3. 文件名格式为 `<四位章节序号>-<章节名>.md`
+4. 章节序号保证排序稳定，章节名保证人工可读
+5. 若章节名包含文件系统不安全字符，落盘前应自动清洗
+
+### 5.5 Snapshot 推进规则
+
+1. 第 0 章前，数据库中存在 `snapshot_index = 0` 的初始记录集
+2. 写第 N 章时，读取 `snapshot_index = N-1` 作为输入真相
+3. 章节计划包、草稿、自审、重写过程可先生成中间产物，再决定是否提交数据库
+4. 当第 N 章终稿确认后，数据库中写入 `snapshot_index = N` 的新记录集或变更集
+5. 然后将第 N 章终稿额外输出到 [`completed-chapters/`](plans/mvp-plan.md)
+6. 若第 N 章失败或放弃，不生成新的 snapshot，旧 snapshot 保持不变
 
 ## 6. 短期记忆与长期记忆设计
 
@@ -560,7 +615,7 @@ flowchart TD
 
 - 来源：最近 N 章正文摘要、最近事件、最近状态变化
 - 用途：保障续写连贯性
-- 形式：[`memory/short-term.json`](plans/mvp-plan.md)
+- 形式：[`snapshots/N/short-term.json`](plans/mvp-plan.md)
 - 更新时机：每章完成后重算
 
 建议结构：
@@ -587,7 +642,7 @@ type ShortTermMemory = {
 - 来源：稳定世界设定、角色关系、关键事件、不可违背事实、写作风格规则
 - 重点覆盖：人物、地点、势力、规则、历史事件
 - 用途：保障长期一致性
-- 形式：[`memory/long-term.json`](plans/mvp-plan.md)
+- 形式：[`snapshots/N/long-term.json`](plans/mvp-plan.md)
 - 更新方式：每章完成后由 LLM 提炼候选，再由规则去重合并
 
 建议策略：
@@ -638,34 +693,38 @@ novel character add
 novel location add
 novel faction add
 novel hook add
+novel plan chapter <id>
 novel write next
 novel chapter rewrite <id>
 novel review chapter <id>
-novel optimize chapter <id>
-novel state show
-novel memory rebuild
-novel export markdown [target]
-novel import markdown [target]
-novel backup list
-novel backup restore <backupId> [target]
 ```
+
+CLI 精简原则：
+
+1. 第一版只保留高频主链路命令：初始化、设定录入、章节规划、正文生成、自审、重写
+2. 将低频运维命令从默认 CLI 中移除，例如 `snapshot list`、`snapshot diff`、`db doctor`
+3. 将可由主命令自动触发的能力移出显式命令，例如 `db migrate`、`memory rebuild`、`state show`
+4. `optimize` 与 `rewrite` 语义重叠，第一版保留 `rewrite`，去掉 `optimize`
+5. 若后续进入多人协作或运维场景，再补充 `admin` 或 `debug` 子命令组
 
 ### 7.2 内部模块
 
 - [`src/cli`](plans/mvp-plan.md)：命令入口与参数解析
 - [`src/core/book`](plans/mvp-plan.md)：书籍配置加载与保存
-- [`src/core/context`](plans/mvp-plan.md)：上下文组装
+- [`src/core/snapshot`](plans/mvp-plan.md)：章节级 snapshot 创建、加载、复制与比对
+- [`src/core/context`](plans/mvp-plan.md)：规划上下文与写作上下文组装
 - [`src/core/world`](plans/mvp-plan.md)：地点与势力管理
-- [`src/core/generation`](plans/mvp-plan.md)：章节生成
+- [`src/core/planning`](plans/mvp-plan.md)：章节计划包生成与校验
+- [`src/core/generation`](plans/mvp-plan.md)：基于计划包的章节生成
 - [`src/core/rewrite`](plans/mvp-plan.md)：章节重写与版本管理
 - [`src/core/review`](plans/mvp-plan.md)：自审
 - [`src/core/optimization`](plans/mvp-plan.md)：改写优化
 - [`src/core/memory`](plans/mvp-plan.md)：短期长期记忆管理
 - [`src/core/hooks`](plans/mvp-plan.md)：钩子提取与状态更新
 - [`src/core/state`](plans/mvp-plan.md)：人物位置、物品、事件状态
-- [`src/core/markdown-sync`](plans/mvp-plan.md)：JSON 与 Markdown 双向转换
 - [`src/infra/llm`](plans/mvp-plan.md)：模型适配器
-- [`src/infra/storage`](plans/mvp-plan.md)：JSON 文件读写
+- [`src/infra/db`](plans/mvp-plan.md)：数据库连接、方言适配、事务管理
+- [`src/infra/repository`](plans/mvp-plan.md)：Book、Chapter、Character 等仓储实现
 
 ## 8. 关键接口设计
 
@@ -682,20 +741,26 @@ interface LlmAdapter {
 
 ```ts
 /**
- * 写作上下文。
- * 聚合当前章节生成所需的全部输入。
+ * 章节规划上下文。
+ * 聚合章节计划包生成所需的输入。
  */
-interface WritingContext {
+interface PlanningContext {
+  /** 当前 snapshot 序号 */
+  snapshotIndex: number
   /** 全书大纲 */
   outline: Outline
-  /** 当前待写章节 */
+  /** 当前待规划章节 */
   chapter: Chapter
+  /** 上一章总结 */
+  previousChapterSummary?: string
   /** 当前章节相关角色 */
   relevantCharacters: Character[]
   /** 当前章节相关地点 */
   relevantLocations: Location[]
   /** 当前章节相关势力 */
   relevantFactions: Faction[]
+  /** 当前重要物品 */
+  importantItems: Array<ItemRef | ItemState>
   /** 当前需要关注的活跃钩子 */
   activeHooks: Hook[]
   /** 当前故事状态 */
@@ -704,6 +769,96 @@ interface WritingContext {
   shortTermMemory: ShortTermMemory
   /** 召回的长期记忆 */
   longTermMemories: MemoryEntry[]
+}
+
+/**
+ * 写作上下文。
+ * 聚合基于章节计划包写正文所需的全部输入。
+ */
+interface WritingContext {
+  /** 当前 snapshot 序号 */
+  snapshotIndex: number
+  /** 全书大纲 */
+  outline: Outline
+  /** 当前待写章节 */
+  chapter: Chapter
+  /** 已确认的章节计划包 */
+  chapterPlan: ChapterPlan
+  /** 上一章总结 */
+  previousChapterSummary?: string
+  /** 当前章节相关角色 */
+  relevantCharacters: Character[]
+  /** 当前章节相关地点 */
+  relevantLocations: Location[]
+  /** 当前章节相关势力 */
+  relevantFactions: Faction[]
+  /** 当前重要物品 */
+  importantItems: Array<ItemRef | ItemState>
+  /** 当前需要关注的活跃钩子 */
+  activeHooks: Hook[]
+  /** 当前故事状态 */
+  storyState: StoryState
+  /** 短期记忆 */
+  shortTermMemory: ShortTermMemory
+  /** 召回的长期记忆 */
+  longTermMemories: MemoryEntry[]
+}
+```
+
+### 8.3 Chapter Plan Contract
+
+```ts
+/**
+ * 章节计划包。
+ * 作为规划阶段与正文阶段之间的桥梁产物。
+ */
+type ChapterPlan = {
+  /** 目标章节 ID */
+  chapterId: string
+  /** 本章核心推进目标 */
+  objective: string
+  /** 本章场景拆分 */
+  sceneCards: SceneCard[]
+  /** 必须出场的人物 ID */
+  requiredCharacterIds: string[]
+  /** 必须出场的地点 ID */
+  requiredLocationIds: string[]
+  /** 必须涉及的势力 ID */
+  requiredFactionIds: string[]
+  /** 必须涉及的重要物品 ID */
+  requiredItemIds: string[]
+  /** 本章事件顺序 */
+  eventOutline: string[]
+  /** 钩子推进计划 */
+  hookPlan: HookPlan[]
+  /** 预测的状态变化 */
+  statePredictions: string[]
+  /** 记忆沉淀候选 */
+  memoryCandidates: string[]
+}
+
+/**
+ * 场景卡。
+ * 用于约束正文写作时的场景目的和出场资源。
+ */
+type SceneCard = {
+  title: string
+  purpose: string
+  beat: string[]
+  characterIds: string[]
+  locationId?: string
+  factionIds: string[]
+  itemIds: string[]
+}
+
+/**
+ * 钩子推进计划。
+ * 用于定义本章应推进、埋设或禁止触碰的钩子。
+ */
+type HookPlan = {
+  hookId: string
+  action: 'hold' | 'foreshadow' | 'advance' | 'payoff'
+  note: string
 }
 ```
 
@@ -725,7 +880,7 @@ interface WritingContext {
 5. 若首次修正后仍超阈值，可再执行一次定向修正，但最多限制重试次数，避免无限循环
 6. 最终审查报告中输出目标字数、实际字数、偏差比例、是否达标
 
-### 8.3 Review Output
+### 8.4 Review Output
 
 ```ts
 /**
@@ -759,7 +914,7 @@ type ReviewReport = {
 }
 ```
 
-### 8.4 Rewrite Input
+### 8.5 Rewrite Input
 
 ```ts
 /**
@@ -787,170 +942,55 @@ type RewriteRequest = {
 重写机制建议：
 
 1. 保留原章节版本快照
-2. 允许基于审查报告发起重写
+2. 允许基于审查报告与章节计划包联合发起重写
 3. 允许用户指定重写目标，比如节奏更快、冲突更强、对话更多
-4. 重写后再次执行一致性检查
+4. 重写后再次执行一致性检查，并重新比对章节计划包
 5. 通过后再覆盖当前最终版本，并同步更新状态、记忆、钩子
 
-### 8.5 Markdown Sync Contract
+数据库支持建议：
 
-```ts
-/**
- * Markdown 同步目标。
- * 表示单文件或全量导入导出的作用范围。
- */
-type MarkdownSyncTarget =
-  | 'book'
-  | 'outline'
-  | 'volumes'
-  | 'chapters'
-  | 'characters'
-  | 'locations'
-  | 'factions'
-  | 'hooks'
-  | 'state'
-  | 'short-term-memory'
-  | 'long-term-memory'
-  | 'all'
+1. SQLite 作为默认本地单机模式，零配置启动快，便于 MVP 落地
+2. MySQL 作为进阶模式，便于后续多人、远程部署与更大规模数据
+3. 在应用层统一仓储接口，避免业务层感知具体数据库方言
+4. `snapshot_index` 作为所有核心表的版本维度之一，支持章节级状态追溯
+5. 通过迁移系统管理表结构，而不是依赖手工建表
 
-/**
- * Markdown 同步服务。
- * 负责 JSON 与 Markdown 之间的双向转换。
- */
-interface MarkdownSyncService {
-  /** 将指定目标导出为 Markdown */
-  exportToMarkdown(target: MarkdownSyncTarget): Promise<void>
-  /** 从 Markdown 导入并覆盖对应 JSON */
-  importFromMarkdown(target: MarkdownSyncTarget): Promise<void>
-}
-```
+迁移策略建议：
 
-### 8.6 Backup Restore Contract
-
-```ts
-/**
- * 备份清单。
- * 描述一次导入前自动备份的元数据与结果。
- */
-type BackupManifest = {
-  /** 备份批次 ID */
-  backupId: string
-  /** 创建时间 */
-  createdAt: string
-  /** 触发来源 */
-  trigger: 'import-markdown'
-  /** 本次作用目标 */
-  target: MarkdownSyncTarget
-  /** 触发导入的源 Markdown 文件 */
-  sourceFiles: string[]
-  /** 已备份的 JSON 文件 */
-  backedUpFiles: string[]
-  /** 恢复提示 */
-  restoreHint: string
-  /** 备份后续导入结果 */
-  result: 'success' | 'partial-failed' | 'failed'
-  /** 错误列表 */
-  errors: string[]
-}
-
-/**
- * 备份服务。
- * 负责列出历史备份并按批次或目标恢复。
- */
-interface BackupService {
-  /** 列出全部备份 */
-  listBackups(): Promise<BackupManifest[]>
-  /** 按备份批次恢复，可选仅恢复指定目标 */
-  restoreBackup(backupId: string, target?: MarkdownSyncTarget): Promise<void>
-}
-```
-
-设计约束：
-
-1. Markdown 文件要保持稳定模板，便于人工编辑
-2. 每个字段使用明确标题与代码块或表格表达，避免解析歧义
-3. 导入时先做结构校验，再写回 JSON
-4. Markdown 导入默认覆盖原有 JSON
-5. 覆盖前必须将原 JSON 备份到 [`backup/`](plans/mvp-plan.md) 目录
-6. 全量导入导出本质是逐文件批处理，并输出成功与失败清单
-7. 导入失败时不得覆盖原 JSON，应保留备份并输出错误报告
-8. [`book.md`](plans/mvp-plan.md) 与 `book` target 对应 [`book.json`](plans/mvp-plan.md)
-9. [`characters.md`](plans/mvp-plan.md) 必须覆盖 [`Character`](plans/mvp-plan.md)、[`CharacterProgression`](plans/mvp-plan.md)、[`CharacterFactionMembership`](plans/mvp-plan.md) 与 [`ItemRef`](plans/mvp-plan.md)
-10. [`state.md`](plans/mvp-plan.md) 必须覆盖 [`StoryState`](plans/mvp-plan.md) 与 [`ItemState`](plans/mvp-plan.md)
-
-备份目录建议：
-
-```text
-project/
-  backup/
-    import-2026-03-30T13-30-00Z/
-      manifest.json
-      data/
-        book.json
-        outline.json
-        volumes.json
-        chapters.json
-        characters.json
-        locations.json
-        factions.json
-        hooks.json
-        state.json
-        short-term.json
-        long-term.json
-```
-
-backup 命名规则建议：
-
-1. 目录名格式为 `import-<UTC 时间戳>`
-2. 时间戳使用文件系统安全格式，例如 `2026-03-30T13-30-00Z`
-3. 每次导入动作只创建一个 backup 目录，便于回滚整个批次
-4. [`manifest.json`](plans/mvp-plan.md) 记录本次导入的目标、源 Markdown 文件、备份文件列表、导入结果、失败原因
-5. 如果同一秒发生重复导入，可在目录名后追加递增后缀，例如 `import-2026-03-30T13-30-00Z-2`
-
-恢复命令设计：
-
-1. [`novel backup list`](plans/mvp-plan.md)
-   - 列出所有 backup 批次
-   - 展示 backupId、创建时间、触发来源、结果状态
-2. [`novel backup restore <backupId>`](plans/mvp-plan.md)
-   - 将该批次备份文件整体恢复到当前项目 JSON
-   - 恢复前再次创建一份当前状态 backup，避免二次误操作
-3. [`novel backup restore <backupId> [target]`](plans/mvp-plan.md)
-   - 只恢复某一个目标文件，例如 `outline` 或 `characters`
-4. 恢复后输出恢复清单与覆盖结果
-5. 如果目标文件缺失或 backupId 不存在，命令直接失败，不做覆盖
+1. 初始化时执行 `db migrate` 创建基础表结构
+2. SQLite 使用本地文件数据库，MySQL 使用连接串
+3. 若未来已有原型文件数据，可提供一次性迁移脚本写入数据库
+4. 第一版不提供导入导出能力，后续如有强需求再单独设计
 
 ## 9. 推荐实施顺序
 
 1. 初始化 TypeScript CLI 工程
-2. 建立 JSON 存储层与项目目录结构
-3. 实现基础实体读写
+2. 建立数据库连接层、迁移系统与项目目录结构
+3. 实现基础实体仓储与事务封装
 4. 实现书籍初始化与设定录入命令
-5. 实现全书默认章节字数配置、偏差阈值与长度校验
-6. 实现 Markdown 单文件与全量导入导出
-7. 实现 backup 清单、恢复命令与导入前自动备份
-8. 实现上下文组装器
-9. 实现章节生成
-10. 实现章节重写与版本快照机制
-11. 实现自审与优化链路
-12. 实现状态更新、钩子更新、记忆更新
-13. 增加日志与可追溯性输出
+5. 实现 snapshot/0 初始化与章节级 snapshot 版本机制
+6. 实现全书默认章节字数配置、偏差阈值与长度校验
+7. 实现章节规划上下文组装器
+8. 实现章节计划包生成与计划校验
+9. 实现基于计划包的章节生成
+10. 实现自审与定向重写链路
+11. 实现状态更新、钩子更新、记忆更新
+12. 增加 snapshot diff、数据库审计日志、计划包版本与可追溯性输出
 
 ## 10. MVP 验收标准
 
 1. 可以创建一个书籍项目
-2. 可以录入大纲、卷章、角色、地点、势力、钩子
-3. 角色支持记录所在位置、多个所属势力及各自职务，以及对象形式的职业、等级与能力，并可在章节推进后更新
-4. 可以在书籍级设置默认单章目标字数与偏差阈值，并在生成时作为约束使用
-5. 可以指定当前章节并自动生成草稿
-6. 可以对草稿执行包含字数检查的自审与优化
-7. 可以对指定章节执行重写，并保留版本记录
-8. 物品支持记录名称、数量、单位、类型、唯一性、状态与扩展描述，并在章节推进后更新
-9. 可以将任意核心 JSON 文件单独导出为 Markdown，并支持单独导入回 JSON
-10. 可以执行项目级全部数据一键导出 Markdown 与一键导入 JSON
-11. Markdown 导入覆盖前会自动创建 backup 批次，并生成可追溯 [`manifest.json`](plans/mvp-plan.md)
-12. 可以通过 [`novel backup list`](plans/mvp-plan.md) 与 [`novel backup restore <backupId>`](plans/mvp-plan.md) 执行查看和恢复
-13. 可以在写完后更新主角位置、物品、事件状态
-14. 可以沉淀短期记忆与长期记忆
-15. 可以为下一章生成后续钩子建议
-16. 全部数据可通过本地 JSON 持久化并再次读取
+2. 初始化后全部基础数据写入数据库，并存在 `snapshot_index = 0` 的初始快照
+3. 可以录入大纲、卷章、角色、地点、势力、钩子
+4. 角色支持记录所在位置、多个所属势力及各自职务，以及对象形式的职业、等级与能力，并可在章节推进后更新
+5. 可以在书籍级设置默认单章目标字数与偏差阈值，并在生成时作为约束使用
+6. 可以先为指定章节生成章节计划包，并可人工检查或修改后再写正文
+7. 可以指定当前章节并基于章节计划包自动生成草稿
+8. 可以对草稿执行包含字数检查和计划一致性检查的自审
+9. 可以对指定章节执行定向重写，并保留版本记录
+10. 每写完一章都会在数据库中生成新的 `snapshot_index = N`
+11. 物品支持记录名称、数量、单位、类型、唯一性、状态与扩展描述，并在章节推进后更新
+12. 可以在写完后更新主角位置、物品、事件状态
+13. 可以沉淀短期记忆与长期记忆
+14. 可以为下一章生成后续钩子建议
+15. 全部数据可通过 MySQL 或 SQLite 持久化并再次读取
