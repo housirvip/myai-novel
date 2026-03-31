@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.log
 tmp/
+.tmp-smoke/
 *.tsbuildinfo
 .qoder
 package-lock.json
