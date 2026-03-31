@@ -484,15 +484,15 @@ project/
     runs.jsonl
 ```
 
-数据库与 snapshot 规则建议：
+数据库状态规则建议：
 
 1. 所有核心数据以数据库为唯一真相源，不再使用 JSON 文件持久化业务数据
-2. `snapshot` 改为数据库中的快照版本号，例如 `snapshot_index`
-3. 初始化项目时生成 `snapshot_index = 0`，表示第 0 章前的初始世界状态
-4. 每次完成一个章节闭环时，在数据库中生成新的 `snapshot_index = N`
-5. `snapshot_index = N` 永远表示“第 N 章完成后”的项目真相
-6. SQLite 模式下数据落在 [`data/novel.sqlite`](plans/mvp-plan.md)
-7. MySQL 模式下数据落在用户指定数据库中，本地项目目录只保留配置、日志与已完成章节文件
+2. 数据库只维护一套“当前主线状态”，不再引入快照树或时间线分支机制
+3. SQLite 模式下数据落在 [`data/novel.sqlite`](plans/mvp-plan.md)
+4. MySQL 模式下数据落在用户指定数据库中，本地项目目录只保留配置、日志与已完成章节文件
+5. 当前状态表始终代表“此刻主线真相”
+6. 章节重写通过“回滚到目标章节前状态 + 重新向下推进”实现，但数据库中只保留一条当前主线
+7. 若需要追溯历史，依赖章节计划、草稿、审查、重写记录与审计日志，而不是依赖快照树
 
 ## 5. 核心工作流
 
@@ -588,8 +588,7 @@ flowchart TD
    - 标记本章已回收钩子
    - 生成后续待埋钩子建议
 4. 产物更新
-   - 从上一个 snapshot 复制生成下一个 snapshot
-   - 保存章节计划包、草稿、自审报告、重写记录、终稿到当前 snapshot 根目录
+   - 在一个数据库事务里提交本章引起的状态变化、记忆变化、钩子变化与正文产物
    - 将最终确认后的章节正文额外输出到 [`completed-chapters/`](plans/mvp-plan.md) 目录，便于统一阅读
 
 completed-chapters 命名规则建议：
@@ -600,14 +599,41 @@ completed-chapters 命名规则建议：
 4. 章节序号保证排序稳定，章节名保证人工可读
 5. 若章节名包含文件系统不安全字符，落盘前应自动清洗
 
-### 5.5 Snapshot 推进规则
+### 5.5 章节回滚重写规则
 
-1. 第 0 章前，数据库中存在 `snapshot_index = 0` 的初始记录集
-2. 写第 N 章时，读取 `snapshot_index = N-1` 作为输入真相
-3. 章节计划包、草稿、自审、重写过程可先生成中间产物，再决定是否提交数据库
-4. 当第 N 章终稿确认后，数据库中写入 `snapshot_index = N` 的新记录集或变更集
-5. 然后将第 N 章终稿额外输出到 [`completed-chapters/`](plans/mvp-plan.md)
-6. 若第 N 章失败或放弃，不生成新的 snapshot，旧 snapshot 保持不变
+1. 假设当前已推进到第 10 章，数据库中的主线状态已包含第 1 到第 10 章的累计结果
+2. 若用户决定重写第 3 章，则系统先定位“第 2 章完成后”的可恢复状态基线
+3. 系统将当前主线状态回滚到该基线
+4. 原先第 3 章到第 10 章的最终正文、计划包、审查、重写记录保留为历史版本，不物理删除
+5. 然后重新生成第 3 章，并从该点继续生成第 4 章到后续章节
+6. 回滚后的主线只有一条，不引入新的时间线 ID
+7. 对外始终只暴露当前主线的章节序列与当前状态
+
+### 5.6 状态建模建议
+
+1. 主数据表
+   - `books`、`outlines`、`volumes`、`chapters`、`locations`、`factions` 等低频变化实体优先走主表
+2. 当前状态表
+   - `character_current_state`
+   - `location_current_state`
+   - `faction_current_state`
+   - `item_current_state`
+   - `hook_current_state`
+   - `story_current_state`
+   - `short_term_memory_current`
+   - `long_term_memory_current`
+3. 章节过程表
+   - `chapter_plans`
+   - `chapter_drafts`
+   - `chapter_reviews`
+   - `chapter_rewrites`
+   - `chapter_outputs`
+4. 状态回滚表
+   - `chapter_state_deltas`
+   - `chapter_memory_deltas`
+   - `chapter_hook_deltas`
+5. 第一版通过“章节增量变更 + 当前状态表”支持回滚和重放
+6. 对高频读取视图，可在 SQLite/MySQL 上通过缓存视图优化
 
 ## 6. 短期记忆与长期记忆设计
 
@@ -615,7 +641,7 @@ completed-chapters 命名规则建议：
 
 - 来源：最近 N 章正文摘要、最近事件、最近状态变化
 - 用途：保障续写连贯性
-- 形式：[`snapshots/N/short-term.json`](plans/mvp-plan.md)
+- 形式：数据库中的 `short_term_memory_current`
 - 更新时机：每章完成后重算
 
 建议结构：
@@ -642,7 +668,7 @@ type ShortTermMemory = {
 - 来源：稳定世界设定、角色关系、关键事件、不可违背事实、写作风格规则
 - 重点覆盖：人物、地点、势力、规则、历史事件
 - 用途：保障长期一致性
-- 形式：[`snapshots/N/long-term.json`](plans/mvp-plan.md)
+- 形式：数据库中的 `long_term_memory_current`
 - 更新方式：每章完成后由 LLM 提炼候选，再由规则去重合并
 
 建议策略：
@@ -702,7 +728,7 @@ novel review chapter <id>
 CLI 精简原则：
 
 1. 第一版只保留高频主链路命令：初始化、设定录入、章节规划、正文生成、自审、重写
-2. 将低频运维命令从默认 CLI 中移除，例如 `snapshot list`、`snapshot diff`、`db doctor`
+2. 将低频运维命令从默认 CLI 中移除，例如历史比对、数据库诊断等运维命令
 3. 将可由主命令自动触发的能力移出显式命令，例如 `db migrate`、`memory rebuild`、`state show`
 4. `optimize` 与 `rewrite` 语义重叠，第一版保留 `rewrite`，去掉 `optimize`
 5. 若后续进入多人协作或运维场景，再补充 `admin` 或 `debug` 子命令组
@@ -711,7 +737,7 @@ CLI 精简原则：
 
 - [`src/cli`](plans/mvp-plan.md)：命令入口与参数解析
 - [`src/core/book`](plans/mvp-plan.md)：书籍配置加载与保存
-- [`src/core/snapshot`](plans/mvp-plan.md)：章节级 snapshot 创建、加载、复制与比对
+- [`src/core/state-history`](plans/mvp-plan.md)：章节级状态增量、回滚与重放
 - [`src/core/context`](plans/mvp-plan.md)：规划上下文与写作上下文组装
 - [`src/core/world`](plans/mvp-plan.md)：地点与势力管理
 - [`src/core/planning`](plans/mvp-plan.md)：章节计划包生成与校验
@@ -725,6 +751,7 @@ CLI 精简原则：
 - [`src/infra/llm`](plans/mvp-plan.md)：模型适配器
 - [`src/infra/db`](plans/mvp-plan.md)：数据库连接、方言适配、事务管理
 - [`src/infra/repository`](plans/mvp-plan.md)：Book、Chapter、Character 等仓储实现
+- [`src/infra/audit`](plans/mvp-plan.md)：章节变更审计与回滚日志
 
 ## 8. 关键接口设计
 
@@ -745,8 +772,6 @@ interface LlmAdapter {
  * 聚合章节计划包生成所需的输入。
  */
 interface PlanningContext {
-  /** 当前 snapshot 序号 */
-  snapshotIndex: number
   /** 全书大纲 */
   outline: Outline
   /** 当前待规划章节 */
@@ -776,8 +801,6 @@ interface PlanningContext {
  * 聚合基于章节计划包写正文所需的全部输入。
  */
 interface WritingContext {
-  /** 当前 snapshot 序号 */
-  snapshotIndex: number
   /** 全书大纲 */
   outline: Outline
   /** 当前待写章节 */
@@ -802,6 +825,44 @@ interface WritingContext {
   shortTermMemory: ShortTermMemory
   /** 召回的长期记忆 */
   longTermMemories: MemoryEntry[]
+}
+```
+
+### 8.6 Chapter State Delta Contract
+
+```ts
+/**
+ * 章节状态增量。
+ * 表示某一章对当前主线状态造成的变更集合。
+ */
+type ChapterStateDelta = {
+  deltaId: string
+  bookId: string
+  chapterId: string
+  chapterIndex: number
+  stateChanges: string[]
+  memoryChanges: string[]
+  hookChanges: string[]
+  createdAt: string
+}
+
+/**
+ * 状态历史服务。
+ * 负责提交章节变更、按章节回滚并从某章重新向下推进。
+ */
+interface StateHistoryService {
+  commitChapterDelta(input: ChapterStateDeltaInput): Promise<ChapterStateDelta>
+  rollbackToChapter(bookId: string, chapterIndex: number): Promise<void>
+  replayFromChapter(bookId: string, chapterIndex: number): Promise<void>
+}
+
+type ChapterStateDeltaInput = {
+  bookId: string
+  chapterId: string
+  chapterIndex: number
+  stateChanges: string[]
+  memoryChanges: string[]
+  hookChanges: string[]
 }
 ```
 
@@ -862,6 +923,27 @@ type HookPlan = {
 }
 ```
 
+### 8.4 Write Next Output
+
+```ts
+type WriteNextResult = {
+  chapterId: string
+  chapterStatus: 'reviewed'
+  planningSummary: {
+    objective: string
+    sceneCount: number
+    keyEvents: string[]
+    characterNames: string[]
+    locationNames: string[]
+    factionNames: string[]
+    hookTitles: string[]
+  }
+  draftPath: string
+  reviewReport: ReviewReport
+  nextAction: 'approve' | 'rewrite'
+}
+```
+
 章节字数约束建议：
 
 1. [`Book.defaultChapterWordCount`](plans/mvp-plan.md) 作为生成阶段的默认硬约束输入
@@ -880,7 +962,7 @@ type HookPlan = {
 5. 若首次修正后仍超阈值，可再执行一次定向修正，但最多限制重试次数，避免无限循环
 6. 最终审查报告中输出目标字数、实际字数、偏差比例、是否达标
 
-### 8.4 Review Output
+### 8.5 Review Output
 
 ```ts
 /**
@@ -914,7 +996,7 @@ type ReviewReport = {
 }
 ```
 
-### 8.5 Rewrite Input
+### 8.6 Rewrite Input
 
 ```ts
 /**
@@ -945,15 +1027,38 @@ type RewriteRequest = {
 2. 允许基于审查报告与章节计划包联合发起重写
 3. 允许用户指定重写目标，比如节奏更快、冲突更强、对话更多
 4. 重写后再次执行一致性检查，并重新比对章节计划包
-5. 通过后再覆盖当前最终版本，并同步更新状态、记忆、钩子
+5. `rewrite` 只更新候选版本，不直接提交最终状态
+
+### 8.7 Approve Contract
+
+```ts
+type ApproveResult = {
+  chapterId: string
+  chapterStatus: 'approved' | 'finalized'
+  finalPath: string
+  stateUpdated: boolean
+  memoryUpdated: boolean
+  hooksUpdated: boolean
+}
+```
+
+approve 规则建议：
+
+1. `approve` 只能作用于 `reviewed` 状态章节
+2. `approve` 会把当前草稿或当前重写结果视为确认版本
+3. `approve` 才真正触发状态更新、记忆更新、钩子推进、终稿输出
+4. 若用户先执行 `rewrite`，则 `approve` 基于最新重写版本生效
+5. 若 review 存在问题但用户仍确认，系统应保留人工确认记录
 
 数据库支持建议：
 
 1. SQLite 作为默认本地单机模式，零配置启动快，便于 MVP 落地
 2. MySQL 作为进阶模式，便于后续多人、远程部署与更大规模数据
 3. 在应用层统一仓储接口，避免业务层感知具体数据库方言
-4. `snapshot_index` 作为所有核心表的版本维度之一，支持章节级状态追溯
+4. `chapter_index` 作为章节级回滚与重放的主轴
 5. 通过迁移系统管理表结构，而不是依赖手工建表
+6. SQLite 模式优先采用“事务提交 + 章节增量重放”
+7. MySQL 模式可在后续引入只读视图、物化表或分区优化查询性能
 
 迁移策略建议：
 
@@ -961,6 +1066,9 @@ type RewriteRequest = {
 2. SQLite 使用本地文件数据库，MySQL 使用连接串
 3. 若未来已有原型文件数据，可提供一次性迁移脚本写入数据库
 4. 第一版不提供导入导出能力，后续如有强需求再单独设计
+5. 所有章节状态变更提交必须走事务，避免出现“章节终稿已写入但状态未更新”的半完成状态
+6. 对章节完成后的提交记录建议增加审计日志，便于回放与排错
+7. 当回滚重写某章时，先回退当前状态到目标章节前，再按新结果向下重放
 
 ## 9. 推荐实施顺序
 
@@ -968,19 +1076,21 @@ type RewriteRequest = {
 2. 建立数据库连接层、迁移系统与项目目录结构
 3. 实现基础实体仓储与事务封装
 4. 实现书籍初始化与设定录入命令
-5. 实现 snapshot/0 初始化与章节级 snapshot 版本机制
+5. 实现当前状态表初始化与章节级状态增量提交机制
 6. 实现全书默认章节字数配置、偏差阈值与长度校验
 7. 实现章节规划上下文组装器
 8. 实现章节计划包生成与计划校验
 9. 实现基于计划包的章节生成
 10. 实现自审与定向重写链路
-11. 实现状态更新、钩子更新、记忆更新
-12. 增加 snapshot diff、数据库审计日志、计划包版本与可追溯性输出
+11. 实现按章节回滚与从指定章重新向下推进的机制
+12. 实现状态更新、钩子更新、记忆更新
+13. 实现基于章节增量的历史重放与差异比对
+14. 增加数据库审计日志、计划包版本与可追溯性输出
 
 ## 10. MVP 验收标准
 
 1. 可以创建一个书籍项目
-2. 初始化后全部基础数据写入数据库，并存在 `snapshot_index = 0` 的初始快照
+2. 初始化后全部基础数据写入数据库，并建立当前主线状态
 3. 可以录入大纲、卷章、角色、地点、势力、钩子
 4. 角色支持记录所在位置、多个所属势力及各自职务，以及对象形式的职业、等级与能力，并可在章节推进后更新
 5. 可以在书籍级设置默认单章目标字数与偏差阈值，并在生成时作为约束使用
@@ -988,9 +1098,12 @@ type RewriteRequest = {
 7. 可以指定当前章节并基于章节计划包自动生成草稿
 8. 可以对草稿执行包含字数检查和计划一致性检查的自审
 9. 可以对指定章节执行定向重写，并保留版本记录
-10. 每写完一章都会在数据库中生成新的 `snapshot_index = N`
+10. 每写完一章都会在数据库事务中提交该章对应的状态增量
 11. 物品支持记录名称、数量、单位、类型、唯一性、状态与扩展描述，并在章节推进后更新
 12. 可以在写完后更新主角位置、物品、事件状态
 13. 可以沉淀短期记忆与长期记忆
 14. 可以为下一章生成后续钩子建议
-15. 全部数据可通过 MySQL 或 SQLite 持久化并再次读取
+15. 可以从第 N 章回滚到第 M-1 章状态，重写第 M 章，并从该点重新向下推进
+16. 回滚重写后，旧章节过程记录仍保留，但当前主线状态会被新结果覆盖
+17. 可以按章节增量日志重建任意时点的章节状态视图
+18. 全部数据可通过 MySQL 或 SQLite 持久化并再次读取
