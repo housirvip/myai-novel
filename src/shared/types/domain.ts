@@ -60,6 +60,78 @@ export type Chapter = {
   updatedAt: IsoTimestamp
 }
 
+export type Character = {
+  id: string
+  bookId: string
+  name: string
+  role: string
+  profile: string
+  motivation: string
+  createdAt: IsoTimestamp
+  updatedAt: IsoTimestamp
+}
+
+export type Location = {
+  id: string
+  bookId: string
+  name: string
+  type: string
+  description: string
+  createdAt: IsoTimestamp
+  updatedAt: IsoTimestamp
+}
+
+export type Faction = {
+  id: string
+  bookId: string
+  name: string
+  type: string
+  objective: string
+  description: string
+  createdAt: IsoTimestamp
+  updatedAt: IsoTimestamp
+}
+
+export type Hook = {
+  id: string
+  bookId: string
+  title: string
+  sourceChapterId?: string
+  description: string
+  payoffExpectation: string
+  priority: 'low' | 'medium' | 'high'
+  status: 'open' | 'foreshadowed' | 'payoff-planned' | 'resolved'
+  createdAt: IsoTimestamp
+  updatedAt: IsoTimestamp
+}
+
+export type HookCurrentState = {
+  bookId: string
+  hookId: string
+  status: Hook['status']
+  updatedAt: IsoTimestamp
+}
+
+export type ShortTermMemory = {
+  bookId: string
+  chapterId: string
+  summaries: string[]
+  recentEvents: string[]
+  updatedAt: IsoTimestamp
+}
+
+export type LongTermMemoryEntry = {
+  summary: string
+  importance: number
+}
+
+export type LongTermMemory = {
+  bookId: string
+  chapterId: string
+  entries: LongTermMemoryEntry[]
+  updatedAt: IsoTimestamp
+}
+
 export type SceneCard = {
   title: string
   purpose: string

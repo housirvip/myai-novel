@@ -66,6 +66,56 @@ export const migrations = [
         UNIQUE (book_id, chapter_index)
       );
 
+      CREATE TABLE IF NOT EXISTS characters (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        profile TEXT NOT NULL,
+        motivation TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS locations (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        description TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS factions (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        objective TEXT NOT NULL,
+        description TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS hooks (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        source_chapter_id TEXT,
+        description TEXT NOT NULL,
+        payoff_expectation TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL
+      );
+
       CREATE TABLE IF NOT EXISTS chapter_plans (
         id TEXT PRIMARY KEY,
         book_id TEXT NOT NULL,
@@ -160,6 +210,35 @@ export const migrations = [
         updated_at TEXT NOT NULL,
         FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
         FOREIGN KEY (current_chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS hook_current_state (
+        book_id TEXT NOT NULL,
+        hook_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (book_id, hook_id),
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (hook_id) REFERENCES hooks(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS short_term_memory_current (
+        book_id TEXT PRIMARY KEY,
+        chapter_id TEXT NOT NULL,
+        summaries_json TEXT NOT NULL,
+        recent_events_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS long_term_memory_current (
+        book_id TEXT PRIMARY KEY,
+        chapter_id TEXT NOT NULL,
+        entries_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
       );
     `,
   },

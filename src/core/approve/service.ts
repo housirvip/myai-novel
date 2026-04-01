@@ -14,6 +14,9 @@ import type { ChapterDraftRepository } from '../../infra/repository/chapter-draf
 import type { ChapterOutputRepository } from '../../infra/repository/chapter-output-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
+import type { HookRepository } from '../../infra/repository/hook-repository.js'
+import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
+import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import type { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
 
 type DraftSource =
@@ -29,6 +32,9 @@ export class ApproveService {
     private readonly chapterRewriteRepository: ChapterRewriteRepository,
     private readonly chapterOutputRepository: ChapterOutputRepository,
     private readonly storyStateRepository: StoryStateRepository,
+    private readonly hookRepository: HookRepository,
+    private readonly hookStateRepository: HookStateRepository,
+    private readonly memoryRepository: MemoryRepository,
   ) {}
 
   async approveChapter(chapterId: string): Promise<ApproveResult> {
@@ -76,6 +82,25 @@ export class ApproveService {
 
     this.chapterOutputRepository.create(output)
     this.storyStateRepository.upsert(state)
+    this.updateHookStates(book.id, approvedAt)
+    this.memoryRepository.upsertShortTerm({
+      bookId: book.id,
+      chapterId,
+      summaries: [`第 ${chapter.index} 章《${chapter.title}》终稿已确认`],
+      recentEvents: state.recentEvents,
+      updatedAt: approvedAt,
+    })
+    this.memoryRepository.upsertLongTerm({
+      bookId: book.id,
+      chapterId,
+      entries: [
+        {
+          summary: `第 ${chapter.index} 章《${chapter.title}》已成为当前主线正式内容`,
+          importance: 4,
+        },
+      ],
+      updatedAt: approvedAt,
+    })
     this.chapterRepository.finalizeChapter(chapterId, source.versionId, finalPath, approvedAt)
 
     return {
@@ -84,9 +109,22 @@ export class ApproveService {
       versionId: source.versionId,
       finalPath,
       stateUpdated: true,
-      memoryUpdated: false,
-      hooksUpdated: false,
+      memoryUpdated: true,
+      hooksUpdated: true,
       approvedAt,
+    }
+  }
+
+  private updateHookStates(bookId: string, updatedAt: string): void {
+    const hooks = this.hookRepository.listByBookId(bookId)
+
+    for (const hook of hooks) {
+      this.hookStateRepository.upsert({
+        bookId,
+        hookId: hook.id,
+        status: hook.status,
+        updatedAt,
+      })
     }
   }
 

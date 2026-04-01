@@ -14,12 +14,18 @@ import { openDatabase } from './infra/db/database.js'
 import { runMigrations } from './infra/db/migrate.js'
 import { createLlmAdapter } from './infra/llm/factory.js'
 import { BookRepository } from './infra/repository/book-repository.js'
+import { CharacterRepository } from './infra/repository/character-repository.js'
 import { ChapterDraftRepository } from './infra/repository/chapter-draft-repository.js'
 import { ChapterOutputRepository } from './infra/repository/chapter-output-repository.js'
 import { ChapterPlanRepository } from './infra/repository/chapter-plan-repository.js'
 import { ChapterRepository } from './infra/repository/chapter-repository.js'
 import { ChapterReviewRepository } from './infra/repository/chapter-review-repository.js'
 import { ChapterRewriteRepository } from './infra/repository/chapter-rewrite-repository.js'
+import { FactionRepository } from './infra/repository/faction-repository.js'
+import { HookRepository } from './infra/repository/hook-repository.js'
+import { HookStateRepository } from './infra/repository/hook-state-repository.js'
+import { LocationRepository } from './infra/repository/location-repository.js'
+import { MemoryRepository } from './infra/repository/memory-repository.js'
 import { OutlineRepository } from './infra/repository/outline-repository.js'
 import { StoryStateRepository } from './infra/repository/story-state-repository.js'
 import { VolumeRepository } from './infra/repository/volume-repository.js'
@@ -170,6 +176,10 @@ bookCommand
   })
 
 const volumeCommand = program.command('volume').description('Manage volumes')
+const characterCommand = program.command('character').description('Manage characters')
+const locationCommand = program.command('location').description('Manage locations')
+const factionCommand = program.command('faction').description('Manage factions')
+const hookCommand = program.command('hook').description('Manage hooks')
 
 volumeCommand
   .command('add')
@@ -185,6 +195,10 @@ volumeCommand
         new BookRepository(database),
         new VolumeRepository(database),
         new ChapterRepository(database),
+        new CharacterRepository(database),
+        new LocationRepository(database),
+        new FactionRepository(database),
+        new HookRepository(database),
       )
 
       const volume = worldService.addVolume({
@@ -217,6 +231,10 @@ chapterCommand
         new BookRepository(database),
         new VolumeRepository(database),
         new ChapterRepository(database),
+        new CharacterRepository(database),
+        new LocationRepository(database),
+        new FactionRepository(database),
+        new HookRepository(database),
       )
 
       const chapter = worldService.addChapter({
@@ -228,6 +246,124 @@ chapterCommand
       })
 
       console.log(`Chapter created: #${chapter.index} ${chapter.title} (${chapter.id})`)
+    } finally {
+      database.close()
+    }
+  })
+
+characterCommand
+  .command('add')
+  .description('Add a character')
+  .requiredOption('--name <name>', 'Character name')
+  .requiredOption('--role <role>', 'Character role')
+  .requiredOption('--profile <profile>', 'Character profile')
+  .requiredOption('--motivation <motivation>', 'Character motivation')
+  .action(async (options) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const worldService = new WorldService(
+        new BookRepository(database),
+        new VolumeRepository(database),
+        new ChapterRepository(database),
+        new CharacterRepository(database),
+        new LocationRepository(database),
+        new FactionRepository(database),
+        new HookRepository(database),
+      )
+
+      const character = worldService.addCharacter(options)
+      console.log(`Character created: ${character.name} (${character.id})`)
+    } finally {
+      database.close()
+    }
+  })
+
+locationCommand
+  .command('add')
+  .description('Add a location')
+  .requiredOption('--name <name>', 'Location name')
+  .requiredOption('--type <type>', 'Location type')
+  .requiredOption('--description <description>', 'Location description')
+  .action(async (options) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const worldService = new WorldService(
+        new BookRepository(database),
+        new VolumeRepository(database),
+        new ChapterRepository(database),
+        new CharacterRepository(database),
+        new LocationRepository(database),
+        new FactionRepository(database),
+        new HookRepository(database),
+      )
+
+      const location = worldService.addLocation(options)
+      console.log(`Location created: ${location.name} (${location.id})`)
+    } finally {
+      database.close()
+    }
+  })
+
+factionCommand
+  .command('add')
+  .description('Add a faction')
+  .requiredOption('--name <name>', 'Faction name')
+  .requiredOption('--type <type>', 'Faction type')
+  .requiredOption('--objective <objective>', 'Faction objective')
+  .requiredOption('--description <description>', 'Faction description')
+  .action(async (options) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const worldService = new WorldService(
+        new BookRepository(database),
+        new VolumeRepository(database),
+        new ChapterRepository(database),
+        new CharacterRepository(database),
+        new LocationRepository(database),
+        new FactionRepository(database),
+        new HookRepository(database),
+      )
+
+      const faction = worldService.addFaction(options)
+      console.log(`Faction created: ${faction.name} (${faction.id})`)
+    } finally {
+      database.close()
+    }
+  })
+
+hookCommand
+  .command('add')
+  .description('Add a hook')
+  .requiredOption('--title <title>', 'Hook title')
+  .requiredOption('--description <description>', 'Hook description')
+  .requiredOption('--payoff-expectation <payoffExpectation>', 'Expected payoff')
+  .option('--priority <priority>', 'Hook priority', 'medium')
+  .option('--source-chapter-id <sourceChapterId>', 'Source chapter id')
+  .action(async (options) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const worldService = new WorldService(
+        new BookRepository(database),
+        new VolumeRepository(database),
+        new ChapterRepository(database),
+        new CharacterRepository(database),
+        new LocationRepository(database),
+        new FactionRepository(database),
+        new HookRepository(database),
+      )
+
+      const hook = worldService.addHook({
+        title: options.title,
+        description: options.description,
+        payoffExpectation: options.payoffExpectation,
+        priority: options.priority,
+        sourceChapterId: options.sourceChapterId,
+      })
+      console.log(`Hook created: ${hook.title} (${hook.id})`)
     } finally {
       database.close()
     }
@@ -342,6 +478,9 @@ chapterCommand
         new ChapterRewriteRepository(database),
         new ChapterOutputRepository(database),
         new StoryStateRepository(database),
+        new HookRepository(database),
+        new HookStateRepository(database),
+        new MemoryRepository(database),
       )
 
       const result = await approveService.approveChapter(chapterId)
