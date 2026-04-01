@@ -9,3 +9,7 @@ export function formatList(title: string, items: string[]): string {
 
   return `${title}:\n${items.map((item) => `- ${item}`).join('\n')}`
 }
+
+export function formatSection(title: string, content: string): string {
+  return `${title}\n${content}`
+}

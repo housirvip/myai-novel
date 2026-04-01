@@ -24,7 +24,7 @@ import { OutlineRepository } from './infra/repository/outline-repository.js'
 import { StoryStateRepository } from './infra/repository/story-state-repository.js'
 import { VolumeRepository } from './infra/repository/volume-repository.js'
 import { NovelError, toErrorMessage } from './shared/utils/errors.js'
-import { formatJson, formatList } from './shared/utils/format.js'
+import { formatJson, formatList, formatSection } from './shared/utils/format.js'
 import {
   ensureProjectDirectories,
   readProjectConfig,
@@ -388,6 +388,31 @@ program
   })
 
 program
+  .command('plan-show')
+  .description('Show the latest plan for a chapter')
+  .argument('<chapterId>', 'Target chapter id')
+  .action(async (chapterId: string) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const plan = new ChapterPlanRepository(database).getLatestByChapterId(chapterId)
+
+      if (!plan) {
+        throw new NovelError(`No chapter plan found for chapter: ${chapterId}`)
+      }
+
+      console.log(`Plan version: ${plan.versionId}`)
+      console.log(`Objective: ${plan.objective}`)
+      console.log(formatSection('Scene cards:', formatJson(plan.sceneCards)))
+      console.log(formatSection('Event outline:', formatJson(plan.eventOutline)))
+      console.log(formatSection('State predictions:', formatJson(plan.statePredictions)))
+      console.log(formatSection('Memory candidates:', formatJson(plan.memoryCandidates)))
+    } finally {
+      database.close()
+    }
+  })
+
+program
   .command('write')
   .description('Writing commands')
   .command('next <chapterId>')
@@ -453,6 +478,58 @@ program
       console.log(`Decision: ${review.decision}`)
       console.log(`Word count passed: ${review.wordCountCheck.passed}`)
       console.log(`Revision advice: ${review.revisionAdvice.join('；')}`)
+    } finally {
+      database.close()
+    }
+  })
+
+program
+  .command('review-show')
+  .description('Show the latest review for a chapter')
+  .argument('<chapterId>', 'Target chapter id')
+  .action(async (chapterId: string) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const review = new ChapterReviewRepository(database).getLatestByChapterId(chapterId)
+
+      if (!review) {
+        throw new NovelError(`No chapter review found for chapter: ${chapterId}`)
+      }
+
+      console.log(`Review id: ${review.id}`)
+      console.log(`Decision: ${review.decision}`)
+      console.log(formatSection('Consistency issues:', formatJson(review.consistencyIssues)))
+      console.log(formatSection('Character issues:', formatJson(review.characterIssues)))
+      console.log(formatSection('Pacing issues:', formatJson(review.pacingIssues)))
+      console.log(formatSection('Hook issues:', formatJson(review.hookIssues)))
+      console.log(formatSection('Word count check:', formatJson(review.wordCountCheck)))
+      console.log(formatSection('Revision advice:', formatJson(review.revisionAdvice)))
+    } finally {
+      database.close()
+    }
+  })
+
+program
+  .command('rewrite-show')
+  .description('Show the latest rewrite candidate for a chapter')
+  .argument('<chapterId>', 'Target chapter id')
+  .action(async (chapterId: string) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const rewrite = new ChapterRewriteRepository(database).getLatestByChapterId(chapterId)
+
+      if (!rewrite) {
+        throw new NovelError(`No chapter rewrite found for chapter: ${chapterId}`)
+      }
+
+      console.log(`Rewrite id: ${rewrite.id}`)
+      console.log(`Version: ${rewrite.versionId}`)
+      console.log(`Strategy: ${rewrite.strategy}`)
+      console.log(`Word count: ${rewrite.actualWordCount}`)
+      console.log(formatSection('Goals:', formatJson(rewrite.goals)))
+      console.log(formatSection('Content preview:', rewrite.content))
     } finally {
       database.close()
     }
