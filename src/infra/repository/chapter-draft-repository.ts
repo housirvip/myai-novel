@@ -58,6 +58,14 @@ export class ChapterDraftRepository {
 
     return row ? mapDraft(row) : null
   }
+
+  getById(id: string): ChapterDraft | null {
+    const row = this.database.prepare('SELECT * FROM chapter_drafts WHERE id = ?').get(id) as
+      | ChapterDraftRow
+      | undefined
+
+    return row ? mapDraft(row) : null
+  }
 }
 
 function mapDraft(row: ChapterDraftRow): ChapterDraft {

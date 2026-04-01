@@ -1,0 +1,90 @@
+import type { ReviewReport } from '../../shared/types/domain.js'
+import type { NovelDatabase } from '../db/database.js'
+
+type ReviewRow = {
+  id: string
+  book_id: string
+  chapter_id: string
+  draft_id: string
+  decision: ReviewReport['decision']
+  consistency_issues_json: string
+  character_issues_json: string
+  pacing_issues_json: string
+  hook_issues_json: string
+  word_count_check_json: string
+  revision_advice_json: string
+  created_at: string
+}
+
+export class ChapterReviewRepository {
+  constructor(private readonly database: NovelDatabase) {}
+
+  create(review: ReviewReport): void {
+    this.database
+      .prepare(
+        `
+          INSERT INTO chapter_reviews (
+            id,
+            book_id,
+            chapter_id,
+            draft_id,
+            decision,
+            consistency_issues_json,
+            character_issues_json,
+            pacing_issues_json,
+            hook_issues_json,
+            word_count_check_json,
+            revision_advice_json,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        review.id,
+        review.bookId,
+        review.chapterId,
+        review.draftId,
+        review.decision,
+        JSON.stringify(review.consistencyIssues),
+        JSON.stringify(review.characterIssues),
+        JSON.stringify(review.pacingIssues),
+        JSON.stringify(review.hookIssues),
+        JSON.stringify(review.wordCountCheck),
+        JSON.stringify(review.revisionAdvice),
+        review.createdAt,
+      )
+  }
+
+  getLatestByChapterId(chapterId: string): ReviewReport | null {
+    const row = this.database
+      .prepare(
+        `
+          SELECT *
+          FROM chapter_reviews
+          WHERE chapter_id = ?
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+      )
+      .get(chapterId) as ReviewRow | undefined
+
+    return row ? mapReview(row) : null
+  }
+}
+
+function mapReview(row: ReviewRow): ReviewReport {
+  return {
+    id: row.id,
+    bookId: row.book_id,
+    chapterId: row.chapter_id,
+    draftId: row.draft_id,
+    decision: row.decision,
+    consistencyIssues: JSON.parse(row.consistency_issues_json) as string[],
+    characterIssues: JSON.parse(row.character_issues_json) as string[],
+    pacingIssues: JSON.parse(row.pacing_issues_json) as string[],
+    hookIssues: JSON.parse(row.hook_issues_json) as string[],
+    wordCountCheck: JSON.parse(row.word_count_check_json) as ReviewReport['wordCountCheck'],
+    revisionAdvice: JSON.parse(row.revision_advice_json) as string[],
+    createdAt: row.created_at,
+  }
+}

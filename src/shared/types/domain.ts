@@ -127,6 +127,31 @@ export type WriteNextResult = {
   nextAction: 'review'
 }
 
+export type WordCountCheck = {
+  target: number
+  actual: number
+  toleranceRatio: number
+  deviationRatio: number
+  passed: boolean
+}
+
+export type ReviewDecision = 'pass' | 'warning' | 'needs-rewrite'
+
+export type ReviewReport = {
+  id: string
+  bookId: string
+  chapterId: string
+  draftId: string
+  decision: ReviewDecision
+  consistencyIssues: string[]
+  characterIssues: string[]
+  pacingIssues: string[]
+  hookIssues: string[]
+  wordCountCheck: WordCountCheck
+  revisionAdvice: string[]
+  createdAt: IsoTimestamp
+}
+
 export type DatabaseConfig = {
   client: 'sqlite'
   filename: string

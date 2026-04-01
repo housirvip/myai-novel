@@ -116,6 +116,19 @@ export class ChapterRepository {
       )
       .run(currentVersionId, draftPath ?? null, updatedAt, chapterId)
   }
+
+  markReviewed(chapterId: string, updatedAt: string): void {
+    this.database
+      .prepare(
+        `
+          UPDATE chapters
+          SET status = 'reviewed',
+              updated_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(updatedAt, chapterId)
+  }
 }
 
 function mapChapter(row: ChapterRow): Chapter {
