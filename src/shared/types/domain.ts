@@ -212,3 +212,16 @@ export type DatabaseConfig = {
 export type ProjectConfig = {
   database: DatabaseConfig
 }
+
+export type PromptInput = {
+  system?: string
+  user: string
+}
+
+export type GenerateResult = {
+  text: string
+}
+
+export interface LlmAdapter {
+  generateText(input: PromptInput): Promise<GenerateResult>
+}

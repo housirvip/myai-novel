@@ -1,5 +1,6 @@
-import type { ReviewDecision, ReviewReport, WordCountCheck } from '../../shared/types/domain.js'
+import type { LlmAdapter, ReviewDecision, ReviewReport, WordCountCheck } from '../../shared/types/domain.js'
 import { createId } from '../../shared/utils/id.js'
+import { extractJsonObject } from '../../shared/utils/json.js'
 import { nowIso } from '../../shared/utils/time.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
 import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
@@ -15,9 +16,10 @@ export class ReviewService {
     private readonly chapterPlanRepository: ChapterPlanRepository,
     private readonly chapterDraftRepository: ChapterDraftRepository,
     private readonly chapterReviewRepository: ChapterReviewRepository,
+    private readonly llmAdapter: LlmAdapter | null,
   ) {}
 
-  reviewChapter(chapterId: string): ReviewReport {
+  async reviewChapter(chapterId: string): Promise<ReviewReport> {
     const book = this.bookRepository.getFirst()
 
     if (!book) {
@@ -50,33 +52,23 @@ export class ReviewService {
       book.chapterWordCountToleranceRatio,
     )
 
-    const consistencyIssues = draft.content.includes(chapter.objective)
-      ? []
-      : ['草稿未明显呼应章节目标。']
-
-    const pacingIssues = plan.sceneCards.length < 2
-      ? ['场景拆分过少，节奏可能过于平。']
-      : []
-
-    const hookIssues = plan.hookPlan.length === 0
-      ? ['当前计划未显式记录钩子推进。']
-      : []
-
-    const characterIssues: string[] = []
-    const revisionAdvice = buildRevisionAdvice(wordCountCheck, consistencyIssues, hookIssues)
-    const decision = decideReview(wordCountCheck, consistencyIssues, hookIssues)
+    const baseReview = createRuleBasedReview(wordCountCheck, chapter.objective, draft.content, plan.sceneCards.length, plan.hookPlan.length)
+    const aiReview = this.llmAdapter
+      ? await createLlmReview(this.llmAdapter, wordCountCheck, chapter.objective, draft.content, plan.eventOutline)
+      : null
+    const mergedReview = aiReview ?? baseReview
     const review: ReviewReport = {
       id: createId('review'),
       bookId: book.id,
       chapterId,
       draftId: draft.id,
-      decision,
-      consistencyIssues,
-      characterIssues,
-      pacingIssues,
-      hookIssues,
+      decision: mergedReview.decision,
+      consistencyIssues: mergedReview.consistencyIssues,
+      characterIssues: mergedReview.characterIssues,
+      pacingIssues: mergedReview.pacingIssues,
+      hookIssues: mergedReview.hookIssues,
       wordCountCheck,
-      revisionAdvice,
+      revisionAdvice: mergedReview.revisionAdvice,
       createdAt: nowIso(),
     }
 
@@ -84,6 +76,66 @@ export class ReviewService {
     this.chapterRepository.markReviewed(chapterId, review.createdAt)
 
     return review
+  }
+}
+
+function createRuleBasedReview(
+  wordCountCheck: WordCountCheck,
+  objective: string,
+  content: string,
+  sceneCardCount: number,
+  hookPlanCount: number,
+): Omit<ReviewReport, 'id' | 'bookId' | 'chapterId' | 'draftId' | 'wordCountCheck' | 'createdAt'> {
+  const consistencyIssues = content.includes(objective) ? [] : ['草稿未明显呼应章节目标。']
+  const pacingIssues = sceneCardCount < 2 ? ['场景拆分过少，节奏可能过于平。'] : []
+  const hookIssues = hookPlanCount === 0 ? ['当前计划未显式记录钩子推进。'] : []
+  const characterIssues: string[] = []
+
+  return {
+    decision: decideReview(wordCountCheck, consistencyIssues, hookIssues),
+    consistencyIssues,
+    characterIssues,
+    pacingIssues,
+    hookIssues,
+    revisionAdvice: buildRevisionAdvice(wordCountCheck, consistencyIssues, hookIssues),
+  }
+}
+
+async function createLlmReview(
+  llmAdapter: LlmAdapter,
+  wordCountCheck: WordCountCheck,
+  objective: string,
+  content: string,
+  eventOutline: string[],
+): Promise<Omit<ReviewReport, 'id' | 'bookId' | 'chapterId' | 'draftId' | 'wordCountCheck' | 'createdAt'> | null> {
+  try {
+    const response = await llmAdapter.generateText({
+      system:
+        '你是小说审查助手。请只输出 JSON，不要解释。JSON 字段必须包含 decision, consistencyIssues, characterIssues, pacingIssues, hookIssues, revisionAdvice。',
+      user: JSON.stringify(
+        {
+          objective,
+          eventOutline,
+          wordCountCheck,
+          draft: content,
+        },
+        null,
+        2,
+      ),
+    })
+
+    const parsed = JSON.parse(extractJsonObject(response.text)) as Partial<ReviewReport>
+
+    return {
+      decision: parsed.decision ?? 'warning',
+      consistencyIssues: parsed.consistencyIssues ?? [],
+      characterIssues: parsed.characterIssues ?? [],
+      pacingIssues: parsed.pacingIssues ?? [],
+      hookIssues: parsed.hookIssues ?? [],
+      revisionAdvice: parsed.revisionAdvice ?? ['建议人工复核本章审查结果。'],
+    }
+  } catch {
+    return null
   }
 }
 

@@ -1,4 +1,4 @@
-import type { ChapterDraft, WriteNextResult, WritingContext } from '../../shared/types/domain.js'
+import type { ChapterDraft, LlmAdapter, WriteNextResult, WritingContext } from '../../shared/types/domain.js'
 import { createId } from '../../shared/utils/id.js'
 import { nowIso } from '../../shared/utils/time.js'
 import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
@@ -10,12 +10,15 @@ export class GenerationService {
     private readonly writingContextBuilder: WritingContextBuilder,
     private readonly chapterDraftRepository: ChapterDraftRepository,
     private readonly chapterRepository: ChapterRepository,
+    private readonly llmAdapter: LlmAdapter | null,
   ) {}
 
-  writeNext(chapterId: string): WriteNextResult {
+  async writeNext(chapterId: string): Promise<WriteNextResult> {
     const context = this.writingContextBuilder.build(chapterId)
     const timestamp = nowIso()
-    const draft = createRuleBasedDraft(context, timestamp)
+    const draft = this.llmAdapter
+      ? await createLlmDraft(this.llmAdapter, context, timestamp)
+      : createRuleBasedDraft(context, timestamp)
 
     this.chapterDraftRepository.create(draft)
     this.chapterRepository.markDrafted(chapterId, draft.versionId, undefined, timestamp)
@@ -27,6 +30,40 @@ export class GenerationService {
       actualWordCount: draft.actualWordCount,
       nextAction: 'review',
     }
+  }
+}
+
+async function createLlmDraft(
+  llmAdapter: LlmAdapter,
+  context: WritingContext,
+  timestamp: string,
+): Promise<ChapterDraft> {
+  const response = await llmAdapter.generateText({
+    system: '你是小说写作助手。请直接输出章节草稿正文，不要解释。',
+    user: JSON.stringify(
+      {
+        bookTitle: context.book.title,
+        chapterTitle: context.chapter.title,
+        chapterObjective: context.chapter.objective,
+        volumeGoal: context.volume.goal,
+        theme: context.outline.theme,
+        sceneCards: context.chapterPlan.sceneCards,
+        eventOutline: context.chapterPlan.eventOutline,
+      },
+      null,
+      2,
+    ),
+  })
+
+  return {
+    id: createId('draft'),
+    bookId: context.book.id,
+    chapterId: context.chapter.id,
+    versionId: createId('draft_version'),
+    chapterPlanId: context.chapterPlan.id,
+    content: response.text.trim(),
+    actualWordCount: estimateWordCount(response.text),
+    createdAt: timestamp,
   }
 }
 

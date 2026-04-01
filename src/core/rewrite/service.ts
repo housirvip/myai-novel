@@ -1,4 +1,4 @@
-import type { ChapterRewrite, RewriteRequest } from '../../shared/types/domain.js'
+import type { ChapterRewrite, LlmAdapter, RewriteRequest } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { createId } from '../../shared/utils/id.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -15,9 +15,10 @@ export class RewriteService {
     private readonly chapterDraftRepository: ChapterDraftRepository,
     private readonly chapterReviewRepository: ChapterReviewRepository,
     private readonly chapterRewriteRepository: ChapterRewriteRepository,
+    private readonly llmAdapter: LlmAdapter | null,
   ) {}
 
-  rewriteChapter(request: RewriteRequest): ChapterRewrite {
+  async rewriteChapter(request: RewriteRequest): Promise<ChapterRewrite> {
     const book = this.bookRepository.getFirst()
 
     if (!book) {
@@ -43,7 +44,9 @@ export class RewriteService {
     }
 
     const timestamp = nowIso()
-    const content = buildRewriteContent(draft.content, review.revisionAdvice, request.goals)
+    const content = this.llmAdapter
+      ? await createLlmRewrite(this.llmAdapter, draft.content, review.revisionAdvice, request.goals)
+      : buildRewriteContent(draft.content, review.revisionAdvice, request.goals)
     const rewrite: ChapterRewrite = {
       id: createId('rewrite'),
       bookId: book.id,
@@ -62,6 +65,32 @@ export class RewriteService {
     this.chapterRepository.updateCurrentVersion(request.chapterId, rewrite.versionId, timestamp)
 
     return rewrite
+  }
+}
+
+async function createLlmRewrite(
+  llmAdapter: LlmAdapter,
+  content: string,
+  revisionAdvice: string[],
+  goals: string[],
+): Promise<string> {
+  try {
+    const response = await llmAdapter.generateText({
+      system: '你是小说重写助手。请直接输出重写后的章节文本，不要解释。',
+      user: JSON.stringify(
+        {
+          draft: content,
+          revisionAdvice,
+          goals,
+        },
+        null,
+        2,
+      ),
+    })
+
+    return response.text.trim()
+  } catch {
+    return buildRewriteContent(content, revisionAdvice, goals)
   }
 }
 

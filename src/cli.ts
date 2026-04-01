@@ -12,6 +12,7 @@ import { RewriteService } from './core/rewrite/service.js'
 import { WorldService } from './core/world/service.js'
 import { openDatabase } from './infra/db/database.js'
 import { runMigrations } from './infra/db/migrate.js'
+import { createLlmAdapter } from './infra/llm/factory.js'
 import { BookRepository } from './infra/repository/book-repository.js'
 import { ChapterDraftRepository } from './infra/repository/chapter-draft-repository.js'
 import { ChapterOutputRepository } from './infra/repository/chapter-output-repository.js'
@@ -300,9 +301,10 @@ chapterCommand
         new ChapterDraftRepository(database),
         new ChapterReviewRepository(database),
         new ChapterRewriteRepository(database),
+        createLlmAdapter(new BookRepository(database).getFirst()),
       )
 
-      const rewrite = rewriteService.rewriteChapter({
+      const rewrite = await rewriteService.rewriteChapter({
         chapterId,
         strategy: options.strategy === 'full' ? 'full' : 'partial',
         goals: options.goal ?? ['优化节奏与结尾牵引'],
@@ -371,9 +373,10 @@ program
         contextBuilder,
         new ChapterPlanRepository(database),
         chapterRepository,
+        createLlmAdapter(bookRepository.getFirst()),
       )
 
-      const plan = planningService.planChapter(chapterId)
+      const plan = await planningService.planChapter(chapterId)
 
       console.log(`Chapter plan created: ${plan.versionId}`)
       console.log(`Objective: ${plan.objective}`)
@@ -412,9 +415,10 @@ program
         writingContextBuilder,
         new ChapterDraftRepository(database),
         chapterRepository,
+        createLlmAdapter(bookRepository.getFirst()),
       )
 
-      const result = generationService.writeNext(chapterId)
+      const result = await generationService.writeNext(chapterId)
 
       console.log(`Chapter draft created: ${result.draftId}`)
       console.log(`Status: ${result.chapterStatus}`)
@@ -440,9 +444,10 @@ program
         new ChapterPlanRepository(database),
         new ChapterDraftRepository(database),
         new ChapterReviewRepository(database),
+        createLlmAdapter(new BookRepository(database).getFirst()),
       )
 
-      const review = reviewService.reviewChapter(chapterId)
+      const review = await reviewService.reviewChapter(chapterId)
 
       console.log(`Chapter review created: ${review.id}`)
       console.log(`Decision: ${review.decision}`)

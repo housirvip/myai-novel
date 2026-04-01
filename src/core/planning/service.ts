@@ -1,5 +1,6 @@
-import type { ChapterPlan, PlanningContext } from '../../shared/types/domain.js'
+import type { ChapterPlan, LlmAdapter, PlanningContext } from '../../shared/types/domain.js'
 import { createId } from '../../shared/utils/id.js'
+import { extractJsonObject } from '../../shared/utils/json.js'
 import { nowIso } from '../../shared/utils/time.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
@@ -10,16 +11,57 @@ export class PlanningService {
     private readonly contextBuilder: PlanningContextBuilder,
     private readonly chapterPlanRepository: ChapterPlanRepository,
     private readonly chapterRepository: ChapterRepository,
+    private readonly llmAdapter: LlmAdapter | null,
   ) {}
 
-  planChapter(chapterId: string): ChapterPlan {
+  async planChapter(chapterId: string): Promise<ChapterPlan> {
     const context = this.contextBuilder.build(chapterId)
-    const plan = createRuleBasedPlan(context)
+    const plan = this.llmAdapter
+      ? await createLlmPlan(this.llmAdapter, context)
+      : createRuleBasedPlan(context)
 
     this.chapterPlanRepository.create(plan)
     this.chapterRepository.updateCurrentPlanVersion(chapterId, plan.versionId, plan.createdAt)
 
     return plan
+  }
+}
+
+async function createLlmPlan(llmAdapter: LlmAdapter, context: PlanningContext): Promise<ChapterPlan> {
+  const fallbackPlan = createRuleBasedPlan(context)
+  const response = await llmAdapter.generateText({
+    system:
+      '你是小说章节规划助手。请只输出 JSON，不要解释。字段至少包含 objective, sceneCards, eventOutline, statePredictions, memoryCandidates。',
+    user: JSON.stringify(
+      {
+        bookTitle: context.book.title,
+        chapterTitle: context.chapter.title,
+        chapterObjective: context.chapter.objective,
+        plannedBeats: context.chapter.plannedBeats,
+        volumeGoal: context.volume.goal,
+        theme: context.outline.theme,
+        coreConflicts: context.outline.coreConflicts,
+        previousChapterTitle: context.previousChapter?.title,
+      },
+      null,
+      2,
+    ),
+  })
+
+  const parsed = JSON.parse(extractJsonObject(response.text)) as Partial<ChapterPlan>
+
+  return {
+    ...fallbackPlan,
+    objective: parsed.objective ?? fallbackPlan.objective,
+    sceneCards: parsed.sceneCards ?? fallbackPlan.sceneCards,
+    requiredCharacterIds: parsed.requiredCharacterIds ?? fallbackPlan.requiredCharacterIds,
+    requiredLocationIds: parsed.requiredLocationIds ?? fallbackPlan.requiredLocationIds,
+    requiredFactionIds: parsed.requiredFactionIds ?? fallbackPlan.requiredFactionIds,
+    requiredItemIds: parsed.requiredItemIds ?? fallbackPlan.requiredItemIds,
+    eventOutline: parsed.eventOutline ?? fallbackPlan.eventOutline,
+    hookPlan: parsed.hookPlan ?? fallbackPlan.hookPlan,
+    statePredictions: parsed.statePredictions ?? fallbackPlan.statePredictions,
+    memoryCandidates: parsed.memoryCandidates ?? fallbackPlan.memoryCandidates,
   }
 }
 
