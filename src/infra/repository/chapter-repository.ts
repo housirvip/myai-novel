@@ -71,4 +71,54 @@ export class ChapterRepository {
 
     return row.maxIndex + 1
   }
+
+  getById(id: string): Chapter | null {
+    const row = this.database.prepare('SELECT * FROM chapters WHERE id = ?').get(id) as
+      | ChapterRow
+      | undefined
+
+    return row ? mapChapter(row) : null
+  }
+
+  getPreviousChapter(bookId: string, index: number): Chapter | null {
+    const row = this.database
+      .prepare(
+        `
+          SELECT *
+          FROM chapters
+          WHERE book_id = ? AND chapter_index < ?
+          ORDER BY chapter_index DESC
+          LIMIT 1
+        `,
+      )
+      .get(bookId, index) as ChapterRow | undefined
+
+    return row ? mapChapter(row) : null
+  }
+
+  updateCurrentPlanVersion(chapterId: string, versionId: string, updatedAt: string): void {
+    this.database
+      .prepare('UPDATE chapters SET current_plan_version_id = ?, updated_at = ? WHERE id = ?')
+      .run(versionId, updatedAt, chapterId)
+  }
+}
+
+function mapChapter(row: ChapterRow): Chapter {
+  return {
+    id: row.id,
+    bookId: row.book_id,
+    volumeId: row.volume_id,
+    index: row.chapter_index,
+    title: row.title,
+    objective: row.objective,
+    plannedBeats: JSON.parse(row.planned_beats_json) as string[],
+    status: row.status,
+    currentPlanVersionId: row.current_plan_version_id ?? undefined,
+    currentVersionId: row.current_version_id ?? undefined,
+    draftPath: row.draft_path ?? undefined,
+    finalPath: row.final_path ?? undefined,
+    approvedAt: row.approved_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }

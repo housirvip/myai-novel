@@ -27,6 +27,12 @@ export class BookRepository {
     return row ? mapBook(row) : null
   }
 
+  getById(id: string): Book | null {
+    const row = this.database.prepare('SELECT * FROM books WHERE id = ?').get(id) as BookRow | undefined
+
+    return row ? mapBook(row) : null
+  }
+
   create(book: Book): void {
     this.database
       .prepare(

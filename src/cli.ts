@@ -2,10 +2,13 @@ import { Command } from 'commander'
 import path from 'node:path'
 
 import { BookService } from './core/book/service.js'
+import { PlanningContextBuilder } from './core/context/planning-context-builder.js'
+import { PlanningService } from './core/planning/service.js'
 import { WorldService } from './core/world/service.js'
 import { openDatabase } from './infra/db/database.js'
 import { runMigrations } from './infra/db/migrate.js'
 import { BookRepository } from './infra/repository/book-repository.js'
+import { ChapterPlanRepository } from './infra/repository/chapter-plan-repository.js'
 import { ChapterRepository } from './infra/repository/chapter-repository.js'
 import { OutlineRepository } from './infra/repository/outline-repository.js'
 import { VolumeRepository } from './infra/repository/volume-repository.js'
@@ -168,6 +171,42 @@ chapterCommand
       })
 
       console.log(`Chapter created: #${chapter.index} ${chapter.title} (${chapter.id})`)
+    } finally {
+      database.close()
+    }
+  })
+
+program
+  .command('plan')
+  .description('Planning commands')
+  .command('chapter <chapterId>')
+  .description('Generate a chapter plan')
+  .action(async (chapterId: string) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const bookRepository = new BookRepository(database)
+      const outlineRepository = new OutlineRepository(database)
+      const chapterRepository = new ChapterRepository(database)
+      const volumeRepository = new VolumeRepository(database)
+      const contextBuilder = new PlanningContextBuilder(
+        bookRepository,
+        outlineRepository,
+        chapterRepository,
+        volumeRepository,
+      )
+      const planningService = new PlanningService(
+        contextBuilder,
+        new ChapterPlanRepository(database),
+        chapterRepository,
+      )
+
+      const plan = planningService.planChapter(chapterId)
+
+      console.log(`Chapter plan created: ${plan.versionId}`)
+      console.log(`Objective: ${plan.objective}`)
+      console.log(`Scenes: ${plan.sceneCards.length}`)
+      console.log(`Events: ${plan.eventOutline.length}`)
     } finally {
       database.close()
     }

@@ -65,6 +65,28 @@ export const migrations = [
         FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE CASCADE,
         UNIQUE (book_id, chapter_index)
       );
+
+      CREATE TABLE IF NOT EXISTS chapter_plans (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        chapter_id TEXT NOT NULL,
+        version_id TEXT NOT NULL,
+        objective TEXT NOT NULL,
+        scene_cards_json TEXT NOT NULL,
+        required_character_ids_json TEXT NOT NULL,
+        required_location_ids_json TEXT NOT NULL,
+        required_faction_ids_json TEXT NOT NULL,
+        required_item_ids_json TEXT NOT NULL,
+        event_outline_json TEXT NOT NULL,
+        hook_plan_json TEXT NOT NULL,
+        state_predictions_json TEXT NOT NULL,
+        memory_candidates_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        approved_by_user INTEGER NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
+        UNIQUE (chapter_id, version_id)
+      );
     `,
   },
 ] as const

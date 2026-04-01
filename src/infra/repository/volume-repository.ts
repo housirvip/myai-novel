@@ -51,6 +51,21 @@ export class VolumeRepository {
     return row ? mapVolume(row) : null
   }
 
+  getByChapterId(chapterId: string): Volume | null {
+    const row = this.database
+      .prepare(
+        `
+          SELECT v.*
+          FROM volumes v
+          INNER JOIN chapters c ON c.volume_id = v.id
+          WHERE c.id = ?
+        `,
+      )
+      .get(chapterId) as VolumeRow | undefined
+
+    return row ? mapVolume(row) : null
+  }
+
   updateChapterIds(id: string, chapterIds: string[], updatedAt: string): void {
     this.database
       .prepare('UPDATE volumes SET chapter_ids_json = ?, updated_at = ? WHERE id = ?')

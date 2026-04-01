@@ -60,6 +60,49 @@ export type Chapter = {
   updatedAt: IsoTimestamp
 }
 
+export type SceneCard = {
+  title: string
+  purpose: string
+  beats: string[]
+  characterIds: string[]
+  locationId?: string
+  factionIds: string[]
+  itemIds: string[]
+}
+
+export type HookPlan = {
+  hookId: string
+  action: 'hold' | 'foreshadow' | 'advance' | 'payoff'
+  note: string
+}
+
+export type ChapterPlan = {
+  id: string
+  bookId: string
+  chapterId: string
+  versionId: string
+  objective: string
+  sceneCards: SceneCard[]
+  requiredCharacterIds: string[]
+  requiredLocationIds: string[]
+  requiredFactionIds: string[]
+  requiredItemIds: string[]
+  eventOutline: string[]
+  hookPlan: HookPlan[]
+  statePredictions: string[]
+  memoryCandidates: string[]
+  createdAt: IsoTimestamp
+  approvedByUser: boolean
+}
+
+export type PlanningContext = {
+  book: Book
+  outline: Outline
+  chapter: Chapter
+  volume: Volume
+  previousChapter: Chapter | null
+}
+
 export type DatabaseConfig = {
   client: 'sqlite'
   filename: string
