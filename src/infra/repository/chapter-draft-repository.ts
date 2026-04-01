@@ -66,6 +66,21 @@ export class ChapterDraftRepository {
 
     return row ? mapDraft(row) : null
   }
+
+  listByChapterId(chapterId: string): ChapterDraft[] {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT *
+          FROM chapter_drafts
+          WHERE chapter_id = ?
+          ORDER BY created_at DESC
+        `,
+      )
+      .all(chapterId) as ChapterDraftRow[]
+
+    return rows.map(mapDraft)
+  }
 }
 
 function mapDraft(row: ChapterDraftRow): ChapterDraft {

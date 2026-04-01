@@ -97,6 +97,21 @@ export class ChapterPlanRepository {
 
     return row ? mapChapterPlan(row) : null
   }
+
+  listByChapterId(chapterId: string): ChapterPlan[] {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT *
+          FROM chapter_plans
+          WHERE chapter_id = ?
+          ORDER BY created_at DESC
+        `,
+      )
+      .all(chapterId) as ChapterPlanRow[]
+
+    return rows.map(mapChapterPlan)
+  }
 }
 
 function mapChapterPlan(row: ChapterPlanRow): ChapterPlan {

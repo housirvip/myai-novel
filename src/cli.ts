@@ -23,6 +23,7 @@ import { OutlineRepository } from './infra/repository/outline-repository.js'
 import { StoryStateRepository } from './infra/repository/story-state-repository.js'
 import { VolumeRepository } from './infra/repository/volume-repository.js'
 import { NovelError, toErrorMessage } from './shared/utils/errors.js'
+import { formatJson, formatList } from './shared/utils/format.js'
 import {
   ensureProjectDirectories,
   readProjectConfig,
@@ -90,6 +91,7 @@ program
   })
 
 const outlineCommand = program.command('outline').description('Manage outline data')
+const bookCommand = program.command('book').description('Manage book data')
 
 outlineCommand
   .command('set')
@@ -117,6 +119,45 @@ outlineCommand
       })
 
       console.log(`Outline saved for book: ${outline.bookId}`)
+    } finally {
+      database.close()
+    }
+  })
+
+bookCommand
+  .command('show')
+  .description('Show the current book and outline')
+  .action(async () => {
+    const database = await openProjectDatabase()
+
+    try {
+      const bookRepository = new BookRepository(database)
+      const outlineRepository = new OutlineRepository(database)
+      const volumeRepository = new VolumeRepository(database)
+      const chapterRepository = new ChapterRepository(database)
+      const book = bookRepository.getFirst()
+
+      if (!book) {
+        throw new NovelError('Project is not initialized. Run `novel init` first.')
+      }
+
+      const outline = outlineRepository.getByBookId(book.id)
+      const volumes = volumeRepository.listByBookId(book.id)
+      const chapters = chapterRepository.listByBookId(book.id)
+
+      console.log(`Book: ${book.title}`)
+      console.log(`ID: ${book.id}`)
+      console.log(`Genre: ${book.genre}`)
+      console.log(`Default chapter words: ${book.defaultChapterWordCount}`)
+      console.log(`Tolerance ratio: ${book.chapterWordCountToleranceRatio}`)
+      console.log(`Model: ${book.model.provider}/${book.model.modelName}`)
+      console.log(`Volumes: ${volumes.length}`)
+      console.log(`Chapters: ${chapters.length}`)
+
+      if (outline) {
+        console.log(`Premise: ${outline.premise}`)
+        console.log(formatList('Core conflicts', outline.coreConflicts))
+      }
     } finally {
       database.close()
     }
@@ -181,6 +222,64 @@ chapterCommand
       })
 
       console.log(`Chapter created: #${chapter.index} ${chapter.title} (${chapter.id})`)
+    } finally {
+      database.close()
+    }
+  })
+
+chapterCommand
+  .command('show <chapterId>')
+  .description('Show the current chapter state and latest process outputs')
+  .action(async (chapterId: string) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const chapterRepository = new ChapterRepository(database)
+      const planRepository = new ChapterPlanRepository(database)
+      const draftRepository = new ChapterDraftRepository(database)
+      const reviewRepository = new ChapterReviewRepository(database)
+      const rewriteRepository = new ChapterRewriteRepository(database)
+      const outputRepository = new ChapterOutputRepository(database)
+      const chapter = chapterRepository.getById(chapterId)
+
+      if (!chapter) {
+        throw new NovelError(`Chapter not found: ${chapterId}`)
+      }
+
+      const latestPlan = planRepository.getLatestByChapterId(chapterId)
+      const latestDraft = draftRepository.getLatestByChapterId(chapterId)
+      const latestReview = reviewRepository.getLatestByChapterId(chapterId)
+      const latestRewrite = rewriteRepository.getLatestByChapterId(chapterId)
+      const latestOutput = outputRepository.getLatestByChapterId(chapterId)
+
+      console.log(`Chapter: #${chapter.index} ${chapter.title}`)
+      console.log(`ID: ${chapter.id}`)
+      console.log(`Status: ${chapter.status}`)
+      console.log(`Objective: ${chapter.objective}`)
+      console.log(`Planned beats: ${chapter.plannedBeats.length}`)
+      console.log(`Current plan version: ${chapter.currentPlanVersionId ?? '(none)'}`)
+      console.log(`Current version: ${chapter.currentVersionId ?? '(none)'}`)
+      console.log(`Approved at: ${chapter.approvedAt ?? '(not approved)'}`)
+
+      if (latestPlan) {
+        console.log(`Latest plan: ${latestPlan.versionId}`)
+      }
+
+      if (latestDraft) {
+        console.log(`Latest draft: ${latestDraft.id} (${latestDraft.actualWordCount} chars)`)
+      }
+
+      if (latestReview) {
+        console.log(`Latest review: ${latestReview.id} [${latestReview.decision}]`)
+      }
+
+      if (latestRewrite) {
+        console.log(`Latest rewrite: ${latestRewrite.id} (${latestRewrite.actualWordCount} chars)`)
+      }
+
+      if (latestOutput) {
+        console.log(`Final output: ${latestOutput.finalPath}`)
+      }
     } finally {
       database.close()
     }
@@ -349,6 +448,34 @@ program
       console.log(`Decision: ${review.decision}`)
       console.log(`Word count passed: ${review.wordCountCheck.passed}`)
       console.log(`Revision advice: ${review.revisionAdvice.join('；')}`)
+    } finally {
+      database.close()
+    }
+  })
+
+program
+  .command('story')
+  .description('Story state commands')
+  .command('show')
+  .description('Show current story state')
+  .action(async () => {
+    const database = await openProjectDatabase()
+
+    try {
+      const book = new BookRepository(database).getFirst()
+
+      if (!book) {
+        throw new NovelError('Project is not initialized. Run `novel init` first.')
+      }
+
+      const state = new StoryStateRepository(database).getByBookId(book.id)
+
+      if (!state) {
+        console.log('Story state: (empty)')
+        return
+      }
+
+      console.log(formatJson(state))
     } finally {
       database.close()
     }

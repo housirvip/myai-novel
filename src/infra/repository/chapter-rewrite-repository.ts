@@ -67,6 +67,21 @@ export class ChapterRewriteRepository {
 
     return row ? mapRewrite(row) : null
   }
+
+  listByChapterId(chapterId: string): ChapterRewrite[] {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT *
+          FROM chapter_rewrites
+          WHERE chapter_id = ?
+          ORDER BY created_at DESC
+        `,
+      )
+      .all(chapterId) as RewriteRow[]
+
+    return rows.map(mapRewrite)
+  }
 }
 
 function mapRewrite(row: RewriteRow): ChapterRewrite {

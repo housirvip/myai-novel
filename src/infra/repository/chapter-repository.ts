@@ -102,6 +102,14 @@ export class ChapterRepository {
       .run(versionId, updatedAt, chapterId)
   }
 
+  listByBookId(bookId: string): Chapter[] {
+    const rows = this.database
+      .prepare('SELECT * FROM chapters WHERE book_id = ? ORDER BY chapter_index ASC')
+      .all(bookId) as ChapterRow[]
+
+    return rows.map(mapChapter)
+  }
+
   markDrafted(chapterId: string, currentVersionId: string, draftPath: string | undefined, updatedAt: string): void {
     this.database
       .prepare(

@@ -78,6 +78,21 @@ export class ChapterReviewRepository {
 
     return row ? mapReview(row) : null
   }
+
+  listByChapterId(chapterId: string): ReviewReport[] {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT *
+          FROM chapter_reviews
+          WHERE chapter_id = ?
+          ORDER BY created_at DESC
+        `,
+      )
+      .all(chapterId) as ReviewRow[]
+
+    return rows.map(mapReview)
+  }
 }
 
 function mapReview(row: ReviewRow): ReviewReport {

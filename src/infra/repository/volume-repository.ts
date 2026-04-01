@@ -71,6 +71,14 @@ export class VolumeRepository {
       .prepare('UPDATE volumes SET chapter_ids_json = ?, updated_at = ? WHERE id = ?')
       .run(JSON.stringify(chapterIds), updatedAt, id)
   }
+
+  listByBookId(bookId: string): Volume[] {
+    const rows = this.database
+      .prepare('SELECT * FROM volumes WHERE book_id = ? ORDER BY created_at ASC')
+      .all(bookId) as VolumeRow[]
+
+    return rows.map(mapVolume)
+  }
 }
 
 function mapVolume(row: VolumeRow): Volume {
