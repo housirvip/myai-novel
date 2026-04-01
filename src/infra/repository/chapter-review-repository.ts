@@ -70,6 +70,14 @@ export class ChapterReviewRepository {
 
     return row ? mapReview(row) : null
   }
+
+  getById(id: string): ReviewReport | null {
+    const row = this.database.prepare('SELECT * FROM chapter_reviews WHERE id = ?').get(id) as
+      | ReviewRow
+      | undefined
+
+    return row ? mapReview(row) : null
+  }
 }
 
 function mapReview(row: ReviewRow): ReviewReport {

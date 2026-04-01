@@ -120,6 +120,25 @@ export const migrations = [
         FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
         FOREIGN KEY (draft_id) REFERENCES chapter_drafts(id) ON DELETE CASCADE
       );
+
+      CREATE TABLE IF NOT EXISTS chapter_rewrites (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        chapter_id TEXT NOT NULL,
+        source_draft_id TEXT NOT NULL,
+        source_review_id TEXT NOT NULL,
+        version_id TEXT NOT NULL,
+        strategy TEXT NOT NULL,
+        goals_json TEXT NOT NULL,
+        content TEXT NOT NULL,
+        actual_word_count INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_draft_id) REFERENCES chapter_drafts(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_review_id) REFERENCES chapter_reviews(id) ON DELETE CASCADE,
+        UNIQUE (chapter_id, version_id)
+      );
     `,
   },
 ] as const

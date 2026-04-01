@@ -152,6 +152,29 @@ export type ReviewReport = {
   createdAt: IsoTimestamp
 }
 
+export type RewriteRequest = {
+  chapterId: string
+  strategy: 'full' | 'partial'
+  goals: string[]
+  preserveFacts: boolean
+  preserveHooks: boolean
+  preserveEndingBeat: boolean
+}
+
+export type ChapterRewrite = {
+  id: string
+  bookId: string
+  chapterId: string
+  sourceDraftId: string
+  sourceReviewId: string
+  versionId: string
+  strategy: RewriteRequest['strategy']
+  goals: string[]
+  content: string
+  actualWordCount: number
+  createdAt: IsoTimestamp
+}
+
 export type DatabaseConfig = {
   client: 'sqlite'
   filename: string

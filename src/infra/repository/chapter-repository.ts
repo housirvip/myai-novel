@@ -129,6 +129,19 @@ export class ChapterRepository {
       )
       .run(updatedAt, chapterId)
   }
+
+  updateCurrentVersion(chapterId: string, currentVersionId: string, updatedAt: string): void {
+    this.database
+      .prepare(
+        `
+          UPDATE chapters
+          SET current_version_id = ?,
+              updated_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(currentVersionId, updatedAt, chapterId)
+  }
 }
 
 function mapChapter(row: ChapterRow): Chapter {

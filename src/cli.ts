@@ -7,6 +7,7 @@ import { WritingContextBuilder } from './core/context/writing-context-builder.js
 import { GenerationService } from './core/generation/service.js'
 import { PlanningService } from './core/planning/service.js'
 import { ReviewService } from './core/review/service.js'
+import { RewriteService } from './core/rewrite/service.js'
 import { WorldService } from './core/world/service.js'
 import { openDatabase } from './infra/db/database.js'
 import { runMigrations } from './infra/db/migrate.js'
@@ -15,6 +16,7 @@ import { ChapterDraftRepository } from './infra/repository/chapter-draft-reposit
 import { ChapterPlanRepository } from './infra/repository/chapter-plan-repository.js'
 import { ChapterRepository } from './infra/repository/chapter-repository.js'
 import { ChapterReviewRepository } from './infra/repository/chapter-review-repository.js'
+import { ChapterRewriteRepository } from './infra/repository/chapter-rewrite-repository.js'
 import { OutlineRepository } from './infra/repository/outline-repository.js'
 import { VolumeRepository } from './infra/repository/volume-repository.js'
 import { NovelError, toErrorMessage } from './shared/utils/errors.js'
@@ -176,6 +178,41 @@ chapterCommand
       })
 
       console.log(`Chapter created: #${chapter.index} ${chapter.title} (${chapter.id})`)
+    } finally {
+      database.close()
+    }
+  })
+
+chapterCommand
+  .command('rewrite <chapterId>')
+  .description('Rewrite the latest draft for a chapter')
+  .option('--goal <items...>', 'One or more rewrite goals')
+  .option('--strategy <strategy>', 'Rewrite strategy: full or partial', 'partial')
+  .action(async (chapterId: string, options) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const rewriteService = new RewriteService(
+        new BookRepository(database),
+        new ChapterRepository(database),
+        new ChapterDraftRepository(database),
+        new ChapterReviewRepository(database),
+        new ChapterRewriteRepository(database),
+      )
+
+      const rewrite = rewriteService.rewriteChapter({
+        chapterId,
+        strategy: options.strategy === 'full' ? 'full' : 'partial',
+        goals: options.goal ?? ['优化节奏与结尾牵引'],
+        preserveFacts: true,
+        preserveHooks: true,
+        preserveEndingBeat: true,
+      })
+
+      console.log(`Chapter rewrite created: ${rewrite.id}`)
+      console.log(`Version: ${rewrite.versionId}`)
+      console.log(`Word count: ${rewrite.actualWordCount}`)
+      console.log(`Goals: ${rewrite.goals.join('；')}`)
     } finally {
       database.close()
     }
