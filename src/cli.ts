@@ -93,6 +93,11 @@ program
 
 const outlineCommand = program.command('outline').description('Manage outline data')
 const bookCommand = program.command('book').description('Manage book data')
+const planCommand = program.command('plan').description('Planning commands')
+const writeCommand = program.command('write').description('Writing commands')
+const reviewCommand = program.command('review').description('Review commands')
+const draftCommand = program.command('draft').description('Draft commands')
+const rewriteCommand = program.command('rewrite').description('Rewrite result commands')
 
 outlineCommand
   .command('set')
@@ -350,9 +355,7 @@ chapterCommand
     }
   })
 
-program
-  .command('plan')
-  .description('Planning commands')
+planCommand
   .command('chapter <chapterId>')
   .description('Generate a chapter plan')
   .action(async (chapterId: string) => {
@@ -387,10 +390,9 @@ program
     }
   })
 
-program
-  .command('plan-show')
+planCommand
+  .command('show <chapterId>')
   .description('Show the latest plan for a chapter')
-  .argument('<chapterId>', 'Target chapter id')
   .action(async (chapterId: string) => {
     const database = await openProjectDatabase()
 
@@ -412,9 +414,7 @@ program
     }
   })
 
-program
-  .command('write')
-  .description('Writing commands')
+writeCommand
   .command('next <chapterId>')
   .description('Generate the next chapter draft from the latest plan')
   .action(async (chapterId: string) => {
@@ -454,9 +454,29 @@ program
     }
   })
 
-program
-  .command('review')
-  .description('Review commands')
+draftCommand
+  .command('show <chapterId>')
+  .description('Show the latest draft for a chapter')
+  .action(async (chapterId: string) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const draft = new ChapterDraftRepository(database).getLatestByChapterId(chapterId)
+
+      if (!draft) {
+        throw new NovelError(`No chapter draft found for chapter: ${chapterId}`)
+      }
+
+      console.log(`Draft id: ${draft.id}`)
+      console.log(`Version: ${draft.versionId}`)
+      console.log(`Word count: ${draft.actualWordCount}`)
+      console.log(formatSection('Content preview:', draft.content))
+    } finally {
+      database.close()
+    }
+  })
+
+reviewCommand
   .command('chapter <chapterId>')
   .description('Review the latest draft for a chapter')
   .action(async (chapterId: string) => {
@@ -483,10 +503,9 @@ program
     }
   })
 
-program
-  .command('review-show')
+reviewCommand
+  .command('show <chapterId>')
   .description('Show the latest review for a chapter')
-  .argument('<chapterId>', 'Target chapter id')
   .action(async (chapterId: string) => {
     const database = await openProjectDatabase()
 
@@ -510,10 +529,9 @@ program
     }
   })
 
-program
-  .command('rewrite-show')
+rewriteCommand
+  .command('show <chapterId>')
   .description('Show the latest rewrite candidate for a chapter')
-  .argument('<chapterId>', 'Target chapter id')
   .action(async (chapterId: string) => {
     const database = await openProjectDatabase()
 
