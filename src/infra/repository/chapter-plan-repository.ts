@@ -82,6 +82,21 @@ export class ChapterPlanRepository {
 
     return row ? mapChapterPlan(row) : null
   }
+
+  getByVersionId(chapterId: string, versionId: string): ChapterPlan | null {
+    const row = this.database
+      .prepare(
+        `
+          SELECT *
+          FROM chapter_plans
+          WHERE chapter_id = ? AND version_id = ?
+          LIMIT 1
+        `,
+      )
+      .get(chapterId, versionId) as ChapterPlanRow | undefined
+
+    return row ? mapChapterPlan(row) : null
+  }
 }
 
 function mapChapterPlan(row: ChapterPlanRow): ChapterPlan {

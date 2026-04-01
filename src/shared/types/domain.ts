@@ -103,6 +103,30 @@ export type PlanningContext = {
   previousChapter: Chapter | null
 }
 
+export type WritingContext = PlanningContext & {
+  chapterPlan: ChapterPlan
+}
+
+export type ChapterDraft = {
+  id: string
+  bookId: string
+  chapterId: string
+  versionId: string
+  chapterPlanId: string
+  content: string
+  actualWordCount: number
+  createdAt: IsoTimestamp
+}
+
+export type WriteNextResult = {
+  chapterId: string
+  chapterStatus: 'drafted'
+  draftId: string
+  draftPath?: string
+  actualWordCount: number
+  nextAction: 'review'
+}
+
 export type DatabaseConfig = {
   client: 'sqlite'
   filename: string

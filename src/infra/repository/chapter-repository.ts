@@ -101,6 +101,21 @@ export class ChapterRepository {
       .prepare('UPDATE chapters SET current_plan_version_id = ?, updated_at = ? WHERE id = ?')
       .run(versionId, updatedAt, chapterId)
   }
+
+  markDrafted(chapterId: string, currentVersionId: string, draftPath: string | undefined, updatedAt: string): void {
+    this.database
+      .prepare(
+        `
+          UPDATE chapters
+          SET status = 'drafted',
+              current_version_id = ?,
+              draft_path = ?,
+              updated_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(currentVersionId, draftPath ?? null, updatedAt, chapterId)
+  }
 }
 
 function mapChapter(row: ChapterRow): Chapter {

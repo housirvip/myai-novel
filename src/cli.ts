@@ -3,11 +3,14 @@ import path from 'node:path'
 
 import { BookService } from './core/book/service.js'
 import { PlanningContextBuilder } from './core/context/planning-context-builder.js'
+import { WritingContextBuilder } from './core/context/writing-context-builder.js'
+import { GenerationService } from './core/generation/service.js'
 import { PlanningService } from './core/planning/service.js'
 import { WorldService } from './core/world/service.js'
 import { openDatabase } from './infra/db/database.js'
 import { runMigrations } from './infra/db/migrate.js'
 import { BookRepository } from './infra/repository/book-repository.js'
+import { ChapterDraftRepository } from './infra/repository/chapter-draft-repository.js'
 import { ChapterPlanRepository } from './infra/repository/chapter-plan-repository.js'
 import { ChapterRepository } from './infra/repository/chapter-repository.js'
 import { OutlineRepository } from './infra/repository/outline-repository.js'
@@ -207,6 +210,47 @@ program
       console.log(`Objective: ${plan.objective}`)
       console.log(`Scenes: ${plan.sceneCards.length}`)
       console.log(`Events: ${plan.eventOutline.length}`)
+    } finally {
+      database.close()
+    }
+  })
+
+program
+  .command('write')
+  .description('Writing commands')
+  .command('next <chapterId>')
+  .description('Generate the next chapter draft from the latest plan')
+  .action(async (chapterId: string) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const bookRepository = new BookRepository(database)
+      const outlineRepository = new OutlineRepository(database)
+      const chapterRepository = new ChapterRepository(database)
+      const volumeRepository = new VolumeRepository(database)
+      const chapterPlanRepository = new ChapterPlanRepository(database)
+      const planningContextBuilder = new PlanningContextBuilder(
+        bookRepository,
+        outlineRepository,
+        chapterRepository,
+        volumeRepository,
+      )
+      const writingContextBuilder = new WritingContextBuilder(
+        planningContextBuilder,
+        chapterPlanRepository,
+      )
+      const generationService = new GenerationService(
+        writingContextBuilder,
+        new ChapterDraftRepository(database),
+        chapterRepository,
+      )
+
+      const result = generationService.writeNext(chapterId)
+
+      console.log(`Chapter draft created: ${result.draftId}`)
+      console.log(`Status: ${result.chapterStatus}`)
+      console.log(`Word count: ${result.actualWordCount}`)
+      console.log(`Next action: ${result.nextAction}`)
     } finally {
       database.close()
     }
