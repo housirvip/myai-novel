@@ -6,6 +6,7 @@ import { PlanningContextBuilder } from './core/context/planning-context-builder.
 import { WritingContextBuilder } from './core/context/writing-context-builder.js'
 import { GenerationService } from './core/generation/service.js'
 import { PlanningService } from './core/planning/service.js'
+import { ApproveService } from './core/approve/service.js'
 import { ReviewService } from './core/review/service.js'
 import { RewriteService } from './core/rewrite/service.js'
 import { WorldService } from './core/world/service.js'
@@ -13,11 +14,13 @@ import { openDatabase } from './infra/db/database.js'
 import { runMigrations } from './infra/db/migrate.js'
 import { BookRepository } from './infra/repository/book-repository.js'
 import { ChapterDraftRepository } from './infra/repository/chapter-draft-repository.js'
+import { ChapterOutputRepository } from './infra/repository/chapter-output-repository.js'
 import { ChapterPlanRepository } from './infra/repository/chapter-plan-repository.js'
 import { ChapterRepository } from './infra/repository/chapter-repository.js'
 import { ChapterReviewRepository } from './infra/repository/chapter-review-repository.js'
 import { ChapterRewriteRepository } from './infra/repository/chapter-rewrite-repository.js'
 import { OutlineRepository } from './infra/repository/outline-repository.js'
+import { StoryStateRepository } from './infra/repository/story-state-repository.js'
 import { VolumeRepository } from './infra/repository/volume-repository.js'
 import { NovelError, toErrorMessage } from './shared/utils/errors.js'
 import {
@@ -213,6 +216,34 @@ chapterCommand
       console.log(`Version: ${rewrite.versionId}`)
       console.log(`Word count: ${rewrite.actualWordCount}`)
       console.log(`Goals: ${rewrite.goals.join('；')}`)
+    } finally {
+      database.close()
+    }
+  })
+
+chapterCommand
+  .command('approve <chapterId>')
+  .description('Approve the latest reviewed chapter and export the final output')
+  .action(async (chapterId: string) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const approveService = new ApproveService(
+        process.cwd(),
+        new BookRepository(database),
+        new ChapterRepository(database),
+        new ChapterDraftRepository(database),
+        new ChapterRewriteRepository(database),
+        new ChapterOutputRepository(database),
+        new StoryStateRepository(database),
+      )
+
+      const result = await approveService.approveChapter(chapterId)
+
+      console.log(`Chapter approved: ${result.chapterId}`)
+      console.log(`Status: ${result.chapterStatus}`)
+      console.log(`Final path: ${result.finalPath}`)
+      console.log(`Approved at: ${result.approvedAt}`)
     } finally {
       database.close()
     }

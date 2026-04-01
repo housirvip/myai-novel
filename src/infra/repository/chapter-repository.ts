@@ -142,6 +142,27 @@ export class ChapterRepository {
       )
       .run(currentVersionId, updatedAt, chapterId)
   }
+
+  finalizeChapter(
+    chapterId: string,
+    currentVersionId: string,
+    finalPath: string,
+    approvedAt: string,
+  ): void {
+    this.database
+      .prepare(
+        `
+          UPDATE chapters
+          SET status = 'finalized',
+              current_version_id = ?,
+              final_path = ?,
+              approved_at = ?,
+              updated_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(currentVersionId, finalPath, approvedAt, approvedAt, chapterId)
+  }
 }
 
 function mapChapter(row: ChapterRow): Chapter {

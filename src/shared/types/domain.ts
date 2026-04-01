@@ -175,6 +175,35 @@ export type ChapterRewrite = {
   createdAt: IsoTimestamp
 }
 
+export type ChapterOutput = {
+  id: string
+  bookId: string
+  chapterId: string
+  sourceType: 'draft' | 'rewrite'
+  sourceId: string
+  finalPath: string
+  content: string
+  createdAt: IsoTimestamp
+}
+
+export type StoryState = {
+  bookId: string
+  currentChapterId: string
+  recentEvents: string[]
+  updatedAt: IsoTimestamp
+}
+
+export type ApproveResult = {
+  chapterId: string
+  chapterStatus: 'finalized'
+  versionId: string
+  finalPath: string
+  stateUpdated: boolean
+  memoryUpdated: boolean
+  hooksUpdated: boolean
+  approvedAt: IsoTimestamp
+}
+
 export type DatabaseConfig = {
   client: 'sqlite'
   filename: string

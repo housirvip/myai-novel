@@ -58,3 +58,11 @@ export async function readProjectConfig(rootDir: string): Promise<ProjectConfig>
   const raw = await readFile(paths.databaseConfigPath, 'utf8')
   return projectConfigSchema.parse(JSON.parse(raw))
 }
+
+export function sanitizeChapterFilename(input: string): string {
+  return input.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim()
+}
+
+export function buildCompletedChapterFilename(index: number, title: string): string {
+  return `${String(index).padStart(4, '0')}-${sanitizeChapterFilename(title)}.md`
+}

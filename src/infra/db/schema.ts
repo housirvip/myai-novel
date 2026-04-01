@@ -139,6 +139,28 @@ export const migrations = [
         FOREIGN KEY (source_review_id) REFERENCES chapter_reviews(id) ON DELETE CASCADE,
         UNIQUE (chapter_id, version_id)
       );
+
+      CREATE TABLE IF NOT EXISTS chapter_outputs (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        chapter_id TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        final_path TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS story_current_state (
+        book_id TEXT PRIMARY KEY,
+        current_chapter_id TEXT NOT NULL,
+        recent_events_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (current_chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+      );
     `,
   },
 ] as const
