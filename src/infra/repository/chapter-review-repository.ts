@@ -9,6 +9,7 @@ type ReviewRow = {
   decision: ReviewReport['decision']
   consistency_issues_json: string
   character_issues_json: string
+  item_issues_json: string
   pacing_issues_json: string
   hook_issues_json: string
   word_count_check_json: string
@@ -31,12 +32,13 @@ export class ChapterReviewRepository {
             decision,
             consistency_issues_json,
             character_issues_json,
+            item_issues_json,
             pacing_issues_json,
             hook_issues_json,
             word_count_check_json,
             revision_advice_json,
             created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -47,6 +49,7 @@ export class ChapterReviewRepository {
         review.decision,
         JSON.stringify(review.consistencyIssues),
         JSON.stringify(review.characterIssues),
+        JSON.stringify(review.itemIssues),
         JSON.stringify(review.pacingIssues),
         JSON.stringify(review.hookIssues),
         JSON.stringify(review.wordCountCheck),
@@ -104,6 +107,7 @@ function mapReview(row: ReviewRow): ReviewReport {
     decision: row.decision,
     consistencyIssues: JSON.parse(row.consistency_issues_json) as string[],
     characterIssues: JSON.parse(row.character_issues_json) as string[],
+    itemIssues: JSON.parse(row.item_issues_json) as string[],
     pacingIssues: JSON.parse(row.pacing_issues_json) as string[],
     hookIssues: JSON.parse(row.hook_issues_json) as string[],
     wordCountCheck: JSON.parse(row.word_count_check_json) as ReviewReport['wordCountCheck'],

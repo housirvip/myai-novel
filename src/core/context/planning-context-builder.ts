@@ -4,6 +4,7 @@ import type { BookRepository } from '../../infra/repository/book-repository.js'
 import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
+import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { OutlineRepository } from '../../infra/repository/outline-repository.js'
 import type { VolumeRepository } from '../../infra/repository/volume-repository.js'
 
@@ -14,6 +15,7 @@ export class PlanningContextBuilder {
     private readonly chapterRepository: ChapterRepository,
     private readonly volumeRepository: VolumeRepository,
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
+    private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
     private readonly hookStateRepository: HookStateRepository,
   ) {}
 
@@ -44,6 +46,7 @@ export class PlanningContextBuilder {
 
     const previousChapter = this.chapterRepository.getPreviousChapter(book.id, chapter.index)
     const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
+    const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
     const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
 
     return {
@@ -53,6 +56,7 @@ export class PlanningContextBuilder {
       volume,
       previousChapter,
       characterStates,
+      importantItems,
       activeHookStates,
     }
   }

@@ -49,6 +49,14 @@ async function createLlmDraft(
         theme: context.outline.theme,
         sceneCards: context.chapterPlan.sceneCards,
         eventOutline: context.chapterPlan.eventOutline,
+        importantItems: context.importantItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          status: item.status,
+          ownerCharacterId: item.ownerCharacterId,
+          locationId: item.locationId,
+        })),
       },
       null,
       2,
@@ -90,6 +98,17 @@ function buildDraftContent(context: WritingContext): string {
       return `## 场景 ${index + 1}：${scene.title}\n\n${scene.purpose}\n\n${beats}`
     })
     .join('\n\n')
+  const importantItemsSection = context.importantItems.length > 0
+    ? [
+        '## 关键物品状态',
+        '',
+        ...context.importantItems.map(
+          (item) =>
+            `- ${item.name}（${item.id}）：数量=${item.quantity}${item.unit}；状态=${item.status}；持有者=${item.ownerCharacterId ?? '未知'}；地点=${item.locationId ?? '未知'}`,
+        ),
+        '',
+      ]
+    : []
 
   return [
     `# ${context.chapter.title}`,
@@ -105,6 +124,7 @@ function buildDraftContent(context: WritingContext): string {
       ? `上一章《${context.previousChapter.title}》留下的局势仍在持续发酵。`
       : '这是故事前期的重要起势章节，需要尽快建立主角处境与冲突压力。',
     '',
+    ...importantItemsSection,
     sceneSections,
     '',
     '## 本章事件提要',

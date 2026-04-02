@@ -25,6 +25,8 @@ import { ChapterRewriteRepository } from './infra/repository/chapter-rewrite-rep
 import { FactionRepository } from './infra/repository/faction-repository.js'
 import { HookRepository } from './infra/repository/hook-repository.js'
 import { HookStateRepository } from './infra/repository/hook-state-repository.js'
+import { ItemCurrentStateRepository } from './infra/repository/item-current-state-repository.js'
+import { ItemRepository } from './infra/repository/item-repository.js'
 import { LocationRepository } from './infra/repository/location-repository.js'
 import { MemoryRepository } from './infra/repository/memory-repository.js'
 import { OutlineRepository } from './infra/repository/outline-repository.js'
@@ -181,6 +183,7 @@ const characterCommand = program.command('character').description('Manage charac
 const locationCommand = program.command('location').description('Manage locations')
 const factionCommand = program.command('faction').description('Manage factions')
 const hookCommand = program.command('hook').description('Manage hooks')
+const itemCommand = program.command('item').description('Manage items')
 
 volumeCommand
   .command('add')
@@ -200,6 +203,8 @@ volumeCommand
         new LocationRepository(database),
         new FactionRepository(database),
         new HookRepository(database),
+        new ItemRepository(database),
+        new ItemCurrentStateRepository(database),
       )
 
       const volume = worldService.addVolume({
@@ -236,6 +241,8 @@ chapterCommand
         new LocationRepository(database),
         new FactionRepository(database),
         new HookRepository(database),
+        new ItemRepository(database),
+        new ItemCurrentStateRepository(database),
       )
 
       const chapter = worldService.addChapter({
@@ -271,6 +278,8 @@ characterCommand
         new LocationRepository(database),
         new FactionRepository(database),
         new HookRepository(database),
+        new ItemRepository(database),
+        new ItemCurrentStateRepository(database),
       )
 
       const character = worldService.addCharacter(options)
@@ -298,6 +307,8 @@ locationCommand
         new LocationRepository(database),
         new FactionRepository(database),
         new HookRepository(database),
+        new ItemRepository(database),
+        new ItemCurrentStateRepository(database),
       )
 
       const location = worldService.addLocation(options)
@@ -326,6 +337,8 @@ factionCommand
         new LocationRepository(database),
         new FactionRepository(database),
         new HookRepository(database),
+        new ItemRepository(database),
+        new ItemCurrentStateRepository(database),
       )
 
       const faction = worldService.addFaction(options)
@@ -355,6 +368,8 @@ hookCommand
         new LocationRepository(database),
         new FactionRepository(database),
         new HookRepository(database),
+        new ItemRepository(database),
+        new ItemCurrentStateRepository(database),
       )
 
       const hook = worldService.addHook({
@@ -365,6 +380,54 @@ hookCommand
         sourceChapterId: options.sourceChapterId,
       })
       console.log(`Hook created: ${hook.title} (${hook.id})`)
+    } finally {
+      database.close()
+    }
+  })
+
+itemCommand
+  .command('add')
+  .description('Add an item and initialize its current state')
+  .requiredOption('--name <name>', 'Item name')
+  .requiredOption('--unit <unit>', 'Item unit')
+  .requiredOption('--type <type>', 'Item type')
+  .requiredOption('--description <description>', 'Item description')
+  .option('--quantity <number>', 'Item quantity', parseInteger, 1)
+  .option('--status <status>', 'Item state description', '正常')
+  .option('--owner-character-id <ownerCharacterId>', 'Current owner character id')
+  .option('--location-id <locationId>', 'Current location id')
+  .option('--important', 'Mark item as important')
+  .option('--unique', 'Mark item as unique worldwide')
+  .action(async (options) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const worldService = new WorldService(
+        new BookRepository(database),
+        new VolumeRepository(database),
+        new ChapterRepository(database),
+        new CharacterRepository(database),
+        new LocationRepository(database),
+        new FactionRepository(database),
+        new HookRepository(database),
+        new ItemRepository(database),
+        new ItemCurrentStateRepository(database),
+      )
+
+      const item = worldService.addItem({
+        name: options.name,
+        unit: options.unit,
+        type: options.type,
+        description: options.description,
+        quantity: options.quantity,
+        status: options.status,
+        ownerCharacterId: options.ownerCharacterId,
+        locationId: options.locationId,
+        isImportant: Boolean(options.important),
+        isUniqueWorldwide: Boolean(options.unique),
+      })
+
+      console.log(`Item created: ${item.name} (${item.id})`)
     } finally {
       database.close()
     }
@@ -483,6 +546,8 @@ chapterCommand
         new CharacterCurrentStateRepository(database),
         new HookRepository(database),
         new HookStateRepository(database),
+        new ItemRepository(database),
+        new ItemCurrentStateRepository(database),
         new MemoryRepository(database),
       )
 
@@ -514,6 +579,7 @@ planCommand
         chapterRepository,
         volumeRepository,
         new CharacterCurrentStateRepository(database),
+        new ItemCurrentStateRepository(database),
         new HookStateRepository(database),
       )
       const planningService = new PlanningService(
@@ -576,6 +642,7 @@ writeCommand
         chapterRepository,
         volumeRepository,
         new CharacterCurrentStateRepository(database),
+        new ItemCurrentStateRepository(database),
         new HookStateRepository(database),
       )
       const writingContextBuilder = new WritingContextBuilder(
@@ -636,6 +703,7 @@ reviewCommand
         new ChapterDraftRepository(database),
         new ChapterReviewRepository(database),
         new CharacterCurrentStateRepository(database),
+        new ItemCurrentStateRepository(database),
         new HookStateRepository(database),
         createLlmAdapter(new BookRepository(database).getFirst()),
       )
@@ -668,6 +736,7 @@ reviewCommand
       console.log(`Decision: ${review.decision}`)
       console.log(formatSection('Consistency issues:', formatJson(review.consistencyIssues)))
       console.log(formatSection('Character issues:', formatJson(review.characterIssues)))
+      console.log(formatSection('Item issues:', formatJson(review.itemIssues)))
       console.log(formatSection('Pacing issues:', formatJson(review.pacingIssues)))
       console.log(formatSection('Hook issues:', formatJson(review.hookIssues)))
       console.log(formatSection('Word count check:', formatJson(review.wordCountCheck)))

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { Chapter, Character, Faction, Hook, Location, Volume } from '../../shared/types/domain.js'
+import type { Chapter, Character, Faction, Hook, Item, ItemCurrentState, Location, Volume } from '../../shared/types/domain.js'
 import { createId } from '../../shared/utils/id.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -9,6 +9,8 @@ import type { CharacterRepository } from '../../infra/repository/character-repos
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { FactionRepository } from '../../infra/repository/faction-repository.js'
 import type { HookRepository } from '../../infra/repository/hook-repository.js'
+import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
+import type { ItemRepository } from '../../infra/repository/item-repository.js'
 import type { LocationRepository } from '../../infra/repository/location-repository.js'
 import type { VolumeRepository } from '../../infra/repository/volume-repository.js'
 
@@ -54,12 +56,26 @@ const addHookInputSchema = z.object({
   sourceChapterId: z.string().optional(),
 })
 
+const addItemInputSchema = z.object({
+  name: z.string().min(1),
+  unit: z.string().min(1),
+  type: z.string().min(1),
+  description: z.string().min(1),
+  quantity: z.number().int().positive().default(1),
+  status: z.string().min(1).default('正常'),
+  isUniqueWorldwide: z.boolean().default(false),
+  isImportant: z.boolean().default(false),
+  ownerCharacterId: z.string().optional(),
+  locationId: z.string().optional(),
+})
+
 export type AddVolumeInput = z.input<typeof addVolumeInputSchema>
 export type AddChapterInput = z.input<typeof addChapterInputSchema>
 export type AddCharacterInput = z.input<typeof addCharacterInputSchema>
 export type AddLocationInput = z.input<typeof addLocationInputSchema>
 export type AddFactionInput = z.input<typeof addFactionInputSchema>
 export type AddHookInput = z.input<typeof addHookInputSchema>
+export type AddItemInput = z.input<typeof addItemInputSchema>
 
 export class WorldService {
   constructor(
@@ -70,6 +86,8 @@ export class WorldService {
     private readonly locationRepository: LocationRepository,
     private readonly factionRepository: FactionRepository,
     private readonly hookRepository: HookRepository,
+    private readonly itemRepository: ItemRepository,
+    private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
   ) {}
 
   addVolume(input: AddVolumeInput): Volume {
@@ -210,6 +228,38 @@ export class WorldService {
 
     this.hookRepository.create(hook)
     return hook
+  }
+
+  addItem(input: AddItemInput): Item {
+    const parsed = addItemInputSchema.parse(input)
+    const book = this.requireBook()
+    const timestamp = nowIso()
+    const item: Item = {
+      id: createId('item'),
+      bookId: book.id,
+      name: parsed.name,
+      unit: parsed.unit,
+      type: parsed.type,
+      isUniqueWorldwide: parsed.isUniqueWorldwide,
+      isImportant: parsed.isImportant,
+      description: parsed.description,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }
+    const itemState: ItemCurrentState = {
+      bookId: book.id,
+      itemId: item.id,
+      ownerCharacterId: parsed.ownerCharacterId,
+      locationId: parsed.locationId,
+      quantity: parsed.quantity,
+      status: parsed.status,
+      updatedAt: timestamp,
+    }
+
+    this.itemRepository.create(item)
+    this.itemCurrentStateRepository.upsert(itemState)
+
+    return item
   }
 
   private requireBook() {

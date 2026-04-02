@@ -42,6 +42,14 @@ async function createLlmPlan(llmAdapter: LlmAdapter, context: PlanningContext): 
         theme: context.outline.theme,
         coreConflicts: context.outline.coreConflicts,
         previousChapterTitle: context.previousChapter?.title,
+        importantItems: context.importantItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          status: item.status,
+          ownerCharacterId: item.ownerCharacterId,
+          locationId: item.locationId,
+        })),
       },
       null,
       2,
@@ -70,6 +78,10 @@ function createRuleBasedPlan(context: PlanningContext): ChapterPlan {
   const previousChapterSummary = context.previousChapter
     ? `承接上一章《${context.previousChapter.title}》的推进结果。`
     : '作为开篇章节建立世界与主角当前局势。'
+  const requiredItemIds = context.importantItems.slice(0, 2).map((item) => item.id)
+  const importantItemBeat = context.importantItems[0]
+    ? `确保关键物品 ${context.importantItems[0].name} 在本章保持状态连续。`
+    : undefined
 
   return {
     id: createId('plan'),
@@ -88,7 +100,7 @@ function createRuleBasedPlan(context: PlanningContext): ChapterPlan {
         ],
         characterIds: [],
         factionIds: [],
-        itemIds: [],
+        itemIds: requiredItemIds,
       },
       {
         title: `${context.chapter.title}-核心推进`,
@@ -102,17 +114,18 @@ function createRuleBasedPlan(context: PlanningContext): ChapterPlan {
             ],
         characterIds: [],
         factionIds: [],
-        itemIds: [],
+        itemIds: requiredItemIds,
       },
     ],
     requiredCharacterIds: [],
     requiredLocationIds: [],
     requiredFactionIds: [],
-    requiredItemIds: [],
+    requiredItemIds,
     eventOutline: [
       `围绕章节目标推进：${context.chapter.objective}`,
       `呼应卷目标：${context.volume.goal}`,
       `至少推进一条核心冲突：${context.outline.coreConflicts[0]}`,
+      ...(importantItemBeat ? [importantItemBeat] : []),
     ],
     hookPlan: [],
     statePredictions: [

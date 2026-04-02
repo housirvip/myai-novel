@@ -6,6 +6,7 @@ import type {
   ChapterOutput,
   ChapterRewrite,
   CharacterCurrentState,
+  ItemCurrentState,
   StoryState,
 } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
@@ -24,6 +25,8 @@ import type { ChapterRepository } from '../../infra/repository/chapter-repositor
 import type { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
 import type { HookRepository } from '../../infra/repository/hook-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
+import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
+import type { ItemRepository } from '../../infra/repository/item-repository.js'
 import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import type { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
 
@@ -44,6 +47,8 @@ export class ApproveService {
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
     private readonly hookRepository: HookRepository,
     private readonly hookStateRepository: HookStateRepository,
+    private readonly itemRepository: ItemRepository,
+    private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
     private readonly memoryRepository: MemoryRepository,
   ) {}
 
@@ -94,6 +99,7 @@ export class ApproveService {
     this.storyStateRepository.upsert(state)
     this.updateHookStates(book.id, chapterId, approvedAt)
     this.updateCharacterState(book.id, chapterId, source.content, approvedAt)
+    this.updateItemStates(book.id, source.content, approvedAt)
     this.memoryRepository.upsertShortTerm({
       bookId: book.id,
       chapterId,
@@ -163,6 +169,35 @@ export class ApproveService {
     this.characterCurrentStateRepository.upsert(state)
   }
 
+  private updateItemStates(bookId: string, content: string, updatedAt: string): void {
+    const items = this.itemRepository.listByBookId(bookId)
+
+    for (const item of items) {
+      if (!item.isImportant || (!content.includes(item.name) && !content.includes(item.id))) {
+        continue
+      }
+
+      const previousState = this.itemCurrentStateRepository.getByItemId(bookId, item.id)
+      const quantityMatch = content.match(new RegExp(`${escapeRegExp(item.name)}（${escapeRegExp(item.id)}）[：:]?[^\n]*数量=(\\d+)`))
+      const statusMatch = content.match(new RegExp(`${escapeRegExp(item.name)}（${escapeRegExp(item.id)}）[：:]?[^\n]*状态=([^；\n]+)`))
+      const ownerMatch = content.match(new RegExp(`${escapeRegExp(item.name)}（${escapeRegExp(item.id)}）[：:]?[^\n]*持有者=([^；\n]+)`))
+      const locationMatch = content.match(new RegExp(`${escapeRegExp(item.name)}（${escapeRegExp(item.id)}）[：:]?[^\n]*地点=([^；\n]+)`))
+      const nextOwnerCharacterId = ownerMatch?.[1]?.trim()?.startsWith('character_') ? ownerMatch[1].trim() : previousState?.ownerCharacterId
+      const nextLocationId = locationMatch?.[1]?.trim()?.startsWith('location_') ? locationMatch[1].trim() : previousState?.locationId
+      const nextState: ItemCurrentState = {
+        bookId,
+        itemId: item.id,
+        ownerCharacterId: nextOwnerCharacterId,
+        locationId: nextLocationId,
+        quantity: quantityMatch ? Number.parseInt(quantityMatch[1], 10) : (previousState?.quantity ?? 1),
+        status: statusMatch?.[1]?.trim() ?? previousState?.status ?? '已在终稿中承接',
+        updatedAt,
+      }
+
+      this.itemCurrentStateRepository.upsert(nextState)
+    }
+  }
+
   private resolveSource(chapterId: string): DraftSource {
     const rewrite = this.chapterRewriteRepository.getLatestByChapterId(chapterId)
 
@@ -192,4 +227,8 @@ function mapRewriteSource(rewrite: ChapterRewrite): DraftSource {
     versionId: rewrite.versionId,
     content: rewrite.content,
   }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

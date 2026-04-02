@@ -1,4 +1,4 @@
-import type { LlmAdapter, ReviewDecision, ReviewReport, WordCountCheck } from '../../shared/types/domain.js'
+import type { ContextItemView, LlmAdapter, ReviewDecision, ReviewReport, WordCountCheck } from '../../shared/types/domain.js'
 import { createId } from '../../shared/utils/id.js'
 import { extractJsonObject } from '../../shared/utils/json.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -9,6 +9,7 @@ import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
+import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import { NovelError } from '../../shared/utils/errors.js'
 
 export class ReviewService {
@@ -19,6 +20,7 @@ export class ReviewService {
     private readonly chapterDraftRepository: ChapterDraftRepository,
     private readonly chapterReviewRepository: ChapterReviewRepository,
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
+    private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
     private readonly hookStateRepository: HookStateRepository,
     private readonly llmAdapter: LlmAdapter | null,
   ) {}
@@ -57,6 +59,7 @@ export class ReviewService {
     )
 
     const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
+    const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
     const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
 
     const baseReview = createRuleBasedReview(wordCountCheck, chapter.objective, draft.content, plan.sceneCards.length, plan.hookPlan.length)
@@ -72,6 +75,7 @@ export class ReviewService {
       decision: mergedReview.decision,
       consistencyIssues: mergedReview.consistencyIssues,
       characterIssues: mergeCharacterIssues(mergedReview.characterIssues, characterStates, draft.content),
+      itemIssues: mergeItemIssues(mergedReview.itemIssues, importantItems, draft.content, plan.requiredItemIds),
       pacingIssues: mergedReview.pacingIssues,
       hookIssues: mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan.length),
       wordCountCheck,
@@ -114,6 +118,35 @@ function mergeHookIssues(
   return issues
 }
 
+function mergeItemIssues(
+  baseIssues: string[],
+  importantItems: ContextItemView[],
+  content: string,
+  requiredItemIds: string[],
+): string[] {
+  const issues = [...baseIssues]
+
+  if (importantItems.length === 0) {
+    return issues
+  }
+
+  const mentionedImportantItems = importantItems.filter((item) => content.includes(item.name) || content.includes(item.id))
+
+  if (mentionedImportantItems.length === 0) {
+    issues.push('当前存在关键物品，但正文没有显式承接任何关键物品状态。')
+  }
+
+  for (const requiredItemId of requiredItemIds) {
+    const item = importantItems.find((candidate) => candidate.id === requiredItemId)
+
+    if (item && !content.includes(item.name) && !content.includes(item.id)) {
+      issues.push(`计划要求承接关键物品 ${item.name}，但正文未显式提及。`)
+    }
+  }
+
+  return issues
+}
+
 function createRuleBasedReview(
   wordCountCheck: WordCountCheck,
   objective: string,
@@ -125,14 +158,16 @@ function createRuleBasedReview(
   const pacingIssues = sceneCardCount < 2 ? ['场景拆分过少，节奏可能过于平。'] : []
   const hookIssues = hookPlanCount === 0 ? ['当前计划未显式记录钩子推进。'] : []
   const characterIssues: string[] = []
+  const itemIssues: string[] = []
 
   return {
     decision: decideReview(wordCountCheck, consistencyIssues, hookIssues),
     consistencyIssues,
     characterIssues,
+    itemIssues,
     pacingIssues,
     hookIssues,
-    revisionAdvice: buildRevisionAdvice(wordCountCheck, consistencyIssues, hookIssues),
+    revisionAdvice: buildRevisionAdvice(wordCountCheck, consistencyIssues, hookIssues, itemIssues),
   }
 }
 
@@ -146,7 +181,7 @@ async function createLlmReview(
   try {
     const response = await llmAdapter.generateText({
       system:
-        '你是小说审查助手。请只输出 JSON，不要解释。JSON 字段必须包含 decision, consistencyIssues, characterIssues, pacingIssues, hookIssues, revisionAdvice。',
+        '你是小说审查助手。请只输出 JSON，不要解释。JSON 字段必须包含 decision, consistencyIssues, characterIssues, itemIssues, pacingIssues, hookIssues, revisionAdvice。',
       user: JSON.stringify(
         {
           objective,
@@ -165,6 +200,7 @@ async function createLlmReview(
       decision: parsed.decision ?? 'warning',
       consistencyIssues: parsed.consistencyIssues ?? [],
       characterIssues: parsed.characterIssues ?? [],
+      itemIssues: parsed.itemIssues ?? [],
       pacingIssues: parsed.pacingIssues ?? [],
       hookIssues: parsed.hookIssues ?? [],
       revisionAdvice: parsed.revisionAdvice ?? ['建议人工复核本章审查结果。'],
@@ -190,6 +226,7 @@ function buildRevisionAdvice(
   wordCountCheck: WordCountCheck,
   consistencyIssues: string[],
   hookIssues: string[],
+  itemIssues: string[],
 ): string[] {
   const advice: string[] = []
 
@@ -203,6 +240,10 @@ function buildRevisionAdvice(
 
   if (hookIssues.length > 0) {
     advice.push('在结尾补入下一章牵引点或明确钩子推进。')
+  }
+
+  if (itemIssues.length > 0) {
+    advice.push('补写关键物品的归属、状态或出场承接，避免后续断链。')
   }
 
   if (advice.length === 0) {

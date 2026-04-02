@@ -79,6 +79,39 @@ export type CharacterCurrentState = {
   updatedAt: IsoTimestamp
 }
 
+export type Item = {
+  id: string
+  bookId: string
+  name: string
+  unit: string
+  type: string
+  isUniqueWorldwide: boolean
+  isImportant: boolean
+  description: string
+  createdAt: IsoTimestamp
+  updatedAt: IsoTimestamp
+}
+
+export type ItemCurrentState = {
+  bookId: string
+  itemId: string
+  ownerCharacterId?: string
+  locationId?: string
+  quantity: number
+  status: string
+  updatedAt: IsoTimestamp
+}
+
+export type ContextItemView = ItemCurrentState & {
+  id: string
+  name: string
+  unit: string
+  type: string
+  description: string
+  isUniqueWorldwide: boolean
+  isImportant: boolean
+}
+
 export type Location = {
   id: string
   bookId: string
@@ -183,6 +216,7 @@ export type PlanningContext = {
   volume: Volume
   previousChapter: Chapter | null
   characterStates: CharacterCurrentState[]
+  importantItems: ContextItemView[]
   activeHookStates: HookCurrentState[]
 }
 
@@ -228,6 +262,7 @@ export type ReviewReport = {
   decision: ReviewDecision
   consistencyIssues: string[]
   characterIssues: string[]
+  itemIssues: string[]
   pacingIssues: string[]
   hookIssues: string[]
   wordCountCheck: WordCountCheck

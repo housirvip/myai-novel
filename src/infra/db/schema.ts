@@ -256,4 +256,39 @@ export const migrations = [
       );
     `,
   },
+  {
+    id: '002_item_state_closure',
+    sql: `
+      CREATE TABLE IF NOT EXISTS items (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        unit TEXT NOT NULL,
+        type TEXT NOT NULL,
+        is_unique_worldwide INTEGER NOT NULL,
+        is_important INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS item_current_state (
+        book_id TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        owner_character_id TEXT,
+        location_id TEXT,
+        quantity INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (book_id, item_id),
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+        FOREIGN KEY (owner_character_id) REFERENCES characters(id) ON DELETE SET NULL,
+        FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE SET NULL
+      );
+
+      ALTER TABLE chapter_reviews ADD COLUMN item_issues_json TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
 ] as const
