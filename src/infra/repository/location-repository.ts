@@ -23,4 +23,54 @@ export class LocationRepository {
         location.updatedAt,
       )
   }
+
+  getById(locationId: string): Location | null {
+    const row = this.database.prepare('SELECT * FROM locations WHERE id = ?').get(locationId) as
+      | {
+          id: string
+          book_id: string
+          name: string
+          type: string
+          description: string
+          created_at: string
+          updated_at: string
+        }
+      | undefined
+
+    return row
+      ? {
+          id: row.id,
+          bookId: row.book_id,
+          name: row.name,
+          type: row.type,
+          description: row.description,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }
+      : null
+  }
+
+  listByBookId(bookId: string): Location[] {
+    const rows = this.database
+      .prepare('SELECT * FROM locations WHERE book_id = ? ORDER BY created_at ASC')
+      .all(bookId) as Array<{
+      id: string
+      book_id: string
+      name: string
+      type: string
+      description: string
+      created_at: string
+      updated_at: string
+    }>
+
+    return rows.map((row) => ({
+      id: row.id,
+      bookId: row.book_id,
+      name: row.name,
+      type: row.type,
+      description: row.description,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+  }
 }

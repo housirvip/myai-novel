@@ -36,6 +36,20 @@ export class CharacterRepository {
       )
   }
 
+  getById(characterId: string): Character | null {
+    const row = this.database.prepare('SELECT * FROM characters WHERE id = ?').get(characterId) as CharacterRow | undefined
+
+    return row ? mapCharacter(row) : null
+  }
+
+  listByBookId(bookId: string): Character[] {
+    const rows = this.database
+      .prepare('SELECT * FROM characters WHERE book_id = ? ORDER BY created_at ASC')
+      .all(bookId) as CharacterRow[]
+
+    return rows.map(mapCharacter)
+  }
+
   getPrimaryByBookId(bookId: string): Character | null {
     const row = this.database
       .prepare(
