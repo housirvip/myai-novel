@@ -55,7 +55,7 @@ export function registerWorkflowCommands(program: Command): void {
           contextBuilder,
           new ChapterPlanRepository(database),
           chapterRepository,
-          createLlmAdapter(bookRepository.getFirst()),
+          createLlmAdapter(),
           new HookRepository(database),
         )
 
@@ -124,7 +124,7 @@ export function registerWorkflowCommands(program: Command): void {
           writingContextBuilder,
           new ChapterDraftRepository(database),
           chapterRepository,
-          createLlmAdapter(bookRepository.getFirst()),
+          createLlmAdapter(),
         )
 
         const result = await generationService.writeNext(chapterId)
@@ -177,7 +177,7 @@ export function registerWorkflowCommands(program: Command): void {
           new ItemCurrentStateRepository(database),
           new MemoryRepository(database),
           new HookStateRepository(database),
-          createLlmAdapter(new BookRepository(database).getFirst()),
+          createLlmAdapter(),
         )
 
         const review = await reviewService.reviewChapter(chapterId)

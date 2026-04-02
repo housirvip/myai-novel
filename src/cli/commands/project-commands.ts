@@ -79,7 +79,6 @@ export function registerProjectCommands(program: Command): void {
         console.log(`Genre: ${book.genre}`)
         console.log(`Default chapter words: ${book.defaultChapterWordCount}`)
         console.log(`Tolerance ratio: ${book.chapterWordCountToleranceRatio}`)
-        console.log(`Model: ${book.model.provider}/${book.model.modelName}`)
         console.log(`Volumes: ${volumes.length}`)
         console.log(`Chapters: ${chapters.length}`)
 
@@ -101,10 +100,6 @@ function registerInitCommand(program: Command): void {
     .requiredOption('--genre <genre>', 'Book genre')
     .option('--word-count <number>', 'Default chapter word count', parseInteger, 3000)
     .option('--tolerance <number>', 'Chapter word count tolerance ratio', parseFloatNumber, 0.15)
-    .option('--model-provider <provider>', 'LLM provider name', 'openai')
-    .option('--model-name <model>', 'LLM model name', 'gpt-5')
-    .option('--temperature <number>', 'LLM temperature', parseFloatNumber)
-    .option('--max-tokens <number>', 'LLM max tokens', parseInteger)
     .action(async (options) => {
       const paths = resolveProjectPaths(process.cwd())
 
@@ -131,12 +126,6 @@ function registerInitCommand(program: Command): void {
           genre: options.genre,
           defaultChapterWordCount: options.wordCount,
           chapterWordCountToleranceRatio: options.tolerance,
-          model: {
-            provider: options.modelProvider,
-            modelName: options.modelName,
-            temperature: options.temperature,
-            maxTokens: options.maxTokens,
-          },
         })
 
         console.log(`Initialized novel project: ${book.title} (${book.id})`)

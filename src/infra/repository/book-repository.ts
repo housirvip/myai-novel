@@ -1,4 +1,5 @@
 import type { Book } from '../../shared/types/domain.js'
+import { readLlmEnv } from '../../shared/utils/env.js'
 import type { NovelDatabase } from '../db/database.js'
 
 type BookRow = {
@@ -34,6 +35,8 @@ export class BookRepository {
   }
 
   create(book: Book): void {
+    const env = readLlmEnv()
+
     this.database
       .prepare(
         `
@@ -61,10 +64,10 @@ export class BookRepository {
         JSON.stringify(book.styleGuide),
         book.defaultChapterWordCount,
         book.chapterWordCountToleranceRatio,
-        book.model.provider,
-        book.model.modelName,
-        book.model.temperature ?? null,
-        book.model.maxTokens ?? null,
+        'openai',
+        env.openAiModel,
+        null,
+        null,
         book.createdAt,
         book.updatedAt,
       )
@@ -79,12 +82,6 @@ function mapBook(row: BookRow): Book {
     styleGuide: JSON.parse(row.style_guide_json) as string[],
     defaultChapterWordCount: row.default_chapter_word_count,
     chapterWordCountToleranceRatio: row.chapter_word_count_tolerance_ratio,
-    model: {
-      provider: row.model_provider,
-      modelName: row.model_name,
-      temperature: row.model_temperature ?? undefined,
-      maxTokens: row.model_max_tokens ?? undefined,
-    },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

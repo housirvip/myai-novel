@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { Book, ModelConfig, Outline } from '../../shared/types/domain.js'
+import type { Book, Outline } from '../../shared/types/domain.js'
 import { createId } from '../../shared/utils/id.js'
 import { nowIso } from '../../shared/utils/time.js'
 import { NovelError } from '../../shared/utils/errors.js'
@@ -12,12 +12,6 @@ const initBookInputSchema = z.object({
   genre: z.string().min(1),
   defaultChapterWordCount: z.number().int().positive().default(3000),
   chapterWordCountToleranceRatio: z.number().positive().max(1).default(0.15),
-  model: z.object({
-    provider: z.string().min(1),
-    modelName: z.string().min(1),
-    temperature: z.number().optional(),
-    maxTokens: z.number().int().positive().optional(),
-  }),
 })
 
 const setOutlineInputSchema = z.object({
@@ -53,7 +47,6 @@ export class BookService {
       styleGuide: [],
       defaultChapterWordCount: parsed.defaultChapterWordCount,
       chapterWordCountToleranceRatio: parsed.chapterWordCountToleranceRatio,
-      model: toModelConfig(parsed.model),
       createdAt: timestamp,
       updatedAt: timestamp,
     }
@@ -84,14 +77,5 @@ export class BookService {
     this.outlineRepository.upsert(outline)
 
     return outline
-  }
-}
-
-function toModelConfig(model: InitBookInput['model']): ModelConfig {
-  return {
-    provider: model.provider,
-    modelName: model.modelName,
-    temperature: model.temperature,
-    maxTokens: model.maxTokens,
   }
 }

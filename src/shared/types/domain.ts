@@ -1,12 +1,5 @@
 export type IsoTimestamp = string
 
-export type ModelConfig = {
-  provider: string
-  modelName: string
-  temperature?: number
-  maxTokens?: number
-}
-
 export type Book = {
   id: string
   title: string
@@ -14,7 +7,6 @@ export type Book = {
   styleGuide: string[]
   defaultChapterWordCount: number
   chapterWordCountToleranceRatio: number
-  model: ModelConfig
   createdAt: IsoTimestamp
   updatedAt: IsoTimestamp
 }

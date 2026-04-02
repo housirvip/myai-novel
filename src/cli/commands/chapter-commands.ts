@@ -131,7 +131,7 @@ export function registerChapterCommands(program: Command): void {
           new ChapterDraftRepository(database),
           new ChapterReviewRepository(database),
           new ChapterRewriteRepository(database),
-          createLlmAdapter(new BookRepository(database).getFirst()),
+          createLlmAdapter(),
         )
 
         const rewrite = await rewriteService.rewriteChapter({
