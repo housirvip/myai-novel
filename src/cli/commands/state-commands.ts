@@ -1,0 +1,212 @@
+import { Command } from 'commander'
+
+import { BookRepository } from '../../infra/repository/book-repository.js'
+import { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
+import { CharacterRepository } from '../../infra/repository/character-repository.js'
+import { ChapterHookUpdateRepository } from '../../infra/repository/chapter-hook-update-repository.js'
+import { ChapterMemoryUpdateRepository } from '../../infra/repository/chapter-memory-update-repository.js'
+import { ChapterRepository } from '../../infra/repository/chapter-repository.js'
+import { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
+import { HookRepository } from '../../infra/repository/hook-repository.js'
+import { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
+import { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
+import { ItemRepository } from '../../infra/repository/item-repository.js'
+import { LocationRepository } from '../../infra/repository/location-repository.js'
+import { MemoryRepository } from '../../infra/repository/memory-repository.js'
+import { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
+import { NovelError } from '../../shared/utils/errors.js'
+import { formatJson, formatSection } from '../../shared/utils/format.js'
+import { openProjectDatabase } from '../context.js'
+
+export function registerStateCommands(program: Command): void {
+  registerStoryCommand(program)
+
+  const stateCommand = program.command('state').description('State tracing commands')
+
+  stateCommand
+    .command('show')
+    .description('Show current canonical state for the current book')
+    .action(async () => {
+      const database = await openProjectDatabase()
+
+      try {
+        const book = new BookRepository(database).getFirst()
+
+        if (!book) {
+          throw new NovelError('Project is not initialized. Run `novel init` first.')
+        }
+
+        const chapterRepository = new ChapterRepository(database)
+        const storyState = new StoryStateRepository(database).getByBookId(book.id)
+        const characterRepository = new CharacterRepository(database)
+        const locationRepository = new LocationRepository(database)
+        const itemRepository = new ItemRepository(database)
+        const hookRepository = new HookRepository(database)
+        const characterStates = new CharacterCurrentStateRepository(database).listByBookId(book.id)
+        const importantItems = new ItemCurrentStateRepository(database).listImportantByBookId(book.id)
+        const hookStates = new HookStateRepository(database).listByBookId(book.id)
+        const shortTermMemory = new MemoryRepository(database).getShortTermByBookId(book.id)
+        const longTermMemory = new MemoryRepository(database).getLongTermByBookId(book.id)
+        const characters = characterRepository.listByBookId(book.id)
+        const locations = locationRepository.listByBookId(book.id)
+        const items = itemRepository.listByBookId(book.id)
+        const hooks = hookRepository.listByBookId(book.id)
+        const recentStateUpdates = new ChapterStateUpdateRepository(database).listByBookId(book.id).slice(0, 10)
+        const recentMemoryUpdates = new ChapterMemoryUpdateRepository(database).listByBookId(book.id).slice(0, 10)
+        const recentHookUpdates = new ChapterHookUpdateRepository(database).listByBookId(book.id).slice(0, 10)
+
+        const characterNameById = new Map(characters.map((character) => [character.id, character.name]))
+        const locationNameById = new Map(locations.map((location) => [location.id, location.name]))
+        const itemNameById = new Map(items.map((item) => [item.id, item.name]))
+        const hookTitleById = new Map(hooks.map((hook) => [hook.id, hook.title]))
+
+        console.log(`Book: ${book.title}`)
+        console.log(`Book ID: ${book.id}`)
+        console.log(formatSection('Story current state:', formatJson({
+          currentChapterId: storyState?.currentChapterId ?? null,
+          currentChapterTitle: storyState?.currentChapterId
+            ? chapterRepository.getById(storyState.currentChapterId)?.title ?? null
+            : null,
+          recentEvents: storyState?.recentEvents ?? [],
+          updatedAt: storyState?.updatedAt ?? null,
+        })))
+        console.log(formatSection(
+          'Character current state:',
+          formatJson(characterStates.map((state) => ({
+            characterId: state.characterId,
+            characterName: characterNameById.get(state.characterId) ?? state.characterId,
+            currentLocationId: state.currentLocationId ?? null,
+            currentLocationName: state.currentLocationId ? (locationNameById.get(state.currentLocationId) ?? null) : null,
+            statusNotes: state.statusNotes,
+            updatedAt: state.updatedAt,
+          }))),
+        ))
+        console.log(formatSection(
+          'Important item current state:',
+          formatJson(importantItems.map((item) => ({
+            itemId: item.id,
+            itemName: item.name,
+            ownerCharacterId: item.ownerCharacterId ?? null,
+            ownerCharacterName: item.ownerCharacterId ? (characterNameById.get(item.ownerCharacterId) ?? null) : null,
+            locationId: item.locationId ?? null,
+            locationName: item.locationId ? (locationNameById.get(item.locationId) ?? null) : null,
+            quantity: item.quantity,
+            status: item.status,
+            updatedAt: item.updatedAt || null,
+          }))),
+        ))
+        console.log(formatSection(
+          'Hook current state:',
+          formatJson(hookStates.map((state) => ({
+            hookId: state.hookId,
+            hookTitle: hookTitleById.get(state.hookId) ?? state.hookId,
+            status: state.status,
+            updatedByChapterId: state.updatedByChapterId ?? null,
+            updatedAt: state.updatedAt,
+          }))),
+        ))
+        console.log(formatSection('Short-term memory current:', formatJson(shortTermMemory)))
+        console.log(formatSection('Long-term memory current:', formatJson(longTermMemory)))
+        console.log(formatSection(
+          'Recent state updates:',
+          formatJson(recentStateUpdates.map((update) => ({
+            ...update,
+            entityName:
+              update.entityType === 'character'
+                ? (characterNameById.get(update.entityId) ?? update.entityId)
+                : (itemNameById.get(update.entityId) ?? update.entityId),
+          }))),
+        ))
+        console.log(formatSection('Recent memory updates:', formatJson(recentMemoryUpdates)))
+        console.log(formatSection(
+          'Recent hook updates:',
+          formatJson(recentHookUpdates.map((update) => ({
+            ...update,
+            hookTitle: hookTitleById.get(update.hookId) ?? update.hookId,
+          }))),
+        ))
+      } finally {
+        database.close()
+      }
+    })
+
+  program
+    .command('state-updates')
+    .description('State update trace commands')
+    .command('show <chapterId>')
+    .description('Show state, memory, and hook updates for a chapter')
+    .action(async (chapterId: string) => {
+      const database = await openProjectDatabase()
+
+      try {
+        const chapterRepository = new ChapterRepository(database)
+        const characterRepository = new CharacterRepository(database)
+        const itemRepository = new ItemRepository(database)
+        const hookRepository = new HookRepository(database)
+        const chapter = chapterRepository.getById(chapterId)
+        const stateUpdates = new ChapterStateUpdateRepository(database).listByChapterId(chapterId)
+        const memoryUpdates = new ChapterMemoryUpdateRepository(database).listByChapterId(chapterId)
+        const hookUpdates = new ChapterHookUpdateRepository(database).listByChapterId(chapterId)
+        const characterNameById = new Map(characterRepository.listByBookId(chapter?.bookId ?? '').map((item) => [item.id, item.name]))
+        const itemNameById = new Map(itemRepository.listByBookId(chapter?.bookId ?? '').map((item) => [item.id, item.name]))
+        const hookTitleById = new Map(hookRepository.listByBookId(chapter?.bookId ?? '').map((item) => [item.id, item.title]))
+
+        if (chapter) {
+          console.log(`Chapter: #${chapter.index} ${chapter.title}`)
+          console.log(`Chapter ID: ${chapter.id}`)
+          console.log(`Status: ${chapter.status}`)
+        }
+
+        console.log(formatSection(
+          'State updates:',
+          formatJson(stateUpdates.map((update) => ({
+            ...update,
+            entityName:
+              update.entityType === 'character'
+                ? (characterNameById.get(update.entityId) ?? update.entityId)
+                : (itemNameById.get(update.entityId) ?? update.entityId),
+          }))),
+        ))
+        console.log(formatSection('Memory updates:', formatJson(memoryUpdates)))
+        console.log(formatSection(
+          'Hook updates:',
+          formatJson(hookUpdates.map((update) => ({
+            ...update,
+            hookTitle: hookTitleById.get(update.hookId) ?? update.hookId,
+          }))),
+        ))
+      } finally {
+        database.close()
+      }
+    })
+}
+
+function registerStoryCommand(program: Command): void {
+  program
+    .command('story')
+    .description('Story state commands')
+    .command('show')
+    .description('Show current story state')
+    .action(async () => {
+      const database = await openProjectDatabase()
+
+      try {
+        const book = new BookRepository(database).getFirst()
+
+        if (!book) {
+          throw new NovelError('Project is not initialized. Run `novel init` first.')
+        }
+
+        const state = new StoryStateRepository(database).getByBookId(book.id)
+
+        if (!state) {
+          console.log('Story state: (empty)')
+          return
+        }
+
+        console.log(formatJson(state))
+      } finally {
+        database.close()
+      }
+    })
+}
