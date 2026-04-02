@@ -77,11 +77,17 @@ export class ReviewService {
       draftId: draft.id,
       decision: mergedReview.decision,
       consistencyIssues: mergedReview.consistencyIssues,
-      characterIssues: mergeCharacterIssues(mergedReview.characterIssues, characterStates, draft.content),
+      characterIssues: mergeCharacterIssues(
+        mergedReview.characterIssues,
+        characterStates,
+        plan.requiredCharacterIds,
+        plan.requiredLocationIds,
+        draft.content,
+      ),
       itemIssues: mergeItemIssues(mergedReview.itemIssues, importantItems, draft.content, plan.requiredItemIds),
       memoryIssues: mergeMemoryIssues(mergedReview.memoryIssues, longTermMemory?.entries ?? [], draft.content),
       pacingIssues: mergedReview.pacingIssues,
-      hookIssues: mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan.length),
+      hookIssues: mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan, draft.content),
       wordCountCheck,
       newFactCandidates: mergeNewFactCandidates(mergedReview.newFactCandidates, chapter.objective, plan.memoryCandidates),
       revisionAdvice: mergedReview.revisionAdvice,
@@ -97,30 +103,80 @@ export class ReviewService {
 
 function mergeCharacterIssues(
   baseIssues: string[],
-  states: Array<{ currentLocationId?: string }>,
+  states: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>,
+  requiredCharacterIds: string[],
+  requiredLocationIds: string[],
   content: string,
 ): string[] {
   const issues = [...baseIssues]
+  const relevantStates = states.filter(
+    (state) => requiredCharacterIds.length === 0 || requiredCharacterIds.includes(state.characterId),
+  )
 
-  if (states.length > 0 && !content.includes('地点') && !content.includes('位置')) {
-    issues.push('正文未显式承接当前角色位置状态。')
+  if (relevantStates.length > 0 && !content.includes('## 角色当前状态')) {
+    issues.push('草稿未显式列出关键角色当前状态。')
   }
 
-  return issues
+  for (const state of relevantStates) {
+    const line = findStructuredLine(content, `角色（${state.characterId}）`)
+
+    if (!line) {
+      issues.push(`关键角色 ${state.characterId} 未在草稿中显式承接当前状态。`)
+      continue
+    }
+
+    if (state.currentLocationId) {
+      const explicitLocation = extractStructuredValue(line, '当前位置')
+
+      if (explicitLocation && explicitLocation !== state.currentLocationId) {
+        issues.push(`角色 ${state.characterId} 的当前位置与当前状态冲突：应为 ${state.currentLocationId}，草稿为 ${explicitLocation}。`)
+      } else if (!line.includes(state.currentLocationId)) {
+        issues.push(`角色 ${state.characterId} 的当前位置 ${state.currentLocationId} 未在草稿中得到承接。`)
+      }
+    }
+  }
+
+  for (const locationId of requiredLocationIds) {
+    if (!content.includes(locationId)) {
+      issues.push(`计划要求承接地点 ${locationId}，但草稿未显式体现。`)
+    }
+  }
+
+  return uniqueMessages(issues)
 }
 
 function mergeHookIssues(
   baseIssues: string[],
-  activeHookStates: Array<{ hookId: string }>,
-  hookPlanCount: number,
+  activeHookStates: Array<{ hookId: string; status: string }>,
+  hookPlan: Array<{ hookId: string; action: string; note: string }>,
+  content: string,
 ): string[] {
   const issues = [...baseIssues]
 
-  if (activeHookStates.length > 0 && hookPlanCount === 0) {
+  if (activeHookStates.length > 0 && hookPlan.length === 0) {
     issues.push('存在活跃钩子，但本章计划未给出对应推进安排。')
   }
 
-  return issues
+  if (activeHookStates.length > 0 && !content.includes('## 钩子约束')) {
+    issues.push('草稿未显式承接当前活跃钩子。')
+  }
+
+  for (const item of hookPlan) {
+    const line = findStructuredLine(content, `Hook（${item.hookId}）`)
+
+    if (!line && !content.includes(item.note)) {
+      issues.push(`计划要求处理 Hook ${item.hookId}，但草稿未体现对应承接。`)
+      continue
+    }
+
+    const explicitAction = line ? extractStructuredValue(line, '动作') : undefined
+
+    if (explicitAction && explicitAction !== item.action) {
+      issues.push(`Hook ${item.hookId} 的草稿动作与计划不一致：计划=${item.action}，草稿=${explicitAction}。`)
+    }
+  }
+
+  return uniqueMessages(issues)
 }
 
 function mergeItemIssues(
@@ -144,12 +200,44 @@ function mergeItemIssues(
   for (const requiredItemId of requiredItemIds) {
     const item = importantItems.find((candidate) => candidate.id === requiredItemId)
 
-    if (item && !content.includes(item.name) && !content.includes(item.id)) {
+    if (!item) {
+      continue
+    }
+
+    const line = findStructuredLine(content, `${item.name}（${item.id}）`)
+
+    if (!line && !content.includes(item.name) && !content.includes(item.id)) {
       issues.push(`计划要求承接关键物品 ${item.name}，但正文未显式提及。`)
+      continue
+    }
+
+    if (!line) {
+      continue
+    }
+
+    const explicitQuantity = extractStructuredValue(line, '数量')
+    const explicitStatus = extractStructuredValue(line, '状态')
+    const explicitOwner = extractStructuredValue(line, '持有者')
+    const explicitLocation = extractStructuredValue(line, '地点')
+
+    if (explicitQuantity && Number.parseInt(explicitQuantity, 10) !== item.quantity) {
+      issues.push(`关键物品 ${item.name} 的数量与当前状态冲突：应为 ${item.quantity}，草稿为 ${explicitQuantity}。`)
+    }
+
+    if (explicitStatus && explicitStatus !== item.status) {
+      issues.push(`关键物品 ${item.name} 的状态与当前状态冲突：应为 ${item.status}，草稿为 ${explicitStatus}。`)
+    }
+
+    if (explicitOwner && item.ownerCharacterId && explicitOwner !== item.ownerCharacterId) {
+      issues.push(`关键物品 ${item.name} 的持有者与当前状态冲突：应为 ${item.ownerCharacterId}，草稿为 ${explicitOwner}。`)
+    }
+
+    if (explicitLocation && item.locationId && explicitLocation !== item.locationId) {
+      issues.push(`关键物品 ${item.name} 的地点与当前状态冲突：应为 ${item.locationId}，草稿为 ${explicitLocation}。`)
     }
   }
 
-  return issues
+  return uniqueMessages(issues)
 }
 
 function mergeMemoryIssues(
@@ -159,6 +247,10 @@ function mergeMemoryIssues(
 ): string[] {
   const issues = [...baseIssues]
   const criticalEntries = longTermEntries.filter((entry) => entry.importance >= 4)
+
+  if (criticalEntries.length > 0 && !content.includes('## 记忆约束')) {
+    issues.push('草稿未显式承接高重要长期记忆。')
+  }
 
   for (const entry of criticalEntries) {
     const sharedTokens = entry.summary
@@ -171,7 +263,7 @@ function mergeMemoryIssues(
     }
   }
 
-  return issues
+  return uniqueMessages(issues)
 }
 
 function mergeNewFactCandidates(baseCandidates: string[], objective: string, memoryCandidates: string[]): string[] {
@@ -312,4 +404,20 @@ function decideReview(
   }
 
   return 'pass'
+}
+
+function findStructuredLine(content: string, label: string): string | null {
+  return content.match(new RegExp(`^.*${escapeRegExp(label)}.*$`, 'm'))?.[0] ?? null
+}
+
+function extractStructuredValue(line: string, key: string): string | undefined {
+  return line.match(new RegExp(`${escapeRegExp(key)}=([^；\n]+)`))?.[1]?.trim()
+}
+
+function uniqueMessages(messages: string[]): string[] {
+  return [...new Set(messages)]
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

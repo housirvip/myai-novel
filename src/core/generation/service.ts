@@ -47,6 +47,13 @@ async function createLlmDraft(
         chapterObjective: context.chapter.objective,
         volumeGoal: context.volume.goal,
         theme: context.outline.theme,
+        characterStates: context.characterStates.map((state) => ({
+          characterId: state.characterId,
+          currentLocationId: state.currentLocationId,
+          statusNotes: state.statusNotes,
+        })),
+        activeHookStates: context.activeHookStates,
+        hookPlan: context.chapterPlan.hookPlan,
         memoryRecall: context.memoryRecall,
         sceneCards: context.chapterPlan.sceneCards,
         eventOutline: context.chapterPlan.eventOutline,
@@ -92,6 +99,29 @@ function createRuleBasedDraft(context: WritingContext, timestamp: string): Chapt
 }
 
 function buildDraftContent(context: WritingContext): string {
+  const characterStatesSection = context.characterStates.length > 0
+    ? [
+        '## 角色当前状态',
+        '',
+        ...context.characterStates.map(
+          (state) =>
+            `- 角色（${state.characterId}）：当前位置=${state.currentLocationId ?? '未知'}；状态=${state.statusNotes.join(' / ') || '无'}`,
+        ),
+        '',
+      ]
+    : []
+  const hookSection = context.chapterPlan.hookPlan.length > 0 || context.activeHookStates.length > 0
+    ? [
+        '## 钩子约束',
+        '',
+        ...context.chapterPlan.hookPlan.map((item) => {
+          const activeState = context.activeHookStates.find((candidate) => candidate.hookId === item.hookId)
+
+          return `- Hook（${item.hookId}）：动作=${item.action}；当前状态=${activeState?.status ?? 'unknown'}；说明=${item.note}`
+        }),
+        '',
+      ]
+    : []
   const sceneSections = context.chapterPlan.sceneCards
     .map((scene, index) => {
       const beats = scene.beats.map((beat) => `- ${beat}`).join('\n')
@@ -136,8 +166,10 @@ function buildDraftContent(context: WritingContext): string {
       ? `上一章《${context.previousChapter.title}》留下的局势仍在持续发酵。`
       : '这是故事前期的重要起势章节，需要尽快建立主角处境与冲突压力。',
     '',
+    ...characterStatesSection,
     ...memorySection,
     ...importantItemsSection,
+    ...hookSection,
     sceneSections,
     '',
     '## 本章事件提要',

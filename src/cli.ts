@@ -544,6 +544,8 @@ chapterCommand
         new ChapterRepository(database),
         new ChapterDraftRepository(database),
         new ChapterRewriteRepository(database),
+        new ChapterPlanRepository(database),
+        new ChapterReviewRepository(database),
         new ChapterOutputRepository(database),
         new ChapterStateUpdateRepository(database),
         new ChapterMemoryUpdateRepository(database),
@@ -595,6 +597,7 @@ planCommand
         new ChapterPlanRepository(database),
         chapterRepository,
         createLlmAdapter(bookRepository.getFirst()),
+        new HookRepository(database),
       )
 
       const plan = await planningService.planChapter(chapterId)

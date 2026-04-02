@@ -1,17 +1,21 @@
 import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import type {
-  ApproveResult,
-  ChapterHookUpdate,
-  ChapterMemoryUpdate,
-  ChapterOutput,
-  ChapterRewrite,
-  ChapterStateUpdate,
-  CharacterCurrentState,
-  ItemCurrentState,
-  StoryState,
-} from '../../shared/types/domain.js'
+  import type {
+    ApproveResult,
+    ChapterHookUpdate,
+    ChapterPlan,
+    ChapterMemoryUpdate,
+    ChapterOutput,
+    ChapterRewrite,
+    ReviewReport,
+    ChapterStateUpdate,
+    CharacterCurrentState,
+    Hook,
+    HookPlan,
+    ItemCurrentState,
+    StoryState,
+  } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { createId } from '../../shared/utils/id.js'
 import {
@@ -22,14 +26,16 @@ import { nowIso } from '../../shared/utils/time.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
 import type { CharacterRepository } from '../../infra/repository/character-repository.js'
 import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
-import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
-import type { ChapterHookUpdateRepository } from '../../infra/repository/chapter-hook-update-repository.js'
-import type { ChapterMemoryUpdateRepository } from '../../infra/repository/chapter-memory-update-repository.js'
-import type { ChapterOutputRepository } from '../../infra/repository/chapter-output-repository.js'
-import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
-import type { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
-import type { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
-import type { HookRepository } from '../../infra/repository/hook-repository.js'
+  import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
+  import type { ChapterHookUpdateRepository } from '../../infra/repository/chapter-hook-update-repository.js'
+  import type { ChapterMemoryUpdateRepository } from '../../infra/repository/chapter-memory-update-repository.js'
+  import type { ChapterOutputRepository } from '../../infra/repository/chapter-output-repository.js'
+  import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
+  import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
+  import type { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
+  import type { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
+  import type { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
+  import type { HookRepository } from '../../infra/repository/hook-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { ItemRepository } from '../../infra/repository/item-repository.js'
@@ -47,6 +53,8 @@ export class ApproveService {
     private readonly chapterRepository: ChapterRepository,
     private readonly chapterDraftRepository: ChapterDraftRepository,
     private readonly chapterRewriteRepository: ChapterRewriteRepository,
+    private readonly chapterPlanRepository: ChapterPlanRepository,
+    private readonly chapterReviewRepository: ChapterReviewRepository,
     private readonly chapterOutputRepository: ChapterOutputRepository,
     private readonly chapterStateUpdateRepository: ChapterStateUpdateRepository,
     private readonly chapterMemoryUpdateRepository: ChapterMemoryUpdateRepository,
@@ -78,6 +86,8 @@ export class ApproveService {
       throw new NovelError('Only reviewed chapters can be approved.')
     }
 
+    const plan = this.resolvePlan(chapterId, chapter.currentPlanVersionId)
+    const review = this.chapterReviewRepository.getLatestByChapterId(chapterId)
     const source = this.resolveSource(chapterId)
     const approvedAt = nowIso()
     const projectPaths = resolveProjectPaths(this.rootDir)
@@ -106,10 +116,10 @@ export class ApproveService {
 
     this.chapterOutputRepository.create(output)
     this.storyStateRepository.upsert(state)
-    const hookUpdates = this.updateHookStates(book.id, chapterId, approvedAt)
+    const hookUpdates = this.updateHookStates(book.id, chapterId, approvedAt, plan?.hookPlan ?? [])
     const stateUpdates = [
-      ...this.updateCharacterState(book.id, chapterId, source.content, approvedAt),
-      ...this.updateItemStates(book.id, chapterId, source.content, approvedAt),
+      ...this.updateCharacterState(book.id, chapterId, source.content, approvedAt, plan?.requiredCharacterIds ?? []),
+      ...this.updateItemStates(book.id, chapterId, source.content, approvedAt, plan?.requiredItemIds ?? []),
     ]
     const previousShortTerm = this.memoryRepository.getShortTermByBookId(book.id)
     const previousLongTerm = this.memoryRepository.getLongTermByBookId(book.id)
@@ -121,6 +131,7 @@ export class ApproveService {
         importance: 4,
         sourceChapterId: chapterId,
       },
+      ...buildLongTermCandidates(review, chapterId),
     ])
     this.memoryRepository.upsertShortTerm({
       bookId: book.id,
@@ -151,15 +162,28 @@ export class ApproveService {
     }
   }
 
-  private updateHookStates(bookId: string, chapterId: string, updatedAt: string): ChapterHookUpdate[] {
+  private updateHookStates(bookId: string, chapterId: string, updatedAt: string, hookPlan: HookPlan[]): ChapterHookUpdate[] {
     const hooks = this.hookRepository.listByBookId(bookId)
+    const hookById = new Map(hooks.map((hook) => [hook.id, hook]))
+    const currentStates = this.hookStateRepository.listByBookId(bookId)
+    const currentStateByHookId = new Map(currentStates.map((state) => [state.hookId, state]))
+    const hookPlanById = new Map(hookPlan.map((item) => [item.hookId, item]))
+    const targetHookIds = [...new Set([
+      ...currentStates.filter((state) => state.status !== 'resolved').map((state) => state.hookId),
+      ...hookPlan.map((item) => item.hookId),
+    ])]
     const updates: ChapterHookUpdate[] = []
 
-    for (const hook of hooks) {
+    for (const hookId of targetHookIds) {
+      const hook = hookById.get(hookId)
+      const currentStatus = currentStateByHookId.get(hookId)?.status ?? hook?.status ?? 'open'
+      const planItem = hookPlanById.get(hookId)
+      const nextStatus = planItem ? transitionHookStatus(currentStatus, planItem.action) : currentStatus
+
       this.hookStateRepository.upsert({
         bookId,
-        hookId: hook.id,
-        status: hook.status,
+        hookId,
+        status: nextStatus,
         updatedByChapterId: chapterId,
         updatedAt,
       })
@@ -168,9 +192,11 @@ export class ApproveService {
         id: createId('hook_update'),
         bookId,
         chapterId,
-        hookId: hook.id,
-        status: hook.status,
-        summary: `Hook ${hook.title} 当前状态为 ${hook.status}`,
+        hookId,
+        status: nextStatus,
+        summary: planItem
+          ? `Hook ${hook?.title ?? hookId} 按计划执行 ${planItem.action}，状态 ${currentStatus} -> ${nextStatus}`
+          : `Hook ${hook?.title ?? hookId} 保持当前状态 ${nextStatus}`,
         createdAt: updatedAt,
       })
     }
@@ -178,64 +204,97 @@ export class ApproveService {
     return updates
   }
 
-  private updateCharacterState(bookId: string, chapterId: string, content: string, updatedAt: string): ChapterStateUpdate[] {
+  private updateCharacterState(
+    bookId: string,
+    chapterId: string,
+    content: string,
+    updatedAt: string,
+    requiredCharacterIds: string[],
+  ): ChapterStateUpdate[] {
     const protagonist = this.characterRepository.getPrimaryByBookId(bookId)
+    const currentStates = this.characterCurrentStateRepository.listByBookId(bookId)
+    const stateByCharacterId = new Map(currentStates.map((state) => [state.characterId, state]))
+    const targetCharacterIds = uniqueStrings([
+      ...requiredCharacterIds,
+      ...(protagonist ? [protagonist.id] : []),
+    ])
+    const updates: ChapterStateUpdate[] = []
 
-    if (!protagonist) {
-      return []
-    }
+    for (const characterId of targetCharacterIds) {
+      const previousState = stateByCharacterId.get(characterId)
+      const line = findStructuredLine(content, `角色（${characterId}）`)
+      const explicitLocation = line ? extractStructuredValue(line, '当前位置') : undefined
+      const explicitStatus = line ? extractStructuredValue(line, '状态') : undefined
 
-    const explicitLocation = content.match(/地点[：: ]+([^\n]+)/)?.[1]?.trim()
-    const currentLocationId = explicitLocation?.startsWith('location_') ? explicitLocation : undefined
+      if (!previousState && !line && characterId !== protagonist?.id) {
+        continue
+      }
 
-    const state: CharacterCurrentState = {
-      bookId,
-      characterId: protagonist.id,
-      currentLocationId,
-      statusNotes: explicitLocation
-        ? [`章节确认后记录的位置线索：${explicitLocation}`]
-        : ['章节确认后写入的最小角色位置状态'],
-      updatedAt,
-    }
+      const currentLocationId = explicitLocation?.startsWith('location_')
+        ? explicitLocation
+        : previousState?.currentLocationId
+      const statusNotes = explicitStatus
+        ? splitStructuredNotes(explicitStatus)
+        : previousState?.statusNotes ??
+          (characterId === protagonist?.id ? ['章节确认后沿用主角当前状态，等待后续章节继续细化'] : ['章节确认后沿用既有角色状态'])
 
-    this.characterCurrentStateRepository.upsert(state)
+      const state: CharacterCurrentState = {
+        bookId,
+        characterId,
+        currentLocationId,
+        statusNotes,
+        updatedAt,
+      }
 
-    return [
-      {
+      this.characterCurrentStateRepository.upsert(state)
+
+      updates.push({
         id: createId('state_update'),
         bookId,
         chapterId,
         entityType: 'character',
-        entityId: protagonist.id,
-        summary: state.statusNotes[0] ?? '角色状态已更新',
+        entityId: characterId,
+        summary: `角色 ${characterId} 当前状态已确认：位置=${currentLocationId ?? '未知'}；状态=${statusNotes.join(' / ') || '无'}`,
         createdAt: updatedAt,
-      },
-    ]
+      })
+    }
+
+    return updates
   }
 
-  private updateItemStates(bookId: string, chapterId: string, content: string, updatedAt: string): ChapterStateUpdate[] {
+  private updateItemStates(
+    bookId: string,
+    chapterId: string,
+    content: string,
+    updatedAt: string,
+    requiredItemIds: string[],
+  ): ChapterStateUpdate[] {
     const items = this.itemRepository.listByBookId(bookId)
     const updates: ChapterStateUpdate[] = []
+    const targetItemIds = new Set(requiredItemIds)
 
     for (const item of items) {
-      if (!item.isImportant || (!content.includes(item.name) && !content.includes(item.id))) {
+      const line = findStructuredLine(content, `${item.name}（${item.id}）`)
+      const isMentioned = Boolean(line) || content.includes(item.name) || content.includes(item.id)
+
+      if (!item.isImportant && !targetItemIds.has(item.id) && !isMentioned) {
         continue
       }
 
       const previousState = this.itemCurrentStateRepository.getByItemId(bookId, item.id)
-      const quantityMatch = content.match(new RegExp(`${escapeRegExp(item.name)}（${escapeRegExp(item.id)}）[：:]?[^\n]*数量=(\\d+)`))
-      const statusMatch = content.match(new RegExp(`${escapeRegExp(item.name)}（${escapeRegExp(item.id)}）[：:]?[^\n]*状态=([^；\n]+)`))
-      const ownerMatch = content.match(new RegExp(`${escapeRegExp(item.name)}（${escapeRegExp(item.id)}）[：:]?[^\n]*持有者=([^；\n]+)`))
-      const locationMatch = content.match(new RegExp(`${escapeRegExp(item.name)}（${escapeRegExp(item.id)}）[：:]?[^\n]*地点=([^；\n]+)`))
-      const nextOwnerCharacterId = ownerMatch?.[1]?.trim()?.startsWith('character_') ? ownerMatch[1].trim() : previousState?.ownerCharacterId
-      const nextLocationId = locationMatch?.[1]?.trim()?.startsWith('location_') ? locationMatch[1].trim() : previousState?.locationId
+      const explicitQuantity = line ? extractStructuredValue(line, '数量') : undefined
+      const explicitStatus = line ? extractStructuredValue(line, '状态') : undefined
+      const explicitOwner = line ? extractStructuredValue(line, '持有者') : undefined
+      const explicitLocation = line ? extractStructuredValue(line, '地点') : undefined
+      const nextOwnerCharacterId = explicitOwner?.startsWith('character_') ? explicitOwner : previousState?.ownerCharacterId
+      const nextLocationId = explicitLocation?.startsWith('location_') ? explicitLocation : previousState?.locationId
       const nextState: ItemCurrentState = {
         bookId,
         itemId: item.id,
         ownerCharacterId: nextOwnerCharacterId,
         locationId: nextLocationId,
-        quantity: quantityMatch ? Number.parseInt(quantityMatch[1], 10) : (previousState?.quantity ?? 1),
-        status: statusMatch?.[1]?.trim() ?? previousState?.status ?? '已在终稿中承接',
+        quantity: explicitQuantity ? Number.parseInt(explicitQuantity, 10) : (previousState?.quantity ?? 1),
+        status: explicitStatus ?? previousState?.status ?? '已在终稿中承接',
         updatedAt,
       }
 
@@ -247,7 +306,9 @@ export class ApproveService {
         chapterId,
         entityType: 'item',
         entityId: item.id,
-        summary: `物品 ${item.name} 更新为 数量=${nextState.quantity}，状态=${nextState.status}`,
+        summary:
+          `物品 ${item.name} 已确认：数量=${nextState.quantity}；状态=${nextState.status}` +
+          `；持有者=${nextState.ownerCharacterId ?? '未知'}；地点=${nextState.locationId ?? '未知'}`,
         createdAt: updatedAt,
       })
     }
@@ -321,6 +382,18 @@ export class ApproveService {
       content: draft.content,
     }
   }
+
+  private resolvePlan(chapterId: string, currentPlanVersionId?: string): ChapterPlan | null {
+    if (currentPlanVersionId) {
+      const versionedPlan = this.chapterPlanRepository.getByVersionId(chapterId, currentPlanVersionId)
+
+      if (versionedPlan) {
+        return versionedPlan
+      }
+    }
+
+    return this.chapterPlanRepository.getLatestByChapterId(chapterId)
+  }
 }
 
 function mapRewriteSource(rewrite: ChapterRewrite): DraftSource {
@@ -334,6 +407,21 @@ function mapRewriteSource(rewrite: ChapterRewrite): DraftSource {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function findStructuredLine(content: string, label: string): string | null {
+  return content.match(new RegExp(`^.*${escapeRegExp(label)}.*$`, 'm'))?.[0] ?? null
+}
+
+function extractStructuredValue(line: string, key: string): string | undefined {
+  return line.match(new RegExp(`${escapeRegExp(key)}=([^；\n]+)`))?.[1]?.trim()
+}
+
+function splitStructuredNotes(value: string): string[] {
+  return value
+    .split(/[\/｜|；;,，、]+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
 }
 
 function mergeRecentStrings(previous: string[], next: string[], limit: number): string[] {
@@ -355,4 +443,40 @@ function mergeLongTermEntries(
   }
 
   return [...merged.values()].sort((left, right) => right.importance - left.importance).slice(0, 10)
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)]
+}
+
+function transitionHookStatus(currentStatus: Hook['status'], action: HookPlan['action']): Hook['status'] {
+  if (action === 'foreshadow') {
+    return 'foreshadowed'
+  }
+
+  if (action === 'advance') {
+    return currentStatus === 'open' ? 'foreshadowed' : 'payoff-planned'
+  }
+
+  if (action === 'payoff') {
+    return 'resolved'
+  }
+
+  return currentStatus
+}
+
+function buildLongTermCandidates(review: ReviewReport | null, chapterId: string): Array<{
+  summary: string
+  importance: number
+  sourceChapterId?: string
+}> {
+  if (!review) {
+    return []
+  }
+
+  return review.newFactCandidates.slice(0, 3).map((candidate, index) => ({
+    summary: candidate,
+    importance: index === 0 ? 5 : 4,
+    sourceChapterId: chapterId,
+  }))
 }
