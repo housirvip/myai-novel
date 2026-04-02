@@ -42,6 +42,7 @@ async function createLlmPlan(llmAdapter: LlmAdapter, context: PlanningContext): 
         theme: context.outline.theme,
         coreConflicts: context.outline.coreConflicts,
         previousChapterTitle: context.previousChapter?.title,
+        memoryRecall: context.memoryRecall,
         importantItems: context.importantItems.map((item) => ({
           id: item.id,
           name: item.name,
@@ -82,6 +83,9 @@ function createRuleBasedPlan(context: PlanningContext): ChapterPlan {
   const importantItemBeat = context.importantItems[0]
     ? `确保关键物品 ${context.importantItems[0].name} 在本章保持状态连续。`
     : undefined
+  const memoryBeat = context.memoryRecall.recentEvents[0]
+    ? `承接最近事件：${context.memoryRecall.recentEvents[0]}`
+    : undefined
 
   return {
     id: createId('plan'),
@@ -95,6 +99,7 @@ function createRuleBasedPlan(context: PlanningContext): ChapterPlan {
         purpose: '建立本章目标、冲突背景与主要人物处境',
         beats: [
           previousChapterSummary,
+          ...(memoryBeat ? [memoryBeat] : []),
           `点明本章目标：${context.chapter.objective}`,
           `引入卷目标压力：${context.volume.goal}`,
         ],
@@ -131,10 +136,12 @@ function createRuleBasedPlan(context: PlanningContext): ChapterPlan {
     statePredictions: [
       '更新当前章节推进位置',
       '记录本章形成的关键事件',
+      ...(context.memoryRecall.relevantLongTermEntries.length > 0 ? ['避免与高重要长期记忆冲突'] : []),
     ],
     memoryCandidates: [
       `${context.chapter.title} 的关键事件摘要`,
       `${context.chapter.objective} 对主线造成的推进结果`,
+      ...context.memoryRecall.relevantLongTermEntries.slice(0, 2).map((entry) => `承接长期记忆：${entry.summary}`),
     ],
     createdAt: timestamp,
     approvedByUser: false,

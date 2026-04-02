@@ -3,8 +3,11 @@ import { writeFile } from 'node:fs/promises'
 
 import type {
   ApproveResult,
+  ChapterHookUpdate,
+  ChapterMemoryUpdate,
   ChapterOutput,
   ChapterRewrite,
+  ChapterStateUpdate,
   CharacterCurrentState,
   ItemCurrentState,
   StoryState,
@@ -20,9 +23,12 @@ import type { BookRepository } from '../../infra/repository/book-repository.js'
 import type { CharacterRepository } from '../../infra/repository/character-repository.js'
 import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
+import type { ChapterHookUpdateRepository } from '../../infra/repository/chapter-hook-update-repository.js'
+import type { ChapterMemoryUpdateRepository } from '../../infra/repository/chapter-memory-update-repository.js'
 import type { ChapterOutputRepository } from '../../infra/repository/chapter-output-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
+import type { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
 import type { HookRepository } from '../../infra/repository/hook-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
@@ -42,6 +48,9 @@ export class ApproveService {
     private readonly chapterDraftRepository: ChapterDraftRepository,
     private readonly chapterRewriteRepository: ChapterRewriteRepository,
     private readonly chapterOutputRepository: ChapterOutputRepository,
+    private readonly chapterStateUpdateRepository: ChapterStateUpdateRepository,
+    private readonly chapterMemoryUpdateRepository: ChapterMemoryUpdateRepository,
+    private readonly chapterHookUpdateRepository: ChapterHookUpdateRepository,
     private readonly storyStateRepository: StoryStateRepository,
     private readonly characterRepository: CharacterRepository,
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
@@ -97,27 +106,37 @@ export class ApproveService {
 
     this.chapterOutputRepository.create(output)
     this.storyStateRepository.upsert(state)
-    this.updateHookStates(book.id, chapterId, approvedAt)
-    this.updateCharacterState(book.id, chapterId, source.content, approvedAt)
-    this.updateItemStates(book.id, source.content, approvedAt)
+    const hookUpdates = this.updateHookStates(book.id, chapterId, approvedAt)
+    const stateUpdates = [
+      ...this.updateCharacterState(book.id, chapterId, source.content, approvedAt),
+      ...this.updateItemStates(book.id, chapterId, source.content, approvedAt),
+    ]
+    const previousShortTerm = this.memoryRepository.getShortTermByBookId(book.id)
+    const previousLongTerm = this.memoryRepository.getLongTermByBookId(book.id)
+    const nextShortTermSummaries = mergeRecentStrings(previousShortTerm?.summaries ?? [], [`第 ${chapter.index} 章《${chapter.title}》终稿已确认`], 3)
+    const nextShortTermEvents = mergeRecentStrings(previousShortTerm?.recentEvents ?? [], state.recentEvents, 5)
+    const nextLongTermEntries = mergeLongTermEntries(previousLongTerm?.entries ?? [], [
+      {
+        summary: `第 ${chapter.index} 章《${chapter.title}》已成为当前主线正式内容`,
+        importance: 4,
+        sourceChapterId: chapterId,
+      },
+    ])
     this.memoryRepository.upsertShortTerm({
       bookId: book.id,
       chapterId,
-      summaries: [`第 ${chapter.index} 章《${chapter.title}》终稿已确认`],
-      recentEvents: state.recentEvents,
+      summaries: nextShortTermSummaries,
+      recentEvents: nextShortTermEvents,
       updatedAt: approvedAt,
     })
     this.memoryRepository.upsertLongTerm({
       bookId: book.id,
       chapterId,
-      entries: [
-        {
-          summary: `第 ${chapter.index} 章《${chapter.title}》已成为当前主线正式内容`,
-          importance: 4,
-        },
-      ],
+      entries: nextLongTermEntries,
       updatedAt: approvedAt,
     })
+    const memoryUpdates = this.buildMemoryUpdates(book.id, chapterId, approvedAt, nextShortTermSummaries, nextShortTermEvents, nextLongTermEntries)
+    this.persistUpdateLogs(stateUpdates, memoryUpdates, hookUpdates)
     this.chapterRepository.finalizeChapter(chapterId, source.versionId, finalPath, approvedAt)
 
     return {
@@ -132,8 +151,9 @@ export class ApproveService {
     }
   }
 
-  private updateHookStates(bookId: string, chapterId: string, updatedAt: string): void {
+  private updateHookStates(bookId: string, chapterId: string, updatedAt: string): ChapterHookUpdate[] {
     const hooks = this.hookRepository.listByBookId(bookId)
+    const updates: ChapterHookUpdate[] = []
 
     for (const hook of hooks) {
       this.hookStateRepository.upsert({
@@ -143,14 +163,26 @@ export class ApproveService {
         updatedByChapterId: chapterId,
         updatedAt,
       })
+
+      updates.push({
+        id: createId('hook_update'),
+        bookId,
+        chapterId,
+        hookId: hook.id,
+        status: hook.status,
+        summary: `Hook ${hook.title} 当前状态为 ${hook.status}`,
+        createdAt: updatedAt,
+      })
     }
+
+    return updates
   }
 
-  private updateCharacterState(bookId: string, chapterId: string, content: string, updatedAt: string): void {
+  private updateCharacterState(bookId: string, chapterId: string, content: string, updatedAt: string): ChapterStateUpdate[] {
     const protagonist = this.characterRepository.getPrimaryByBookId(bookId)
 
     if (!protagonist) {
-      return
+      return []
     }
 
     const explicitLocation = content.match(/地点[：: ]+([^\n]+)/)?.[1]?.trim()
@@ -167,10 +199,23 @@ export class ApproveService {
     }
 
     this.characterCurrentStateRepository.upsert(state)
+
+    return [
+      {
+        id: createId('state_update'),
+        bookId,
+        chapterId,
+        entityType: 'character',
+        entityId: protagonist.id,
+        summary: state.statusNotes[0] ?? '角色状态已更新',
+        createdAt: updatedAt,
+      },
+    ]
   }
 
-  private updateItemStates(bookId: string, content: string, updatedAt: string): void {
+  private updateItemStates(bookId: string, chapterId: string, content: string, updatedAt: string): ChapterStateUpdate[] {
     const items = this.itemRepository.listByBookId(bookId)
+    const updates: ChapterStateUpdate[] = []
 
     for (const item of items) {
       if (!item.isImportant || (!content.includes(item.name) && !content.includes(item.id))) {
@@ -195,6 +240,64 @@ export class ApproveService {
       }
 
       this.itemCurrentStateRepository.upsert(nextState)
+
+      updates.push({
+        id: createId('state_update'),
+        bookId,
+        chapterId,
+        entityType: 'item',
+        entityId: item.id,
+        summary: `物品 ${item.name} 更新为 数量=${nextState.quantity}，状态=${nextState.status}`,
+        createdAt: updatedAt,
+      })
+    }
+
+    return updates
+  }
+
+  private buildMemoryUpdates(
+    bookId: string,
+    chapterId: string,
+    createdAt: string,
+    shortTermSummaries: string[],
+    shortTermEvents: string[],
+    longTermEntries: Array<{ summary: string; importance: number; sourceChapterId?: string }>,
+  ): ChapterMemoryUpdate[] {
+    return [
+      {
+        id: createId('memory_update'),
+        bookId,
+        chapterId,
+        memoryType: 'short-term',
+        summary: `短期记忆已更新：${shortTermSummaries.at(-1) ?? shortTermEvents.at(-1) ?? '最近事件窗口已刷新'}`,
+        createdAt,
+      },
+      {
+        id: createId('memory_update'),
+        bookId,
+        chapterId,
+        memoryType: 'long-term',
+        summary: `长期记忆已更新：${longTermEntries[0]?.summary ?? '高重要事实集合已刷新'}`,
+        createdAt,
+      },
+    ]
+  }
+
+  private persistUpdateLogs(
+    stateUpdates: ChapterStateUpdate[],
+    memoryUpdates: ChapterMemoryUpdate[],
+    hookUpdates: ChapterHookUpdate[],
+  ): void {
+    for (const update of stateUpdates) {
+      this.chapterStateUpdateRepository.create(update)
+    }
+
+    for (const update of memoryUpdates) {
+      this.chapterMemoryUpdateRepository.create(update)
+    }
+
+    for (const update of hookUpdates) {
+      this.chapterHookUpdateRepository.create(update)
     }
   }
 
@@ -231,4 +334,25 @@ function mapRewriteSource(rewrite: ChapterRewrite): DraftSource {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function mergeRecentStrings(previous: string[], next: string[], limit: number): string[] {
+  return [...new Set([...previous, ...next])].slice(-limit)
+}
+
+function mergeLongTermEntries(
+  previous: Array<{ summary: string; importance: number; sourceChapterId?: string }>,
+  next: Array<{ summary: string; importance: number; sourceChapterId?: string }>,
+): Array<{ summary: string; importance: number; sourceChapterId?: string }> {
+  const merged = new Map<string, { summary: string; importance: number; sourceChapterId?: string }>()
+
+  for (const entry of [...previous, ...next]) {
+    const existing = merged.get(entry.summary)
+
+    if (!existing || existing.importance <= entry.importance) {
+      merged.set(entry.summary, entry)
+    }
+  }
+
+  return [...merged.values()].sort((left, right) => right.importance - left.importance).slice(0, 10)
 }

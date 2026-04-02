@@ -10,6 +10,7 @@ import type { ChapterRepository } from '../../infra/repository/chapter-repositor
 import type { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
+import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import { NovelError } from '../../shared/utils/errors.js'
 
 export class ReviewService {
@@ -21,6 +22,7 @@ export class ReviewService {
     private readonly chapterReviewRepository: ChapterReviewRepository,
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
     private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
+    private readonly memoryRepository: MemoryRepository,
     private readonly hookStateRepository: HookStateRepository,
     private readonly llmAdapter: LlmAdapter | null,
   ) {}
@@ -60,6 +62,7 @@ export class ReviewService {
 
     const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
     const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
+    const longTermMemory = this.memoryRepository.getLongTermByBookId(book.id)
     const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
 
     const baseReview = createRuleBasedReview(wordCountCheck, chapter.objective, draft.content, plan.sceneCards.length, plan.hookPlan.length)
@@ -76,9 +79,11 @@ export class ReviewService {
       consistencyIssues: mergedReview.consistencyIssues,
       characterIssues: mergeCharacterIssues(mergedReview.characterIssues, characterStates, draft.content),
       itemIssues: mergeItemIssues(mergedReview.itemIssues, importantItems, draft.content, plan.requiredItemIds),
+      memoryIssues: mergeMemoryIssues(mergedReview.memoryIssues, longTermMemory?.entries ?? [], draft.content),
       pacingIssues: mergedReview.pacingIssues,
       hookIssues: mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan.length),
       wordCountCheck,
+      newFactCandidates: mergeNewFactCandidates(mergedReview.newFactCandidates, chapter.objective, plan.memoryCandidates),
       revisionAdvice: mergedReview.revisionAdvice,
       createdAt: nowIso(),
     }
@@ -147,6 +152,40 @@ function mergeItemIssues(
   return issues
 }
 
+function mergeMemoryIssues(
+  baseIssues: string[],
+  longTermEntries: Array<{ summary: string; importance: number }>,
+  content: string,
+): string[] {
+  const issues = [...baseIssues]
+  const criticalEntries = longTermEntries.filter((entry) => entry.importance >= 4)
+
+  for (const entry of criticalEntries) {
+    const sharedTokens = entry.summary
+      .split(/[，。；、,\s]+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length >= 2)
+
+    if (sharedTokens.some((token) => content.includes(`并非${token}`) || content.includes(`不是${token}`))) {
+      issues.push(`正文可能与长期记忆冲突：${entry.summary}`)
+    }
+  }
+
+  return issues
+}
+
+function mergeNewFactCandidates(baseCandidates: string[], objective: string, memoryCandidates: string[]): string[] {
+  const merged = [...baseCandidates]
+
+  for (const candidate of [objective, ...memoryCandidates].slice(0, 3)) {
+    if (!merged.includes(candidate)) {
+      merged.push(candidate)
+    }
+  }
+
+  return merged
+}
+
 function createRuleBasedReview(
   wordCountCheck: WordCountCheck,
   objective: string,
@@ -159,14 +198,18 @@ function createRuleBasedReview(
   const hookIssues = hookPlanCount === 0 ? ['当前计划未显式记录钩子推进。'] : []
   const characterIssues: string[] = []
   const itemIssues: string[] = []
+  const memoryIssues: string[] = []
+  const newFactCandidates: string[] = []
 
   return {
     decision: decideReview(wordCountCheck, consistencyIssues, hookIssues),
     consistencyIssues,
     characterIssues,
     itemIssues,
+    memoryIssues,
     pacingIssues,
     hookIssues,
+    newFactCandidates,
     revisionAdvice: buildRevisionAdvice(wordCountCheck, consistencyIssues, hookIssues, itemIssues),
   }
 }
@@ -181,7 +224,7 @@ async function createLlmReview(
   try {
     const response = await llmAdapter.generateText({
       system:
-        '你是小说审查助手。请只输出 JSON，不要解释。JSON 字段必须包含 decision, consistencyIssues, characterIssues, itemIssues, pacingIssues, hookIssues, revisionAdvice。',
+        '你是小说审查助手。请只输出 JSON，不要解释。JSON 字段必须包含 decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, pacingIssues, hookIssues, newFactCandidates, revisionAdvice。',
       user: JSON.stringify(
         {
           objective,
@@ -201,8 +244,10 @@ async function createLlmReview(
       consistencyIssues: parsed.consistencyIssues ?? [],
       characterIssues: parsed.characterIssues ?? [],
       itemIssues: parsed.itemIssues ?? [],
+      memoryIssues: parsed.memoryIssues ?? [],
       pacingIssues: parsed.pacingIssues ?? [],
       hookIssues: parsed.hookIssues ?? [],
+      newFactCandidates: parsed.newFactCandidates ?? [],
       revisionAdvice: parsed.revisionAdvice ?? ['建议人工复核本章审查结果。'],
     }
   } catch {

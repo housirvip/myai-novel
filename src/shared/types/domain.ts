@@ -165,6 +165,7 @@ export type ShortTermMemory = {
 export type LongTermMemoryEntry = {
   summary: string
   importance: number
+  sourceChapterId?: string
 }
 
 export type LongTermMemory = {
@@ -172,6 +173,12 @@ export type LongTermMemory = {
   chapterId: string
   entries: LongTermMemoryEntry[]
   updatedAt: IsoTimestamp
+}
+
+export type MemoryRecallView = {
+  shortTermSummaries: string[]
+  recentEvents: string[]
+  relevantLongTermEntries: LongTermMemoryEntry[]
 }
 
 export type SceneCard = {
@@ -218,6 +225,7 @@ export type PlanningContext = {
   characterStates: CharacterCurrentState[]
   importantItems: ContextItemView[]
   activeHookStates: HookCurrentState[]
+  memoryRecall: MemoryRecallView
 }
 
 export type WritingContext = PlanningContext & {
@@ -263,9 +271,11 @@ export type ReviewReport = {
   consistencyIssues: string[]
   characterIssues: string[]
   itemIssues: string[]
+  memoryIssues: string[]
   pacingIssues: string[]
   hookIssues: string[]
   wordCountCheck: WordCountCheck
+  newFactCandidates: string[]
   revisionAdvice: string[]
   createdAt: IsoTimestamp
 }
@@ -320,6 +330,35 @@ export type ApproveResult = {
   memoryUpdated: boolean
   hooksUpdated: boolean
   approvedAt: IsoTimestamp
+}
+
+export type ChapterStateUpdate = {
+  id: string
+  bookId: string
+  chapterId: string
+  entityType: 'character' | 'item'
+  entityId: string
+  summary: string
+  createdAt: IsoTimestamp
+}
+
+export type ChapterMemoryUpdate = {
+  id: string
+  bookId: string
+  chapterId: string
+  memoryType: 'short-term' | 'long-term'
+  summary: string
+  createdAt: IsoTimestamp
+}
+
+export type ChapterHookUpdate = {
+  id: string
+  bookId: string
+  chapterId: string
+  hookId: string
+  status: Hook['status']
+  summary: string
+  createdAt: IsoTimestamp
 }
 
 export type DatabaseConfig = {

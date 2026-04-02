@@ -17,11 +17,14 @@ import { BookRepository } from './infra/repository/book-repository.js'
 import { CharacterCurrentStateRepository } from './infra/repository/character-current-state-repository.js'
 import { CharacterRepository } from './infra/repository/character-repository.js'
 import { ChapterDraftRepository } from './infra/repository/chapter-draft-repository.js'
+import { ChapterHookUpdateRepository } from './infra/repository/chapter-hook-update-repository.js'
+import { ChapterMemoryUpdateRepository } from './infra/repository/chapter-memory-update-repository.js'
 import { ChapterOutputRepository } from './infra/repository/chapter-output-repository.js'
 import { ChapterPlanRepository } from './infra/repository/chapter-plan-repository.js'
 import { ChapterRepository } from './infra/repository/chapter-repository.js'
 import { ChapterReviewRepository } from './infra/repository/chapter-review-repository.js'
 import { ChapterRewriteRepository } from './infra/repository/chapter-rewrite-repository.js'
+import { ChapterStateUpdateRepository } from './infra/repository/chapter-state-update-repository.js'
 import { FactionRepository } from './infra/repository/faction-repository.js'
 import { HookRepository } from './infra/repository/hook-repository.js'
 import { HookStateRepository } from './infra/repository/hook-state-repository.js'
@@ -107,6 +110,7 @@ const writeCommand = program.command('write').description('Writing commands')
 const reviewCommand = program.command('review').description('Review commands')
 const draftCommand = program.command('draft').description('Draft commands')
 const rewriteCommand = program.command('rewrite').description('Rewrite result commands')
+const stateCommand = program.command('state').description('State tracing commands')
 
 outlineCommand
   .command('set')
@@ -541,6 +545,9 @@ chapterCommand
         new ChapterDraftRepository(database),
         new ChapterRewriteRepository(database),
         new ChapterOutputRepository(database),
+        new ChapterStateUpdateRepository(database),
+        new ChapterMemoryUpdateRepository(database),
+        new ChapterHookUpdateRepository(database),
         new StoryStateRepository(database),
         new CharacterRepository(database),
         new CharacterCurrentStateRepository(database),
@@ -580,6 +587,7 @@ planCommand
         volumeRepository,
         new CharacterCurrentStateRepository(database),
         new ItemCurrentStateRepository(database),
+        new MemoryRepository(database),
         new HookStateRepository(database),
       )
       const planningService = new PlanningService(
@@ -643,6 +651,7 @@ writeCommand
         volumeRepository,
         new CharacterCurrentStateRepository(database),
         new ItemCurrentStateRepository(database),
+        new MemoryRepository(database),
         new HookStateRepository(database),
       )
       const writingContextBuilder = new WritingContextBuilder(
@@ -704,6 +713,7 @@ reviewCommand
         new ChapterReviewRepository(database),
         new CharacterCurrentStateRepository(database),
         new ItemCurrentStateRepository(database),
+        new MemoryRepository(database),
         new HookStateRepository(database),
         createLlmAdapter(new BookRepository(database).getFirst()),
       )
@@ -737,8 +747,10 @@ reviewCommand
       console.log(formatSection('Consistency issues:', formatJson(review.consistencyIssues)))
       console.log(formatSection('Character issues:', formatJson(review.characterIssues)))
       console.log(formatSection('Item issues:', formatJson(review.itemIssues)))
+      console.log(formatSection('Memory issues:', formatJson(review.memoryIssues)))
       console.log(formatSection('Pacing issues:', formatJson(review.pacingIssues)))
       console.log(formatSection('Hook issues:', formatJson(review.hookIssues)))
+      console.log(formatSection('New fact candidates:', formatJson(review.newFactCandidates)))
       console.log(formatSection('Word count check:', formatJson(review.wordCountCheck)))
       console.log(formatSection('Revision advice:', formatJson(review.revisionAdvice)))
     } finally {
@@ -793,6 +805,52 @@ program
       }
 
       console.log(formatJson(state))
+    } finally {
+      database.close()
+    }
+  })
+
+stateCommand
+  .command('show')
+  .description('Show latest state, memory, and hook update logs for the current book')
+  .action(async () => {
+    const database = await openProjectDatabase()
+
+    try {
+      const book = new BookRepository(database).getFirst()
+
+      if (!book) {
+        throw new NovelError('Project is not initialized. Run `novel init` first.')
+      }
+
+      const stateUpdates = new ChapterStateUpdateRepository(database).listByBookId(book.id).slice(0, 10)
+      const memoryUpdates = new ChapterMemoryUpdateRepository(database).listByBookId(book.id).slice(0, 10)
+      const hookUpdates = new ChapterHookUpdateRepository(database).listByBookId(book.id).slice(0, 10)
+
+      console.log(formatSection('State updates:', formatJson(stateUpdates)))
+      console.log(formatSection('Memory updates:', formatJson(memoryUpdates)))
+      console.log(formatSection('Hook updates:', formatJson(hookUpdates)))
+    } finally {
+      database.close()
+    }
+  })
+
+program
+  .command('state-updates')
+  .description('State update trace commands')
+  .command('show <chapterId>')
+  .description('Show state, memory, and hook updates for a chapter')
+  .action(async (chapterId: string) => {
+    const database = await openProjectDatabase()
+
+    try {
+      const stateUpdates = new ChapterStateUpdateRepository(database).listByChapterId(chapterId)
+      const memoryUpdates = new ChapterMemoryUpdateRepository(database).listByChapterId(chapterId)
+      const hookUpdates = new ChapterHookUpdateRepository(database).listByChapterId(chapterId)
+
+      console.log(formatSection('State updates:', formatJson(stateUpdates)))
+      console.log(formatSection('Memory updates:', formatJson(memoryUpdates)))
+      console.log(formatSection('Hook updates:', formatJson(hookUpdates)))
     } finally {
       database.close()
     }

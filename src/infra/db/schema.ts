@@ -291,4 +291,51 @@ export const migrations = [
       ALTER TABLE chapter_reviews ADD COLUMN item_issues_json TEXT NOT NULL DEFAULT '[]';
     `,
   },
+  {
+    id: '003_memory_recall_review_fields',
+    sql: `
+      ALTER TABLE chapter_reviews ADD COLUMN memory_issues_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE chapter_reviews ADD COLUMN new_fact_candidates_json TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
+  {
+    id: '004_chapter_update_logs',
+    sql: `
+      CREATE TABLE IF NOT EXISTS chapter_state_updates (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        chapter_id TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS chapter_memory_updates (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        chapter_id TEXT NOT NULL,
+        memory_type TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS chapter_hook_updates (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        chapter_id TEXT NOT NULL,
+        hook_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
+        FOREIGN KEY (hook_id) REFERENCES hooks(id) ON DELETE CASCADE
+      );
+    `,
+  },
 ] as const

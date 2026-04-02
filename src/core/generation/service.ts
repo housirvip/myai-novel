@@ -47,6 +47,7 @@ async function createLlmDraft(
         chapterObjective: context.chapter.objective,
         volumeGoal: context.volume.goal,
         theme: context.outline.theme,
+        memoryRecall: context.memoryRecall,
         sceneCards: context.chapterPlan.sceneCards,
         eventOutline: context.chapterPlan.eventOutline,
         importantItems: context.importantItems.map((item) => ({
@@ -109,6 +110,17 @@ function buildDraftContent(context: WritingContext): string {
         '',
       ]
     : []
+  const memorySection =
+    context.memoryRecall.shortTermSummaries.length > 0 || context.memoryRecall.relevantLongTermEntries.length > 0
+      ? [
+          '## 记忆约束',
+          '',
+          ...context.memoryRecall.shortTermSummaries.map((item) => `- 最近摘要：${item}`),
+          ...context.memoryRecall.recentEvents.map((item) => `- 最近事件：${item}`),
+          ...context.memoryRecall.relevantLongTermEntries.map((entry) => `- 长期记忆：${entry.summary}`),
+          '',
+        ]
+      : []
 
   return [
     `# ${context.chapter.title}`,
@@ -124,6 +136,7 @@ function buildDraftContent(context: WritingContext): string {
       ? `上一章《${context.previousChapter.title}》留下的局势仍在持续发酵。`
       : '这是故事前期的重要起势章节，需要尽快建立主角处境与冲突压力。',
     '',
+    ...memorySection,
     ...importantItemsSection,
     sceneSections,
     '',
