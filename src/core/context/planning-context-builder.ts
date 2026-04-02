@@ -1,7 +1,9 @@
 import type { PlanningContext } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
+import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
+import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import type { OutlineRepository } from '../../infra/repository/outline-repository.js'
 import type { VolumeRepository } from '../../infra/repository/volume-repository.js'
 
@@ -11,6 +13,8 @@ export class PlanningContextBuilder {
     private readonly outlineRepository: OutlineRepository,
     private readonly chapterRepository: ChapterRepository,
     private readonly volumeRepository: VolumeRepository,
+    private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
+    private readonly hookStateRepository: HookStateRepository,
   ) {}
 
   build(chapterId: string): PlanningContext {
@@ -39,6 +43,8 @@ export class PlanningContextBuilder {
     }
 
     const previousChapter = this.chapterRepository.getPreviousChapter(book.id, chapter.index)
+    const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
+    const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
 
     return {
       book,
@@ -46,6 +52,8 @@ export class PlanningContextBuilder {
       chapter,
       volume,
       previousChapter,
+      characterStates,
+      activeHookStates,
     }
   }
 }

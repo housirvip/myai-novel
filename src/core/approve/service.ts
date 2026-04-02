@@ -1,7 +1,13 @@
 import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import type { ApproveResult, ChapterOutput, ChapterRewrite, StoryState } from '../../shared/types/domain.js'
+import type {
+  ApproveResult,
+  ChapterOutput,
+  ChapterRewrite,
+  CharacterCurrentState,
+  StoryState,
+} from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { createId } from '../../shared/utils/id.js'
 import {
@@ -10,6 +16,8 @@ import {
 } from '../../shared/utils/project-paths.js'
 import { nowIso } from '../../shared/utils/time.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
+import type { CharacterRepository } from '../../infra/repository/character-repository.js'
+import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
 import type { ChapterOutputRepository } from '../../infra/repository/chapter-output-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
@@ -32,6 +40,8 @@ export class ApproveService {
     private readonly chapterRewriteRepository: ChapterRewriteRepository,
     private readonly chapterOutputRepository: ChapterOutputRepository,
     private readonly storyStateRepository: StoryStateRepository,
+    private readonly characterRepository: CharacterRepository,
+    private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
     private readonly hookRepository: HookRepository,
     private readonly hookStateRepository: HookStateRepository,
     private readonly memoryRepository: MemoryRepository,
@@ -82,7 +92,8 @@ export class ApproveService {
 
     this.chapterOutputRepository.create(output)
     this.storyStateRepository.upsert(state)
-    this.updateHookStates(book.id, approvedAt)
+    this.updateHookStates(book.id, chapterId, approvedAt)
+    this.updateCharacterState(book.id, chapterId, source.content, approvedAt)
     this.memoryRepository.upsertShortTerm({
       bookId: book.id,
       chapterId,
@@ -115,7 +126,7 @@ export class ApproveService {
     }
   }
 
-  private updateHookStates(bookId: string, updatedAt: string): void {
+  private updateHookStates(bookId: string, chapterId: string, updatedAt: string): void {
     const hooks = this.hookRepository.listByBookId(bookId)
 
     for (const hook of hooks) {
@@ -123,9 +134,33 @@ export class ApproveService {
         bookId,
         hookId: hook.id,
         status: hook.status,
+        updatedByChapterId: chapterId,
         updatedAt,
       })
     }
+  }
+
+  private updateCharacterState(bookId: string, chapterId: string, content: string, updatedAt: string): void {
+    const protagonist = this.characterRepository.getPrimaryByBookId(bookId)
+
+    if (!protagonist) {
+      return
+    }
+
+    const explicitLocation = content.match(/地点[：: ]+([^\n]+)/)?.[1]?.trim()
+    const currentLocationId = explicitLocation?.startsWith('location_') ? explicitLocation : undefined
+
+    const state: CharacterCurrentState = {
+      bookId,
+      characterId: protagonist.id,
+      currentLocationId,
+      statusNotes: explicitLocation
+        ? [`章节确认后记录的位置线索：${explicitLocation}`]
+        : ['章节确认后写入的最小角色位置状态'],
+      updatedAt,
+    }
+
+    this.characterCurrentStateRepository.upsert(state)
   }
 
   private resolveSource(chapterId: string): DraftSource {

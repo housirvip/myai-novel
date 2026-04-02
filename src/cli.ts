@@ -14,6 +14,7 @@ import { openDatabase } from './infra/db/database.js'
 import { runMigrations } from './infra/db/migrate.js'
 import { createLlmAdapter } from './infra/llm/factory.js'
 import { BookRepository } from './infra/repository/book-repository.js'
+import { CharacterCurrentStateRepository } from './infra/repository/character-current-state-repository.js'
 import { CharacterRepository } from './infra/repository/character-repository.js'
 import { ChapterDraftRepository } from './infra/repository/chapter-draft-repository.js'
 import { ChapterOutputRepository } from './infra/repository/chapter-output-repository.js'
@@ -478,6 +479,8 @@ chapterCommand
         new ChapterRewriteRepository(database),
         new ChapterOutputRepository(database),
         new StoryStateRepository(database),
+        new CharacterRepository(database),
+        new CharacterCurrentStateRepository(database),
         new HookRepository(database),
         new HookStateRepository(database),
         new MemoryRepository(database),
@@ -510,6 +513,8 @@ planCommand
         outlineRepository,
         chapterRepository,
         volumeRepository,
+        new CharacterCurrentStateRepository(database),
+        new HookStateRepository(database),
       )
       const planningService = new PlanningService(
         contextBuilder,
@@ -570,6 +575,8 @@ writeCommand
         outlineRepository,
         chapterRepository,
         volumeRepository,
+        new CharacterCurrentStateRepository(database),
+        new HookStateRepository(database),
       )
       const writingContextBuilder = new WritingContextBuilder(
         planningContextBuilder,
@@ -628,6 +635,8 @@ reviewCommand
         new ChapterPlanRepository(database),
         new ChapterDraftRepository(database),
         new ChapterReviewRepository(database),
+        new CharacterCurrentStateRepository(database),
+        new HookStateRepository(database),
         createLlmAdapter(new BookRepository(database).getFirst()),
       )
 

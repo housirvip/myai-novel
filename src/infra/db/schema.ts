@@ -78,6 +78,18 @@ export const migrations = [
         FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS character_current_state (
+        book_id TEXT NOT NULL,
+        character_id TEXT NOT NULL,
+        current_location_id TEXT,
+        status_notes_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (book_id, character_id),
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE,
+        FOREIGN KEY (current_location_id) REFERENCES locations(id) ON DELETE SET NULL
+      );
+
       CREATE TABLE IF NOT EXISTS locations (
         id TEXT PRIMARY KEY,
         book_id TEXT NOT NULL,
@@ -216,10 +228,12 @@ export const migrations = [
         book_id TEXT NOT NULL,
         hook_id TEXT NOT NULL,
         status TEXT NOT NULL,
+        updated_by_chapter_id TEXT,
         updated_at TEXT NOT NULL,
         PRIMARY KEY (book_id, hook_id),
         FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
-        FOREIGN KEY (hook_id) REFERENCES hooks(id) ON DELETE CASCADE
+        FOREIGN KEY (hook_id) REFERENCES hooks(id) ON DELETE CASCADE,
+        FOREIGN KEY (updated_by_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL
       );
 
       CREATE TABLE IF NOT EXISTS short_term_memory_current (

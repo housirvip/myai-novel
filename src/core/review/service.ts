@@ -3,10 +3,12 @@ import { createId } from '../../shared/utils/id.js'
 import { extractJsonObject } from '../../shared/utils/json.js'
 import { nowIso } from '../../shared/utils/time.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
+import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
 import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
+import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import { NovelError } from '../../shared/utils/errors.js'
 
 export class ReviewService {
@@ -16,6 +18,8 @@ export class ReviewService {
     private readonly chapterPlanRepository: ChapterPlanRepository,
     private readonly chapterDraftRepository: ChapterDraftRepository,
     private readonly chapterReviewRepository: ChapterReviewRepository,
+    private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
+    private readonly hookStateRepository: HookStateRepository,
     private readonly llmAdapter: LlmAdapter | null,
   ) {}
 
@@ -52,6 +56,9 @@ export class ReviewService {
       book.chapterWordCountToleranceRatio,
     )
 
+    const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
+    const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
+
     const baseReview = createRuleBasedReview(wordCountCheck, chapter.objective, draft.content, plan.sceneCards.length, plan.hookPlan.length)
     const aiReview = this.llmAdapter
       ? await createLlmReview(this.llmAdapter, wordCountCheck, chapter.objective, draft.content, plan.eventOutline)
@@ -64,9 +71,9 @@ export class ReviewService {
       draftId: draft.id,
       decision: mergedReview.decision,
       consistencyIssues: mergedReview.consistencyIssues,
-      characterIssues: mergedReview.characterIssues,
+      characterIssues: mergeCharacterIssues(mergedReview.characterIssues, characterStates, draft.content),
       pacingIssues: mergedReview.pacingIssues,
-      hookIssues: mergedReview.hookIssues,
+      hookIssues: mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan.length),
       wordCountCheck,
       revisionAdvice: mergedReview.revisionAdvice,
       createdAt: nowIso(),
@@ -77,6 +84,34 @@ export class ReviewService {
 
     return review
   }
+}
+
+function mergeCharacterIssues(
+  baseIssues: string[],
+  states: Array<{ currentLocationId?: string }>,
+  content: string,
+): string[] {
+  const issues = [...baseIssues]
+
+  if (states.length > 0 && !content.includes('地点') && !content.includes('位置')) {
+    issues.push('正文未显式承接当前角色位置状态。')
+  }
+
+  return issues
+}
+
+function mergeHookIssues(
+  baseIssues: string[],
+  activeHookStates: Array<{ hookId: string }>,
+  hookPlanCount: number,
+): string[] {
+  const issues = [...baseIssues]
+
+  if (activeHookStates.length > 0 && hookPlanCount === 0) {
+    issues.push('存在活跃钩子，但本章计划未给出对应推进安排。')
+  }
+
+  return issues
 }
 
 function createRuleBasedReview(

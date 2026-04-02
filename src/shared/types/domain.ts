@@ -71,6 +71,14 @@ export type Character = {
   updatedAt: IsoTimestamp
 }
 
+export type CharacterCurrentState = {
+  bookId: string
+  characterId: string
+  currentLocationId?: string
+  statusNotes: string[]
+  updatedAt: IsoTimestamp
+}
+
 export type Location = {
   id: string
   bookId: string
@@ -109,6 +117,7 @@ export type HookCurrentState = {
   bookId: string
   hookId: string
   status: Hook['status']
+  updatedByChapterId?: string
   updatedAt: IsoTimestamp
 }
 
@@ -173,6 +182,8 @@ export type PlanningContext = {
   chapter: Chapter
   volume: Volume
   previousChapter: Chapter | null
+  characterStates: CharacterCurrentState[]
+  activeHookStates: HookCurrentState[]
 }
 
 export type WritingContext = PlanningContext & {
