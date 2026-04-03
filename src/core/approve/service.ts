@@ -149,7 +149,11 @@ export class ApproveService {
       buildShortTermSummaries(chapter.index, chapter.title, closureSuggestions),
       3,
     )
-    const nextShortTermEvents = mergeRecentStrings(previousShortTerm?.recentEvents ?? [], state.recentEvents, 5)
+    const nextShortTermEvents = mergeRecentStrings(
+      previousShortTerm?.recentEvents ?? [],
+      [...state.recentEvents, ...buildShortTermEvents(chapter.index, chapter.title, closureSuggestions)],
+      5,
+    )
     const nextLongTermEntries = mergeLongTermEntries(
       previousLongTerm?.entries ?? [],
       buildLongTermCandidates(review, chapter.index, chapter.title, chapterId),
@@ -173,6 +177,9 @@ export class ApproveService {
       book.id,
       chapterId,
       approvedAt,
+      previousShortTerm?.summaries ?? [],
+      previousShortTerm?.recentEvents ?? [],
+      previousLongTerm?.entries ?? [],
       nextShortTermSummaries,
       nextShortTermEvents,
       nextLongTermEntries,
@@ -402,13 +409,21 @@ export class ApproveService {
     bookId: string,
     chapterId: string,
     createdAt: string,
+    previousShortTermSummaries: string[],
+    previousShortTermEvents: string[],
+    previousLongTermEntries: Array<{ summary: string; importance: number; sourceChapterId?: string }>,
     shortTermSummaries: string[],
     shortTermEvents: string[],
     longTermEntries: Array<{ summary: string; importance: number; sourceChapterId?: string }>,
     closureSuggestions: ClosureSuggestions,
   ): ChapterMemoryUpdate[] {
-    const latestShortTerm = closureSuggestions.memory.find((item) => item.memoryScope === 'short-term')
-    const latestLongTerm = closureSuggestions.memory.find((item) => item.memoryScope === 'long-term')
+    const shortTermSuggestions = closureSuggestions.memory.filter((item) => item.memoryScope === 'short-term')
+    const observationSuggestions = closureSuggestions.memory.filter((item) => item.memoryScope === 'observation')
+    const longTermSuggestions = closureSuggestions.memory.filter((item) => item.memoryScope === 'long-term')
+    const shortTermSuggestionSummaries = [
+      ...shortTermSuggestions.map((item) => item.summary),
+      ...observationSuggestions.map((item) => `待观察：${item.summary}`),
+    ]
 
     return [
       {
@@ -416,23 +431,23 @@ export class ApproveService {
         bookId,
         chapterId,
         memoryType: 'short-term',
-        summary: latestShortTerm
-          ? `短期记忆已更新：新增=${latestShortTerm.summary}；原因=${latestShortTerm.reason}`
+        summary: shortTermSuggestionSummaries.length > 0
+          ? `短期记忆已更新：${shortTermSuggestionSummaries.slice(0, 2).join('；')}`
           : `短期记忆已更新：${shortTermSummaries.at(-1) ?? shortTermEvents.at(-1) ?? '最近事件窗口已刷新'}`,
-        detail: latestShortTerm
+        detail: shortTermSuggestionSummaries.length > 0
           ? {
               source: 'closure-suggestion',
-              reason: latestShortTerm.reason,
-              evidence: latestShortTerm.evidence,
-              before: shortTermEvents.at(-1),
-              after: latestShortTerm.summary,
+              reason: buildShortTermMemoryReason(shortTermSuggestions, observationSuggestions),
+              evidence: collectMemoryEvidence([...shortTermSuggestions, ...observationSuggestions]),
+              before: previousShortTermSummaries.at(-1) ?? previousShortTermEvents.at(-1),
+              after: shortTermSummaries.at(-1) ?? shortTermEvents.at(-1),
             }
           : {
               source: 'fallback',
               reason: '基于章节确认刷新短期记忆窗口',
               evidence: stateEvidence(shortTermSummaries, shortTermEvents),
-              before: shortTermEvents.at(-1),
-              after: shortTermSummaries.at(-1),
+              before: previousShortTermSummaries.at(-1) ?? previousShortTermEvents.at(-1),
+              after: shortTermSummaries.at(-1) ?? shortTermEvents.at(-1),
             },
         createdAt,
       },
@@ -441,22 +456,22 @@ export class ApproveService {
         bookId,
         chapterId,
         memoryType: 'long-term',
-        summary: latestLongTerm
-          ? `长期记忆已更新：新增=${latestLongTerm.summary}；原因=${latestLongTerm.reason}`
+        summary: longTermSuggestions.length > 0
+          ? `长期记忆已更新：${longTermSuggestions.slice(0, 2).map((item) => item.summary).join('；')}`
           : `长期记忆已更新：${longTermEntries[0]?.summary ?? '高重要事实集合已刷新'}`,
-        detail: latestLongTerm
+        detail: longTermSuggestions.length > 0
           ? {
               source: 'closure-suggestion',
-              reason: latestLongTerm.reason,
-              evidence: latestLongTerm.evidence,
-              before: undefined,
-              after: latestLongTerm.summary,
+              reason: `review 建议确认 ${longTermSuggestions.length} 条长期稳定事实进入真源`,
+              evidence: collectMemoryEvidence(longTermSuggestions),
+              before: previousLongTermEntries[0]?.summary,
+              after: longTermEntries[0]?.summary,
             }
           : {
               source: 'fallback',
               reason: '基于章节确认与候选事实刷新长期记忆',
               evidence: longTermEntries.slice(0, 3).map((item) => item.summary),
-              before: undefined,
+              before: previousLongTermEntries[0]?.summary,
               after: longTermEntries[0]?.summary,
             },
         createdAt,
@@ -664,9 +679,47 @@ function buildShortTermSummaries(
 ): string[] {
   const derived = closureSuggestions.memory
     .filter((item) => item.memoryScope === 'short-term' || item.memoryScope === 'observation')
-    .map((item) => item.summary)
+    .map((item) => item.memoryScope === 'observation' ? `待观察：${item.summary}` : item.summary)
 
   return derived.length > 0 ? derived : [`第 ${chapterIndex} 章《${chapterTitle}》终稿已确认`]
+}
+
+function buildShortTermEvents(
+  chapterIndex: number,
+  chapterTitle: string,
+  closureSuggestions: ClosureSuggestions,
+): string[] {
+  const derived = closureSuggestions.memory
+    .filter((item) => item.memoryScope === 'short-term' || item.memoryScope === 'observation')
+    .map((item) => item.memoryScope === 'observation'
+      ? `本章形成待观察事实：${item.summary}`
+      : `本章确认短期事实：${item.summary}`)
+
+  return derived.length > 0 ? derived : [`第 ${chapterIndex} 章《${chapterTitle}》终稿已确认`]
+}
+
+function buildShortTermMemoryReason(
+  shortTermSuggestions: ClosureSuggestions['memory'],
+  observationSuggestions: ClosureSuggestions['memory'],
+): string {
+  if (shortTermSuggestions.length > 0 && observationSuggestions.length > 0) {
+    return `review 建议沉淀 ${shortTermSuggestions.length} 条短期事实，并保留 ${observationSuggestions.length} 条待观察事实`
+  }
+
+  if (shortTermSuggestions.length > 0) {
+    return `review 建议沉淀 ${shortTermSuggestions.length} 条短期事实`
+  }
+
+  return `review 建议保留 ${observationSuggestions.length} 条待观察事实，暂不进入长期记忆`
+}
+
+function collectMemoryEvidence(
+  suggestions: ClosureSuggestions['memory'],
+): string[] {
+  return suggestions
+    .flatMap((item) => item.evidence.length > 0 ? item.evidence : [item.summary])
+    .filter((item) => item.trim().length > 0)
+    .slice(0, 5)
 }
 
 function formatCharacterUpdateSummary(
