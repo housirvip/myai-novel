@@ -80,7 +80,10 @@ export class ReviewService {
           chapter.title,
           chapter.objective,
           draft.content,
+          plan.sceneCards,
           plan.eventOutline,
+          plan.statePredictions,
+          plan.hookPlan,
           characterStates,
           importantItems,
           longTermMemory?.entries ?? [],
@@ -345,7 +348,10 @@ async function createLlmReview(
   chapterTitle: string,
   objective: string,
   content: string,
+  sceneCards: Array<{ title: string; purpose: string; beats: string[]; characterIds: string[]; locationId?: string; factionIds: string[]; itemIds: string[] }>,
   eventOutline: string[],
+  statePredictions: string[],
+  hookPlan: Array<{ hookId: string; action: string; note: string }>,
   characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>,
   importantItems: ContextItemView[],
   longTermEntries: Array<{ summary: string; importance: number }>,
@@ -354,13 +360,16 @@ async function createLlmReview(
   try {
     const response = await llmAdapter.generateText({
       system: [
-        '你是长篇小说章节审查助手。你要同时审查文本质量与状态一致性，而不是只做泛泛评价。',
-        '必须优先检查：章节目标承接、事件是否落地、角色状态一致性、关键物品连续性、Hook 承接、长期记忆事实冲突、节奏与篇幅。',
-        '请区分硬问题和软问题：会破坏主链路或状态闭环的问题必须更严厉。',
+        '你是长篇小说章节审查助手。你要同时审查文本质量、结构执行度与状态一致性，而不是只做泛泛评价。',
+        '必须优先检查：章节目标承接、scene 是否落地、事件是否真正发生、角色状态一致性、关键物品连续性、Hook 实际处理结果、长期记忆事实冲突、节奏与篇幅。',
+        '请区分硬问题和软问题：会破坏主链路、状态闭环或后续 approve 的问题必须更严厉，并优先写在对应 issues 数组前面。',
+        'closureSuggestions 是给 approve 使用的结构化闭环建议，不要只报问题；要尽量回答哪些事实已确认、哪些 Hook 实际推进、哪些事实只能暂时观察。',
+        '如果计划要求推进 Hook、状态或事件，但正文没有足够事实承接，必须在 hookIssues / consistencyIssues 中明确指出。',
         '请输出 JSON，不要解释，不要使用 markdown 代码块。',
         'JSON 字段必须包含 decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, pacingIssues, hookIssues, newFactCandidates, closureSuggestions, revisionAdvice。',
+        'decision 只能是 pass, warning, needs-rewrite。',
         'closureSuggestions 必须按 characters, items, hooks, memory 四组输出，每条建议都要包含 reason, evidence, source。',
-        'revisionAdvice 必须可执行，尽量给出具体修正方向，而不是空泛评价。',
+        'revisionAdvice 必须可执行，优先给出必须修的问题，不要写空泛评价。',
       ].join(' '),
       user: JSON.stringify(
         {
@@ -370,16 +379,24 @@ async function createLlmReview(
             objective,
             reviewFocus: [
               '目标是否达成',
-              '事件是否真正发生而不是被概述',
+              'scene 与 eventOutline 是否真正落地',
               '角色状态是否违背当前真源',
               '关键物品状态是否连续',
-              'Hook 是否被承接或推进',
+              'Hook 是否被承接、推进、搁置或完成',
               '长期记忆是否被违背',
               '节奏与结尾牵引是否成立',
             ],
+            outputPriority: [
+              '先指出会破坏状态闭环的问题',
+              '再指出结构执行偏差',
+              '最后给出可执行修订建议',
+            ],
           },
           chapterPlan: {
+            sceneCards,
             eventOutline,
+            statePredictions,
+            hookPlan,
           },
           stateConstraints: {
             characterStates,
@@ -393,6 +410,7 @@ async function createLlmReview(
             })),
             activeHookStates,
             criticalLongTermEntries: longTermEntries.filter((entry) => entry.importance >= 4),
+            protectedFacts: buildProtectedFactHints(characterStates, importantItems, longTermEntries, activeHookStates),
           },
           wordCountCheck,
           draft: content,
@@ -431,6 +449,20 @@ function createWordCountCheck(target: number, actual: number, toleranceRatio: nu
     deviationRatio,
     passed: deviationRatio <= toleranceRatio,
   }
+}
+
+function buildProtectedFactHints(
+  characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>,
+  importantItems: ContextItemView[],
+  longTermEntries: Array<{ summary: string; importance: number }>,
+  activeHookStates: Array<{ hookId: string; status: string }>,
+): string[] {
+  return [
+    ...characterStates.slice(0, 3).map((item) => `角色 ${item.characterId}：位置=${item.currentLocationId ?? '未知'}；状态=${item.statusNotes.join(' / ') || '无'}`),
+    ...importantItems.slice(0, 3).map((item) => `物品 ${item.id}：状态=${item.status}；持有者=${item.ownerCharacterId ?? '未知'}；地点=${item.locationId ?? '未知'}`),
+    ...activeHookStates.slice(0, 3).map((item) => `Hook ${item.hookId}：当前状态=${item.status}`),
+    ...longTermEntries.filter((item) => item.importance >= 4).slice(0, 3).map((item) => `长期事实：${item.summary}`),
+  ]
 }
 
 function buildRevisionAdvice(
