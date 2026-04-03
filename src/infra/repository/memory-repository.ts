@@ -96,19 +96,67 @@ export class MemoryRepository {
       return []
     }
 
-    const normalizedTerms = queryTerms
-      .map((term) => term.trim().toLowerCase())
-      .filter((term) => term.length > 0)
+    const normalizedTerms = normalizeQueryTerms(queryTerms)
 
     return [...memory.entries]
       .map((entry) => ({
         entry,
-        score:
-          entry.importance * 10 +
-          normalizedTerms.reduce((count, term) => count + (entry.summary.toLowerCase().includes(term) ? 1 : 0), 0),
+        score: scoreLongTermEntry(entry, normalizedTerms),
       }))
       .sort((left, right) => right.score - left.score)
       .slice(0, maxEntries)
       .map((item) => item.entry)
   }
+}
+
+function normalizeQueryTerms(queryTerms: string[]): string[] {
+  return [...new Set(
+    queryTerms
+      .flatMap((term) => splitSearchTerms(term))
+      .map((term) => term.trim().toLowerCase())
+      .filter((term) => term.length > 1),
+  )]
+}
+
+function splitSearchTerms(term: string): string[] {
+  const trimmed = term.trim()
+
+  if (!trimmed) {
+    return []
+  }
+
+  const compact = trimmed.replace(/\s+/g, ' ')
+  const fragments = compact
+    .split(/[，。；：、,.;:!?（）()【】\[\]<>《》“”"'\-\/]+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+
+  return [compact, ...fragments]
+}
+
+function scoreLongTermEntry(entry: LongTermMemory['entries'][number], queryTerms: string[]): number {
+  const summary = entry.summary.toLowerCase()
+
+  return queryTerms.reduce((score, term) => {
+    if (!term) {
+      return score
+    }
+
+    if (summary === term) {
+      return score + 12
+    }
+
+    if (summary.includes(term)) {
+      return score + Math.min(8, Math.max(3, term.length))
+    }
+
+    const characters = [...term].filter((item) => /[\p{Script=Han}a-z0-9]/iu.test(item))
+    const overlap = characters.filter((item) => summary.includes(item)).length
+
+    if (characters.length >= 3 && overlap >= Math.ceil(characters.length * 0.6)) {
+      return score + 2
+    }
+
+    return score
+  }, entry.importance * 10)
 }

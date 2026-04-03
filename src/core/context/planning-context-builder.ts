@@ -50,11 +50,18 @@ export class PlanningContextBuilder {
     const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
     const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
     const shortTermMemory = this.memoryRepository.getShortTermByBookId(book.id)
+    const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
     const relevantLongTermEntries = this.memoryRepository.recallRelevantLongTermEntries(
       book.id,
-      [chapter.title, chapter.objective, volume.goal, ...chapter.plannedBeats],
+      buildMemoryRecallQueryTerms(
+        chapter.title,
+        chapter.objective,
+        volume.goal,
+        chapter.plannedBeats,
+        activeHookStates.map((item) => `${item.hookId} ${item.status}`),
+        importantItems.flatMap((item) => [item.name, item.id, item.status]),
+      ),
     )
-    const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
 
     return {
       book,
@@ -72,4 +79,22 @@ export class PlanningContextBuilder {
       },
     }
   }
+}
+
+function buildMemoryRecallQueryTerms(
+  chapterTitle: string,
+  chapterObjective: string,
+  volumeGoal: string,
+  plannedBeats: string[],
+  activeHooks: string[],
+  importantItems: string[],
+): string[] {
+  return [...new Set([
+    chapterTitle,
+    chapterObjective,
+    volumeGoal,
+    ...plannedBeats,
+    ...activeHooks,
+    ...importantItems,
+  ].map((item) => item.trim()).filter((item) => item.length > 0))]
 }
