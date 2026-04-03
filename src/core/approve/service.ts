@@ -122,7 +122,14 @@ export class ApproveService {
     this.chapterOutputRepository.create(output)
     this.storyStateRepository.upsert(state)
 
-    const hookUpdates = this.updateHookStates(book.id, chapterId, approvedAt, closureSuggestions, plan?.hookPlan ?? [])
+    const hookUpdates = this.updateHookStates(
+      book.id,
+      chapterId,
+      source.content,
+      approvedAt,
+      closureSuggestions,
+      plan?.hookPlan ?? [],
+    )
     const stateUpdates = [
       ...this.updateCharacterState(
         book.id,
@@ -204,6 +211,7 @@ export class ApproveService {
   private updateHookStates(
     bookId: string,
     chapterId: string,
+    content: string,
     updatedAt: string,
     closureSuggestions: ClosureSuggestions,
     hookPlan: HookPlan[],
@@ -226,7 +234,17 @@ export class ApproveService {
       const currentStatus = currentStateByHookId.get(hookId)?.status ?? hook?.status ?? 'open'
       const planItem = hookPlanById.get(hookId)
       const suggestion = hookSuggestionById.get(hookId)
-      const nextStatus = suggestion?.nextStatus ?? (planItem ? transitionHookStatus(currentStatus, planItem.action) : currentStatus)
+      const line = findStructuredLine(content, `Hook（${hookId}）`)
+      const explicitAction = line ? extractStructuredValue(line, '动作') : undefined
+      const textEvidence = collectHookTextEvidence(content, hookId, hook?.title, planItem?.note)
+      const hasFactEvidence = Boolean(line) || textEvidence.length > 0
+      const nextStatus = suggestion
+        ? suggestion.nextStatus
+        : explicitAction
+          ? mapHookActionToStatus(explicitAction, currentStatus)
+          : hasFactEvidence && planItem
+            ? transitionHookStatus(currentStatus, planItem.action)
+            : currentStatus
 
       this.hookStateRepository.upsert({
         bookId,
@@ -242,34 +260,8 @@ export class ApproveService {
         chapterId,
         hookId,
         status: nextStatus,
-        summary: suggestion
-          ? formatHookUpdateSummary(hook?.title ?? hookId, currentStatus, nextStatus, suggestion)
-          : planItem
-            ? `Hook ${hook?.title ?? hookId} 按计划执行 ${planItem.action}，状态 ${currentStatus} -> ${nextStatus}`
-            : `Hook ${hook?.title ?? hookId} 保持当前状态 ${nextStatus}`,
-        detail: suggestion
-          ? {
-              source: 'closure-suggestion',
-              reason: suggestion.reason,
-              evidence: suggestion.evidence,
-              before: currentStatus,
-              after: nextStatus,
-            }
-          : planItem
-            ? {
-                source: 'fallback',
-                reason: `按 chapter plan 执行 ${planItem.action}`,
-                evidence: [planItem.note],
-                before: currentStatus,
-                after: nextStatus,
-              }
-            : {
-                source: 'fallback',
-                reason: '沿用当前 Hook 状态',
-                evidence: [],
-                before: currentStatus,
-                after: nextStatus,
-              },
+        summary: buildHookUpdateSummary(hook?.title ?? hookId, currentStatus, nextStatus, suggestion, explicitAction, planItem, hasFactEvidence),
+        detail: buildHookTraceDetail(currentStatus, nextStatus, suggestion, explicitAction, planItem, line, textEvidence),
         createdAt: updatedAt,
       })
     }
@@ -637,6 +629,22 @@ function transitionHookStatus(currentStatus: Hook['status'], action: HookPlan['a
   return currentStatus
 }
 
+function mapHookActionToStatus(action: string | undefined, currentStatus: Hook['status']): Hook['status'] {
+  if (action === 'foreshadow') {
+    return 'foreshadowed'
+  }
+
+  if (action === 'advance') {
+    return currentStatus === 'open' ? 'foreshadowed' : 'payoff-planned'
+  }
+
+  if (action === 'payoff') {
+    return 'resolved'
+  }
+
+  return currentStatus
+}
+
 function buildLongTermCandidates(
   review: ReviewReport | null,
   chapterIndex: number,
@@ -766,6 +774,101 @@ function formatHookUpdateSummary(
     `原因=${suggestion.reason}`,
     `依据=${suggestion.evidence.join(' | ') || suggestion.actualOutcome}`,
   ].join('；')
+}
+
+function buildHookUpdateSummary(
+  hookTitle: string,
+  previousStatus: Hook['status'],
+  nextStatus: Hook['status'],
+  suggestion: ClosureSuggestions['hooks'][number] | undefined,
+  explicitAction: string | undefined,
+  planItem: HookPlan | undefined,
+  hasFactEvidence: boolean,
+): string {
+  if (suggestion) {
+    return formatHookUpdateSummary(hookTitle, previousStatus, nextStatus, suggestion)
+  }
+
+  if (explicitAction) {
+    return `Hook ${hookTitle} 根据终稿显式动作 ${explicitAction} 更新，状态 ${previousStatus} -> ${nextStatus}`
+  }
+
+  if (hasFactEvidence && planItem) {
+    return `Hook ${hookTitle} 在终稿中已被承接，按事实证据执行计划动作 ${planItem.action}，状态 ${previousStatus} -> ${nextStatus}`
+  }
+
+  if (planItem) {
+    return `Hook ${hookTitle} 本章有计划 ${planItem.action}，但终稿未见事实承接，保持状态 ${nextStatus}`
+  }
+
+  return `Hook ${hookTitle} 保持当前状态 ${nextStatus}`
+}
+
+function buildHookTraceDetail(
+  previousStatus: Hook['status'],
+  nextStatus: Hook['status'],
+  suggestion: ClosureSuggestions['hooks'][number] | undefined,
+  explicitAction: string | undefined,
+  planItem: HookPlan | undefined,
+  structuredLine: string | null,
+  textEvidence: string[],
+): UpdateTraceDetail {
+  if (suggestion) {
+    return {
+      source: 'closure-suggestion',
+      reason: suggestion.reason,
+      evidence: suggestion.evidence,
+      before: previousStatus,
+      after: nextStatus,
+    }
+  }
+
+  if (explicitAction || structuredLine || textEvidence.length > 0) {
+    return {
+      source: 'structured-text',
+      reason: explicitAction
+        ? `终稿显式给出 Hook 动作 ${explicitAction}`
+        : planItem
+          ? `终稿已出现 Hook 事实承接，因此按计划动作 ${planItem.action} 推进`
+          : '终稿已出现 Hook 事实承接',
+      evidence: [structuredLine, ...textEvidence].filter(Boolean) as string[],
+      before: previousStatus,
+      after: nextStatus,
+    }
+  }
+
+  return {
+    source: 'fallback',
+    reason: planItem
+      ? `本章计划存在 Hook 动作 ${planItem.action}，但终稿未出现足够事实证据，因此保持当前状态`
+      : '未发现新的 Hook 事实，沿用当前状态',
+    evidence: planItem?.note ? [planItem.note] : [],
+    before: previousStatus,
+    after: nextStatus,
+  }
+}
+
+function collectHookTextEvidence(
+  content: string,
+  hookId: string,
+  hookTitle: string | undefined,
+  planNote: string | undefined,
+): string[] {
+  const evidence: string[] = []
+
+  if (content.includes(hookId)) {
+    evidence.push(`正文提及 Hook ID ${hookId}`)
+  }
+
+  if (hookTitle && content.includes(hookTitle)) {
+    evidence.push(`正文提及 Hook 标题 ${hookTitle}`)
+  }
+
+  if (planNote && content.includes(planNote)) {
+    evidence.push(`正文提及计划说明 ${planNote}`)
+  }
+
+  return evidence.slice(0, 3)
 }
 
 function buildCharacterTraceDetail(
