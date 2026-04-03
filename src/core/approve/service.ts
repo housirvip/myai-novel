@@ -72,7 +72,7 @@ export class ApproveService {
     private readonly memoryRepository: MemoryRepository,
   ) {}
 
-  async approveChapter(chapterId: string): Promise<ApproveResult> {
+  async approveChapter(chapterId: string, options?: { force?: boolean }): Promise<ApproveResult> {
     const book = this.bookRepository.getFirst()
 
     if (!book) {
@@ -91,6 +91,11 @@ export class ApproveService {
 
     const plan = this.resolvePlan(chapterId, chapter.currentPlanVersionId)
     const review = this.chapterReviewRepository.getLatestByChapterId(chapterId)
+
+    if (review?.approvalRisk === 'high' && !options?.force) {
+      throw new NovelError(`Chapter review risk is high for ${chapterId}. Re-run after rewrite or use --force to approve anyway.`)
+    }
+
     const closureSuggestions = review?.closureSuggestions ?? emptyClosureSuggestions()
     const source = this.resolveSource(chapterId)
     const approvedAt = nowIso()
@@ -205,6 +210,7 @@ export class ApproveService {
       memoryUpdated: true,
       hooksUpdated: true,
       approvedAt,
+      forcedApproval: Boolean(options?.force && review?.approvalRisk === 'high'),
     }
   }
 

@@ -183,7 +183,8 @@ export function registerChapterCommands(program: Command): void {
   chapterCommand
     .command('approve <chapterId>')
     .description('Approve the latest reviewed chapter and export the final output')
-    .action(async (chapterId: string) => {
+    .option('--force', 'Approve even when the latest review risk is high')
+    .action(async (chapterId: string, options) => {
       const database = await openProjectDatabase()
 
       try {
@@ -209,10 +210,11 @@ export function registerChapterCommands(program: Command): void {
           new MemoryRepository(database),
         )
 
-        const result = await approveService.approveChapter(chapterId)
+        const result = await approveService.approveChapter(chapterId, { force: Boolean(options.force) })
 
         console.log(`Chapter approved: ${result.chapterId}`)
         console.log(`Status: ${result.chapterStatus}`)
+        console.log(`Forced approval: ${result.forcedApproval}`)
         console.log(`Final path: ${result.finalPath}`)
         console.log(`Approved at: ${result.approvedAt}`)
       } finally {

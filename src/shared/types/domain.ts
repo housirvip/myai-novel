@@ -371,6 +371,7 @@ export type ApproveResult = {
   memoryUpdated: boolean
   hooksUpdated: boolean
   approvedAt: IsoTimestamp
+  forcedApproval: boolean
 }
 
 export type UpdateTraceDetail = {
