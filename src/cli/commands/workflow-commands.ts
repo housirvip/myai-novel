@@ -176,6 +176,7 @@ export function registerWorkflowCommands(program: Command): void {
           new CharacterCurrentStateRepository(database),
           new ItemCurrentStateRepository(database),
           new MemoryRepository(database),
+          new HookRepository(database),
           new HookStateRepository(database),
           createLlmAdapter(),
         )
@@ -241,6 +242,7 @@ export function registerWorkflowCommands(program: Command): void {
         console.log(`Version: ${rewrite.versionId}`)
         console.log(`Strategy: ${rewrite.strategy}`)
         console.log(`Word count: ${rewrite.actualWordCount}`)
+        console.log(formatSection('Validation:', formatJson(rewrite.validation)))
         console.log(formatSection('Goals:', formatJson(rewrite.goals)))
         console.log(formatSection('Content preview:', rewrite.content))
       } finally {

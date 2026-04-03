@@ -195,6 +195,7 @@ export const migrations = [
         goals_json TEXT NOT NULL,
         content TEXT NOT NULL,
         actual_word_count INTEGER NOT NULL,
+        validation_json TEXT NOT NULL DEFAULT '{"reviewDecision":"warning","approvalRisk":"medium","issueCount":0,"preservedClosureScore":0}',
         created_at TEXT NOT NULL,
         FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
         FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
@@ -385,6 +386,12 @@ export const migrations = [
         FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
         FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
       );
+    `,
+  },
+  {
+    id: '010_rewrite_validation',
+    sql: `
+      ALTER TABLE chapter_rewrites ADD COLUMN validation_json TEXT NOT NULL DEFAULT '{"reviewDecision":"warning","approvalRisk":"medium","issueCount":0,"preservedClosureScore":0}';
     `,
   },
 ] as const

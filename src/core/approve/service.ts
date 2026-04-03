@@ -251,7 +251,14 @@ export class ApproveService {
       const suggestion = hookSuggestionById.get(hookId)
       const line = findStructuredLine(content, `Hook（${hookId}）`)
       const explicitAction = line ? extractStructuredValue(line, '动作') : undefined
-      const textEvidence = collectHookTextEvidence(content, hookId, hook?.title, planItem?.note)
+      const textEvidence = collectHookTextEvidence(
+        content,
+        hookId,
+        hook?.title,
+        planItem?.note,
+        hook?.description,
+        hook?.payoffExpectation,
+      )
       const hasFactEvidence = Boolean(line) || textEvidence.length > 0
       const nextStatus = suggestion
         ? suggestion.nextStatus
@@ -916,6 +923,8 @@ function collectHookTextEvidence(
   hookId: string,
   hookTitle: string | undefined,
   planNote: string | undefined,
+  hookDescription?: string,
+  payoffExpectation?: string,
 ): string[] {
   const evidence: string[] = []
 
@@ -927,11 +936,37 @@ function collectHookTextEvidence(
     evidence.push(`正文提及 Hook 标题 ${hookTitle}`)
   }
 
+  for (const keyword of extractHookKeywords(hookDescription)) {
+    if (content.includes(keyword)) {
+      evidence.push(`正文提及 Hook 描述关键词 ${keyword}`)
+      break
+    }
+  }
+
+  for (const keyword of extractHookKeywords(payoffExpectation)) {
+    if (content.includes(keyword)) {
+      evidence.push(`正文提及 Hook 回收预期关键词 ${keyword}`)
+      break
+    }
+  }
+
   if (planNote && content.includes(planNote)) {
     evidence.push(`正文提及计划说明 ${planNote}`)
   }
 
-  return evidence.slice(0, 3)
+  return evidence.slice(0, 4)
+}
+
+function extractHookKeywords(value: string | undefined): string[] {
+  if (!value) {
+    return []
+  }
+
+  return value
+    .split(/[，。；、,.;:!?（）()【】\[\]<>《》“”"'\-\/\s]+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2)
+    .slice(0, 5)
 }
 
 function buildCharacterTraceDetail(

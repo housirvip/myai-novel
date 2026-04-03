@@ -1,6 +1,7 @@
 import type {
   ClosureSuggestions,
   ContextItemView,
+  Hook,
   LlmAdapter,
   ReviewDecision,
   ReviewReport,
@@ -15,6 +16,7 @@ import type { ChapterDraftRepository } from '../../infra/repository/chapter-draf
 import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
+import type { HookRepository } from '../../infra/repository/hook-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
@@ -30,6 +32,7 @@ export class ReviewService {
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
     private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
     private readonly memoryRepository: MemoryRepository,
+    private readonly hookRepository: HookRepository,
     private readonly hookStateRepository: HookStateRepository,
     private readonly llmAdapter: LlmAdapter | null,
   ) {}
@@ -71,6 +74,7 @@ export class ReviewService {
     const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
     const longTermMemory = this.memoryRepository.getLongTermByBookId(book.id)
     const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
+    const hooks = this.hookRepository.listByBookId(book.id)
 
     const baseReview = createRuleBasedReview(wordCountCheck, chapter.objective, draft.content, plan.sceneCards.length, plan.hookPlan.length)
     const aiReview = this.llmAdapter
@@ -101,6 +105,7 @@ export class ReviewService {
         longTermMemory?.entries ?? [],
         activeHookStates,
         plan.hookPlan,
+        hooks,
       ),
     )
 
@@ -575,6 +580,7 @@ function buildRuleBasedClosureSuggestions(
   longTermEntries: Array<{ summary: string; importance: number }>,
   activeHookStates: Array<{ hookId: string; status: string }>,
   hookPlan: Array<{ hookId: string; action: string; note: string }>,
+  hooks: Hook[],
 ): ClosureSuggestions {
   const suggestions = emptyClosureSuggestions()
 
@@ -618,6 +624,7 @@ function buildRuleBasedClosureSuggestions(
 
   const activeHookStatusById = new Map(activeHookStates.map((hook) => [hook.hookId, hook.status]))
   const hookPlanById = new Map(hookPlan.map((item) => [item.hookId, item]))
+  const hookById = new Map(hooks.map((hook) => [hook.id, hook]))
   const targetHookIds = uniqueStrings([
     ...activeHookStates.map((hook) => hook.hookId),
     ...hookPlan.map((item) => item.hookId),
@@ -628,7 +635,15 @@ function buildRuleBasedClosureSuggestions(
     const line = findStructuredLine(content, `Hook（${hookId}）`)
     const action = line ? extractStructuredValue(line, '动作') : undefined
     const planItem = hookPlanById.get(hookId)
-    const textEvidence = collectHookEvidence(content, hookId, planItem?.note)
+    const hook = hookById.get(hookId)
+    const textEvidence = collectHookEvidence(
+      content,
+      hookId,
+      hook?.title,
+      hook?.description,
+      hook?.payoffExpectation,
+      planItem?.note,
+    )
 
     if (line && action) {
       suggestions.hooks.push({
@@ -775,18 +790,55 @@ function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)]
 }
 
-function collectHookEvidence(content: string, hookId: string, planNote: string | undefined): string[] {
+function collectHookEvidence(
+  content: string,
+  hookId: string,
+  hookTitle: string | undefined,
+  hookDescription: string | undefined,
+  payoffExpectation: string | undefined,
+  planNote: string | undefined,
+): string[] {
   const evidence: string[] = []
 
   if (content.includes(hookId)) {
     evidence.push(`正文提及 Hook ID ${hookId}`)
   }
 
+  if (hookTitle && content.includes(hookTitle)) {
+    evidence.push(`正文提及 Hook 标题 ${hookTitle}`)
+  }
+
+  for (const keyword of extractHookKeywords(hookDescription)) {
+    if (content.includes(keyword)) {
+      evidence.push(`正文提及 Hook 描述关键词 ${keyword}`)
+      break
+    }
+  }
+
+  for (const keyword of extractHookKeywords(payoffExpectation)) {
+    if (content.includes(keyword)) {
+      evidence.push(`正文提及 Hook 回收预期关键词 ${keyword}`)
+      break
+    }
+  }
+
   if (planNote && content.includes(planNote)) {
     evidence.push(`正文提及计划说明 ${planNote}`)
   }
 
-  return evidence.slice(0, 3)
+  return evidence.slice(0, 4)
+}
+
+function extractHookKeywords(value: string | undefined): string[] {
+  if (!value) {
+    return []
+  }
+
+  return value
+    .split(/[，。；、,.;:!?（）()【】\[\]<>《》“”"'\-\/\s]+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2)
+    .slice(0, 5)
 }
 
 function mapHookActionToStatus(action: string | undefined, currentStatus: string): 'open' | 'foreshadowed' | 'payoff-planned' | 'resolved' {

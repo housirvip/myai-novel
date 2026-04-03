@@ -343,6 +343,13 @@ export type RewriteRequest = {
   preserveEndingBeat: boolean
 }
 
+export type ChapterRewriteValidation = {
+  reviewDecision: ReviewDecision
+  approvalRisk: 'low' | 'medium' | 'high'
+  issueCount: number
+  preservedClosureScore: number
+}
+
 export type ChapterRewrite = {
   id: string
   bookId: string
@@ -354,6 +361,7 @@ export type ChapterRewrite = {
   goals: string[]
   content: string
   actualWordCount: number
+  validation: ChapterRewriteValidation
   createdAt: IsoTimestamp
 }
 

@@ -113,6 +113,7 @@ export class RewriteService {
           request.goals,
         )
       : buildRewriteContent(draft.content, review.revisionAdvice, review.closureSuggestions, rewriteContext, request.goals)
+    const validation = validateRewrite(review, content)
     const rewrite: ChapterRewrite = {
       id: createId('rewrite'),
       bookId: book.id,
@@ -124,6 +125,7 @@ export class RewriteService {
       goals: request.goals,
       content,
       actualWordCount: estimateWordCount(content),
+      validation,
       createdAt: timestamp,
     }
 
@@ -209,6 +211,46 @@ async function createLlmRewrite(
   } catch {
     return buildRewriteContent(content, revisionAdvice, closureSuggestions, rewriteContext, goals)
   }
+}
+
+function validateRewrite(
+  review: {
+    decision: 'pass' | 'warning' | 'needs-rewrite'
+    approvalRisk: 'low' | 'medium' | 'high'
+    consistencyIssues: string[]
+    characterIssues: string[]
+    itemIssues: string[]
+    memoryIssues: string[]
+    pacingIssues: string[]
+    hookIssues: string[]
+    closureSuggestions: ClosureSuggestions
+  },
+  content: string,
+): { reviewDecision: 'pass' | 'warning' | 'needs-rewrite'; approvalRisk: 'low' | 'medium' | 'high'; issueCount: number; preservedClosureScore: number } {
+  const issueCount =
+    review.consistencyIssues.length +
+    review.characterIssues.length +
+    review.itemIssues.length +
+    review.memoryIssues.length +
+    review.pacingIssues.length +
+    review.hookIssues.length
+
+  const protectedFacts = summarizeProtectedFacts(review.closureSuggestions)
+  const matchedProtectedFacts = protectedFacts.filter((item) => item === '保持既有结构化事实边界' || content.includes(extractProtectedFactKeyword(item))).length
+  const preservedClosureScore = protectedFacts.length === 0
+    ? 100
+    : Math.round((matchedProtectedFacts / protectedFacts.length) * 100)
+
+  return {
+    reviewDecision: review.decision,
+    approvalRisk: review.approvalRisk,
+    issueCount,
+    preservedClosureScore,
+  }
+}
+
+function extractProtectedFactKeyword(value: string): string {
+  return value.split('->')[0]?.trim() ?? value.trim()
 }
 
 function buildRewriteContent(
