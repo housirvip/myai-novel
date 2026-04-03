@@ -4,17 +4,27 @@ import { createId } from '../../shared/utils/id.js'
 import { nowIso } from '../../shared/utils/time.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
 import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
+import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
 import type { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
+import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
+import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
+import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
+import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
 
 export class RewriteService {
   constructor(
     private readonly bookRepository: BookRepository,
     private readonly chapterRepository: ChapterRepository,
     private readonly chapterDraftRepository: ChapterDraftRepository,
+    private readonly chapterPlanRepository: ChapterPlanRepository,
     private readonly chapterReviewRepository: ChapterReviewRepository,
     private readonly chapterRewriteRepository: ChapterRewriteRepository,
+    private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
+    private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
+    private readonly hookStateRepository: HookStateRepository,
+    private readonly memoryRepository: MemoryRepository,
     private readonly llmAdapter: LlmAdapter | null,
   ) {}
 
@@ -43,6 +53,42 @@ export class RewriteService {
       throw new NovelError('Review is required before rewrite. Run `novel review chapter <id>`.')
     }
 
+    const plan = chapter.currentPlanVersionId
+      ? this.chapterPlanRepository.getByVersionId(request.chapterId, chapter.currentPlanVersionId)
+      : this.chapterPlanRepository.getLatestByChapterId(request.chapterId)
+
+    const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
+    const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
+    const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
+    const shortTermMemory = this.memoryRepository.getShortTermByBookId(book.id)
+    const longTermMemory = this.memoryRepository.getLongTermByBookId(book.id)
+    const rewriteContext = {
+      sceneCards: plan?.sceneCards ?? [],
+      eventOutline: plan?.eventOutline ?? [],
+      statePredictions: plan?.statePredictions ?? [],
+      hookPlan: plan?.hookPlan ?? [],
+      characterStates: characterStates.map((state) => ({
+        characterId: state.characterId,
+        currentLocationId: state.currentLocationId,
+        statusNotes: state.statusNotes,
+      })),
+      importantItems: importantItems.map((item) => ({
+        itemId: item.id,
+        itemName: item.name,
+        quantity: item.quantity,
+        status: item.status,
+        ownerCharacterId: item.ownerCharacterId,
+        locationId: item.locationId,
+      })),
+      activeHookStates: activeHookStates.map((item) => ({
+        hookId: item.hookId,
+        status: item.status,
+      })),
+      shortTermMemory: shortTermMemory?.summaries ?? [],
+      recentEvents: shortTermMemory?.recentEvents ?? [],
+      relevantLongTermEntries: longTermMemory?.entries.slice(0, 8) ?? [],
+    }
+
     const timestamp = nowIso()
     const content = this.llmAdapter
       ? await createLlmRewrite(
@@ -61,9 +107,10 @@ export class RewriteService {
             hookIssues: review.hookIssues,
           },
           review.closureSuggestions,
+          rewriteContext,
           request.goals,
         )
-      : buildRewriteContent(draft.content, review.revisionAdvice, review.closureSuggestions, request.goals)
+      : buildRewriteContent(draft.content, review.revisionAdvice, review.closureSuggestions, rewriteContext, request.goals)
     const rewrite: ChapterRewrite = {
       id: createId('rewrite'),
       bookId: book.id,
@@ -101,6 +148,18 @@ async function createLlmRewrite(
     hookIssues: string[]
   },
   closureSuggestions: ClosureSuggestions,
+  rewriteContext: {
+    sceneCards: Array<{ title: string; purpose: string; beats: string[]; characterIds: string[]; locationId?: string; factionIds: string[]; itemIds: string[] }>
+    eventOutline: string[]
+    statePredictions: string[]
+    hookPlan: Array<{ hookId: string; action: 'hold' | 'foreshadow' | 'advance' | 'payoff'; note: string }>
+    characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>
+    importantItems: Array<{ itemId: string; itemName: string; quantity: number; status: string; ownerCharacterId?: string; locationId?: string }>
+    activeHookStates: Array<{ hookId: string; status: string }>
+    shortTermMemory: string[]
+    recentEvents: string[]
+    relevantLongTermEntries: Array<{ summary: string; importance: number; sourceChapterId?: string }>
+  },
   goals: string[],
 ): Promise<string> {
   try {
@@ -128,12 +187,15 @@ async function createLlmRewrite(
               '关键物品与 Hook 连续性不被破坏',
               '结尾牵引至少不弱于原稿',
               'review closureSuggestions 给出的结构化事实边界不被破坏',
+              '不得偏离 chapter plan 的核心场景推进与事件顺序',
+              '不得推翻当前角色、物品、Hook、memory 真源',
             ],
           },
           draft: content,
           revisionAdvice,
           reviewIssues,
           closureSuggestions,
+          rewriteContext,
         },
         null,
         2,
@@ -142,7 +204,7 @@ async function createLlmRewrite(
 
     return response.text.trim()
   } catch {
-    return buildRewriteContent(content, revisionAdvice, closureSuggestions, goals)
+    return buildRewriteContent(content, revisionAdvice, closureSuggestions, rewriteContext, goals)
   }
 }
 
@@ -150,19 +212,57 @@ function buildRewriteContent(
   content: string,
   revisionAdvice: string[],
   closureSuggestions: ClosureSuggestions,
+  rewriteContext: {
+    sceneCards: Array<{ title: string; purpose: string; beats: string[] }>
+    eventOutline: string[]
+    statePredictions: string[]
+    hookPlan: Array<{ hookId: string; action: 'hold' | 'foreshadow' | 'advance' | 'payoff'; note: string }>
+    characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>
+    importantItems: Array<{ itemId: string; itemName: string; quantity: number; status: string; ownerCharacterId?: string; locationId?: string }>
+    activeHookStates: Array<{ hookId: string; status: string }>
+    shortTermMemory: string[]
+    recentEvents: string[]
+    relevantLongTermEntries: Array<{ summary: string; importance: number }>
+  },
   goals: string[],
 ): string {
   const protectedFacts = summarizeProtectedFacts(closureSuggestions)
+  const contextualConstraints = summarizeRewriteContext(rewriteContext)
   const header = [
     '## 重写说明',
     '',
     ...revisionAdvice.map((item) => `- 审查建议：${item}`),
     ...goals.map((goal) => `- 重写目标：${goal}`),
     ...protectedFacts.map((fact) => `- 结构化保护：${fact}`),
+    ...contextualConstraints.map((fact) => `- 规划约束：${fact}`),
     '',
   ].join('\n')
 
-  return `${header}${content}\n\n## 重写后补充\n\n本版本已根据审查意见进行了定向调整，重点优化节奏、目标承接和结尾牵引，同时保持 review 已确认的结构化事实边界。`
+  return `${header}${content}\n\n## 重写后补充\n\n本版本已根据审查意见进行了定向调整，重点优化节奏、目标承接和结尾牵引，同时保持 chapter plan、当前状态与 review 已确认的结构化事实边界一致。`
+}
+
+function summarizeRewriteContext(rewriteContext: {
+  sceneCards: Array<{ title: string; purpose: string; beats: string[] }>
+  eventOutline: string[]
+  statePredictions: string[]
+  hookPlan: Array<{ hookId: string; action: 'hold' | 'foreshadow' | 'advance' | 'payoff'; note: string }>
+  characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>
+  importantItems: Array<{ itemId: string; itemName: string; quantity: number; status: string; ownerCharacterId?: string; locationId?: string }>
+  activeHookStates: Array<{ hookId: string; status: string }>
+  shortTermMemory: string[]
+  recentEvents: string[]
+  relevantLongTermEntries: Array<{ summary: string; importance: number }>
+}): string[] {
+  const items = [
+    ...rewriteContext.sceneCards.slice(0, 2).map((item) => `场景 ${item.title}：${item.purpose}`),
+    ...rewriteContext.eventOutline.slice(0, 2).map((item) => `事件：${item}`),
+    ...rewriteContext.statePredictions.slice(0, 2).map((item) => `预计状态变化：${item}`),
+    ...rewriteContext.hookPlan.slice(0, 2).map((item) => `Hook ${item.hookId}：${item.action}`),
+    ...rewriteContext.shortTermMemory.slice(0, 1).map((item) => `短期记忆：${item}`),
+    ...rewriteContext.relevantLongTermEntries.slice(0, 1).map((item) => `长期记忆：${item.summary}`),
+  ]
+
+  return items.length > 0 ? items : ['保持 chapter plan 与当前状态约束一致']
 }
 
 function summarizeProtectedFacts(closureSuggestions: ClosureSuggestions): string[] {

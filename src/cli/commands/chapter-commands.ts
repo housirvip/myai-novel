@@ -129,8 +129,13 @@ export function registerChapterCommands(program: Command): void {
           new BookRepository(database),
           new ChapterRepository(database),
           new ChapterDraftRepository(database),
+          new ChapterPlanRepository(database),
           new ChapterReviewRepository(database),
           new ChapterRewriteRepository(database),
+          new CharacterCurrentStateRepository(database),
+          new ItemCurrentStateRepository(database),
+          new HookStateRepository(database),
+          new MemoryRepository(database),
           createLlmAdapter(),
         )
 
