@@ -8,6 +8,7 @@ type ChapterHookUpdateRow = {
   hook_id: string
   status: ChapterHookUpdate['status']
   summary: string
+  detail_json: string
   created_at: string
 }
 
@@ -19,11 +20,20 @@ export class ChapterHookUpdateRepository {
       .prepare(
         `
           INSERT INTO chapter_hook_updates (
-            id, book_id, chapter_id, hook_id, status, summary, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            id, book_id, chapter_id, hook_id, status, summary, detail_json, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
-      .run(update.id, update.bookId, update.chapterId, update.hookId, update.status, update.summary, update.createdAt)
+      .run(
+        update.id,
+        update.bookId,
+        update.chapterId,
+        update.hookId,
+        update.status,
+        update.summary,
+        JSON.stringify(update.detail),
+        update.createdAt,
+      )
   }
 
   listByChapterId(chapterId: string): ChapterHookUpdate[] {
@@ -51,6 +61,7 @@ function mapChapterHookUpdate(row: ChapterHookUpdateRow): ChapterHookUpdate {
     hookId: row.hook_id,
     status: row.status,
     summary: row.summary,
+    detail: JSON.parse(row.detail_json) as ChapterHookUpdate['detail'],
     createdAt: row.created_at,
   }
 }

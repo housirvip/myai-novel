@@ -372,6 +372,14 @@ export type ApproveResult = {
   approvedAt: IsoTimestamp
 }
 
+export type UpdateTraceDetail = {
+  source: 'closure-suggestion' | 'structured-text' | 'fallback'
+  reason: string
+  evidence: string[]
+  before?: string
+  after?: string
+}
+
 export type ChapterStateUpdate = {
   id: string
   bookId: string
@@ -379,6 +387,7 @@ export type ChapterStateUpdate = {
   entityType: 'character' | 'item'
   entityId: string
   summary: string
+  detail: UpdateTraceDetail
   createdAt: IsoTimestamp
 }
 
@@ -388,6 +397,7 @@ export type ChapterMemoryUpdate = {
   chapterId: string
   memoryType: 'short-term' | 'long-term'
   summary: string
+  detail: UpdateTraceDetail
   createdAt: IsoTimestamp
 }
 
@@ -398,6 +408,7 @@ export type ChapterHookUpdate = {
   hookId: string
   status: Hook['status']
   summary: string
+  detail: UpdateTraceDetail
   createdAt: IsoTimestamp
 }
 

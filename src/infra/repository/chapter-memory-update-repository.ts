@@ -7,6 +7,7 @@ type ChapterMemoryUpdateRow = {
   chapter_id: string
   memory_type: ChapterMemoryUpdate['memoryType']
   summary: string
+  detail_json: string
   created_at: string
 }
 
@@ -18,11 +19,19 @@ export class ChapterMemoryUpdateRepository {
       .prepare(
         `
           INSERT INTO chapter_memory_updates (
-            id, book_id, chapter_id, memory_type, summary, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?)
+            id, book_id, chapter_id, memory_type, summary, detail_json, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
       )
-      .run(update.id, update.bookId, update.chapterId, update.memoryType, update.summary, update.createdAt)
+      .run(
+        update.id,
+        update.bookId,
+        update.chapterId,
+        update.memoryType,
+        update.summary,
+        JSON.stringify(update.detail),
+        update.createdAt,
+      )
   }
 
   listByChapterId(chapterId: string): ChapterMemoryUpdate[] {
@@ -49,6 +58,7 @@ function mapChapterMemoryUpdate(row: ChapterMemoryUpdateRow): ChapterMemoryUpdat
     chapterId: row.chapter_id,
     memoryType: row.memory_type,
     summary: row.summary,
+    detail: JSON.parse(row.detail_json) as ChapterMemoryUpdate['detail'],
     createdAt: row.created_at,
   }
 }

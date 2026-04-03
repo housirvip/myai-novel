@@ -17,6 +17,7 @@ import type {
   LongTermMemoryEntry,
   ReviewReport,
   StoryState,
+  UpdateTraceDetail,
 } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { createId } from '../../shared/utils/id.js'
@@ -239,6 +240,29 @@ export class ApproveService {
           : planItem
             ? `Hook ${hook?.title ?? hookId} 按计划执行 ${planItem.action}，状态 ${currentStatus} -> ${nextStatus}`
             : `Hook ${hook?.title ?? hookId} 保持当前状态 ${nextStatus}`,
+        detail: suggestion
+          ? {
+              source: 'closure-suggestion',
+              reason: suggestion.reason,
+              evidence: suggestion.evidence,
+              before: currentStatus,
+              after: nextStatus,
+            }
+          : planItem
+            ? {
+                source: 'fallback',
+                reason: `按 chapter plan 执行 ${planItem.action}`,
+                evidence: [planItem.note],
+                before: currentStatus,
+                after: nextStatus,
+              }
+            : {
+                source: 'fallback',
+                reason: '沿用当前 Hook 状态',
+                evidence: [],
+                before: currentStatus,
+                after: nextStatus,
+              },
         createdAt: updatedAt,
       })
     }
@@ -306,6 +330,7 @@ export class ApproveService {
         summary: suggestion
           ? formatCharacterUpdateSummary(characterId, previousState, currentLocationId, statusNotes, suggestion)
           : `角色 ${characterId} 当前状态已确认：位置=${currentLocationId ?? '未知'}；状态=${statusNotes.join(' / ') || '无'}`,
+        detail: buildCharacterTraceDetail(previousState, currentLocationId, statusNotes, suggestion, explicitLocation, explicitStatus),
         createdAt: updatedAt,
       })
     }
@@ -365,6 +390,7 @@ export class ApproveService {
         summary: suggestion
           ? formatItemUpdateSummary(item.name, previousState ?? undefined, nextState, suggestion)
           : `物品 ${item.name} 已确认：数量=${nextState.quantity}；状态=${nextState.status}；持有者=${nextState.ownerCharacterId ?? '未知'}；地点=${nextState.locationId ?? '未知'}`,
+        detail: buildItemTraceDetail(previousState ?? undefined, nextState, suggestion, explicitQuantity, explicitStatus, explicitOwner, explicitLocation),
         createdAt: updatedAt,
       })
     }
@@ -393,6 +419,21 @@ export class ApproveService {
         summary: latestShortTerm
           ? `短期记忆已更新：新增=${latestShortTerm.summary}；原因=${latestShortTerm.reason}`
           : `短期记忆已更新：${shortTermSummaries.at(-1) ?? shortTermEvents.at(-1) ?? '最近事件窗口已刷新'}`,
+        detail: latestShortTerm
+          ? {
+              source: 'closure-suggestion',
+              reason: latestShortTerm.reason,
+              evidence: latestShortTerm.evidence,
+              before: shortTermEvents.at(-1),
+              after: latestShortTerm.summary,
+            }
+          : {
+              source: 'fallback',
+              reason: '基于章节确认刷新短期记忆窗口',
+              evidence: stateEvidence(shortTermSummaries, shortTermEvents),
+              before: shortTermEvents.at(-1),
+              after: shortTermSummaries.at(-1),
+            },
         createdAt,
       },
       {
@@ -403,6 +444,21 @@ export class ApproveService {
         summary: latestLongTerm
           ? `长期记忆已更新：新增=${latestLongTerm.summary}；原因=${latestLongTerm.reason}`
           : `长期记忆已更新：${longTermEntries[0]?.summary ?? '高重要事实集合已刷新'}`,
+        detail: latestLongTerm
+          ? {
+              source: 'closure-suggestion',
+              reason: latestLongTerm.reason,
+              evidence: latestLongTerm.evidence,
+              before: undefined,
+              after: latestLongTerm.summary,
+            }
+          : {
+              source: 'fallback',
+              reason: '基于章节确认与候选事实刷新长期记忆',
+              evidence: longTermEntries.slice(0, 3).map((item) => item.summary),
+              before: undefined,
+              after: longTermEntries[0]?.summary,
+            },
         createdAt,
       },
     ]
@@ -657,6 +713,89 @@ function formatHookUpdateSummary(
     `原因=${suggestion.reason}`,
     `依据=${suggestion.evidence.join(' | ') || suggestion.actualOutcome}`,
   ].join('；')
+}
+
+function buildCharacterTraceDetail(
+  previousState: CharacterCurrentState | undefined,
+  nextLocationId: string | undefined,
+  nextStatusNotes: string[],
+  suggestion: ClosureSuggestions['characters'][number] | undefined,
+  explicitLocation: string | undefined,
+  explicitStatus: string | undefined,
+): UpdateTraceDetail {
+  if (suggestion) {
+    return {
+      source: 'closure-suggestion',
+      reason: suggestion.reason,
+      evidence: suggestion.evidence,
+      before: `位置=${previousState?.currentLocationId ?? '未知'}；状态=${previousState?.statusNotes.join(' / ') ?? '无'}`,
+      after: `位置=${nextLocationId ?? '未知'}；状态=${nextStatusNotes.join(' / ') || '无'}`,
+    }
+  }
+
+  if (explicitLocation || explicitStatus) {
+    return {
+      source: 'structured-text',
+      reason: '终稿中包含显式结构化角色状态行',
+      evidence: [explicitLocation, explicitStatus].filter(Boolean) as string[],
+      before: `位置=${previousState?.currentLocationId ?? '未知'}；状态=${previousState?.statusNotes.join(' / ') ?? '无'}`,
+      after: `位置=${nextLocationId ?? '未知'}；状态=${nextStatusNotes.join(' / ') || '无'}`,
+    }
+  }
+
+  return {
+    source: 'fallback',
+    reason: '未发现新的结构化角色更新，沿用既有状态',
+    evidence: [],
+    before: `位置=${previousState?.currentLocationId ?? '未知'}；状态=${previousState?.statusNotes.join(' / ') ?? '无'}`,
+    after: `位置=${nextLocationId ?? '未知'}；状态=${nextStatusNotes.join(' / ') || '无'}`,
+  }
+}
+
+function buildItemTraceDetail(
+  previousState: ItemCurrentState | undefined,
+  nextState: ItemCurrentState,
+  suggestion: ClosureSuggestions['items'][number] | undefined,
+  explicitQuantity: string | undefined,
+  explicitStatus: string | undefined,
+  explicitOwner: string | undefined,
+  explicitLocation: string | undefined,
+): UpdateTraceDetail {
+  if (suggestion) {
+    return {
+      source: 'closure-suggestion',
+      reason: suggestion.reason,
+      evidence: suggestion.evidence,
+      before: formatItemState(previousState),
+      after: formatItemState(nextState),
+    }
+  }
+
+  if (explicitQuantity || explicitStatus || explicitOwner || explicitLocation) {
+    return {
+      source: 'structured-text',
+      reason: '终稿中包含显式结构化物品状态行',
+      evidence: [explicitQuantity, explicitStatus, explicitOwner, explicitLocation].filter(Boolean) as string[],
+      before: formatItemState(previousState),
+      after: formatItemState(nextState),
+    }
+  }
+
+  return {
+    source: 'fallback',
+    reason: '未发现新的结构化物品更新，沿用既有状态',
+    evidence: [],
+    before: formatItemState(previousState),
+    after: formatItemState(nextState),
+  }
+}
+
+function formatItemState(state: ItemCurrentState | undefined): string {
+  return `数量=${state?.quantity ?? '未知'}；状态=${state?.status ?? '未知'}；持有者=${state?.ownerCharacterId ?? '未知'}；地点=${state?.locationId ?? '未知'}`
+}
+
+function stateEvidence(shortTermSummaries: string[], shortTermEvents: string[]): string[] {
+  return [...shortTermSummaries.slice(-2), ...shortTermEvents.slice(-2)]
 }
 
 function emptyClosureSuggestions(): ClosureSuggestions {

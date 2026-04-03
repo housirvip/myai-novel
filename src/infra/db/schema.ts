@@ -350,4 +350,12 @@ export const migrations = [
       ALTER TABLE chapter_reviews ADD COLUMN closure_suggestions_json TEXT NOT NULL DEFAULT '{"characters":[],"items":[],"hooks":[],"memory":[]}';
     `,
   },
+  {
+    id: '007_update_log_detail',
+    sql: `
+      ALTER TABLE chapter_state_updates ADD COLUMN detail_json TEXT NOT NULL DEFAULT '{"source":"fallback","reason":"legacy log","evidence":[]}';
+      ALTER TABLE chapter_memory_updates ADD COLUMN detail_json TEXT NOT NULL DEFAULT '{"source":"fallback","reason":"legacy log","evidence":[]}';
+      ALTER TABLE chapter_hook_updates ADD COLUMN detail_json TEXT NOT NULL DEFAULT '{"source":"fallback","reason":"legacy log","evidence":[]}';
+    `,
+  },
 ] as const

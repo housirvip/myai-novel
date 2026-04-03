@@ -115,14 +115,22 @@ export function registerStateCommands(program: Command): void {
               update.entityType === 'character'
                 ? (characterNameById.get(update.entityId) ?? update.entityId)
                 : (itemNameById.get(update.entityId) ?? update.entityId),
+            trace: formatTrace(update.detail),
           }))),
         ))
-        console.log(formatSection('Recent memory updates:', formatJson(recentMemoryUpdates)))
+        console.log(formatSection(
+          'Recent memory updates:',
+          formatJson(recentMemoryUpdates.map((update) => ({
+            ...update,
+            trace: formatTrace(update.detail),
+          }))),
+        ))
         console.log(formatSection(
           'Recent hook updates:',
           formatJson(recentHookUpdates.map((update) => ({
             ...update,
             hookTitle: hookTitleById.get(update.hookId) ?? update.hookId,
+            trace: formatTrace(update.detail),
           }))),
         ))
       } finally {
@@ -165,14 +173,22 @@ export function registerStateCommands(program: Command): void {
               update.entityType === 'character'
                 ? (characterNameById.get(update.entityId) ?? update.entityId)
                 : (itemNameById.get(update.entityId) ?? update.entityId),
+            trace: formatTrace(update.detail),
           }))),
         ))
-        console.log(formatSection('Memory updates:', formatJson(memoryUpdates)))
+        console.log(formatSection(
+          'Memory updates:',
+          formatJson(memoryUpdates.map((update) => ({
+            ...update,
+            trace: formatTrace(update.detail),
+          }))),
+        ))
         console.log(formatSection(
           'Hook updates:',
           formatJson(hookUpdates.map((update) => ({
             ...update,
             hookTitle: hookTitleById.get(update.hookId) ?? update.hookId,
+            trace: formatTrace(update.detail),
           }))),
         ))
       } finally {
@@ -209,4 +225,20 @@ function registerStoryCommand(program: Command): void {
         database.close()
       }
     })
+}
+
+function formatTrace(detail: {
+  source: string
+  reason: string
+  evidence: string[]
+  before?: string
+  after?: string
+}): string {
+  return [
+    `source=${detail.source}`,
+    `reason=${detail.reason}`,
+    `before=${detail.before ?? 'N/A'}`,
+    `after=${detail.after ?? 'N/A'}`,
+    `evidence=${detail.evidence.join(' | ') || 'N/A'}`,
+  ].join('；')
 }

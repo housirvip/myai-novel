@@ -8,6 +8,7 @@ type ChapterStateUpdateRow = {
   entity_type: ChapterStateUpdate['entityType']
   entity_id: string
   summary: string
+  detail_json: string
   created_at: string
 }
 
@@ -19,11 +20,20 @@ export class ChapterStateUpdateRepository {
       .prepare(
         `
           INSERT INTO chapter_state_updates (
-            id, book_id, chapter_id, entity_type, entity_id, summary, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            id, book_id, chapter_id, entity_type, entity_id, summary, detail_json, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
-      .run(update.id, update.bookId, update.chapterId, update.entityType, update.entityId, update.summary, update.createdAt)
+      .run(
+        update.id,
+        update.bookId,
+        update.chapterId,
+        update.entityType,
+        update.entityId,
+        update.summary,
+        JSON.stringify(update.detail),
+        update.createdAt,
+      )
   }
 
   listByChapterId(chapterId: string): ChapterStateUpdate[] {
@@ -51,6 +61,7 @@ function mapChapterStateUpdate(row: ChapterStateUpdateRow): ChapterStateUpdate {
     entityType: row.entity_type,
     entityId: row.entity_id,
     summary: row.summary,
+    detail: JSON.parse(row.detail_json) as ChapterStateUpdate['detail'],
     createdAt: row.created_at,
   }
 }
