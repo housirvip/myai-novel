@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { openDatabase, type NovelDatabase } from '../infra/db/database.js'
 import { runMigrations } from '../infra/db/migrate.js'
+import { createCommandLogger } from '../shared/utils/logging.js'
 import { readProjectConfig } from '../shared/utils/project-paths.js'
 
 export async function openProjectDatabase(): Promise<NovelDatabase> {
@@ -13,6 +14,51 @@ export async function openProjectDatabase(): Promise<NovelDatabase> {
   runMigrations(database)
 
   return database
+}
+
+export async function runLoggedCommand<T>(input: {
+  command: string
+  args: string[]
+  chapterId?: string
+  bookId?: string
+  detail?: Record<string, unknown>
+  action: (database: NovelDatabase) => Promise<{
+    result: T
+    summary: string
+    detail?: Record<string, unknown>
+    bookId?: string
+    chapterId?: string
+  }>
+}): Promise<T> {
+  const logger = createCommandLogger(process.cwd(), input.command, input.args)
+  const startedAt = Date.now()
+  const database = await openProjectDatabase()
+
+  try {
+    const outcome = await input.action(database)
+
+    await logger.success({
+      chapterId: outcome.chapterId ?? input.chapterId,
+      bookId: outcome.bookId ?? input.bookId,
+      durationMs: Date.now() - startedAt,
+      summary: outcome.summary,
+      detail: outcome.detail ?? input.detail,
+    })
+
+    return outcome.result
+  } catch (error) {
+    await logger.failure(error, {
+      chapterId: input.chapterId,
+      bookId: input.bookId,
+      durationMs: Date.now() - startedAt,
+      summary: `${input.command} failed`,
+      detail: input.detail,
+    })
+
+    throw error
+  } finally {
+    database.close()
+  }
 }
 
 export function parseInteger(value: string): number {

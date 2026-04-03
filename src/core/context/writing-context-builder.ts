@@ -12,12 +12,17 @@ export class WritingContextBuilder {
   build(chapterId: string): WritingContext {
     const planningContext = this.planningContextBuilder.build(chapterId)
 
-    const chapterPlan = planningContext.chapter.currentPlanVersionId
-      ? this.chapterPlanRepository.getByVersionId(chapterId, planningContext.chapter.currentPlanVersionId)
-      : this.chapterPlanRepository.getLatestByChapterId(chapterId)
+    if (!planningContext.chapter.currentPlanVersionId) {
+      throw new NovelError('Current chapter plan is missing. Run `novel plan chapter <id>`.')
+    }
+
+    const chapterPlan = this.chapterPlanRepository.getByVersionId(
+      chapterId,
+      planningContext.chapter.currentPlanVersionId,
+    )
 
     if (!chapterPlan) {
-      throw new NovelError('Chapter plan is required before writing. Run `novel plan chapter <id>`.')
+      throw new NovelError('Current chapter plan is missing. Run `novel plan chapter <id>`.')
     }
 
     return {

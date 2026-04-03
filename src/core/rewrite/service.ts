@@ -41,6 +41,10 @@ export class RewriteService {
       throw new NovelError(`Chapter not found: ${request.chapterId}`)
     }
 
+    if (!chapter.currentVersionId) {
+      throw new NovelError('Current draft chain is missing. Run `novel write next <id>`.')
+    }
+
     const draft = this.chapterDraftRepository.getLatestByChapterId(request.chapterId)
 
     if (!draft) {
@@ -53,9 +57,11 @@ export class RewriteService {
       throw new NovelError('Review is required before rewrite. Run `novel review chapter <id>`.')
     }
 
-    const plan = chapter.currentPlanVersionId
-      ? this.chapterPlanRepository.getByVersionId(request.chapterId, chapter.currentPlanVersionId)
-      : this.chapterPlanRepository.getLatestByChapterId(request.chapterId)
+    if (!chapter.currentPlanVersionId) {
+      throw new NovelError('Current chapter plan is missing for rewrite.')
+    }
+
+    const plan = this.chapterPlanRepository.getByVersionId(request.chapterId, chapter.currentPlanVersionId)
 
     const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
     const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)

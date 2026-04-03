@@ -21,7 +21,7 @@ import { OutlineRepository } from '../../infra/repository/outline-repository.js'
 import { VolumeRepository } from '../../infra/repository/volume-repository.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { formatJson, formatSection } from '../../shared/utils/format.js'
-import { openProjectDatabase } from '../context.js'
+import { openProjectDatabase, runLoggedCommand } from '../context.js'
 
 export function registerWorkflowCommands(program: Command): void {
   const planCommand = program.command('plan').description('Planning commands')
@@ -34,40 +34,55 @@ export function registerWorkflowCommands(program: Command): void {
     .command('chapter <chapterId>')
     .description('Generate a chapter plan')
     .action(async (chapterId: string) => {
-      const database = await openProjectDatabase()
+      const plan = await runLoggedCommand({
+        command: 'plan chapter',
+        args: [chapterId],
+        chapterId,
+        action: async (database) => {
+          const bookRepository = new BookRepository(database)
+          const outlineRepository = new OutlineRepository(database)
+          const chapterRepository = new ChapterRepository(database)
+          const volumeRepository = new VolumeRepository(database)
+          const contextBuilder = new PlanningContextBuilder(
+            bookRepository,
+            outlineRepository,
+            chapterRepository,
+            volumeRepository,
+            new CharacterCurrentStateRepository(database),
+            new ItemCurrentStateRepository(database),
+            new MemoryRepository(database),
+            new HookStateRepository(database),
+          )
+          const planningService = new PlanningService(
+            contextBuilder,
+            new ChapterPlanRepository(database),
+            chapterRepository,
+            createLlmAdapter(),
+            new HookRepository(database),
+          )
 
-      try {
-        const bookRepository = new BookRepository(database)
-        const outlineRepository = new OutlineRepository(database)
-        const chapterRepository = new ChapterRepository(database)
-        const volumeRepository = new VolumeRepository(database)
-        const contextBuilder = new PlanningContextBuilder(
-          bookRepository,
-          outlineRepository,
-          chapterRepository,
-          volumeRepository,
-          new CharacterCurrentStateRepository(database),
-          new ItemCurrentStateRepository(database),
-          new MemoryRepository(database),
-          new HookStateRepository(database),
-        )
-        const planningService = new PlanningService(
-          contextBuilder,
-          new ChapterPlanRepository(database),
-          chapterRepository,
-          createLlmAdapter(),
-          new HookRepository(database),
-        )
+          const result = await planningService.planChapter(chapterId)
 
-        const plan = await planningService.planChapter(chapterId)
+          return {
+            result,
+            chapterId,
+            bookId: result.bookId,
+            summary: `Chapter plan created: ${result.versionId}`,
+            detail: {
+              planVersionId: result.versionId,
+              objective: result.objective,
+              sceneCount: result.sceneCards.length,
+              hookPlanCount: result.hookPlan.length,
+              statePredictionCount: result.statePredictions.length,
+            },
+          }
+        },
+      })
 
-        console.log(`Chapter plan created: ${plan.versionId}`)
-        console.log(`Objective: ${plan.objective}`)
-        console.log(`Scenes: ${plan.sceneCards.length}`)
-        console.log(`Events: ${plan.eventOutline.length}`)
-      } finally {
-        database.close()
-      }
+      console.log(`Chapter plan created: ${plan.versionId}`)
+      console.log(`Objective: ${plan.objective}`)
+      console.log(`Scenes: ${plan.sceneCards.length}`)
+      console.log(`Events: ${plan.eventOutline.length}`)
     })
 
   planCommand
@@ -98,44 +113,57 @@ export function registerWorkflowCommands(program: Command): void {
     .command('next <chapterId>')
     .description('Generate the next chapter draft from the latest plan')
     .action(async (chapterId: string) => {
-      const database = await openProjectDatabase()
+      const result = await runLoggedCommand({
+        command: 'write next',
+        args: [chapterId],
+        chapterId,
+        action: async (database) => {
+          const bookRepository = new BookRepository(database)
+          const outlineRepository = new OutlineRepository(database)
+          const chapterRepository = new ChapterRepository(database)
+          const volumeRepository = new VolumeRepository(database)
+          const chapterPlanRepository = new ChapterPlanRepository(database)
+          const planningContextBuilder = new PlanningContextBuilder(
+            bookRepository,
+            outlineRepository,
+            chapterRepository,
+            volumeRepository,
+            new CharacterCurrentStateRepository(database),
+            new ItemCurrentStateRepository(database),
+            new MemoryRepository(database),
+            new HookStateRepository(database),
+          )
+          const writingContextBuilder = new WritingContextBuilder(
+            planningContextBuilder,
+            chapterPlanRepository,
+          )
+          const generationService = new GenerationService(
+            writingContextBuilder,
+            new ChapterDraftRepository(database),
+            chapterRepository,
+            createLlmAdapter(),
+          )
 
-      try {
-        const bookRepository = new BookRepository(database)
-        const outlineRepository = new OutlineRepository(database)
-        const chapterRepository = new ChapterRepository(database)
-        const volumeRepository = new VolumeRepository(database)
-        const chapterPlanRepository = new ChapterPlanRepository(database)
-        const planningContextBuilder = new PlanningContextBuilder(
-          bookRepository,
-          outlineRepository,
-          chapterRepository,
-          volumeRepository,
-          new CharacterCurrentStateRepository(database),
-          new ItemCurrentStateRepository(database),
-          new MemoryRepository(database),
-          new HookStateRepository(database),
-        )
-        const writingContextBuilder = new WritingContextBuilder(
-          planningContextBuilder,
-          chapterPlanRepository,
-        )
-        const generationService = new GenerationService(
-          writingContextBuilder,
-          new ChapterDraftRepository(database),
-          chapterRepository,
-          createLlmAdapter(),
-        )
+          const writeResult = await generationService.writeNext(chapterId)
 
-        const result = await generationService.writeNext(chapterId)
+          return {
+            result: writeResult,
+            chapterId,
+            summary: `Chapter draft created: ${writeResult.draftId}`,
+            detail: {
+              draftId: writeResult.draftId,
+              chapterStatus: writeResult.chapterStatus,
+              wordCount: writeResult.actualWordCount,
+              nextAction: writeResult.nextAction,
+            },
+          }
+        },
+      })
 
-        console.log(`Chapter draft created: ${result.draftId}`)
-        console.log(`Status: ${result.chapterStatus}`)
-        console.log(`Word count: ${result.actualWordCount}`)
-        console.log(`Next action: ${result.nextAction}`)
-      } finally {
-        database.close()
-      }
+      console.log(`Chapter draft created: ${result.draftId}`)
+      console.log(`Status: ${result.chapterStatus}`)
+      console.log(`Word count: ${result.actualWordCount}`)
+      console.log(`Next action: ${result.nextAction}`)
     })
 
   draftCommand
@@ -164,34 +192,62 @@ export function registerWorkflowCommands(program: Command): void {
     .command('chapter <chapterId>')
     .description('Review the latest draft for a chapter')
     .action(async (chapterId: string) => {
-      const database = await openProjectDatabase()
+      const review = await runLoggedCommand({
+        command: 'review chapter',
+        args: [chapterId],
+        chapterId,
+        action: async (database) => {
+          const reviewService = new ReviewService(
+            new BookRepository(database),
+            new ChapterRepository(database),
+            new ChapterPlanRepository(database),
+            new ChapterDraftRepository(database),
+            new ChapterReviewRepository(database),
+            new CharacterCurrentStateRepository(database),
+            new ItemCurrentStateRepository(database),
+            new MemoryRepository(database),
+            new HookRepository(database),
+            new HookStateRepository(database),
+            createLlmAdapter(),
+          )
 
-      try {
-        const reviewService = new ReviewService(
-          new BookRepository(database),
-          new ChapterRepository(database),
-          new ChapterPlanRepository(database),
-          new ChapterDraftRepository(database),
-          new ChapterReviewRepository(database),
-          new CharacterCurrentStateRepository(database),
-          new ItemCurrentStateRepository(database),
-          new MemoryRepository(database),
-          new HookRepository(database),
-          new HookStateRepository(database),
-          createLlmAdapter(),
-        )
+          const result = await reviewService.reviewChapter(chapterId)
 
-        const review = await reviewService.reviewChapter(chapterId)
+          return {
+            result,
+            chapterId,
+            bookId: result.bookId,
+            summary: `Chapter review created: ${result.id}`,
+            detail: {
+              reviewId: result.id,
+              decision: result.decision,
+              approvalRisk: result.approvalRisk,
+              issueCount:
+                result.consistencyIssues.length +
+                result.characterIssues.length +
+                result.itemIssues.length +
+                result.memoryIssues.length +
+                result.pacingIssues.length +
+                result.hookIssues.length,
+              closureCounts: {
+                characters: result.closureSuggestions.characters.length,
+                items: result.closureSuggestions.items.length,
+                hooks: result.closureSuggestions.hooks.length,
+                memory: result.closureSuggestions.memory.length,
+              },
+            },
+          }
+        },
+      })
 
-        console.log(`Chapter review created: ${review.id}`)
-        console.log(`Decision: ${review.decision}`)
-        console.log(`Approval risk: ${review.approvalRisk}`)
-        console.log(`Word count passed: ${review.wordCountCheck.passed}`)
-        console.log(`Closure suggestions: ${review.closureSuggestions.characters.length + review.closureSuggestions.items.length + review.closureSuggestions.hooks.length + review.closureSuggestions.memory.length}`)
-        console.log(`Revision advice: ${review.revisionAdvice.join('；')}`)
-      } finally {
-        database.close()
-      }
+      console.log(`Chapter review created: ${review.id}`)
+      console.log(`Decision: ${review.decision}`)
+      console.log(`Approval risk: ${review.approvalRisk}`)
+      console.log(`Word count passed: ${review.wordCountCheck.passed}`)
+      console.log(
+        `Closure suggestions: ${review.closureSuggestions.characters.length + review.closureSuggestions.items.length + review.closureSuggestions.hooks.length + review.closureSuggestions.memory.length}`,
+      )
+      console.log(`Revision advice: ${review.revisionAdvice.join('；')}`)
     })
 
   reviewCommand

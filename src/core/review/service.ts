@@ -50,18 +50,24 @@ export class ReviewService {
       throw new NovelError(`Chapter not found: ${chapterId}`)
     }
 
+    if (!chapter.currentVersionId) {
+      throw new NovelError('Current draft chain is missing. Run `novel write next <id>`.')
+    }
+
     const draft = this.chapterDraftRepository.getLatestByChapterId(chapterId)
 
     if (!draft) {
       throw new NovelError('Draft is required before review. Run `novel write next <id>`.')
     }
 
-    const plan = chapter.currentPlanVersionId
-      ? this.chapterPlanRepository.getByVersionId(chapterId, chapter.currentPlanVersionId)
-      : this.chapterPlanRepository.getLatestByChapterId(chapterId)
+    if (!chapter.currentPlanVersionId) {
+      throw new NovelError('Current chapter plan is missing for review.')
+    }
+
+    const plan = this.chapterPlanRepository.getByVersionId(chapterId, chapter.currentPlanVersionId)
 
     if (!plan) {
-      throw new NovelError('Chapter plan is missing for review.')
+      throw new NovelError('Current chapter plan is missing for review.')
     }
 
     const wordCountCheck = createWordCountCheck(

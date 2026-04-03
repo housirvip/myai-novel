@@ -438,6 +438,53 @@ export type ChapterHookUpdate = {
   createdAt: IsoTimestamp
 }
 
+export type DropChapterMode = 'plan-only' | 'draft-only' | 'all-current'
+
+export type DropChapterRequest = {
+  chapterId: string
+  dropMode: DropChapterMode
+  force: boolean
+  command: string
+  args: string[]
+  requestedAt: IsoTimestamp
+}
+
+export type DropChapterResult = {
+  chapterId: string
+  dropMode: DropChapterMode
+  droppedPlanVersionId?: string
+  droppedDraftVersionId?: string
+  droppedReviewId?: string
+  droppedRewriteId?: string
+  previousChapterStatus: ChapterStatus
+  nextChapterStatus: ChapterStatus
+  timestamp: IsoTimestamp
+}
+
+export type OperationLogLevel = 'info' | 'warn' | 'error'
+
+export type OperationLogStatus = 'success' | 'failed'
+
+export type OperationLog = {
+  runId: string
+  timestamp: IsoTimestamp
+  level: OperationLogLevel
+  command: string
+  args: string[]
+  cwd: string
+  bookId?: string
+  chapterId?: string
+  status: OperationLogStatus
+  durationMs?: number
+  summary: string
+  detail?: Record<string, unknown>
+  error?: {
+    name?: string
+    message: string
+    stack?: string
+  }
+}
+
 export type DatabaseConfig = {
   client: 'sqlite'
   filename: string

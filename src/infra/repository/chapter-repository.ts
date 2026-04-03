@@ -20,6 +20,16 @@ type ChapterRow = {
   updated_at: string
 }
 
+type UpdateChapterWorkflowStateInput = {
+  status: ChapterStatus
+  currentPlanVersionId?: string | null
+  currentVersionId?: string | null
+  draftPath?: string | null
+  finalPath?: string | null
+  approvedAt?: string | null
+  summary?: string | null
+}
+ 
 export class ChapterRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -175,6 +185,35 @@ export class ChapterRepository {
         `,
       )
       .run(currentVersionId, finalPath, summary, approvedAt, approvedAt, chapterId)
+  }
+
+  updateWorkflowState(chapterId: string, input: UpdateChapterWorkflowStateInput, updatedAt: string): void {
+    this.database
+      .prepare(
+        `
+          UPDATE chapters
+          SET status = ?,
+              current_plan_version_id = ?,
+              current_version_id = ?,
+              draft_path = ?,
+              final_path = ?,
+              summary = ?,
+              approved_at = ?,
+              updated_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(
+        input.status,
+        input.currentPlanVersionId ?? null,
+        input.currentVersionId ?? null,
+        input.draftPath ?? null,
+        input.finalPath ?? null,
+        input.summary ?? null,
+        input.approvedAt ?? null,
+        updatedAt,
+        chapterId,
+      )
   }
 }
 

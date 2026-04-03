@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 
 import { ApproveService } from '../../core/approve/service.js'
+import { ChapterDropService } from '../../core/chapter-drop/service.js'
 import { RewriteService } from '../../core/rewrite/service.js'
 import { WorldService } from '../../core/world/service.js'
 import type { NovelDatabase } from '../../infra/db/database.js'
@@ -26,8 +27,10 @@ import { LocationRepository } from '../../infra/repository/location-repository.j
 import { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
 import { VolumeRepository } from '../../infra/repository/volume-repository.js'
+import type { DropChapterMode } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
-import { openProjectDatabase, parseInteger } from '../context.js'
+import { nowIso } from '../../shared/utils/time.js'
+import { openProjectDatabase, parseInteger, runLoggedCommand } from '../context.js'
 
 export function registerChapterCommands(program: Command): void {
   const chapterCommand = program.command('chapter').description('Manage chapters')
@@ -145,39 +148,58 @@ export function registerChapterCommands(program: Command): void {
     .option('--goal <items...>', 'One or more rewrite goals')
     .option('--strategy <strategy>', 'Rewrite strategy: full or partial', 'partial')
     .action(async (chapterId: string, options) => {
-      const database = await openProjectDatabase()
+      const strategy = options.strategy === 'full' ? 'full' : 'partial'
+      const goals = options.goal ?? ['优化节奏与结尾牵引']
+      const rewrite = await runLoggedCommand({
+        command: 'chapter rewrite',
+        args: buildRewriteArgs(chapterId, strategy, goals),
+        chapterId,
+        detail: { strategy, goals },
+        action: async (database) => {
+          const rewriteService = new RewriteService(
+            new BookRepository(database),
+            new ChapterRepository(database),
+            new ChapterDraftRepository(database),
+            new ChapterPlanRepository(database),
+            new ChapterReviewRepository(database),
+            new ChapterRewriteRepository(database),
+            new CharacterCurrentStateRepository(database),
+            new ItemCurrentStateRepository(database),
+            new HookStateRepository(database),
+            new MemoryRepository(database),
+            createLlmAdapter(),
+          )
 
-      try {
-        const rewriteService = new RewriteService(
-          new BookRepository(database),
-          new ChapterRepository(database),
-          new ChapterDraftRepository(database),
-          new ChapterPlanRepository(database),
-          new ChapterReviewRepository(database),
-          new ChapterRewriteRepository(database),
-          new CharacterCurrentStateRepository(database),
-          new ItemCurrentStateRepository(database),
-          new HookStateRepository(database),
-          new MemoryRepository(database),
-          createLlmAdapter(),
-        )
+          const result = await rewriteService.rewriteChapter({
+            chapterId,
+            strategy,
+            goals,
+            preserveFacts: true,
+            preserveHooks: true,
+            preserveEndingBeat: true,
+          })
 
-        const rewrite = await rewriteService.rewriteChapter({
-          chapterId,
-          strategy: options.strategy === 'full' ? 'full' : 'partial',
-          goals: options.goal ?? ['优化节奏与结尾牵引'],
-          preserveFacts: true,
-          preserveHooks: true,
-          preserveEndingBeat: true,
-        })
+          return {
+            result,
+            chapterId,
+            bookId: result.bookId,
+            summary: `Chapter rewrite created: ${result.id}`,
+            detail: {
+              rewriteId: result.id,
+              versionId: result.versionId,
+              strategy: result.strategy,
+              goals: result.goals,
+              wordCount: result.actualWordCount,
+              validation: result.validation,
+            },
+          }
+        },
+      })
 
-        console.log(`Chapter rewrite created: ${rewrite.id}`)
-        console.log(`Version: ${rewrite.versionId}`)
-        console.log(`Word count: ${rewrite.actualWordCount}`)
-        console.log(`Goals: ${rewrite.goals.join('；')}`)
-      } finally {
-        database.close()
-      }
+      console.log(`Chapter rewrite created: ${rewrite.id}`)
+      console.log(`Version: ${rewrite.versionId}`)
+      console.log(`Word count: ${rewrite.actualWordCount}`)
+      console.log(`Goals: ${rewrite.goals.join('；')}`)
     })
 
   chapterCommand
@@ -185,41 +207,121 @@ export function registerChapterCommands(program: Command): void {
     .description('Approve the latest reviewed chapter and export the final output')
     .option('--force', 'Approve even when the latest review risk is high')
     .action(async (chapterId: string, options) => {
-      const database = await openProjectDatabase()
+      const force = Boolean(options.force)
+      const result = await runLoggedCommand({
+        command: 'chapter approve',
+        args: buildApproveArgs(chapterId, force),
+        chapterId,
+        detail: { force },
+        action: async (database) => {
+          const approveService = new ApproveService(
+            process.cwd(),
+            new BookRepository(database),
+            new ChapterRepository(database),
+            new ChapterDraftRepository(database),
+            new ChapterRewriteRepository(database),
+            new ChapterPlanRepository(database),
+            new ChapterReviewRepository(database),
+            new ChapterOutputRepository(database),
+            new ChapterStateUpdateRepository(database),
+            new ChapterMemoryUpdateRepository(database),
+            new ChapterHookUpdateRepository(database),
+            new StoryStateRepository(database),
+            new CharacterRepository(database),
+            new CharacterCurrentStateRepository(database),
+            new HookRepository(database),
+            new HookStateRepository(database),
+            new ItemRepository(database),
+            new ItemCurrentStateRepository(database),
+            new MemoryRepository(database),
+          )
 
-      try {
-        const approveService = new ApproveService(
-          process.cwd(),
-          new BookRepository(database),
-          new ChapterRepository(database),
-          new ChapterDraftRepository(database),
-          new ChapterRewriteRepository(database),
-          new ChapterPlanRepository(database),
-          new ChapterReviewRepository(database),
-          new ChapterOutputRepository(database),
-          new ChapterStateUpdateRepository(database),
-          new ChapterMemoryUpdateRepository(database),
-          new ChapterHookUpdateRepository(database),
-          new StoryStateRepository(database),
-          new CharacterRepository(database),
-          new CharacterCurrentStateRepository(database),
-          new HookRepository(database),
-          new HookStateRepository(database),
-          new ItemRepository(database),
-          new ItemCurrentStateRepository(database),
-          new MemoryRepository(database),
-        )
+          const approveResult = await approveService.approveChapter(chapterId, { force })
 
-        const result = await approveService.approveChapter(chapterId, { force: Boolean(options.force) })
+          return {
+            result: approveResult,
+            chapterId,
+            summary: `Chapter approved: ${approveResult.chapterId}`,
+            detail: {
+              chapterStatus: approveResult.chapterStatus,
+              versionId: approveResult.versionId,
+              finalPath: approveResult.finalPath,
+              approvedAt: approveResult.approvedAt,
+              forcedApproval: approveResult.forcedApproval,
+              stateUpdated: approveResult.stateUpdated,
+              memoryUpdated: approveResult.memoryUpdated,
+              hooksUpdated: approveResult.hooksUpdated,
+            },
+          }
+        },
+      })
 
-        console.log(`Chapter approved: ${result.chapterId}`)
-        console.log(`Status: ${result.chapterStatus}`)
-        console.log(`Forced approval: ${result.forcedApproval}`)
-        console.log(`Final path: ${result.finalPath}`)
-        console.log(`Approved at: ${result.approvedAt}`)
-      } finally {
-        database.close()
-      }
+      console.log(`Chapter approved: ${result.chapterId}`)
+      console.log(`Status: ${result.chapterStatus}`)
+      console.log(`Forced approval: ${result.forcedApproval}`)
+      console.log(`Final path: ${result.finalPath}`)
+      console.log(`Approved at: ${result.approvedAt}`)
+    })
+
+  chapterCommand
+    .command('drop <chapterId>')
+    .description('Drop current plan and/or draft chain for a chapter')
+    .option('--plan-only', 'Drop current plan only')
+    .option('--draft-only', 'Drop current draft chain only')
+    .option('--all-current', 'Drop current plan and current draft chain')
+    .option('--force', 'Allow drop for finalized chapters or chapters with finalized output')
+    .action(async (chapterId: string, options) => {
+      const dropMode = resolveDropMode(options)
+      const force = Boolean(options.force)
+      const result = await runLoggedCommand({
+        command: 'chapter drop',
+        args: buildDropArgs(chapterId, dropMode, force),
+        chapterId,
+        detail: { dropMode, force },
+        action: async (database) => {
+          const dropService = new ChapterDropService(
+            new ChapterRepository(database),
+            new ChapterPlanRepository(database),
+            new ChapterDraftRepository(database),
+            new ChapterReviewRepository(database),
+            new ChapterRewriteRepository(database),
+            new ChapterOutputRepository(database),
+          )
+
+          const dropResult = dropService.dropChapter({
+            chapterId,
+            dropMode,
+            force,
+            command: 'chapter drop',
+            args: buildDropArgs(chapterId, dropMode, force),
+            requestedAt: nowIso(),
+          })
+
+          return {
+            result: dropResult,
+            chapterId,
+            summary: `Chapter drop applied: ${chapterId}`,
+            detail: {
+              dropMode: dropResult.dropMode,
+              previousChapterStatus: dropResult.previousChapterStatus,
+              nextChapterStatus: dropResult.nextChapterStatus,
+              droppedPlanVersionId: dropResult.droppedPlanVersionId,
+              droppedDraftVersionId: dropResult.droppedDraftVersionId,
+              droppedReviewId: dropResult.droppedReviewId,
+              droppedRewriteId: dropResult.droppedRewriteId,
+              timestamp: dropResult.timestamp,
+            },
+          }
+        },
+      })
+
+      console.log(`Chapter drop applied: ${result.chapterId}`)
+      console.log(`Mode: ${result.dropMode}`)
+      console.log(`Status: ${result.previousChapterStatus} -> ${result.nextChapterStatus}`)
+      console.log(`Dropped plan: ${result.droppedPlanVersionId ?? '(none)'}`)
+      console.log(`Dropped draft chain: ${result.droppedDraftVersionId ?? '(none)'}`)
+      console.log(`Dropped review: ${result.droppedReviewId ?? '(none)'}`)
+      console.log(`Dropped rewrite: ${result.droppedRewriteId ?? '(none)'}`)
     })
 }
 
@@ -235,4 +337,56 @@ function createWorldService(database: NovelDatabase): WorldService {
     new ItemRepository(database),
     new ItemCurrentStateRepository(database),
   )
+}
+
+function resolveDropMode(options: {
+  planOnly?: boolean
+  draftOnly?: boolean
+  allCurrent?: boolean
+}): DropChapterMode {
+  const selectedModes = [options.planOnly, options.draftOnly, options.allCurrent].filter(Boolean).length
+
+  if (selectedModes > 1) {
+    throw new NovelError('Only one of --plan-only, --draft-only, or --all-current can be used.')
+  }
+
+  if (options.planOnly) {
+    return 'plan-only'
+  }
+
+  if (options.draftOnly) {
+    return 'draft-only'
+  }
+
+  return 'all-current'
+}
+
+function buildRewriteArgs(chapterId: string, strategy: 'full' | 'partial', goals: string[]): string[] {
+  return [chapterId, '--strategy', strategy, ...goals.flatMap((goal) => ['--goal', goal])]
+}
+
+function buildApproveArgs(chapterId: string, force: boolean): string[] {
+  return force ? [chapterId, '--force'] : [chapterId]
+}
+
+function buildDropArgs(chapterId: string, dropMode: DropChapterMode, force: boolean): string[] {
+  const args = [chapterId]
+
+  if (dropMode === 'plan-only') {
+    args.push('--plan-only')
+  }
+
+  if (dropMode === 'draft-only') {
+    args.push('--draft-only')
+  }
+
+  if (dropMode === 'all-current') {
+    args.push('--all-current')
+  }
+
+  if (force) {
+    args.push('--force')
+  }
+
+  return args
 }

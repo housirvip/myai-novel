@@ -89,6 +89,14 @@ export class ApproveService {
       throw new NovelError('Only reviewed chapters can be approved.')
     }
 
+    if (!chapter.currentPlanVersionId) {
+      throw new NovelError('Current chapter plan is missing for approval.')
+    }
+
+    if (!chapter.currentVersionId) {
+      throw new NovelError('Current chapter source is missing for approval.')
+    }
+
     const plan = this.resolvePlan(chapterId, chapter.currentPlanVersionId)
     const review = this.chapterReviewRepository.getLatestByChapterId(chapterId)
 
@@ -97,7 +105,7 @@ export class ApproveService {
     }
 
     const closureSuggestions = review?.closureSuggestions ?? emptyClosureSuggestions()
-    const source = this.resolveSource(chapterId)
+    const source = this.resolveSource(chapterId, chapter.currentVersionId)
     const approvedAt = nowIso()
     const chapterSummary = buildChapterSummary(chapter, review)
     const projectPaths = resolveProjectPaths(this.rootDir)
@@ -538,37 +546,29 @@ export class ApproveService {
     }
   }
 
-  private resolveSource(chapterId: string): DraftSource {
+  private resolveSource(chapterId: string, currentVersionId: string): DraftSource {
     const rewrite = this.chapterRewriteRepository.getLatestByChapterId(chapterId)
 
-    if (rewrite) {
+    if (rewrite?.versionId === currentVersionId) {
       return mapRewriteSource(rewrite)
     }
 
     const draft = this.chapterDraftRepository.getLatestByChapterId(chapterId)
 
-    if (!draft) {
-      throw new NovelError('No draft or rewrite candidate found for approval.')
-    }
-
-    return {
-      sourceType: 'draft',
-      sourceId: draft.id,
-      versionId: draft.versionId,
-      content: draft.content,
-    }
-  }
-
-  private resolvePlan(chapterId: string, currentPlanVersionId?: string): ChapterPlan | null {
-    if (currentPlanVersionId) {
-      const versionedPlan = this.chapterPlanRepository.getByVersionId(chapterId, currentPlanVersionId)
-
-      if (versionedPlan) {
-        return versionedPlan
+    if (draft?.versionId === currentVersionId) {
+      return {
+        sourceType: 'draft',
+        sourceId: draft.id,
+        versionId: draft.versionId,
+        content: draft.content,
       }
     }
 
-    return this.chapterPlanRepository.getLatestByChapterId(chapterId)
+    throw new NovelError('Current draft or rewrite candidate is missing for approval.')
+  }
+
+  private resolvePlan(chapterId: string, currentPlanVersionId: string): ChapterPlan | null {
+    return this.chapterPlanRepository.getByVersionId(chapterId, currentPlanVersionId)
   }
 }
 
