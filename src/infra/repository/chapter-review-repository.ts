@@ -116,7 +116,7 @@ function mapReview(row: ReviewRow): ReviewReport {
     bookId: row.book_id,
     chapterId: row.chapter_id,
     draftId: row.draft_id,
-    decision: row.decision,
+    decision: normalizeReviewDecision(row.decision),
     consistencyIssues: JSON.parse(row.consistency_issues_json) as string[],
     characterIssues: JSON.parse(row.character_issues_json) as string[],
     itemIssues: JSON.parse(row.item_issues_json) as string[],
@@ -130,4 +130,12 @@ function mapReview(row: ReviewRow): ReviewReport {
     revisionAdvice: JSON.parse(row.revision_advice_json) as string[],
     createdAt: row.created_at,
   }
+}
+
+function normalizeReviewDecision(value: string): ReviewReport['decision'] {
+  if (value === 'revise') {
+    return 'needs-rewrite'
+  }
+
+  return value as ReviewReport['decision']
 }

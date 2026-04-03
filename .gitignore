@@ -8,3 +8,4 @@ tmp/
 .qoder
 package-lock.json
 test-book/
+.tmp*

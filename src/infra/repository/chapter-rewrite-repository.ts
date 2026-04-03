@@ -88,6 +88,8 @@ export class ChapterRewriteRepository {
 }
 
 function mapRewrite(row: RewriteRow): ChapterRewrite {
+  const validation = JSON.parse(row.validation_json) as ChapterRewrite['validation']
+
   return {
     id: row.id,
     bookId: row.book_id,
@@ -99,7 +101,18 @@ function mapRewrite(row: RewriteRow): ChapterRewrite {
     goals: JSON.parse(row.goals_json) as string[],
     content: row.content,
     actualWordCount: row.actual_word_count,
-    validation: JSON.parse(row.validation_json) as ChapterRewrite['validation'],
+    validation: {
+      ...validation,
+      reviewDecision: normalizeReviewDecision(validation.reviewDecision),
+    },
     createdAt: row.created_at,
   }
+}
+
+function normalizeReviewDecision(value: string): ChapterRewrite['validation']['reviewDecision'] {
+  if (value === 'revise') {
+    return 'needs-rewrite'
+  }
+
+  return value as ChapterRewrite['validation']['reviewDecision']
 }
