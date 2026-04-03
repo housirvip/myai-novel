@@ -155,6 +155,7 @@ export class ApproveService {
     ]
 
     const previousShortTerm = this.memoryRepository.getShortTermByBookId(book.id)
+    const previousObservation = this.memoryRepository.getObservationByBookId(book.id)
     const previousLongTerm = this.memoryRepository.getLongTermByBookId(book.id)
     const nextShortTermSummaries = mergeRecentStrings(
       previousShortTerm?.summaries ?? [],
@@ -176,6 +177,12 @@ export class ApproveService {
       chapterId,
       summaries: nextShortTermSummaries,
       recentEvents: nextShortTermEvents,
+      updatedAt: approvedAt,
+    })
+    this.memoryRepository.upsertObservation({
+      bookId: book.id,
+      chapterId,
+      entries: buildObservationEntries(closureSuggestions, previousObservation?.entries ?? [], chapterId),
       updatedAt: approvedAt,
     })
     this.memoryRepository.upsertLongTerm({
@@ -684,6 +691,27 @@ function buildLongTermCandidates(
   }))
 
   return [...base, ...(closureBased.length > 0 ? closureBased : fallback)]
+}
+
+function buildObservationEntries(
+  closureSuggestions: ClosureSuggestions,
+  previousEntries: Array<{ summary: string; sourceChapterId?: string }>,
+  chapterId: string,
+): Array<{ summary: string; sourceChapterId?: string }> {
+  const nextEntries = closureSuggestions.memory
+    .filter((item) => item.memoryScope === 'observation')
+    .map((item) => ({
+      summary: item.summary,
+      sourceChapterId: chapterId,
+    }))
+
+  const merged = new Map<string, { summary: string; sourceChapterId?: string }>()
+
+  for (const entry of [...previousEntries, ...nextEntries]) {
+    merged.set(entry.summary, entry)
+  }
+
+  return [...merged.values()].slice(-10)
 }
 
 function buildShortTermSummaries(

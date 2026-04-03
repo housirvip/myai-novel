@@ -247,6 +247,15 @@ export const migrations = [
         FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS observation_memory_current (
+        book_id TEXT PRIMARY KEY,
+        chapter_id TEXT NOT NULL,
+        entries_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+      );
+
       CREATE TABLE IF NOT EXISTS long_term_memory_current (
         book_id TEXT PRIMARY KEY,
         chapter_id TEXT NOT NULL,
@@ -363,6 +372,19 @@ export const migrations = [
     id: '008_review_approval_risk',
     sql: `
       ALTER TABLE chapter_reviews ADD COLUMN approval_risk TEXT NOT NULL DEFAULT 'medium';
+    `,
+  },
+  {
+    id: '009_observation_memory',
+    sql: `
+      CREATE TABLE IF NOT EXISTS observation_memory_current (
+        book_id TEXT PRIMARY KEY,
+        chapter_id TEXT NOT NULL,
+        entries_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+      );
     `,
   },
 ] as const

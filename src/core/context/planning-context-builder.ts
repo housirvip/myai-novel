@@ -50,18 +50,17 @@ export class PlanningContextBuilder {
     const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
     const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
     const shortTermMemory = this.memoryRepository.getShortTermByBookId(book.id)
+    const observationMemory = this.memoryRepository.getObservationByBookId(book.id)
     const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
-    const relevantLongTermEntries = this.memoryRepository.recallRelevantLongTermEntries(
-      book.id,
-      buildMemoryRecallQueryTerms(
-        chapter.title,
-        chapter.objective,
-        volume.goal,
-        chapter.plannedBeats,
-        activeHookStates.map((item) => `${item.hookId} ${item.status}`),
-        importantItems.flatMap((item) => [item.name, item.id, item.status]),
-      ),
+    const recallTerms = buildMemoryRecallQueryTerms(
+      chapter.title,
+      chapter.objective,
+      volume.goal,
+      chapter.plannedBeats,
+      activeHookStates.map((item) => `${item.hookId} ${item.status}`),
+      importantItems.flatMap((item) => [item.name, item.id, item.status]),
     )
+    const relevantLongTermEntries = this.memoryRepository.recallRelevantLongTermEntries(book.id, recallTerms)
 
     return {
       book,
@@ -75,6 +74,7 @@ export class PlanningContextBuilder {
       memoryRecall: {
         shortTermSummaries: shortTermMemory?.summaries ?? [],
         recentEvents: shortTermMemory?.recentEvents ?? [],
+        observationEntries: observationMemory?.entries ?? [],
         relevantLongTermEntries,
       },
     }

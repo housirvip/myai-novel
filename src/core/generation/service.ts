@@ -192,12 +192,15 @@ function buildDraftContent(context: WritingContext): string {
       ]
     : []
   const memorySection =
-    context.memoryRecall.shortTermSummaries.length > 0 || context.memoryRecall.relevantLongTermEntries.length > 0
+    context.memoryRecall.shortTermSummaries.length > 0 ||
+    context.memoryRecall.observationEntries.length > 0 ||
+    context.memoryRecall.relevantLongTermEntries.length > 0
       ? [
           '## 记忆约束',
           '',
           ...context.memoryRecall.shortTermSummaries.map((item) => `- 最近摘要：${item}`),
           ...context.memoryRecall.recentEvents.map((item) => `- 最近事件：${item}`),
+          ...context.memoryRecall.observationEntries.map((entry) => `- 待观察事实：${entry.summary}`),
           ...context.memoryRecall.relevantLongTermEntries.map((entry) => `- 长期记忆：${entry.summary}`),
           '',
         ]

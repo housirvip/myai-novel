@@ -155,6 +155,18 @@ export type ShortTermMemory = {
   updatedAt: IsoTimestamp
 }
 
+export type ObservationMemoryEntry = {
+  summary: string
+  sourceChapterId?: string
+}
+
+export type ObservationMemory = {
+  bookId: string
+  chapterId: string
+  entries: ObservationMemoryEntry[]
+  updatedAt: IsoTimestamp
+}
+
 export type LongTermMemoryEntry = {
   summary: string
   importance: number
@@ -171,6 +183,7 @@ export type LongTermMemory = {
 export type MemoryRecallView = {
   shortTermSummaries: string[]
   recentEvents: string[]
+  observationEntries: ObservationMemoryEntry[]
   relevantLongTermEntries: LongTermMemoryEntry[]
 }
 
@@ -397,7 +410,7 @@ export type ChapterMemoryUpdate = {
   id: string
   bookId: string
   chapterId: string
-  memoryType: 'short-term' | 'long-term'
+  memoryType: 'short-term' | 'observation' | 'long-term'
   summary: string
   detail: UpdateTraceDetail
   createdAt: IsoTimestamp

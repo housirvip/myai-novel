@@ -1,4 +1,4 @@
-import type { LongTermMemory, ShortTermMemory } from '../../shared/types/domain.js'
+import type { LongTermMemory, ObservationMemory, ShortTermMemory } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
 
 type ShortTermMemoryRow = {
@@ -6,6 +6,13 @@ type ShortTermMemoryRow = {
   chapter_id: string
   summaries_json: string
   recent_events_json: string
+  updated_at: string
+}
+
+type ObservationMemoryRow = {
+  book_id: string
+  chapter_id: string
+  entries_json: string
   updated_at: string
 }
 
@@ -42,6 +49,22 @@ export class MemoryRepository {
       )
   }
 
+  upsertObservation(memory: ObservationMemory): void {
+    this.database
+      .prepare(
+        `
+          INSERT INTO observation_memory_current (
+            book_id, chapter_id, entries_json, updated_at
+          ) VALUES (?, ?, ?, ?)
+          ON CONFLICT(book_id) DO UPDATE SET
+            chapter_id = excluded.chapter_id,
+            entries_json = excluded.entries_json,
+            updated_at = excluded.updated_at
+        `,
+      )
+      .run(memory.bookId, memory.chapterId, JSON.stringify(memory.entries), memory.updatedAt)
+  }
+
   upsertLongTerm(memory: LongTermMemory): void {
     this.database
       .prepare(
@@ -69,6 +92,21 @@ export class MemoryRepository {
           chapterId: row.chapter_id,
           summaries: JSON.parse(row.summaries_json) as string[],
           recentEvents: JSON.parse(row.recent_events_json) as string[],
+          updatedAt: row.updated_at,
+        }
+      : null
+  }
+
+  getObservationByBookId(bookId: string): ObservationMemory | null {
+    const row = this.database
+      .prepare('SELECT * FROM observation_memory_current WHERE book_id = ?')
+      .get(bookId) as ObservationMemoryRow | undefined
+
+    return row
+      ? {
+          bookId: row.book_id,
+          chapterId: row.chapter_id,
+          entries: JSON.parse(row.entries_json) as ObservationMemory['entries'],
           updatedAt: row.updated_at,
         }
       : null
