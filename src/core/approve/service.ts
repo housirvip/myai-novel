@@ -90,6 +90,7 @@ export class ApproveService {
     const review = this.chapterReviewRepository.getLatestByChapterId(chapterId)
     const source = this.resolveSource(chapterId)
     const approvedAt = nowIso()
+    const chapterSummary = buildChapterSummary(chapter, review)
     const projectPaths = resolveProjectPaths(this.rootDir)
     const finalFilename = buildCompletedChapterFilename(chapter.index, chapter.title)
     const finalPath = path.join(projectPaths.completedChaptersDir, finalFilename)
@@ -148,7 +149,7 @@ export class ApproveService {
     })
     const memoryUpdates = this.buildMemoryUpdates(book.id, chapterId, approvedAt, nextShortTermSummaries, nextShortTermEvents, nextLongTermEntries)
     this.persistUpdateLogs(stateUpdates, memoryUpdates, hookUpdates)
-    this.chapterRepository.finalizeChapter(chapterId, source.versionId, finalPath, approvedAt)
+    this.chapterRepository.finalizeChapter(chapterId, source.versionId, finalPath, chapterSummary, approvedAt)
 
     return {
       chapterId,
@@ -403,6 +404,38 @@ function mapRewriteSource(rewrite: ChapterRewrite): DraftSource {
     versionId: rewrite.versionId,
     content: rewrite.content,
   }
+}
+
+function buildChapterSummary(
+  chapter: { title: string; objective: string },
+  review: ReviewReport | null,
+): string {
+  const highlights = (review?.newFactCandidates ?? [])
+    .map((item) => normalizeSummaryCandidate(item))
+    .filter((item) => item.length > 0)
+    .slice(0, 2)
+
+  const summaryParts = [chapter.objective, ...highlights]
+  const deduped = [...new Set(summaryParts.map((item) => item.trim()).filter((item) => item.length > 0))]
+
+  return deduped.length > 0
+    ? deduped.join('；')
+    : `本章《${chapter.title}》推进了既定目标并形成新的主线变化。`
+}
+
+function normalizeSummaryCandidate(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+
+  if (value && typeof value === 'object') {
+    const candidate = value as Record<string, unknown>
+    if (typeof candidate.content === 'string') {
+      return candidate.content.trim()
+    }
+  }
+
+  return ''
 }
 
 function escapeRegExp(value: string): string {

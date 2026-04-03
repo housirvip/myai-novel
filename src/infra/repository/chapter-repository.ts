@@ -8,6 +8,7 @@ type ChapterRow = {
   chapter_index: number
   title: string
   objective: string
+  summary: string | null
   planned_beats_json: string
   status: ChapterStatus
   current_plan_version_id: string | null
@@ -33,6 +34,7 @@ export class ChapterRepository {
             chapter_index,
             title,
             objective,
+            summary,
             planned_beats_json,
             status,
             current_plan_version_id,
@@ -42,7 +44,7 @@ export class ChapterRepository {
             approved_at,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -52,6 +54,7 @@ export class ChapterRepository {
         chapter.index,
         chapter.title,
         chapter.objective,
+        chapter.summary ?? null,
         JSON.stringify(chapter.plannedBeats),
         chapter.status,
         chapter.currentPlanVersionId ?? null,
@@ -155,6 +158,7 @@ export class ChapterRepository {
     chapterId: string,
     currentVersionId: string,
     finalPath: string,
+    summary: string,
     approvedAt: string,
   ): void {
     this.database
@@ -164,12 +168,13 @@ export class ChapterRepository {
           SET status = 'finalized',
               current_version_id = ?,
               final_path = ?,
+              summary = ?,
               approved_at = ?,
               updated_at = ?
           WHERE id = ?
         `,
       )
-      .run(currentVersionId, finalPath, approvedAt, approvedAt, chapterId)
+      .run(currentVersionId, finalPath, summary, approvedAt, approvedAt, chapterId)
   }
 }
 
@@ -181,6 +186,7 @@ function mapChapter(row: ChapterRow): Chapter {
     index: row.chapter_index,
     title: row.title,
     objective: row.objective,
+    summary: row.summary ?? undefined,
     plannedBeats: JSON.parse(row.planned_beats_json) as string[],
     status: row.status,
     currentPlanVersionId: row.current_plan_version_id ?? undefined,

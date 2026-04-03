@@ -338,4 +338,10 @@ export const migrations = [
       );
     `,
   },
+  {
+    id: '005_chapter_summary',
+    sql: `
+      ALTER TABLE chapters ADD COLUMN summary TEXT;
+    `,
+  },
 ] as const

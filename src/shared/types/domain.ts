@@ -41,6 +41,7 @@ export type Chapter = {
   index: number
   title: string
   objective: string
+  summary?: string
   plannedBeats: string[]
   status: ChapterStatus
   currentPlanVersionId?: string
