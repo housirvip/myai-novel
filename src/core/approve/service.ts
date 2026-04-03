@@ -198,9 +198,11 @@ export class ApproveService {
       approvedAt,
       previousShortTerm?.summaries ?? [],
       previousShortTerm?.recentEvents ?? [],
+      previousObservation?.entries ?? [],
       previousLongTerm?.entries ?? [],
       nextShortTermSummaries,
       nextShortTermEvents,
+      buildObservationEntries(closureSuggestions, previousObservation?.entries ?? [], chapterId),
       nextLongTermEntries,
       closureSuggestions,
     )
@@ -416,9 +418,11 @@ export class ApproveService {
     createdAt: string,
     previousShortTermSummaries: string[],
     previousShortTermEvents: string[],
+    previousObservationEntries: Array<{ summary: string; sourceChapterId?: string }>,
     previousLongTermEntries: Array<{ summary: string; importance: number; sourceChapterId?: string }>,
     shortTermSummaries: string[],
     shortTermEvents: string[],
+    observationEntries: Array<{ summary: string; sourceChapterId?: string }>,
     longTermEntries: Array<{ summary: string; importance: number; sourceChapterId?: string }>,
     closureSuggestions: ClosureSuggestions,
   ): ChapterMemoryUpdate[] {
@@ -453,6 +457,31 @@ export class ApproveService {
               evidence: stateEvidence(shortTermSummaries, shortTermEvents),
               before: previousShortTermSummaries.at(-1) ?? previousShortTermEvents.at(-1),
               after: shortTermSummaries.at(-1) ?? shortTermEvents.at(-1),
+            },
+        createdAt,
+      },
+      {
+        id: createId('memory_update'),
+        bookId,
+        chapterId,
+        memoryType: 'observation',
+        summary: observationSuggestions.length > 0
+          ? `待观察事实已更新：${observationSuggestions.slice(0, 2).map((item) => item.summary).join('；')}`
+          : `待观察事实已更新：${observationEntries.at(-1)?.summary ?? '观察池已刷新'}`,
+        detail: observationSuggestions.length > 0
+          ? {
+              source: 'closure-suggestion',
+              reason: `review 建议保留 ${observationSuggestions.length} 条待观察事实，暂不进入长期记忆`,
+              evidence: collectMemoryEvidence(observationSuggestions),
+              before: previousObservationEntries.at(-1)?.summary,
+              after: observationEntries.at(-1)?.summary,
+            }
+          : {
+              source: 'fallback',
+              reason: '沿用当前待观察事实池',
+              evidence: observationEntries.slice(-3).map((item) => item.summary),
+              before: previousObservationEntries.at(-1)?.summary,
+              after: observationEntries.at(-1)?.summary,
             },
         createdAt,
       },

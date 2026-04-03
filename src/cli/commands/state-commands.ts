@@ -46,8 +46,10 @@ export function registerStateCommands(program: Command): void {
         const characterStates = new CharacterCurrentStateRepository(database).listByBookId(book.id)
         const importantItems = new ItemCurrentStateRepository(database).listImportantByBookId(book.id)
         const hookStates = new HookStateRepository(database).listByBookId(book.id)
-        const shortTermMemory = new MemoryRepository(database).getShortTermByBookId(book.id)
-        const longTermMemory = new MemoryRepository(database).getLongTermByBookId(book.id)
+        const memoryRepository = new MemoryRepository(database)
+        const shortTermMemory = memoryRepository.getShortTermByBookId(book.id)
+        const observationMemory = memoryRepository.getObservationByBookId(book.id)
+        const longTermMemory = memoryRepository.getLongTermByBookId(book.id)
         const characters = characterRepository.listByBookId(book.id)
         const locations = locationRepository.listByBookId(book.id)
         const items = itemRepository.listByBookId(book.id)
@@ -107,6 +109,7 @@ export function registerStateCommands(program: Command): void {
           }))),
         ))
         console.log(formatSection('Short-term memory current:', formatJson(shortTermMemory)))
+        console.log(formatSection('Observation memory current:', formatJson(observationMemory)))
         console.log(formatSection('Long-term memory current:', formatJson(longTermMemory)))
         console.log(formatSection(
           'Recent state updates:',

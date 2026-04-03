@@ -61,6 +61,7 @@ export class RewriteService {
     const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
     const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
     const shortTermMemory = this.memoryRepository.getShortTermByBookId(book.id)
+    const observationMemory = this.memoryRepository.getObservationByBookId(book.id)
     const longTermMemory = this.memoryRepository.getLongTermByBookId(book.id)
     const rewriteContext = {
       sceneCards: plan?.sceneCards ?? [],
@@ -86,6 +87,7 @@ export class RewriteService {
       })),
       shortTermMemory: shortTermMemory?.summaries ?? [],
       recentEvents: shortTermMemory?.recentEvents ?? [],
+      observationEntries: observationMemory?.entries ?? [],
       relevantLongTermEntries: longTermMemory?.entries.slice(0, 8) ?? [],
     }
 
@@ -158,6 +160,7 @@ async function createLlmRewrite(
     activeHookStates: Array<{ hookId: string; status: string }>
     shortTermMemory: string[]
     recentEvents: string[]
+    observationEntries: Array<{ summary: string; sourceChapterId?: string }>
     relevantLongTermEntries: Array<{ summary: string; importance: number; sourceChapterId?: string }>
   },
   goals: string[],
@@ -222,6 +225,7 @@ function buildRewriteContent(
     activeHookStates: Array<{ hookId: string; status: string }>
     shortTermMemory: string[]
     recentEvents: string[]
+    observationEntries: Array<{ summary: string; sourceChapterId?: string }>
     relevantLongTermEntries: Array<{ summary: string; importance: number }>
   },
   goals: string[],
@@ -251,6 +255,7 @@ function summarizeRewriteContext(rewriteContext: {
   activeHookStates: Array<{ hookId: string; status: string }>
   shortTermMemory: string[]
   recentEvents: string[]
+  observationEntries: Array<{ summary: string; sourceChapterId?: string }>
   relevantLongTermEntries: Array<{ summary: string; importance: number }>
 }): string[] {
   const items = [
@@ -259,6 +264,7 @@ function summarizeRewriteContext(rewriteContext: {
     ...rewriteContext.statePredictions.slice(0, 2).map((item) => `预计状态变化：${item}`),
     ...rewriteContext.hookPlan.slice(0, 2).map((item) => `Hook ${item.hookId}：${item.action}`),
     ...rewriteContext.shortTermMemory.slice(0, 1).map((item) => `短期记忆：${item}`),
+    ...rewriteContext.observationEntries.slice(0, 1).map((item) => `待观察事实：${item.summary}`),
     ...rewriteContext.relevantLongTermEntries.slice(0, 1).map((item) => `长期记忆：${item.summary}`),
   ]
 
