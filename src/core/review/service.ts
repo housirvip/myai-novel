@@ -444,12 +444,14 @@ async function createLlmReview(
     const parsed = JSON.parse(extractJsonObject(response.text)) as Partial<ReviewReport>
 
     const decision = parsed.decision ?? 'warning'
-    const consistencyIssues = parsed.consistencyIssues ?? []
-    const characterIssues = parsed.characterIssues ?? []
-    const itemIssues = parsed.itemIssues ?? []
-    const memoryIssues = parsed.memoryIssues ?? []
-    const pacingIssues = parsed.pacingIssues ?? []
-    const hookIssues = parsed.hookIssues ?? []
+    const consistencyIssues = normalizeIssueArray(parsed.consistencyIssues)
+    const characterIssues = normalizeIssueArray(parsed.characterIssues)
+    const itemIssues = normalizeIssueArray(parsed.itemIssues)
+    const memoryIssues = normalizeIssueArray(parsed.memoryIssues)
+    const pacingIssues = normalizeIssueArray(parsed.pacingIssues)
+    const hookIssues = normalizeIssueArray(parsed.hookIssues)
+    const newFactCandidates = normalizeFactCandidates(parsed.newFactCandidates)
+    const revisionAdvice = normalizeRevisionAdvice(parsed.revisionAdvice)
 
     return {
       decision,
@@ -460,13 +462,62 @@ async function createLlmReview(
       pacingIssues,
       hookIssues,
       approvalRisk: deriveApprovalRisk(decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, hookIssues),
-      newFactCandidates: parsed.newFactCandidates ?? [],
+      newFactCandidates,
       closureSuggestions: normalizeClosureSuggestions(parsed.closureSuggestions, 'llm'),
-      revisionAdvice: parsed.revisionAdvice ?? ['建议人工复核本章审查结果。'],
+      revisionAdvice: revisionAdvice.length > 0 ? revisionAdvice : ['建议人工复核本章审查结果。'],
     }
   } catch {
     return null
   }
+}
+
+function normalizeIssueArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((item) => normalizeReviewText(item))
+    .filter((item) => item.length > 0)
+}
+
+function normalizeFactCandidates(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((item) => normalizeReviewText(item, ['fact', 'summary', 'content', 'description', 'source']))
+    .filter((entry) => entry.length > 0)
+}
+
+function normalizeRevisionAdvice(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((item) => normalizeReviewText(item, ['action', 'detail', 'description', 'suggestion', 'content']))
+    .filter((entry) => entry.length > 0)
+}
+
+function normalizeReviewText(value: unknown, preferredKeys?: string[]): string {
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+
+  if (!value || typeof value !== 'object') {
+    return ''
+  }
+
+  const candidate = value as Record<string, unknown>
+  const keys = preferredKeys ?? ['summary', 'content', 'description', 'suggestion', 'fact', 'action', 'detail', 'location']
+  const parts = keys
+    .map((key) => candidate[key])
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim())
+
+  return [...new Set(parts)].join('；')
 }
 
 function createWordCountCheck(target: number, actual: number, toleranceRatio: number): WordCountCheck {
@@ -734,47 +785,121 @@ function normalizeClosureSuggestions(
 
   return {
     characters: Array.isArray(candidate.characters)
-      ? candidate.characters.map((item) => ({
-          characterId: String(item.characterId),
-          nextLocationId: item.nextLocationId ? String(item.nextLocationId) : undefined,
-          nextStatusNotes: Array.isArray(item.nextStatusNotes) ? item.nextStatusNotes.map((note) => String(note)) : [],
-          reason: item.reason ? String(item.reason) : '模型识别到角色状态变化。',
-          evidence: Array.isArray(item.evidence) ? item.evidence.map((entry) => String(entry)) : [],
-          source,
-        }))
+      ? candidate.characters
+          .map((item) => {
+            const characterId = normalizeEntityId(item.characterId)
+
+            if (!characterId) {
+              return null
+            }
+
+            return {
+              characterId,
+              nextLocationId: normalizeOptionalText(item.nextLocationId),
+              nextStatusNotes: Array.isArray(item.nextStatusNotes)
+                ? item.nextStatusNotes
+                    .map((note) => normalizeReviewText(note))
+                    .filter((note) => note.length > 0)
+                : [],
+              reason: normalizeReviewText(item.reason) || '模型识别到角色状态变化。',
+              evidence: Array.isArray(item.evidence)
+                ? item.evidence.map((entry) => normalizeReviewText(entry)).filter((entry) => entry.length > 0)
+                : [],
+              source,
+            }
+          })
+          .filter(isDefined)
       : [],
     items: Array.isArray(candidate.items)
-      ? candidate.items.map((item) => ({
-          itemId: String(item.itemId),
-          nextOwnerCharacterId: item.nextOwnerCharacterId ? String(item.nextOwnerCharacterId) : undefined,
-          nextLocationId: item.nextLocationId ? String(item.nextLocationId) : undefined,
-          nextQuantity: typeof item.nextQuantity === 'number' ? item.nextQuantity : undefined,
-          nextStatus: item.nextStatus ? String(item.nextStatus) : undefined,
-          reason: item.reason ? String(item.reason) : '模型识别到物品状态变化。',
-          evidence: Array.isArray(item.evidence) ? item.evidence.map((entry) => String(entry)) : [],
-          source,
-        }))
+      ? candidate.items
+          .map((item) => {
+            const itemId = normalizeEntityId(item.itemId)
+
+            if (!itemId) {
+              return null
+            }
+
+            return {
+              itemId,
+              nextOwnerCharacterId: normalizeOptionalText(item.nextOwnerCharacterId),
+              nextLocationId: normalizeOptionalText(item.nextLocationId),
+              nextQuantity: typeof item.nextQuantity === 'number' ? item.nextQuantity : undefined,
+              nextStatus: normalizeOptionalText(item.nextStatus),
+              reason: normalizeReviewText(item.reason) || '模型识别到物品状态变化。',
+              evidence: Array.isArray(item.evidence)
+                ? item.evidence.map((entry) => normalizeReviewText(entry)).filter((entry) => entry.length > 0)
+                : [],
+              source,
+            }
+          })
+          .filter(isDefined)
       : [],
     hooks: Array.isArray(candidate.hooks)
-      ? candidate.hooks.map((item) => ({
-          hookId: String(item.hookId),
-          nextStatus: isHookStatus(item.nextStatus) ? item.nextStatus : 'open',
-          actualOutcome: item.actualOutcome ? String(item.actualOutcome) : 'hold',
-          reason: item.reason ? String(item.reason) : '模型识别到 Hook 处理结果。',
-          evidence: Array.isArray(item.evidence) ? item.evidence.map((entry) => String(entry)) : [],
-          source,
-        }))
+      ? candidate.hooks
+          .map((item) => {
+            const hookId = normalizeEntityId(item.hookId)
+
+            if (!hookId) {
+              return null
+            }
+
+            return {
+              hookId,
+              nextStatus: isHookStatus(item.nextStatus) ? item.nextStatus : 'open',
+              actualOutcome: normalizeOptionalText(item.actualOutcome) ?? 'hold',
+              reason: normalizeReviewText(item.reason) || '模型识别到 Hook 处理结果。',
+              evidence: Array.isArray(item.evidence)
+                ? item.evidence.map((entry) => normalizeReviewText(entry)).filter((entry) => entry.length > 0)
+                : [],
+              source,
+            }
+          })
+          .filter(isDefined)
       : [],
     memory: Array.isArray(candidate.memory)
-      ? candidate.memory.map((item) => ({
-          summary: String(item.summary),
-          memoryScope: isMemoryScope(item.memoryScope) ? item.memoryScope : 'observation',
-          reason: item.reason ? String(item.reason) : '模型识别到可沉淀记忆。',
-          evidence: Array.isArray(item.evidence) ? item.evidence.map((entry) => String(entry)) : [],
-          source,
-        }))
+      ? candidate.memory
+          .map((item) => {
+            const summary = normalizeReviewText(item.summary, ['summary', 'content', 'fact', 'description'])
+
+            if (!summary) {
+              return null
+            }
+
+            return {
+              summary,
+              memoryScope: isMemoryScope(item.memoryScope) ? item.memoryScope : 'observation',
+              reason: normalizeReviewText(item.reason) || '模型识别到可沉淀记忆。',
+              evidence: Array.isArray(item.evidence)
+                ? item.evidence.map((entry) => normalizeReviewText(entry)).filter((entry) => entry.length > 0)
+                : [],
+              source,
+            }
+          })
+          .filter(isDefined)
       : [],
   }
+}
+
+function normalizeEntityId(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const normalized = value.trim()
+  return normalized.length > 0 && normalized !== 'undefined' ? normalized : null
+}
+
+function normalizeOptionalText(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const normalized = value.trim()
+  return normalized.length > 0 && normalized !== 'undefined' ? normalized : undefined
+}
+
+function isDefined<T>(value: T | null | undefined): value is T {
+  return value != null
 }
 
 function emptyClosureSuggestions(): ClosureSuggestions {
