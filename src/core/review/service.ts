@@ -97,6 +97,7 @@ export class ReviewService {
         importantItems,
         longTermMemory?.entries ?? [],
         activeHookStates,
+        plan.hookPlan,
       ),
     )
 
@@ -486,6 +487,7 @@ function buildRuleBasedClosureSuggestions(
   importantItems: ContextItemView[],
   longTermEntries: Array<{ summary: string; importance: number }>,
   activeHookStates: Array<{ hookId: string; status: string }>,
+  hookPlan: Array<{ hookId: string; action: string; note: string }>,
 ): ClosureSuggestions {
   const suggestions = emptyClosureSuggestions()
 
@@ -527,23 +529,54 @@ function buildRuleBasedClosureSuggestions(
     })
   }
 
-  for (const hook of activeHookStates) {
-    const line = findStructuredLine(content, `Hook（${hook.hookId}）`)
+  const activeHookStatusById = new Map(activeHookStates.map((hook) => [hook.hookId, hook.status]))
+  const hookPlanById = new Map(hookPlan.map((item) => [item.hookId, item]))
+  const targetHookIds = uniqueStrings([
+    ...activeHookStates.map((hook) => hook.hookId),
+    ...hookPlan.map((item) => item.hookId),
+  ])
 
-    if (!line) {
+  for (const hookId of targetHookIds) {
+    const currentStatus = normalizeHookStatus(activeHookStatusById.get(hookId))
+    const line = findStructuredLine(content, `Hook（${hookId}）`)
+    const action = line ? extractStructuredValue(line, '动作') : undefined
+    const planItem = hookPlanById.get(hookId)
+    const textEvidence = collectHookEvidence(content, hookId, planItem?.note)
+
+    if (line && action) {
+      suggestions.hooks.push({
+        hookId,
+        nextStatus: mapHookActionToStatus(action, currentStatus),
+        actualOutcome: action,
+        reason: '草稿显式给出了 Hook 的本章处理结果。',
+        evidence: [line],
+        source: 'rule-based',
+      })
       continue
     }
 
-    const action = extractStructuredValue(line, '动作')
+    if (textEvidence.length > 0 && planItem) {
+      suggestions.hooks.push({
+        hookId,
+        nextStatus: mapHookActionToStatus(planItem.action, currentStatus),
+        actualOutcome: planItem.action,
+        reason: '正文已出现 Hook 承接证据，结合本章计划推断其实际推进结果。',
+        evidence: textEvidence,
+        source: 'rule-based',
+      })
+      continue
+    }
 
-    suggestions.hooks.push({
-      hookId: hook.hookId,
-      nextStatus: mapHookActionToStatus(action, hook.status),
-      actualOutcome: action ?? 'hold',
-      reason: '草稿显式给出了 Hook 的本章处理结果。',
-      evidence: [line],
-      source: 'rule-based',
-    })
+    if (planItem) {
+      suggestions.hooks.push({
+        hookId,
+        nextStatus: currentStatus,
+        actualOutcome: 'hold',
+        reason: `本章计划要求执行 ${planItem.action}，但正文未见足够承接证据，因此暂不推进 Hook 状态。`,
+        evidence: [planItem.note],
+        source: 'rule-based',
+      })
+    }
   }
 
   for (const entry of longTermEntries.filter((item) => item.importance >= 4)) {
@@ -651,6 +684,24 @@ function emptyClosureSuggestions(): ClosureSuggestions {
   }
 }
 
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)]
+}
+
+function collectHookEvidence(content: string, hookId: string, planNote: string | undefined): string[] {
+  const evidence: string[] = []
+
+  if (content.includes(hookId)) {
+    evidence.push(`正文提及 Hook ID ${hookId}`)
+  }
+
+  if (planNote && content.includes(planNote)) {
+    evidence.push(`正文提及计划说明 ${planNote}`)
+  }
+
+  return evidence.slice(0, 3)
+}
+
 function mapHookActionToStatus(action: string | undefined, currentStatus: string): 'open' | 'foreshadowed' | 'payoff-planned' | 'resolved' {
   if (action === 'foreshadow') {
     return 'foreshadowed'
@@ -669,6 +720,10 @@ function mapHookActionToStatus(action: string | undefined, currentStatus: string
 
 function isHookStatus(value: unknown): value is 'open' | 'foreshadowed' | 'payoff-planned' | 'resolved' {
   return value === 'open' || value === 'foreshadowed' || value === 'payoff-planned' || value === 'resolved'
+}
+
+function normalizeHookStatus(value: unknown): 'open' | 'foreshadowed' | 'payoff-planned' | 'resolved' {
+  return isHookStatus(value) ? value : 'open'
 }
 
 function isMemoryScope(value: unknown): value is 'long-term' | 'short-term' | 'observation' {
