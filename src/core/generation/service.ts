@@ -101,7 +101,7 @@ function buildGenerationPromptPayload(context: WritingContext): Record<string, u
       theme: context.outline.theme,
       premise: context.outline.premise,
       coreConflicts: context.outline.coreConflicts,
-      previousChapterTitle: context.previousChapter?.title,
+      previousChapterSummary: context.previousChapter?.summary,
     },
     stateConstraints: {
       characterStates: context.characterStates.map((state) => ({

@@ -119,7 +119,7 @@ function buildPlanningPromptPayload(context: PlanningContext, activeHooks: Activ
       worldview: context.outline.worldview,
       coreConflicts: context.outline.coreConflicts,
       endingVision: context.outline.endingVision,
-      previousChapterTitle: context.previousChapter?.title,
+      previousChapterSummary: context.previousChapter?.summary,
     },
     stateConstraints: {
       characterStates: context.characterStates.map((state) => ({
