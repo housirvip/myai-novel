@@ -888,8 +888,11 @@ function buildHookTraceDetail(
       source: 'closure-suggestion',
       reason: suggestion.reason,
       evidence: suggestion.evidence,
+      evidenceSummary: suggestion.evidence.join(' | ') || suggestion.actualOutcome,
       before: previousStatus,
       after: nextStatus,
+      previousValueSummary: `Hook 变更前=${previousStatus}`,
+      nextValueSummary: `Hook 变更后=${nextStatus}`,
     }
   }
 
@@ -902,8 +905,11 @@ function buildHookTraceDetail(
           ? `终稿已出现 Hook 事实承接，因此按计划动作 ${planItem.action} 推进`
           : '终稿已出现 Hook 事实承接',
       evidence: [structuredLine, ...textEvidence].filter(Boolean) as string[],
+      evidenceSummary: [structuredLine, ...textEvidence].filter(Boolean).join(' | '),
       before: previousStatus,
       after: nextStatus,
+      previousValueSummary: `Hook 变更前=${previousStatus}`,
+      nextValueSummary: `Hook 变更后=${nextStatus}`,
     }
   }
 
@@ -913,8 +919,11 @@ function buildHookTraceDetail(
       ? `本章计划存在 Hook 动作 ${planItem.action}，但终稿未出现足够事实证据，因此保持当前状态`
       : '未发现新的 Hook 事实，沿用当前状态',
     evidence: planItem?.note ? [planItem.note] : [],
+    evidenceSummary: planItem?.note ?? '无新的 Hook 事实证据',
     before: previousStatus,
     after: nextStatus,
+    previousValueSummary: `Hook 变更前=${previousStatus}`,
+    nextValueSummary: `Hook 变更后=${nextStatus}`,
   }
 }
 

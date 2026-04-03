@@ -257,15 +257,18 @@ function formatTrace(detail: {
   source: string
   reason: string
   evidence: string[]
+  evidenceSummary?: string
   before?: string
   after?: string
+  previousValueSummary?: string
+  nextValueSummary?: string
 }): string {
   return [
     `source=${detail.source}`,
     `reason=${detail.reason}`,
-    `before=${detail.before ?? 'N/A'}`,
-    `after=${detail.after ?? 'N/A'}`,
-    `evidence=${detail.evidence.join(' | ') || 'N/A'}`,
+    `before=${detail.previousValueSummary ?? detail.before ?? 'N/A'}`,
+    `after=${detail.nextValueSummary ?? detail.after ?? 'N/A'}`,
+    `evidence=${detail.evidenceSummary ?? (detail.evidence.join(' | ') || 'N/A')}`,
   ].join('；')
 }
 

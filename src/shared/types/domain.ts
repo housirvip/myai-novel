@@ -399,8 +399,11 @@ export type UpdateTraceDetail = {
   source: 'closure-suggestion' | 'structured-text' | 'fallback'
   reason: string
   evidence: string[]
+  evidenceSummary?: string
   before?: string
   after?: string
+  previousValueSummary?: string
+  nextValueSummary?: string
 }
 
 export type ChapterStateUpdate = {
