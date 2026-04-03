@@ -1,21 +1,23 @@
 import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-  import type {
-    ApproveResult,
-    ChapterHookUpdate,
-    ChapterPlan,
-    ChapterMemoryUpdate,
-    ChapterOutput,
-    ChapterRewrite,
-    ReviewReport,
-    ChapterStateUpdate,
-    CharacterCurrentState,
-    Hook,
-    HookPlan,
-    ItemCurrentState,
-    StoryState,
-  } from '../../shared/types/domain.js'
+import type {
+  ApproveResult,
+  ChapterHookUpdate,
+  ChapterPlan,
+  ChapterMemoryUpdate,
+  ChapterOutput,
+  ChapterRewrite,
+  ChapterStateUpdate,
+  CharacterCurrentState,
+  ClosureSuggestions,
+  Hook,
+  HookPlan,
+  ItemCurrentState,
+  LongTermMemoryEntry,
+  ReviewReport,
+  StoryState,
+} from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { createId } from '../../shared/utils/id.js'
 import {
@@ -26,16 +28,16 @@ import { nowIso } from '../../shared/utils/time.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
 import type { CharacterRepository } from '../../infra/repository/character-repository.js'
 import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
-  import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
-  import type { ChapterHookUpdateRepository } from '../../infra/repository/chapter-hook-update-repository.js'
-  import type { ChapterMemoryUpdateRepository } from '../../infra/repository/chapter-memory-update-repository.js'
-  import type { ChapterOutputRepository } from '../../infra/repository/chapter-output-repository.js'
-  import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
-  import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
-  import type { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
-  import type { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
-  import type { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
-  import type { HookRepository } from '../../infra/repository/hook-repository.js'
+import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
+import type { ChapterHookUpdateRepository } from '../../infra/repository/chapter-hook-update-repository.js'
+import type { ChapterMemoryUpdateRepository } from '../../infra/repository/chapter-memory-update-repository.js'
+import type { ChapterOutputRepository } from '../../infra/repository/chapter-output-repository.js'
+import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
+import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
+import type { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
+import type { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
+import type { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
+import type { HookRepository } from '../../infra/repository/hook-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { ItemRepository } from '../../infra/repository/item-repository.js'
@@ -88,6 +90,7 @@ export class ApproveService {
 
     const plan = this.resolvePlan(chapterId, chapter.currentPlanVersionId)
     const review = this.chapterReviewRepository.getLatestByChapterId(chapterId)
+    const closureSuggestions = review?.closureSuggestions ?? emptyClosureSuggestions()
     const source = this.resolveSource(chapterId)
     const approvedAt = nowIso()
     const chapterSummary = buildChapterSummary(chapter, review)
@@ -117,23 +120,40 @@ export class ApproveService {
 
     this.chapterOutputRepository.create(output)
     this.storyStateRepository.upsert(state)
-    const hookUpdates = this.updateHookStates(book.id, chapterId, approvedAt, plan?.hookPlan ?? [])
+
+    const hookUpdates = this.updateHookStates(book.id, chapterId, approvedAt, closureSuggestions, plan?.hookPlan ?? [])
     const stateUpdates = [
-      ...this.updateCharacterState(book.id, chapterId, source.content, approvedAt, plan?.requiredCharacterIds ?? []),
-      ...this.updateItemStates(book.id, chapterId, source.content, approvedAt, plan?.requiredItemIds ?? []),
+      ...this.updateCharacterState(
+        book.id,
+        chapterId,
+        source.content,
+        approvedAt,
+        closureSuggestions,
+        plan?.requiredCharacterIds ?? [],
+      ),
+      ...this.updateItemStates(
+        book.id,
+        chapterId,
+        source.content,
+        approvedAt,
+        closureSuggestions,
+        plan?.requiredItemIds ?? [],
+      ),
     ]
+
     const previousShortTerm = this.memoryRepository.getShortTermByBookId(book.id)
     const previousLongTerm = this.memoryRepository.getLongTermByBookId(book.id)
-    const nextShortTermSummaries = mergeRecentStrings(previousShortTerm?.summaries ?? [], [`第 ${chapter.index} 章《${chapter.title}》终稿已确认`], 3)
+    const nextShortTermSummaries = mergeRecentStrings(
+      previousShortTerm?.summaries ?? [],
+      buildShortTermSummaries(chapter.index, chapter.title, closureSuggestions),
+      3,
+    )
     const nextShortTermEvents = mergeRecentStrings(previousShortTerm?.recentEvents ?? [], state.recentEvents, 5)
-    const nextLongTermEntries = mergeLongTermEntries(previousLongTerm?.entries ?? [], [
-      {
-        summary: `第 ${chapter.index} 章《${chapter.title}》已成为当前主线正式内容`,
-        importance: 4,
-        sourceChapterId: chapterId,
-      },
-      ...buildLongTermCandidates(review, chapterId),
-    ])
+    const nextLongTermEntries = mergeLongTermEntries(
+      previousLongTerm?.entries ?? [],
+      buildLongTermCandidates(review, chapter.index, chapter.title, chapterId),
+    )
+
     this.memoryRepository.upsertShortTerm({
       bookId: book.id,
       chapterId,
@@ -147,7 +167,17 @@ export class ApproveService {
       entries: nextLongTermEntries,
       updatedAt: approvedAt,
     })
-    const memoryUpdates = this.buildMemoryUpdates(book.id, chapterId, approvedAt, nextShortTermSummaries, nextShortTermEvents, nextLongTermEntries)
+
+    const memoryUpdates = this.buildMemoryUpdates(
+      book.id,
+      chapterId,
+      approvedAt,
+      nextShortTermSummaries,
+      nextShortTermEvents,
+      nextLongTermEntries,
+      closureSuggestions,
+    )
+
     this.persistUpdateLogs(stateUpdates, memoryUpdates, hookUpdates)
     this.chapterRepository.finalizeChapter(chapterId, source.versionId, finalPath, chapterSummary, approvedAt)
 
@@ -163,15 +193,23 @@ export class ApproveService {
     }
   }
 
-  private updateHookStates(bookId: string, chapterId: string, updatedAt: string, hookPlan: HookPlan[]): ChapterHookUpdate[] {
+  private updateHookStates(
+    bookId: string,
+    chapterId: string,
+    updatedAt: string,
+    closureSuggestions: ClosureSuggestions,
+    hookPlan: HookPlan[],
+  ): ChapterHookUpdate[] {
     const hooks = this.hookRepository.listByBookId(bookId)
     const hookById = new Map(hooks.map((hook) => [hook.id, hook]))
     const currentStates = this.hookStateRepository.listByBookId(bookId)
     const currentStateByHookId = new Map(currentStates.map((state) => [state.hookId, state]))
     const hookPlanById = new Map(hookPlan.map((item) => [item.hookId, item]))
+    const hookSuggestionById = new Map(closureSuggestions.hooks.map((item) => [item.hookId, item]))
     const targetHookIds = [...new Set([
       ...currentStates.filter((state) => state.status !== 'resolved').map((state) => state.hookId),
       ...hookPlan.map((item) => item.hookId),
+      ...closureSuggestions.hooks.map((item) => item.hookId),
     ])]
     const updates: ChapterHookUpdate[] = []
 
@@ -179,7 +217,8 @@ export class ApproveService {
       const hook = hookById.get(hookId)
       const currentStatus = currentStateByHookId.get(hookId)?.status ?? hook?.status ?? 'open'
       const planItem = hookPlanById.get(hookId)
-      const nextStatus = planItem ? transitionHookStatus(currentStatus, planItem.action) : currentStatus
+      const suggestion = hookSuggestionById.get(hookId)
+      const nextStatus = suggestion?.nextStatus ?? (planItem ? transitionHookStatus(currentStatus, planItem.action) : currentStatus)
 
       this.hookStateRepository.upsert({
         bookId,
@@ -195,9 +234,11 @@ export class ApproveService {
         chapterId,
         hookId,
         status: nextStatus,
-        summary: planItem
-          ? `Hook ${hook?.title ?? hookId} 按计划执行 ${planItem.action}，状态 ${currentStatus} -> ${nextStatus}`
-          : `Hook ${hook?.title ?? hookId} 保持当前状态 ${nextStatus}`,
+        summary: suggestion
+          ? formatHookUpdateSummary(hook?.title ?? hookId, currentStatus, nextStatus, suggestion)
+          : planItem
+            ? `Hook ${hook?.title ?? hookId} 按计划执行 ${planItem.action}，状态 ${currentStatus} -> ${nextStatus}`
+            : `Hook ${hook?.title ?? hookId} 保持当前状态 ${nextStatus}`,
         createdAt: updatedAt,
       })
     }
@@ -210,34 +251,41 @@ export class ApproveService {
     chapterId: string,
     content: string,
     updatedAt: string,
+    closureSuggestions: ClosureSuggestions,
     requiredCharacterIds: string[],
   ): ChapterStateUpdate[] {
     const protagonist = this.characterRepository.getPrimaryByBookId(bookId)
     const currentStates = this.characterCurrentStateRepository.listByBookId(bookId)
     const stateByCharacterId = new Map(currentStates.map((state) => [state.characterId, state]))
+    const characterSuggestionById = new Map(closureSuggestions.characters.map((item) => [item.characterId, item]))
     const targetCharacterIds = uniqueStrings([
       ...requiredCharacterIds,
       ...(protagonist ? [protagonist.id] : []),
+      ...closureSuggestions.characters.map((item) => item.characterId),
     ])
     const updates: ChapterStateUpdate[] = []
 
     for (const characterId of targetCharacterIds) {
       const previousState = stateByCharacterId.get(characterId)
+      const suggestion = characterSuggestionById.get(characterId)
       const line = findStructuredLine(content, `角色（${characterId}）`)
       const explicitLocation = line ? extractStructuredValue(line, '当前位置') : undefined
       const explicitStatus = line ? extractStructuredValue(line, '状态') : undefined
 
-      if (!previousState && !line && characterId !== protagonist?.id) {
+      if (!previousState && !line && !suggestion && characterId !== protagonist?.id) {
         continue
       }
 
-      const currentLocationId = explicitLocation?.startsWith('location_')
-        ? explicitLocation
-        : previousState?.currentLocationId
-      const statusNotes = explicitStatus
-        ? splitStructuredNotes(explicitStatus)
-        : previousState?.statusNotes ??
-          (characterId === protagonist?.id ? ['章节确认后沿用主角当前状态，等待后续章节继续细化'] : ['章节确认后沿用既有角色状态'])
+      const currentLocationId = suggestion?.nextLocationId ??
+        (explicitLocation?.startsWith('location_') ? explicitLocation : previousState?.currentLocationId)
+      const statusNotes = suggestion && suggestion.nextStatusNotes.length > 0
+        ? suggestion.nextStatusNotes
+        : explicitStatus
+          ? splitStructuredNotes(explicitStatus)
+          : previousState?.statusNotes ??
+            (characterId === protagonist?.id
+              ? ['章节确认后沿用主角当前状态，等待后续章节继续细化']
+              : ['章节确认后沿用既有角色状态'])
 
       const state: CharacterCurrentState = {
         bookId,
@@ -255,7 +303,9 @@ export class ApproveService {
         chapterId,
         entityType: 'character',
         entityId: characterId,
-        summary: `角色 ${characterId} 当前状态已确认：位置=${currentLocationId ?? '未知'}；状态=${statusNotes.join(' / ') || '无'}`,
+        summary: suggestion
+          ? formatCharacterUpdateSummary(characterId, previousState, currentLocationId, statusNotes, suggestion)
+          : `角色 ${characterId} 当前状态已确认：位置=${currentLocationId ?? '未知'}；状态=${statusNotes.join(' / ') || '无'}`,
         createdAt: updatedAt,
       })
     }
@@ -268,11 +318,13 @@ export class ApproveService {
     chapterId: string,
     content: string,
     updatedAt: string,
+    closureSuggestions: ClosureSuggestions,
     requiredItemIds: string[],
   ): ChapterStateUpdate[] {
     const items = this.itemRepository.listByBookId(bookId)
     const updates: ChapterStateUpdate[] = []
-    const targetItemIds = new Set(requiredItemIds)
+    const targetItemIds = new Set([...requiredItemIds, ...closureSuggestions.items.map((item) => item.itemId)])
+    const itemSuggestionById = new Map(closureSuggestions.items.map((item) => [item.itemId, item]))
 
     for (const item of items) {
       const line = findStructuredLine(content, `${item.name}（${item.id}）`)
@@ -283,19 +335,22 @@ export class ApproveService {
       }
 
       const previousState = this.itemCurrentStateRepository.getByItemId(bookId, item.id)
+      const suggestion = itemSuggestionById.get(item.id)
       const explicitQuantity = line ? extractStructuredValue(line, '数量') : undefined
       const explicitStatus = line ? extractStructuredValue(line, '状态') : undefined
       const explicitOwner = line ? extractStructuredValue(line, '持有者') : undefined
       const explicitLocation = line ? extractStructuredValue(line, '地点') : undefined
-      const nextOwnerCharacterId = explicitOwner?.startsWith('character_') ? explicitOwner : previousState?.ownerCharacterId
-      const nextLocationId = explicitLocation?.startsWith('location_') ? explicitLocation : previousState?.locationId
+      const nextOwnerCharacterId = suggestion?.nextOwnerCharacterId ??
+        (explicitOwner?.startsWith('character_') ? explicitOwner : previousState?.ownerCharacterId)
+      const nextLocationId = suggestion?.nextLocationId ??
+        (explicitLocation?.startsWith('location_') ? explicitLocation : previousState?.locationId)
       const nextState: ItemCurrentState = {
         bookId,
         itemId: item.id,
         ownerCharacterId: nextOwnerCharacterId,
         locationId: nextLocationId,
-        quantity: explicitQuantity ? Number.parseInt(explicitQuantity, 10) : (previousState?.quantity ?? 1),
-        status: explicitStatus ?? previousState?.status ?? '已在终稿中承接',
+        quantity: suggestion?.nextQuantity ?? (explicitQuantity ? Number.parseInt(explicitQuantity, 10) : (previousState?.quantity ?? 1)),
+        status: suggestion?.nextStatus ?? explicitStatus ?? previousState?.status ?? '已在终稿中承接',
         updatedAt,
       }
 
@@ -307,9 +362,9 @@ export class ApproveService {
         chapterId,
         entityType: 'item',
         entityId: item.id,
-        summary:
-          `物品 ${item.name} 已确认：数量=${nextState.quantity}；状态=${nextState.status}` +
-          `；持有者=${nextState.ownerCharacterId ?? '未知'}；地点=${nextState.locationId ?? '未知'}`,
+        summary: suggestion
+          ? formatItemUpdateSummary(item.name, previousState ?? undefined, nextState, suggestion)
+          : `物品 ${item.name} 已确认：数量=${nextState.quantity}；状态=${nextState.status}；持有者=${nextState.ownerCharacterId ?? '未知'}；地点=${nextState.locationId ?? '未知'}`,
         createdAt: updatedAt,
       })
     }
@@ -324,14 +379,20 @@ export class ApproveService {
     shortTermSummaries: string[],
     shortTermEvents: string[],
     longTermEntries: Array<{ summary: string; importance: number; sourceChapterId?: string }>,
+    closureSuggestions: ClosureSuggestions,
   ): ChapterMemoryUpdate[] {
+    const latestShortTerm = closureSuggestions.memory.find((item) => item.memoryScope === 'short-term')
+    const latestLongTerm = closureSuggestions.memory.find((item) => item.memoryScope === 'long-term')
+
     return [
       {
         id: createId('memory_update'),
         bookId,
         chapterId,
         memoryType: 'short-term',
-        summary: `短期记忆已更新：${shortTermSummaries.at(-1) ?? shortTermEvents.at(-1) ?? '最近事件窗口已刷新'}`,
+        summary: latestShortTerm
+          ? `短期记忆已更新：新增=${latestShortTerm.summary}；原因=${latestShortTerm.reason}`
+          : `短期记忆已更新：${shortTermSummaries.at(-1) ?? shortTermEvents.at(-1) ?? '最近事件窗口已刷新'}`,
         createdAt,
       },
       {
@@ -339,7 +400,9 @@ export class ApproveService {
         bookId,
         chapterId,
         memoryType: 'long-term',
-        summary: `长期记忆已更新：${longTermEntries[0]?.summary ?? '高重要事实集合已刷新'}`,
+        summary: latestLongTerm
+          ? `长期记忆已更新：新增=${latestLongTerm.summary}；原因=${latestLongTerm.reason}`
+          : `长期记忆已更新：${longTermEntries[0]?.summary ?? '高重要事实集合已刷新'}`,
         createdAt,
       },
     ]
@@ -410,10 +473,15 @@ function buildChapterSummary(
   chapter: { title: string; objective: string },
   review: ReviewReport | null,
 ): string {
-  const highlights = (review?.newFactCandidates ?? [])
+  const closureHighlights = review?.closureSuggestions.memory
+    .map((item) => item.summary.trim())
+    .filter((item) => item.length > 0)
+    .slice(0, 2) ?? []
+  const factHighlights = (review?.newFactCandidates ?? [])
     .map((item) => normalizeSummaryCandidate(item))
     .filter((item) => item.length > 0)
     .slice(0, 2)
+  const highlights = closureHighlights.length > 0 ? closureHighlights : factHighlights
 
   const summaryParts = [chapter.objective, ...highlights]
   const deduped = [...new Set(summaryParts.map((item) => item.trim()).filter((item) => item.length > 0))]
@@ -498,18 +566,104 @@ function transitionHookStatus(currentStatus: Hook['status'], action: HookPlan['a
   return currentStatus
 }
 
-function buildLongTermCandidates(review: ReviewReport | null, chapterId: string): Array<{
-  summary: string
-  importance: number
-  sourceChapterId?: string
-}> {
+function buildLongTermCandidates(
+  review: ReviewReport | null,
+  chapterIndex: number,
+  chapterTitle: string,
+  chapterId: string,
+): LongTermMemoryEntry[] {
+  const base: LongTermMemoryEntry[] = [
+    {
+      summary: `第 ${chapterIndex} 章《${chapterTitle}》已成为当前主线正式内容`,
+      importance: 4,
+      sourceChapterId: chapterId,
+    },
+  ]
+
   if (!review) {
-    return []
+    return base
   }
 
-  return review.newFactCandidates.slice(0, 3).map((candidate, index) => ({
+  const closureBased = review.closureSuggestions.memory
+    .filter((item) => item.memoryScope === 'long-term')
+    .map((item) => ({
+      summary: item.summary,
+      importance: item.source === 'llm' ? 5 : 4,
+      sourceChapterId: chapterId,
+    }))
+
+  const fallback = review.newFactCandidates.slice(0, 3).map((candidate, index) => ({
     summary: candidate,
     importance: index === 0 ? 5 : 4,
     sourceChapterId: chapterId,
   }))
+
+  return [...base, ...(closureBased.length > 0 ? closureBased : fallback)]
+}
+
+function buildShortTermSummaries(
+  chapterIndex: number,
+  chapterTitle: string,
+  closureSuggestions: ClosureSuggestions,
+): string[] {
+  const derived = closureSuggestions.memory
+    .filter((item) => item.memoryScope === 'short-term' || item.memoryScope === 'observation')
+    .map((item) => item.summary)
+
+  return derived.length > 0 ? derived : [`第 ${chapterIndex} 章《${chapterTitle}》终稿已确认`]
+}
+
+function formatCharacterUpdateSummary(
+  characterId: string,
+  previousState: CharacterCurrentState | undefined,
+  nextLocationId: string | undefined,
+  nextStatusNotes: string[],
+  suggestion: ClosureSuggestions['characters'][number],
+): string {
+  return [
+    `角色 ${characterId} 已按 review 建议更新`,
+    `变更前=位置:${previousState?.currentLocationId ?? '未知'} / 状态:${previousState?.statusNotes.join(' / ') ?? '无'}`,
+    `变更后=位置:${nextLocationId ?? '未知'} / 状态:${nextStatusNotes.join(' / ') || '无'}`,
+    `原因=${suggestion.reason}`,
+    `依据=${suggestion.evidence.join(' | ') || 'review closure suggestion'}`,
+  ].join('；')
+}
+
+function formatItemUpdateSummary(
+  itemName: string,
+  previousState: ItemCurrentState | undefined,
+  nextState: ItemCurrentState,
+  suggestion: ClosureSuggestions['items'][number],
+): string {
+  return [
+    `物品 ${itemName} 已按 review 建议更新`,
+    `变更前=数量:${previousState?.quantity ?? '未知'} / 状态:${previousState?.status ?? '未知'} / 持有者:${previousState?.ownerCharacterId ?? '未知'} / 地点:${previousState?.locationId ?? '未知'}`,
+    `变更后=数量:${nextState.quantity} / 状态:${nextState.status} / 持有者:${nextState.ownerCharacterId ?? '未知'} / 地点:${nextState.locationId ?? '未知'}`,
+    `原因=${suggestion.reason}`,
+    `依据=${suggestion.evidence.join(' | ') || 'review closure suggestion'}`,
+  ].join('；')
+}
+
+function formatHookUpdateSummary(
+  hookTitle: string,
+  previousStatus: Hook['status'],
+  nextStatus: Hook['status'],
+  suggestion: ClosureSuggestions['hooks'][number],
+): string {
+  return [
+    `Hook ${hookTitle} 已按 review 建议更新`,
+    `变更前=${previousStatus}`,
+    `变更后=${nextStatus}`,
+    `原因=${suggestion.reason}`,
+    `依据=${suggestion.evidence.join(' | ') || suggestion.actualOutcome}`,
+  ].join('；')
+}
+
+function emptyClosureSuggestions(): ClosureSuggestions {
+  return {
+    characters: [],
+    items: [],
+    hooks: [],
+    memory: [],
+  }
 }

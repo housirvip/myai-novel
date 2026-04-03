@@ -185,6 +185,7 @@ export function registerWorkflowCommands(program: Command): void {
         console.log(`Chapter review created: ${review.id}`)
         console.log(`Decision: ${review.decision}`)
         console.log(`Word count passed: ${review.wordCountCheck.passed}`)
+        console.log(`Closure suggestions: ${review.closureSuggestions.characters.length + review.closureSuggestions.items.length + review.closureSuggestions.hooks.length + review.closureSuggestions.memory.length}`)
         console.log(`Revision advice: ${review.revisionAdvice.join('；')}`)
       } finally {
         database.close()
@@ -213,6 +214,7 @@ export function registerWorkflowCommands(program: Command): void {
         console.log(formatSection('Pacing issues:', formatJson(review.pacingIssues)))
         console.log(formatSection('Hook issues:', formatJson(review.hookIssues)))
         console.log(formatSection('New fact candidates:', formatJson(review.newFactCandidates)))
+        console.log(formatSection('Closure suggestions:', formatJson(review.closureSuggestions)))
         console.log(formatSection('Word count check:', formatJson(review.wordCountCheck)))
         console.log(formatSection('Revision advice:', formatJson(review.revisionAdvice)))
       } finally {

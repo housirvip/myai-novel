@@ -1,4 +1,4 @@
-import type { ChapterRewrite, LlmAdapter, RewriteRequest } from '../../shared/types/domain.js'
+import type { ChapterRewrite, ClosureSuggestions, LlmAdapter, RewriteRequest } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { createId } from '../../shared/utils/id.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -60,9 +60,10 @@ export class RewriteService {
             pacingIssues: review.pacingIssues,
             hookIssues: review.hookIssues,
           },
+          review.closureSuggestions,
           request.goals,
         )
-      : buildRewriteContent(draft.content, review.revisionAdvice, request.goals)
+      : buildRewriteContent(draft.content, review.revisionAdvice, review.closureSuggestions, request.goals)
     const rewrite: ChapterRewrite = {
       id: createId('rewrite'),
       bookId: book.id,
@@ -99,6 +100,7 @@ async function createLlmRewrite(
     pacingIssues: string[]
     hookIssues: string[]
   },
+  closureSuggestions: ClosureSuggestions,
   goals: string[],
 ): Promise<string> {
   try {
@@ -108,6 +110,8 @@ async function createLlmRewrite(
         '必须优先修复：目标承接、节奏、关键场景、角色状态一致性、关键物品连续性、Hook 承接、结尾牵引。',
         '不得把正文改写成摘要、说明文或审查报告。',
         '不得随意删除关键事实、不得推翻已成立的剧情因果、不得削弱结尾牵引。',
+        'review 已经给出 closureSuggestions，它们代表当前应被保护的结构化事实边界。',
+        '如果 closureSuggestions 中存在角色、物品、Hook、memory 建议，重写后的正文必须与这些建议保持一致，不得在表达改写时推翻它们。',
         '请直接输出重写后的章节正文，不要解释，不要输出 markdown 代码块。',
       ].join(' '),
       user: JSON.stringify(
@@ -123,11 +127,13 @@ async function createLlmRewrite(
               '既有事实不被推翻',
               '关键物品与 Hook 连续性不被破坏',
               '结尾牵引至少不弱于原稿',
+              'review closureSuggestions 给出的结构化事实边界不被破坏',
             ],
           },
           draft: content,
           revisionAdvice,
           reviewIssues,
+          closureSuggestions,
         },
         null,
         2,
@@ -136,20 +142,38 @@ async function createLlmRewrite(
 
     return response.text.trim()
   } catch {
-    return buildRewriteContent(content, revisionAdvice, goals)
+    return buildRewriteContent(content, revisionAdvice, closureSuggestions, goals)
   }
 }
 
-function buildRewriteContent(content: string, revisionAdvice: string[], goals: string[]): string {
+function buildRewriteContent(
+  content: string,
+  revisionAdvice: string[],
+  closureSuggestions: ClosureSuggestions,
+  goals: string[],
+): string {
+  const protectedFacts = summarizeProtectedFacts(closureSuggestions)
   const header = [
     '## 重写说明',
     '',
     ...revisionAdvice.map((item) => `- 审查建议：${item}`),
     ...goals.map((goal) => `- 重写目标：${goal}`),
+    ...protectedFacts.map((fact) => `- 结构化保护：${fact}`),
     '',
   ].join('\n')
 
-  return `${header}${content}\n\n## 重写后补充\n\n本版本已根据审查意见进行了定向调整，重点优化节奏、目标承接和结尾牵引。`
+  return `${header}${content}\n\n## 重写后补充\n\n本版本已根据审查意见进行了定向调整，重点优化节奏、目标承接和结尾牵引，同时保持 review 已确认的结构化事实边界。`
+}
+
+function summarizeProtectedFacts(closureSuggestions: ClosureSuggestions): string[] {
+  const items = [
+    ...closureSuggestions.characters.slice(0, 2).map((item) => `角色 ${item.characterId} -> ${item.nextStatusNotes.join(' / ') || item.nextLocationId || '状态承接'}`),
+    ...closureSuggestions.items.slice(0, 2).map((item) => `物品 ${item.itemId} -> ${item.nextStatus ?? item.nextLocationId ?? item.nextOwnerCharacterId ?? '状态承接'}`),
+    ...closureSuggestions.hooks.slice(0, 2).map((item) => `Hook ${item.hookId} -> ${item.nextStatus}`),
+    ...closureSuggestions.memory.slice(0, 2).map((item) => `记忆 ${item.memoryScope} -> ${item.summary}`),
+  ]
+
+  return items.length > 0 ? items : ['保持既有结构化事实边界']
 }
 
 function estimateWordCount(content: string): number {

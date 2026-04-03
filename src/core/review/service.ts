@@ -1,4 +1,11 @@
-import type { ContextItemView, LlmAdapter, ReviewDecision, ReviewReport, WordCountCheck } from '../../shared/types/domain.js'
+import type {
+  ClosureSuggestions,
+  ContextItemView,
+  LlmAdapter,
+  ReviewDecision,
+  ReviewReport,
+  WordCountCheck,
+} from '../../shared/types/domain.js'
 import { createId } from '../../shared/utils/id.js'
 import { extractJsonObject } from '../../shared/utils/json.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -81,6 +88,18 @@ export class ReviewService {
         )
       : null
     const mergedReview = aiReview ?? baseReview
+    const closureSuggestions = mergeClosureSuggestions(
+      mergedReview.closureSuggestions,
+      buildRuleBasedClosureSuggestions(
+        chapter.objective,
+        draft.content,
+        characterStates,
+        importantItems,
+        longTermMemory?.entries ?? [],
+        activeHookStates,
+      ),
+    )
+
     const review: ReviewReport = {
       id: createId('review'),
       bookId: book.id,
@@ -101,6 +120,7 @@ export class ReviewService {
       hookIssues: mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan, draft.content),
       wordCountCheck,
       newFactCandidates: mergeNewFactCandidates(mergedReview.newFactCandidates, chapter.objective, plan.memoryCandidates),
+      closureSuggestions,
       revisionAdvice: mergedReview.revisionAdvice,
       createdAt: nowIso(),
     }
@@ -313,6 +333,7 @@ function createRuleBasedReview(
     pacingIssues,
     hookIssues,
     newFactCandidates,
+    closureSuggestions: emptyClosureSuggestions(),
     revisionAdvice: buildRevisionAdvice(wordCountCheck, consistencyIssues, hookIssues, itemIssues),
   }
 }
@@ -336,7 +357,8 @@ async function createLlmReview(
         '必须优先检查：章节目标承接、事件是否落地、角色状态一致性、关键物品连续性、Hook 承接、长期记忆事实冲突、节奏与篇幅。',
         '请区分硬问题和软问题：会破坏主链路或状态闭环的问题必须更严厉。',
         '请输出 JSON，不要解释，不要使用 markdown 代码块。',
-        'JSON 字段必须包含 decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, pacingIssues, hookIssues, newFactCandidates, revisionAdvice。',
+        'JSON 字段必须包含 decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, pacingIssues, hookIssues, newFactCandidates, closureSuggestions, revisionAdvice。',
+        'closureSuggestions 必须按 characters, items, hooks, memory 四组输出，每条建议都要包含 reason, evidence, source。',
         'revisionAdvice 必须可执行，尽量给出具体修正方向，而不是空泛评价。',
       ].join(' '),
       user: JSON.stringify(
@@ -390,6 +412,7 @@ async function createLlmReview(
       pacingIssues: parsed.pacingIssues ?? [],
       hookIssues: parsed.hookIssues ?? [],
       newFactCandidates: parsed.newFactCandidates ?? [],
+      closureSuggestions: normalizeClosureSuggestions(parsed.closureSuggestions, 'llm'),
       revisionAdvice: parsed.revisionAdvice ?? ['建议人工复核本章审查结果。'],
     }
   } catch {
@@ -456,12 +479,215 @@ function decideReview(
   return 'pass'
 }
 
+function buildRuleBasedClosureSuggestions(
+  objective: string,
+  content: string,
+  characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>,
+  importantItems: ContextItemView[],
+  longTermEntries: Array<{ summary: string; importance: number }>,
+  activeHookStates: Array<{ hookId: string; status: string }>,
+): ClosureSuggestions {
+  const suggestions = emptyClosureSuggestions()
+
+  for (const state of characterStates) {
+    const line = findStructuredLine(content, `角色（${state.characterId}）`)
+
+    if (!line) {
+      continue
+    }
+
+    suggestions.characters.push({
+      characterId: state.characterId,
+      nextLocationId: extractStructuredValue(line, '当前位置') ?? state.currentLocationId,
+      nextStatusNotes: splitStructuredNotes(extractStructuredValue(line, '状态') ?? state.statusNotes.join('；')),
+      reason: '草稿显式给出了角色状态承接。',
+      evidence: [line],
+      source: 'rule-based',
+    })
+  }
+
+  for (const item of importantItems) {
+    const line = findStructuredLine(content, `${item.name}（${item.id}）`)
+
+    if (!line) {
+      continue
+    }
+
+    const quantity = extractStructuredValue(line, '数量')
+
+    suggestions.items.push({
+      itemId: item.id,
+      nextOwnerCharacterId: extractStructuredValue(line, '持有者') ?? item.ownerCharacterId,
+      nextLocationId: extractStructuredValue(line, '地点') ?? item.locationId,
+      nextQuantity: quantity ? Number.parseInt(quantity, 10) : item.quantity,
+      nextStatus: extractStructuredValue(line, '状态') ?? item.status,
+      reason: '草稿显式给出了关键物品状态承接。',
+      evidence: [line],
+      source: 'rule-based',
+    })
+  }
+
+  for (const hook of activeHookStates) {
+    const line = findStructuredLine(content, `Hook（${hook.hookId}）`)
+
+    if (!line) {
+      continue
+    }
+
+    const action = extractStructuredValue(line, '动作')
+
+    suggestions.hooks.push({
+      hookId: hook.hookId,
+      nextStatus: mapHookActionToStatus(action, hook.status),
+      actualOutcome: action ?? 'hold',
+      reason: '草稿显式给出了 Hook 的本章处理结果。',
+      evidence: [line],
+      source: 'rule-based',
+    })
+  }
+
+  for (const entry of longTermEntries.filter((item) => item.importance >= 4)) {
+    if (!content.includes(entry.summary)) {
+      continue
+    }
+
+    suggestions.memory.push({
+      summary: entry.summary,
+      memoryScope: 'long-term',
+      reason: '草稿再次承接了高重要长期事实。',
+      evidence: [entry.summary],
+      source: 'rule-based',
+    })
+  }
+
+  if (content.includes(objective)) {
+    suggestions.memory.push({
+      summary: objective,
+      memoryScope: 'short-term',
+      reason: '章节目标已在正文中得到直接承接。',
+      evidence: [objective],
+      source: 'rule-based',
+    })
+  }
+
+  return suggestions
+}
+
+function mergeClosureSuggestions(
+  primary: ClosureSuggestions,
+  fallback: ClosureSuggestions,
+): ClosureSuggestions {
+  return {
+    characters: primary.characters.length > 0 ? primary.characters : fallback.characters,
+    items: primary.items.length > 0 ? primary.items : fallback.items,
+    hooks: primary.hooks.length > 0 ? primary.hooks : fallback.hooks,
+    memory: primary.memory.length > 0 ? primary.memory : fallback.memory,
+  }
+}
+
+function normalizeClosureSuggestions(
+  value: unknown,
+  source: 'llm' | 'rule-based',
+): ClosureSuggestions {
+  const base = emptyClosureSuggestions()
+
+  if (!value || typeof value !== 'object') {
+    return base
+  }
+
+  const candidate = value as Partial<ClosureSuggestions>
+
+  return {
+    characters: Array.isArray(candidate.characters)
+      ? candidate.characters.map((item) => ({
+          characterId: String(item.characterId),
+          nextLocationId: item.nextLocationId ? String(item.nextLocationId) : undefined,
+          nextStatusNotes: Array.isArray(item.nextStatusNotes) ? item.nextStatusNotes.map((note) => String(note)) : [],
+          reason: item.reason ? String(item.reason) : '模型识别到角色状态变化。',
+          evidence: Array.isArray(item.evidence) ? item.evidence.map((entry) => String(entry)) : [],
+          source,
+        }))
+      : [],
+    items: Array.isArray(candidate.items)
+      ? candidate.items.map((item) => ({
+          itemId: String(item.itemId),
+          nextOwnerCharacterId: item.nextOwnerCharacterId ? String(item.nextOwnerCharacterId) : undefined,
+          nextLocationId: item.nextLocationId ? String(item.nextLocationId) : undefined,
+          nextQuantity: typeof item.nextQuantity === 'number' ? item.nextQuantity : undefined,
+          nextStatus: item.nextStatus ? String(item.nextStatus) : undefined,
+          reason: item.reason ? String(item.reason) : '模型识别到物品状态变化。',
+          evidence: Array.isArray(item.evidence) ? item.evidence.map((entry) => String(entry)) : [],
+          source,
+        }))
+      : [],
+    hooks: Array.isArray(candidate.hooks)
+      ? candidate.hooks.map((item) => ({
+          hookId: String(item.hookId),
+          nextStatus: isHookStatus(item.nextStatus) ? item.nextStatus : 'open',
+          actualOutcome: item.actualOutcome ? String(item.actualOutcome) : 'hold',
+          reason: item.reason ? String(item.reason) : '模型识别到 Hook 处理结果。',
+          evidence: Array.isArray(item.evidence) ? item.evidence.map((entry) => String(entry)) : [],
+          source,
+        }))
+      : [],
+    memory: Array.isArray(candidate.memory)
+      ? candidate.memory.map((item) => ({
+          summary: String(item.summary),
+          memoryScope: isMemoryScope(item.memoryScope) ? item.memoryScope : 'observation',
+          reason: item.reason ? String(item.reason) : '模型识别到可沉淀记忆。',
+          evidence: Array.isArray(item.evidence) ? item.evidence.map((entry) => String(entry)) : [],
+          source,
+        }))
+      : [],
+  }
+}
+
+function emptyClosureSuggestions(): ClosureSuggestions {
+  return {
+    characters: [],
+    items: [],
+    hooks: [],
+    memory: [],
+  }
+}
+
+function mapHookActionToStatus(action: string | undefined, currentStatus: string): 'open' | 'foreshadowed' | 'payoff-planned' | 'resolved' {
+  if (action === 'foreshadow') {
+    return 'foreshadowed'
+  }
+
+  if (action === 'advance') {
+    return 'payoff-planned'
+  }
+
+  if (action === 'payoff') {
+    return 'resolved'
+  }
+
+  return isHookStatus(currentStatus) ? currentStatus : 'open'
+}
+
+function isHookStatus(value: unknown): value is 'open' | 'foreshadowed' | 'payoff-planned' | 'resolved' {
+  return value === 'open' || value === 'foreshadowed' || value === 'payoff-planned' || value === 'resolved'
+}
+
+function isMemoryScope(value: unknown): value is 'long-term' | 'short-term' | 'observation' {
+  return value === 'long-term' || value === 'short-term' || value === 'observation'
+}
+
 function findStructuredLine(content: string, label: string): string | null {
   return content.match(new RegExp(`^.*${escapeRegExp(label)}.*$`, 'm'))?.[0] ?? null
 }
 
 function extractStructuredValue(line: string, key: string): string | undefined {
   return line.match(new RegExp(`${escapeRegExp(key)}=([^；\n]+)`))?.[1]?.trim()
+}
+
+function splitStructuredNotes(value: string): string[] {
+  return value
+    .split(/[；;、，,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
 }
 
 function uniqueMessages(messages: string[]): string[] {

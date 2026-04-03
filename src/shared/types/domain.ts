@@ -255,6 +255,52 @@ export type WordCountCheck = {
 
 export type ReviewDecision = 'pass' | 'warning' | 'needs-rewrite'
 
+export type ClosureSuggestionSource = 'rule-based' | 'llm'
+
+export type CharacterStateClosureSuggestion = {
+  characterId: string
+  nextLocationId?: string
+  nextStatusNotes: string[]
+  reason: string
+  evidence: string[]
+  source: ClosureSuggestionSource
+}
+
+export type ItemStateClosureSuggestion = {
+  itemId: string
+  nextOwnerCharacterId?: string
+  nextLocationId?: string
+  nextQuantity?: number
+  nextStatus?: string
+  reason: string
+  evidence: string[]
+  source: ClosureSuggestionSource
+}
+
+export type HookStateClosureSuggestion = {
+  hookId: string
+  nextStatus: Hook['status']
+  actualOutcome: string
+  reason: string
+  evidence: string[]
+  source: ClosureSuggestionSource
+}
+
+export type MemoryClosureSuggestion = {
+  summary: string
+  memoryScope: 'long-term' | 'short-term' | 'observation'
+  reason: string
+  evidence: string[]
+  source: ClosureSuggestionSource
+}
+
+export type ClosureSuggestions = {
+  characters: CharacterStateClosureSuggestion[]
+  items: ItemStateClosureSuggestion[]
+  hooks: HookStateClosureSuggestion[]
+  memory: MemoryClosureSuggestion[]
+}
+
 export type ReviewReport = {
   id: string
   bookId: string
@@ -269,6 +315,7 @@ export type ReviewReport = {
   hookIssues: string[]
   wordCountCheck: WordCountCheck
   newFactCandidates: string[]
+  closureSuggestions: ClosureSuggestions
   revisionAdvice: string[]
   createdAt: IsoTimestamp
 }
