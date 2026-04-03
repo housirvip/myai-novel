@@ -67,7 +67,18 @@ export class ReviewService {
 
     const baseReview = createRuleBasedReview(wordCountCheck, chapter.objective, draft.content, plan.sceneCards.length, plan.hookPlan.length)
     const aiReview = this.llmAdapter
-      ? await createLlmReview(this.llmAdapter, wordCountCheck, chapter.objective, draft.content, plan.eventOutline)
+      ? await createLlmReview(
+          this.llmAdapter,
+          wordCountCheck,
+          chapter.title,
+          chapter.objective,
+          draft.content,
+          plan.eventOutline,
+          characterStates,
+          importantItems,
+          longTermMemory?.entries ?? [],
+          activeHookStates,
+        )
       : null
     const mergedReview = aiReview ?? baseReview
     const review: ReviewReport = {
@@ -309,18 +320,57 @@ function createRuleBasedReview(
 async function createLlmReview(
   llmAdapter: LlmAdapter,
   wordCountCheck: WordCountCheck,
+  chapterTitle: string,
   objective: string,
   content: string,
   eventOutline: string[],
+  characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>,
+  importantItems: ContextItemView[],
+  longTermEntries: Array<{ summary: string; importance: number }>,
+  activeHookStates: Array<{ hookId: string; status: string }>,
 ): Promise<Omit<ReviewReport, 'id' | 'bookId' | 'chapterId' | 'draftId' | 'wordCountCheck' | 'createdAt'> | null> {
   try {
     const response = await llmAdapter.generateText({
-      system:
-        '你是小说审查助手。请只输出 JSON，不要解释。JSON 字段必须包含 decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, pacingIssues, hookIssues, newFactCandidates, revisionAdvice。',
+      system: [
+        '你是长篇小说章节审查助手。你要同时审查文本质量与状态一致性，而不是只做泛泛评价。',
+        '必须优先检查：章节目标承接、事件是否落地、角色状态一致性、关键物品连续性、Hook 承接、长期记忆事实冲突、节奏与篇幅。',
+        '请区分硬问题和软问题：会破坏主链路或状态闭环的问题必须更严厉。',
+        '请输出 JSON，不要解释，不要使用 markdown 代码块。',
+        'JSON 字段必须包含 decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, pacingIssues, hookIssues, newFactCandidates, revisionAdvice。',
+        'revisionAdvice 必须可执行，尽量给出具体修正方向，而不是空泛评价。',
+      ].join(' '),
       user: JSON.stringify(
         {
-          objective,
-          eventOutline,
+          task: {
+            kind: 'chapter-review',
+            chapterTitle,
+            objective,
+            reviewFocus: [
+              '目标是否达成',
+              '事件是否真正发生而不是被概述',
+              '角色状态是否违背当前真源',
+              '关键物品状态是否连续',
+              'Hook 是否被承接或推进',
+              '长期记忆是否被违背',
+              '节奏与结尾牵引是否成立',
+            ],
+          },
+          chapterPlan: {
+            eventOutline,
+          },
+          stateConstraints: {
+            characterStates,
+            importantItems: importantItems.map((item) => ({
+              id: item.id,
+              name: item.name,
+              quantity: item.quantity,
+              status: item.status,
+              ownerCharacterId: item.ownerCharacterId,
+              locationId: item.locationId,
+            })),
+            activeHookStates,
+            criticalLongTermEntries: longTermEntries.filter((entry) => entry.importance >= 4),
+          },
           wordCountCheck,
           draft: content,
         },

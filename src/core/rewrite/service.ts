@@ -45,7 +45,23 @@ export class RewriteService {
 
     const timestamp = nowIso()
     const content = this.llmAdapter
-      ? await createLlmRewrite(this.llmAdapter, draft.content, review.revisionAdvice, request.goals)
+      ? await createLlmRewrite(
+          this.llmAdapter,
+          book.title,
+          chapter.title,
+          chapter.objective,
+          draft.content,
+          review.revisionAdvice,
+          {
+            consistencyIssues: review.consistencyIssues,
+            characterIssues: review.characterIssues,
+            itemIssues: review.itemIssues,
+            memoryIssues: review.memoryIssues,
+            pacingIssues: review.pacingIssues,
+            hookIssues: review.hookIssues,
+          },
+          request.goals,
+        )
       : buildRewriteContent(draft.content, review.revisionAdvice, request.goals)
     const rewrite: ChapterRewrite = {
       id: createId('rewrite'),
@@ -70,18 +86,48 @@ export class RewriteService {
 
 async function createLlmRewrite(
   llmAdapter: LlmAdapter,
+  bookTitle: string,
+  chapterTitle: string,
+  chapterObjective: string,
   content: string,
   revisionAdvice: string[],
+  reviewIssues: {
+    consistencyIssues: string[]
+    characterIssues: string[]
+    itemIssues: string[]
+    memoryIssues: string[]
+    pacingIssues: string[]
+    hookIssues: string[]
+  },
   goals: string[],
 ): Promise<string> {
   try {
     const response = await llmAdapter.generateText({
-      system: '你是小说重写助手。请直接输出重写后的章节文本，不要解释。',
+      system: [
+        '你是长篇小说章节重写助手。你的任务不是自由改写，而是在不破坏既有事实与状态连续性的前提下，定向修复问题。',
+        '必须优先修复：目标承接、节奏、关键场景、角色状态一致性、关键物品连续性、Hook 承接、结尾牵引。',
+        '不得把正文改写成摘要、说明文或审查报告。',
+        '不得随意删除关键事实、不得推翻已成立的剧情因果、不得削弱结尾牵引。',
+        '请直接输出重写后的章节正文，不要解释，不要输出 markdown 代码块。',
+      ].join(' '),
       user: JSON.stringify(
         {
+          task: {
+            kind: 'chapter-rewrite',
+            bookTitle,
+            chapterTitle,
+            chapterObjective,
+            goals,
+            mustKeep: [
+              '章节核心目标不变',
+              '既有事实不被推翻',
+              '关键物品与 Hook 连续性不被破坏',
+              '结尾牵引至少不弱于原稿',
+            ],
+          },
           draft: content,
           revisionAdvice,
-          goals,
+          reviewIssues,
         },
         null,
         2,

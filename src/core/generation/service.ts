@@ -39,36 +39,16 @@ async function createLlmDraft(
   timestamp: string,
 ): Promise<ChapterDraft> {
   const response = await llmAdapter.generateText({
-    system: '你是小说写作助手。请直接输出章节草稿正文，不要解释。',
-    user: JSON.stringify(
-      {
-        bookTitle: context.book.title,
-        chapterTitle: context.chapter.title,
-        chapterObjective: context.chapter.objective,
-        volumeGoal: context.volume.goal,
-        theme: context.outline.theme,
-        characterStates: context.characterStates.map((state) => ({
-          characterId: state.characterId,
-          currentLocationId: state.currentLocationId,
-          statusNotes: state.statusNotes,
-        })),
-        activeHookStates: context.activeHookStates,
-        hookPlan: context.chapterPlan.hookPlan,
-        memoryRecall: context.memoryRecall,
-        sceneCards: context.chapterPlan.sceneCards,
-        eventOutline: context.chapterPlan.eventOutline,
-        importantItems: context.importantItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          status: item.status,
-          ownerCharacterId: item.ownerCharacterId,
-          locationId: item.locationId,
-        })),
-      },
-      null,
-      2,
-    ),
+    system: [
+      '你是长篇小说正文写作助手。你要写的是可直接阅读的章节正文，而不是提纲、摘要、设定说明或分析报告。',
+      '必须保持小说感：通过场景、动作、对话、感官细节和人物心理推进剧情，尽量少用抽象总结句。',
+      '必须满足以下硬约束：承接上一章局势、完成本章目标、呼应主题、避免违背角色/物品/Hook/记忆真源、结尾形成下一章牵引。',
+      '必须保持叙事视角稳定、人物行为动机可解释、情绪递进自然、场景转换清晰。',
+      '不要把输入中的 JSON 字段名、标题或说明性标签原样写进正文。不要输出 markdown 代码块、不要解释写作思路。',
+      '如果有关键状态约束，请把它自然地转化为正文事实，而不是生硬罗列。',
+      '请直接输出章节正文。',
+    ].join(' '),
+    user: JSON.stringify(buildGenerationPromptPayload(context), null, 2),
   })
 
   return {
@@ -80,6 +60,77 @@ async function createLlmDraft(
     content: response.text.trim(),
     actualWordCount: estimateWordCount(response.text),
     createdAt: timestamp,
+  }
+}
+
+function buildGenerationPromptPayload(context: WritingContext): Record<string, unknown> {
+  return {
+    task: {
+      kind: 'chapter-draft-writing',
+      deliverable: '输出可阅读的小说章节正文',
+      mustDo: [
+        '承接上一章局势',
+        '完成本章目标',
+        '推进至少一条核心冲突',
+        '自然体现角色当前状态、关键物品、活跃 Hook 与记忆约束',
+        '结尾形成新的局势变化或悬念牵引',
+      ],
+      qualityBar: [
+        '像小说，不像提纲',
+        '有具体场面，不只总结',
+        '人物行为与心理有因果链',
+        '环境描写服务情绪和情节',
+        '节奏有起伏，不要全篇同一密度',
+      ],
+      avoid: [
+        '大段空泛概述',
+        '把状态清单直接抄进正文',
+        '忽略结尾牵引',
+        '人物动机跳变',
+        '只解释发生了什么而不展示过程',
+      ],
+    },
+    chapterContext: {
+      bookTitle: context.book.title,
+      chapterTitle: context.chapter.title,
+      chapterObjective: context.chapter.objective,
+      plannedBeats: context.chapter.plannedBeats,
+      volumeTitle: context.volume.title,
+      volumeGoal: context.volume.goal,
+      volumeSummary: context.volume.summary,
+      theme: context.outline.theme,
+      premise: context.outline.premise,
+      coreConflicts: context.outline.coreConflicts,
+      previousChapterTitle: context.previousChapter?.title,
+    },
+    stateConstraints: {
+      characterStates: context.characterStates.map((state) => ({
+        characterId: state.characterId,
+        currentLocationId: state.currentLocationId,
+        statusNotes: state.statusNotes,
+      })),
+      importantItems: context.importantItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        status: item.status,
+        ownerCharacterId: item.ownerCharacterId,
+        locationId: item.locationId,
+      })),
+      activeHookStates: context.activeHookStates,
+      hookPlan: context.chapterPlan.hookPlan,
+      memoryRecall: context.memoryRecall,
+    },
+    writingPlan: {
+      sceneCards: context.chapterPlan.sceneCards,
+      eventOutline: context.chapterPlan.eventOutline,
+      statePredictions: context.chapterPlan.statePredictions,
+    },
+    styleGuidelines: {
+      narrativeView: '保持单一稳定叙事视角',
+      prosePreference: '用具体动作、对话、感官、心理细节推进，不要写成摘要',
+      endingGoal: '结尾必须形成下一章牵引或新的局势变化',
+    },
   }
 }
 

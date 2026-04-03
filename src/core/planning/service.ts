@@ -1,4 +1,4 @@
-import type { ChapterPlan, Hook, HookPlan, LlmAdapter, PlanningContext } from '../../shared/types/domain.js'
+import type { ChapterPlan, Hook, HookPlan, LlmAdapter, PlanningContext, SceneCard } from '../../shared/types/domain.js'
 import { createId } from '../../shared/utils/id.js'
 import { extractJsonObject } from '../../shared/utils/json.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -46,54 +46,279 @@ async function createLlmPlan(
 ): Promise<ChapterPlan> {
   const fallbackPlan = createRuleBasedPlan(context, activeHooks)
   const response = await llmAdapter.generateText({
-    system:
-      '你是小说章节规划助手。请只输出 JSON，不要解释。字段至少包含 objective, sceneCards, eventOutline, statePredictions, memoryCandidates。',
-    user: JSON.stringify(
-      {
-        bookTitle: context.book.title,
-        chapterTitle: context.chapter.title,
-        chapterObjective: context.chapter.objective,
-        plannedBeats: context.chapter.plannedBeats,
-        volumeGoal: context.volume.goal,
-        theme: context.outline.theme,
-        coreConflicts: context.outline.coreConflicts,
-        previousChapterTitle: context.previousChapter?.title,
-        characterStates: context.characterStates.map((state) => ({
-          characterId: state.characterId,
-          currentLocationId: state.currentLocationId,
-          statusNotes: state.statusNotes,
-        })),
-        activeHooks,
-        memoryRecall: context.memoryRecall,
-        importantItems: context.importantItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          status: item.status,
-          ownerCharacterId: item.ownerCharacterId,
-          locationId: item.locationId,
-        })),
-      },
-      null,
-      2,
-    ),
+    system: [
+      '你是长篇小说章节规划助手，不负责写正文，只负责制定可执行的章节计划。',
+      '你的目标不是平均分配信息，而是让本章形成清晰的冲突递进、场景推进和结尾牵引。',
+      '必须优先满足以下约束：承接上一章局势、呼应本章目标、推进至少一条核心冲突、避免违背角色/物品/Hook/记忆真源。',
+      'sceneCards 必须像真正的场景设计，而不是空泛标题；每个场景都应有 purpose、beats、人物与关键道具指向。',
+      'eventOutline 必须描述本章实际会发生的关键事件，不要写抽象口号。',
+      'statePredictions 必须具体到本章后哪些角色状态、物品状态、Hook 状态、记忆沉淀会发生变化。',
+      'memoryCandidates 必须是未来值得沉淀的稳定事实或高价值事件，不要重复空话。',
+      '只输出 JSON，不要解释，不要使用 markdown 代码块。',
+      'JSON 至少包含 objective, sceneCards, requiredCharacterIds, requiredLocationIds, requiredItemIds, eventOutline, hookPlan, statePredictions, memoryCandidates。',
+    ].join(' '),
+    user: JSON.stringify(buildPlanningPromptPayload(context, activeHooks), null, 2),
   })
 
   const parsed = JSON.parse(extractJsonObject(response.text)) as Partial<ChapterPlan>
+  const normalizedSceneCards = normalizeSceneCards(parsed.sceneCards, fallbackPlan.sceneCards)
+  const normalizedRequiredCharacterIds = normalizeStringArray(parsed.requiredCharacterIds, fallbackPlan.requiredCharacterIds)
+  const normalizedRequiredLocationIds = normalizeStringArray(parsed.requiredLocationIds, fallbackPlan.requiredLocationIds)
+  const normalizedRequiredFactionIds = normalizeStringArray(parsed.requiredFactionIds, fallbackPlan.requiredFactionIds)
+  const normalizedRequiredItemIds = normalizeStringArray(parsed.requiredItemIds, fallbackPlan.requiredItemIds)
+  const normalizedEventOutline = normalizeStringArray(parsed.eventOutline, fallbackPlan.eventOutline)
+  const normalizedHookPlan = normalizeHookPlan(parsed.hookPlan, fallbackPlan.hookPlan)
+  const normalizedStatePredictions = normalizeStatePredictions(parsed.statePredictions, fallbackPlan.statePredictions)
+  const normalizedMemoryCandidates = normalizeMemoryCandidates(parsed.memoryCandidates, fallbackPlan.memoryCandidates)
 
   return {
     ...fallbackPlan,
     objective: parsed.objective ?? fallbackPlan.objective,
-    sceneCards: parsed.sceneCards ?? fallbackPlan.sceneCards,
-    requiredCharacterIds: parsed.requiredCharacterIds ?? fallbackPlan.requiredCharacterIds,
-    requiredLocationIds: parsed.requiredLocationIds ?? fallbackPlan.requiredLocationIds,
-    requiredFactionIds: parsed.requiredFactionIds ?? fallbackPlan.requiredFactionIds,
-    requiredItemIds: parsed.requiredItemIds ?? fallbackPlan.requiredItemIds,
-    eventOutline: parsed.eventOutline ?? fallbackPlan.eventOutline,
-    hookPlan: parsed.hookPlan ?? fallbackPlan.hookPlan,
-    statePredictions: parsed.statePredictions ?? fallbackPlan.statePredictions,
-    memoryCandidates: parsed.memoryCandidates ?? fallbackPlan.memoryCandidates,
+    sceneCards: normalizedSceneCards,
+    requiredCharacterIds: normalizedRequiredCharacterIds,
+    requiredLocationIds: normalizedRequiredLocationIds,
+    requiredFactionIds: normalizedRequiredFactionIds,
+    requiredItemIds: normalizedRequiredItemIds,
+    eventOutline: normalizedEventOutline,
+    hookPlan: normalizedHookPlan,
+    statePredictions: normalizedStatePredictions,
+    memoryCandidates: normalizedMemoryCandidates,
   }
+}
+
+function buildPlanningPromptPayload(context: PlanningContext, activeHooks: ActiveHookView[]): Record<string, unknown> {
+  return {
+    task: {
+      kind: 'chapter-planning',
+      deliverable: '为当前章节生成结构化计划 JSON',
+      mustDo: [
+        '承接上一章局势',
+        '呼应章节目标',
+        '推进至少一条核心冲突',
+        '至少推进或处理一条活跃 Hook（若存在）',
+        '给出明确的章节结尾牵引',
+      ],
+      avoid: [
+        '空泛场景标题',
+        '只有设定说明没有事件推进',
+        '忽略角色当前位置与当前状态',
+        '忽略关键物品连续性',
+        '忽略长期记忆约束',
+      ],
+    },
+    bookContext: {
+      bookTitle: context.book.title,
+      chapterTitle: context.chapter.title,
+      chapterObjective: context.chapter.objective,
+      plannedBeats: context.chapter.plannedBeats,
+      volumeTitle: context.volume.title,
+      volumeGoal: context.volume.goal,
+      volumeSummary: context.volume.summary,
+      theme: context.outline.theme,
+      premise: context.outline.premise,
+      worldview: context.outline.worldview,
+      coreConflicts: context.outline.coreConflicts,
+      endingVision: context.outline.endingVision,
+      previousChapterTitle: context.previousChapter?.title,
+    },
+    stateConstraints: {
+      characterStates: context.characterStates.map((state) => ({
+        characterId: state.characterId,
+        currentLocationId: state.currentLocationId,
+        statusNotes: state.statusNotes,
+      })),
+      importantItems: context.importantItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        status: item.status,
+        ownerCharacterId: item.ownerCharacterId,
+        locationId: item.locationId,
+      })),
+      activeHooks,
+      memoryRecall: context.memoryRecall,
+    },
+    outputRules: {
+      sceneCardGuideline: '建议 2-4 个场景，必须包含开场承接、核心推进、结尾牵引中的至少两类功能',
+      eventOutlineGuideline: '使用可执行事件，不要写抽象评价',
+      statePredictionGuideline: '尽量具体写出哪些状态将在章末变化',
+      hookPlanGuideline: '如果存在活跃 Hook，应给出动作和简短说明',
+    },
+  }
+}
+
+function normalizeStringArray(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) {
+    return fallback
+  }
+
+  const normalized = value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((item) => item.length > 0)
+
+  return normalized.length > 0 ? normalized : fallback
+}
+
+function normalizeSceneCards(value: unknown, fallback: ChapterPlan['sceneCards']): ChapterPlan['sceneCards'] {
+  if (!Array.isArray(value)) {
+    return fallback
+  }
+
+  const normalized: SceneCard[] = value
+    .map((item, index) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const candidate = item as Record<string, unknown>
+      const title = typeof candidate.title === 'string' && candidate.title.trim().length > 0
+        ? candidate.title.trim()
+        : `场景 ${index + 1}`
+      const purpose = typeof candidate.purpose === 'string' && candidate.purpose.trim().length > 0
+        ? candidate.purpose.trim()
+        : '推进章节目标与冲突'
+      const beats = Array.isArray(candidate.beats)
+        ? candidate.beats.filter((beat): beat is string => typeof beat === 'string' && beat.trim().length > 0)
+        : []
+      const characterIds = normalizeStringArray(candidate.characterIds ?? candidate.characters, [])
+      const factionIds = normalizeStringArray(candidate.factionIds ?? candidate.factions, [])
+      const itemIds = normalizeStringArray(candidate.itemIds ?? candidate.items, [])
+      const locationId = typeof candidate.locationId === 'string'
+        ? candidate.locationId
+        : (typeof candidate.location === 'string' ? candidate.location : undefined)
+
+      const sceneCard: SceneCard = {
+        title,
+        purpose,
+        beats: beats.length > 0 ? beats : ['推进当前场景目标'],
+        characterIds,
+        factionIds,
+        itemIds,
+      }
+
+      if (locationId) {
+        sceneCard.locationId = locationId
+      }
+
+      return sceneCard
+    })
+    .filter((item): item is SceneCard => Boolean(item))
+
+  return normalized.length > 0 ? normalized : fallback
+}
+
+function normalizeHookPlan(value: unknown, fallback: ChapterPlan['hookPlan']): ChapterPlan['hookPlan'] {
+  if (!Array.isArray(value)) {
+    return fallback
+  }
+
+  const normalized = value
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const candidate = item as Record<string, unknown>
+      const hookId = typeof candidate.hookId === 'string' ? candidate.hookId.trim() : ''
+      const action = normalizeHookAction(candidate.action)
+      const note = typeof candidate.note === 'string' && candidate.note.trim().length > 0
+        ? candidate.note.trim()
+        : '承接并推进该 Hook。'
+
+      if (!hookId) {
+        return null
+      }
+
+      return {
+        hookId,
+        action,
+        note,
+      }
+    })
+    .filter((item): item is ChapterPlan['hookPlan'][number] => Boolean(item))
+
+  return normalized.length > 0 ? normalized : fallback
+}
+
+function normalizeHookAction(value: unknown): HookPlan['action'] {
+  return value === 'hold' || value === 'foreshadow' || value === 'advance' || value === 'payoff'
+    ? value
+    : 'advance'
+}
+
+function normalizeStatePredictions(value: unknown, fallback: string[]): string[] {
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item.trim()
+        }
+
+        if (item && typeof item === 'object') {
+          const candidate = item as Record<string, unknown>
+          const entityId = typeof candidate.characterId === 'string'
+            ? candidate.characterId
+            : (typeof candidate.itemId === 'string'
+                ? candidate.itemId
+                : (typeof candidate.hookId === 'string' ? candidate.hookId : ''))
+          const change = typeof candidate.change === 'string' ? candidate.change.trim() : ''
+          return [entityId, change].filter((part) => part.length > 0).join('：')
+        }
+
+        return ''
+      })
+      .filter((item) => item.length > 0)
+
+    return normalized.length > 0 ? normalized : fallback
+  }
+
+  if (value && typeof value === 'object') {
+    const candidate = value as Record<string, unknown>
+    const flattened = Object.entries(candidate)
+      .flatMap(([, section]) => Array.isArray(section) ? section : [])
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return ''
+        }
+
+        const entry = item as Record<string, unknown>
+        const entityId = typeof entry.characterId === 'string'
+          ? entry.characterId
+          : (typeof entry.itemId === 'string'
+              ? entry.itemId
+              : (typeof entry.hookId === 'string' ? entry.hookId : ''))
+        const change = typeof entry.change === 'string' ? entry.change.trim() : ''
+        return [entityId, change].filter((part) => part.length > 0).join('：')
+      })
+      .filter((item) => item.length > 0)
+
+    return flattened.length > 0 ? flattened : fallback
+  }
+
+  return fallback
+}
+
+function normalizeMemoryCandidates(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) {
+    return fallback
+  }
+
+  const normalized = value
+    .map((item) => {
+      if (typeof item === 'string') {
+        return item.trim()
+      }
+
+      if (item && typeof item === 'object') {
+        const candidate = item as Record<string, unknown>
+        return typeof candidate.content === 'string' ? candidate.content.trim() : ''
+      }
+
+      return ''
+    })
+    .filter((item) => item.length > 0)
+
+  return normalized.length > 0 ? normalized : fallback
 }
 
 function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookView[]): ChapterPlan {
