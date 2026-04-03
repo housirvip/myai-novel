@@ -6,6 +6,7 @@ import { CharacterRepository } from '../../infra/repository/character-repository
 import { ChapterHookUpdateRepository } from '../../infra/repository/chapter-hook-update-repository.js'
 import { ChapterMemoryUpdateRepository } from '../../infra/repository/chapter-memory-update-repository.js'
 import { ChapterRepository } from '../../infra/repository/chapter-repository.js'
+import { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
 import { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
 import { HookRepository } from '../../infra/repository/hook-repository.js'
 import { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
@@ -152,6 +153,7 @@ export function registerStateCommands(program: Command): void {
         const itemRepository = new ItemRepository(database)
         const hookRepository = new HookRepository(database)
         const chapter = chapterRepository.getById(chapterId)
+        const review = new ChapterReviewRepository(database).getLatestByChapterId(chapterId)
         const stateUpdates = new ChapterStateUpdateRepository(database).listByChapterId(chapterId)
         const memoryUpdates = new ChapterMemoryUpdateRepository(database).listByChapterId(chapterId)
         const hookUpdates = new ChapterHookUpdateRepository(database).listByChapterId(chapterId)
@@ -163,6 +165,26 @@ export function registerStateCommands(program: Command): void {
           console.log(`Chapter: #${chapter.index} ${chapter.title}`)
           console.log(`Chapter ID: ${chapter.id}`)
           console.log(`Status: ${chapter.status}`)
+        }
+
+        if (review) {
+          console.log(formatSection(
+            'Latest review:',
+            formatJson({
+              reviewId: review.id,
+              decision: review.decision,
+              closureSummary: summarizeClosureSuggestions(review.closureSuggestions),
+              topIssues: [
+                ...review.consistencyIssues,
+                ...review.characterIssues,
+                ...review.itemIssues,
+                ...review.memoryIssues,
+                ...review.hookIssues,
+              ].slice(0, 5),
+              revisionAdvice: review.revisionAdvice.slice(0, 5),
+            }),
+          ))
+          console.log(formatSection('Review closure suggestions:', formatJson(review.closureSuggestions)))
         }
 
         console.log(formatSection(
@@ -241,4 +263,23 @@ function formatTrace(detail: {
     `after=${detail.after ?? 'N/A'}`,
     `evidence=${detail.evidence.join(' | ') || 'N/A'}`,
   ].join('；')
+}
+
+function summarizeClosureSuggestions(closureSuggestions: {
+  characters: unknown[]
+  items: unknown[]
+  hooks: unknown[]
+  memory: unknown[]
+}): { total: number; characters: number; items: number; hooks: number; memory: number } {
+  return {
+    total:
+      closureSuggestions.characters.length +
+      closureSuggestions.items.length +
+      closureSuggestions.hooks.length +
+      closureSuggestions.memory.length,
+    characters: closureSuggestions.characters.length,
+    items: closureSuggestions.items.length,
+    hooks: closureSuggestions.hooks.length,
+    memory: closureSuggestions.memory.length,
+  }
 }

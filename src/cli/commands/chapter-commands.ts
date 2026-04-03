@@ -71,6 +71,9 @@ export function registerChapterCommands(program: Command): void {
         const reviewRepository = new ChapterReviewRepository(database)
         const rewriteRepository = new ChapterRewriteRepository(database)
         const outputRepository = new ChapterOutputRepository(database)
+        const stateUpdateRepository = new ChapterStateUpdateRepository(database)
+        const memoryUpdateRepository = new ChapterMemoryUpdateRepository(database)
+        const hookUpdateRepository = new ChapterHookUpdateRepository(database)
         const chapter = chapterRepository.getById(chapterId)
 
         if (!chapter) {
@@ -82,6 +85,9 @@ export function registerChapterCommands(program: Command): void {
         const latestReview = reviewRepository.getLatestByChapterId(chapterId)
         const latestRewrite = rewriteRepository.getLatestByChapterId(chapterId)
         const latestOutput = outputRepository.getLatestByChapterId(chapterId)
+        const latestStateUpdates = stateUpdateRepository.listByChapterId(chapterId)
+        const latestMemoryUpdates = memoryUpdateRepository.listByChapterId(chapterId)
+        const latestHookUpdates = hookUpdateRepository.listByChapterId(chapterId)
 
         console.log(`Chapter: #${chapter.index} ${chapter.title}`)
         console.log(`ID: ${chapter.id}`)
@@ -102,6 +108,8 @@ export function registerChapterCommands(program: Command): void {
 
         if (latestReview) {
           console.log(`Latest review: ${latestReview.id} [${latestReview.decision}]`)
+          console.log(`Latest review closures: ${latestReview.closureSuggestions.characters.length + latestReview.closureSuggestions.items.length + latestReview.closureSuggestions.hooks.length + latestReview.closureSuggestions.memory.length}`)
+          console.log(`Latest review advice: ${latestReview.revisionAdvice.slice(0, 2).join('；') || '(none)'}`)
         }
 
         if (latestRewrite) {
@@ -110,6 +118,20 @@ export function registerChapterCommands(program: Command): void {
 
         if (latestOutput) {
           console.log(`Final output: ${latestOutput.finalPath}`)
+        }
+
+        console.log(`Trace summary: state=${latestStateUpdates.length}; memory=${latestMemoryUpdates.length}; hook=${latestHookUpdates.length}`)
+
+        if (latestStateUpdates[0]) {
+          console.log(`Latest state trace: ${latestStateUpdates[0].summary}`)
+        }
+
+        if (latestMemoryUpdates[0]) {
+          console.log(`Latest memory trace: ${latestMemoryUpdates[0].summary}`)
+        }
+
+        if (latestHookUpdates[0]) {
+          console.log(`Latest hook trace: ${latestHookUpdates[0].summary}`)
         }
       } finally {
         database.close()
