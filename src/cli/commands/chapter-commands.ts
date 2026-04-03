@@ -108,6 +108,7 @@ export function registerChapterCommands(program: Command): void {
 
         if (latestReview) {
           console.log(`Latest review: ${latestReview.id} [${latestReview.decision}]`)
+          console.log(`Latest review risk: ${latestReview.approvalRisk}`)
           console.log(`Latest review closures: ${latestReview.closureSuggestions.characters.length + latestReview.closureSuggestions.items.length + latestReview.closureSuggestions.hooks.length + latestReview.closureSuggestions.memory.length}`)
           console.log(`Latest review advice: ${latestReview.revisionAdvice.slice(0, 2).join('；') || '(none)'}`)
         }

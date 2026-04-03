@@ -13,6 +13,7 @@ type ReviewRow = {
   memory_issues_json: string
   pacing_issues_json: string
   hook_issues_json: string
+  approval_risk: ReviewReport['approvalRisk']
   word_count_check_json: string
   new_fact_candidates_json: string
   closure_suggestions_json: string
@@ -39,12 +40,13 @@ export class ChapterReviewRepository {
             memory_issues_json,
             pacing_issues_json,
             hook_issues_json,
+            approval_risk,
             word_count_check_json,
             new_fact_candidates_json,
             closure_suggestions_json,
             revision_advice_json,
             created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -59,6 +61,7 @@ export class ChapterReviewRepository {
         JSON.stringify(review.memoryIssues),
         JSON.stringify(review.pacingIssues),
         JSON.stringify(review.hookIssues),
+        review.approvalRisk,
         JSON.stringify(review.wordCountCheck),
         JSON.stringify(review.newFactCandidates),
         JSON.stringify(review.closureSuggestions),
@@ -120,6 +123,7 @@ function mapReview(row: ReviewRow): ReviewReport {
     memoryIssues: JSON.parse(row.memory_issues_json) as string[],
     pacingIssues: JSON.parse(row.pacing_issues_json) as string[],
     hookIssues: JSON.parse(row.hook_issues_json) as string[],
+    approvalRisk: row.approval_risk,
     wordCountCheck: JSON.parse(row.word_count_check_json) as ReviewReport['wordCountCheck'],
     newFactCandidates: JSON.parse(row.new_fact_candidates_json) as string[],
     closureSuggestions: JSON.parse(row.closure_suggestions_json) as ReviewReport['closureSuggestions'],

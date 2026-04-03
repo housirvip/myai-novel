@@ -175,6 +175,7 @@ export const migrations = [
         character_issues_json TEXT NOT NULL,
         pacing_issues_json TEXT NOT NULL,
         hook_issues_json TEXT NOT NULL,
+        approval_risk TEXT NOT NULL DEFAULT 'medium',
         word_count_check_json TEXT NOT NULL,
         revision_advice_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -356,6 +357,12 @@ export const migrations = [
       ALTER TABLE chapter_state_updates ADD COLUMN detail_json TEXT NOT NULL DEFAULT '{"source":"fallback","reason":"legacy log","evidence":[]}';
       ALTER TABLE chapter_memory_updates ADD COLUMN detail_json TEXT NOT NULL DEFAULT '{"source":"fallback","reason":"legacy log","evidence":[]}';
       ALTER TABLE chapter_hook_updates ADD COLUMN detail_json TEXT NOT NULL DEFAULT '{"source":"fallback","reason":"legacy log","evidence":[]}';
+    `,
+  },
+  {
+    id: '008_review_approval_risk',
+    sql: `
+      ALTER TABLE chapter_reviews ADD COLUMN approval_risk TEXT NOT NULL DEFAULT 'medium';
     `,
   },
 ] as const

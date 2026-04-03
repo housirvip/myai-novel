@@ -104,6 +104,17 @@ export class ReviewService {
       ),
     )
 
+    const characterIssues = mergeCharacterIssues(
+      mergedReview.characterIssues,
+      characterStates,
+      plan.requiredCharacterIds,
+      plan.requiredLocationIds,
+      draft.content,
+    )
+    const itemIssues = mergeItemIssues(mergedReview.itemIssues, importantItems, draft.content, plan.requiredItemIds)
+    const memoryIssues = mergeMemoryIssues(mergedReview.memoryIssues, longTermMemory?.entries ?? [], draft.content)
+    const hookIssues = mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan, draft.content)
+
     const review: ReviewReport = {
       id: createId('review'),
       bookId: book.id,
@@ -111,17 +122,19 @@ export class ReviewService {
       draftId: draft.id,
       decision: mergedReview.decision,
       consistencyIssues: mergedReview.consistencyIssues,
-      characterIssues: mergeCharacterIssues(
-        mergedReview.characterIssues,
-        characterStates,
-        plan.requiredCharacterIds,
-        plan.requiredLocationIds,
-        draft.content,
-      ),
-      itemIssues: mergeItemIssues(mergedReview.itemIssues, importantItems, draft.content, plan.requiredItemIds),
-      memoryIssues: mergeMemoryIssues(mergedReview.memoryIssues, longTermMemory?.entries ?? [], draft.content),
+      characterIssues,
+      itemIssues,
+      memoryIssues,
       pacingIssues: mergedReview.pacingIssues,
-      hookIssues: mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan, draft.content),
+      hookIssues,
+      approvalRisk: deriveApprovalRisk(
+        mergedReview.decision,
+        mergedReview.consistencyIssues,
+        characterIssues,
+        itemIssues,
+        memoryIssues,
+        hookIssues,
+      ),
       wordCountCheck,
       newFactCandidates: mergeNewFactCandidates(mergedReview.newFactCandidates, chapter.objective, plan.memoryCandidates),
       closureSuggestions,
@@ -328,14 +341,17 @@ function createRuleBasedReview(
   const memoryIssues: string[] = []
   const newFactCandidates: string[] = []
 
+  const decision = decideReview(wordCountCheck, consistencyIssues, hookIssues)
+
   return {
-    decision: decideReview(wordCountCheck, consistencyIssues, hookIssues),
+    decision,
     consistencyIssues,
     characterIssues,
     itemIssues,
     memoryIssues,
     pacingIssues,
     hookIssues,
+    approvalRisk: deriveApprovalRisk(decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, hookIssues),
     newFactCandidates,
     closureSuggestions: emptyClosureSuggestions(),
     revisionAdvice: buildRevisionAdvice(wordCountCheck, consistencyIssues, hookIssues, itemIssues),
@@ -422,14 +438,23 @@ async function createLlmReview(
 
     const parsed = JSON.parse(extractJsonObject(response.text)) as Partial<ReviewReport>
 
+    const decision = parsed.decision ?? 'warning'
+    const consistencyIssues = parsed.consistencyIssues ?? []
+    const characterIssues = parsed.characterIssues ?? []
+    const itemIssues = parsed.itemIssues ?? []
+    const memoryIssues = parsed.memoryIssues ?? []
+    const pacingIssues = parsed.pacingIssues ?? []
+    const hookIssues = parsed.hookIssues ?? []
+
     return {
-      decision: parsed.decision ?? 'warning',
-      consistencyIssues: parsed.consistencyIssues ?? [],
-      characterIssues: parsed.characterIssues ?? [],
-      itemIssues: parsed.itemIssues ?? [],
-      memoryIssues: parsed.memoryIssues ?? [],
-      pacingIssues: parsed.pacingIssues ?? [],
-      hookIssues: parsed.hookIssues ?? [],
+      decision,
+      consistencyIssues,
+      characterIssues,
+      itemIssues,
+      memoryIssues,
+      pacingIssues,
+      hookIssues,
+      approvalRisk: deriveApprovalRisk(decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, hookIssues),
       newFactCandidates: parsed.newFactCandidates ?? [],
       closureSuggestions: normalizeClosureSuggestions(parsed.closureSuggestions, 'llm'),
       revisionAdvice: parsed.revisionAdvice ?? ['建议人工复核本章审查结果。'],
@@ -463,6 +488,36 @@ function buildProtectedFactHints(
     ...activeHookStates.slice(0, 3).map((item) => `Hook ${item.hookId}：当前状态=${item.status}`),
     ...longTermEntries.filter((item) => item.importance >= 4).slice(0, 3).map((item) => `长期事实：${item.summary}`),
   ]
+}
+
+function deriveApprovalRisk(
+  decision: ReviewDecision,
+  consistencyIssues: string[],
+  characterIssues: string[],
+  itemIssues: string[],
+  memoryIssues: string[],
+  hookIssues: string[],
+): 'low' | 'medium' | 'high' {
+  if (decision === 'needs-rewrite') {
+    return 'high'
+  }
+
+  const hardIssueCount =
+    consistencyIssues.length +
+    characterIssues.length +
+    itemIssues.length +
+    memoryIssues.length +
+    hookIssues.length
+
+  if (hardIssueCount >= 3) {
+    return 'high'
+  }
+
+  if (decision === 'warning' || hardIssueCount > 0) {
+    return 'medium'
+  }
+
+  return 'low'
 }
 
 function buildRevisionAdvice(

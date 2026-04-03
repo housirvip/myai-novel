@@ -313,6 +313,7 @@ export type ReviewReport = {
   memoryIssues: string[]
   pacingIssues: string[]
   hookIssues: string[]
+  approvalRisk: 'low' | 'medium' | 'high'
   wordCountCheck: WordCountCheck
   newFactCandidates: string[]
   closureSuggestions: ClosureSuggestions

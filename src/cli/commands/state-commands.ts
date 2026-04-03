@@ -173,6 +173,7 @@ export function registerStateCommands(program: Command): void {
             formatJson({
               reviewId: review.id,
               decision: review.decision,
+              approvalRisk: review.approvalRisk,
               closureSummary: summarizeClosureSuggestions(review.closureSuggestions),
               topIssues: [
                 ...review.consistencyIssues,
