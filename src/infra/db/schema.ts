@@ -511,4 +511,10 @@ export const migrations = [
       ALTER TABLE chapter_plans ADD COLUMN must_preserve_facts_json TEXT NOT NULL DEFAULT '[]';
     `,
   },
+  {
+    id: '015_review_layers',
+    sql: `
+      ALTER TABLE chapter_reviews ADD COLUMN review_layers_json TEXT NOT NULL DEFAULT '{"mustFix":[],"narrativeQuality":[],"languageQuality":[],"rewriteStrategySuggestion":{"primary":"consistency-first","secondary":[],"rationale":["legacy review"]}}';
+    `,
+  },
 ] as const

@@ -100,9 +100,14 @@ export class ReviewService {
           chapter.objective,
           draft.content,
           plan.sceneCards,
+          plan.sceneGoals,
+          plan.sceneConstraints,
+          plan.sceneEmotionalTargets,
+          plan.sceneOutcomeChecklist,
           plan.eventOutline,
           plan.statePredictions,
           plan.hookPlan,
+          plan.endingDrive,
           characterStates,
           importantItems,
           longTermMemory?.entries ?? [],
@@ -133,9 +138,14 @@ export class ReviewService {
     )
     const itemIssues = mergeItemIssues(mergedReview.itemIssues, importantItems, draft.content, plan.requiredItemIds)
     const memoryIssues = mergeMemoryIssues(mergedReview.memoryIssues, longTermMemory?.entries ?? [], draft.content)
+    const consistencyIssues = uniqueMessages([
+      ...mergedReview.consistencyIssues,
+      ...mergeSceneExecutionIssues(plan.sceneGoals, plan.sceneOutcomeChecklist, draft.content),
+    ])
     const hookIssues = uniqueMessages([
       ...mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan, draft.content),
       ...mergePressureHookIssues(hookPressures, plan.highPressureHookIds, draft.content),
+      ...mergeEndingDriveIssues(plan.endingDrive, draft.content),
     ])
     const characterIssuesWithArc = uniqueMessages([
       ...characterIssues,
@@ -144,6 +154,7 @@ export class ReviewService {
     const pacingIssues = uniqueMessages([
       ...mergedReview.pacingIssues,
       ...mergeDebtCarryIssues(plan.debtCarryTargets, openNarrativeDebts, draft.content),
+      ...mergeEmotionalProgressionIssues(plan.sceneEmotionalTargets, draft.content),
     ])
 
     const newFactCandidates = mergeNewFactCandidates(
@@ -156,7 +167,7 @@ export class ReviewService {
       chapterObjective: chapter.objective,
       newFactCandidates,
       closureSuggestions,
-      consistencyIssues: mergedReview.consistencyIssues,
+      consistencyIssues,
       characterIssues: characterIssuesWithArc,
       itemIssues,
       memoryIssues,
@@ -165,6 +176,16 @@ export class ReviewService {
       activeHookStates,
       characterStates,
     })
+    const reviewLayers = buildReviewLayers({
+      wordCountCheck,
+      consistencyIssues,
+      characterIssues: characterIssuesWithArc,
+      itemIssues,
+      memoryIssues,
+      pacingIssues,
+      hookIssues,
+      revisionAdvice: mergedReview.revisionAdvice,
+    })
 
     const review: ReviewReport = {
       id: createId('review'),
@@ -172,15 +193,16 @@ export class ReviewService {
       chapterId,
       draftId: draft.id,
       decision: mergedReview.decision,
-      consistencyIssues: mergedReview.consistencyIssues,
+      consistencyIssues,
       characterIssues: characterIssuesWithArc,
       itemIssues,
       memoryIssues,
       pacingIssues,
       hookIssues,
+      reviewLayers,
       approvalRisk: deriveApprovalRisk(
         mergedReview.decision,
-        mergedReview.consistencyIssues,
+        consistencyIssues,
         characterIssuesWithArc,
         itemIssues,
         memoryIssues,
@@ -403,6 +425,7 @@ function createRuleBasedReview(
     memoryIssues,
     pacingIssues,
     hookIssues,
+    reviewLayers: emptyReviewLayers(),
     approvalRisk: deriveApprovalRisk(decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, hookIssues),
     newFactCandidates,
     closureSuggestions: emptyClosureSuggestions(),
@@ -426,9 +449,14 @@ async function createLlmReview(
   objective: string,
   content: string,
   sceneCards: Array<{ title: string; purpose: string; beats: string[]; characterIds: string[]; locationId?: string; factionIds: string[]; itemIds: string[] }>,
+  sceneGoals: Array<{ sceneTitle: string; conflict: string; informationReveal: string; emotionalShift: string }>,
+  sceneConstraints: Array<{ sceneTitle: string; mustInclude: string[]; mustAvoid: string[]; protectedFacts: string[] }>,
+  sceneEmotionalTargets: Array<{ sceneTitle: string; startingEmotion: string; targetEmotion: string; intensity: string }>,
+  sceneOutcomeChecklist: Array<{ sceneTitle: string; mustHappen: string[]; shouldAdvanceHooks: string[]; shouldResolveDebts: string[] }>,
   eventOutline: string[],
   statePredictions: string[],
   hookPlan: Array<{ hookId: string; action: string; note: string }>,
+  endingDrive: string,
   characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>,
   importantItems: ContextItemView[],
   longTermEntries: Array<{ summary: string; importance: number }>,
@@ -439,6 +467,7 @@ async function createLlmReview(
       system: [
         '你是长篇小说章节审查助手。你要同时审查文本质量、结构执行度与状态一致性，而不是只做泛泛评价。',
         '必须优先检查：章节目标承接、scene 是否落地、事件是否真正发生、角色状态一致性、关键物品连续性、Hook 实际处理结果、长期记忆事实冲突、节奏与篇幅。',
+        '还必须检查：sceneGoals 是否真正兑现、endingDrive 是否在结尾形成牵引、sceneEmotionalTargets 是否体现出情绪推进。',
         '请区分硬问题和软问题：会破坏主链路、状态闭环或后续 approve 的问题必须更严厉，并优先写在对应 issues 数组前面。',
         'closureSuggestions 是给 approve 使用的结构化闭环建议，不要只报问题；要尽量回答哪些事实已确认、哪些 Hook 实际推进、哪些事实只能暂时观察。',
         '如果计划要求推进 Hook、状态或事件，但正文没有足够事实承接，必须在 hookIssues / consistencyIssues 中明确指出。',
@@ -457,11 +486,12 @@ async function createLlmReview(
             reviewFocus: [
               '目标是否达成',
               'scene 与 eventOutline 是否真正落地',
+              'sceneGoals 与结果清单是否兑现',
               '角色状态是否违背当前真源',
               '关键物品状态是否连续',
               'Hook 是否被承接、推进、搁置或完成',
               '长期记忆是否被违背',
-              '节奏与结尾牵引是否成立',
+              '节奏、情绪推进与结尾牵引是否成立',
             ],
             outputPriority: [
               '先指出会破坏状态闭环的问题',
@@ -471,9 +501,14 @@ async function createLlmReview(
           },
           chapterPlan: {
             sceneCards,
+            sceneGoals,
+            sceneConstraints,
+            sceneEmotionalTargets,
+            sceneOutcomeChecklist,
             eventOutline,
             statePredictions,
             hookPlan,
+            endingDrive,
           },
           stateConstraints: {
             characterStates,
@@ -517,6 +552,7 @@ async function createLlmReview(
       memoryIssues,
       pacingIssues,
       hookIssues,
+      reviewLayers: emptyReviewLayers(),
       approvalRisk: deriveApprovalRisk(decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, hookIssues),
       newFactCandidates,
       closureSuggestions: normalizeClosureSuggestions(parsed.closureSuggestions, 'llm'),
@@ -976,6 +1012,93 @@ function emptyClosureSuggestions(): ClosureSuggestions {
   }
 }
 
+function emptyReviewLayers(): ReviewReport['reviewLayers'] {
+  return {
+    mustFix: [],
+    narrativeQuality: [],
+    languageQuality: [],
+    rewriteStrategySuggestion: {
+      primary: 'consistency-first',
+      secondary: [],
+      rationale: ['当前尚未生成分层 review 策略建议。'],
+    },
+  }
+}
+
+function buildReviewLayers(input: {
+  wordCountCheck: WordCountCheck
+  consistencyIssues: string[]
+  characterIssues: string[]
+  itemIssues: string[]
+  memoryIssues: string[]
+  pacingIssues: string[]
+  hookIssues: string[]
+  revisionAdvice: string[]
+}): ReviewReport['reviewLayers'] {
+  const mustFix = [
+    ...input.consistencyIssues.map((summary) => ({ category: 'consistency' as const, severity: 'critical' as const, summary })),
+    ...input.characterIssues.map((summary) => ({ category: 'state' as const, severity: 'high' as const, summary })),
+    ...input.itemIssues.map((summary) => ({ category: 'state' as const, severity: 'high' as const, summary })),
+    ...input.memoryIssues.map((summary) => ({ category: 'state' as const, severity: 'high' as const, summary })),
+    ...input.hookIssues.map((summary) => ({ category: 'hook' as const, severity: 'high' as const, summary })),
+  ]
+
+  const narrativeQuality = [
+    ...input.pacingIssues.map((summary) => ({ category: 'pacing' as const, severity: 'medium' as const, summary })),
+    ...input.hookIssues
+      .filter((summary) => summary.includes('结尾') || summary.includes('牵引'))
+      .map((summary) => ({ category: 'ending-drive' as const, severity: 'high' as const, summary })),
+    ...input.pacingIssues
+      .filter((summary) => summary.includes('情绪'))
+      .map((summary) => ({ category: 'emotion' as const, severity: 'medium' as const, summary })),
+    ...input.characterIssues
+      .filter((summary) => summary.includes('弧线'))
+      .map((summary) => ({ category: 'arc' as const, severity: 'medium' as const, summary })),
+    ...input.pacingIssues
+      .filter((summary) => summary.includes('债务'))
+      .map((summary) => ({ category: 'debt' as const, severity: 'medium' as const, summary })),
+  ]
+
+  const languageQuality = [
+    ...(!input.wordCountCheck.passed
+      ? [{ category: 'clarity' as const, severity: 'medium' as const, summary: '篇幅偏离目标区间，影响正文表达密度。' }]
+      : []),
+    ...input.revisionAdvice
+      .filter((summary) => summary.includes('润色') || summary.includes('摘要') || summary.includes('对话'))
+      .map((summary) => ({ category: 'style' as const, severity: 'low' as const, summary })),
+  ]
+
+  const primary = input.consistencyIssues.length > 0 || input.characterIssues.length > 0 || input.itemIssues.length > 0 || input.memoryIssues.length > 0
+    ? 'consistency-first'
+    : (!input.wordCountCheck.passed
+        ? 'length-correction'
+        : (input.hookIssues.some((summary) => summary.includes('结尾') || summary.includes('牵引'))
+            ? 'ending-drive-first'
+            : (input.pacingIssues.some((summary) => summary.includes('情绪')) ? 'emotion-enhance' : 'pacing-first')))
+
+  const secondary = [
+    ...(primary !== 'consistency-first' && mustFix.length > 0 ? ['consistency-first' as const] : []),
+    ...(primary !== 'ending-drive-first' && narrativeQuality.some((item) => item.category === 'ending-drive') ? ['ending-drive-first' as const] : []),
+    ...(primary !== 'emotion-enhance' && narrativeQuality.some((item) => item.category === 'emotion') ? ['emotion-enhance' as const] : []),
+    ...(primary !== 'length-correction' && !input.wordCountCheck.passed ? ['length-correction' as const] : []),
+  ]
+
+  return {
+    mustFix,
+    narrativeQuality,
+    languageQuality,
+    rewriteStrategySuggestion: {
+      primary,
+      secondary,
+      rationale: uniqueMessages([
+        ...mustFix.slice(0, 3).map((item) => item.summary),
+        ...narrativeQuality.slice(0, 3).map((item) => item.summary),
+        ...languageQuality.slice(0, 2).map((item) => item.summary),
+      ]),
+    },
+  }
+}
+
 function mergePressureHookIssues(
   hookPressures: Array<{ hookId: string; pressureScore: number; riskLevel: string }>,
   highPressureHookIds: string[],
@@ -1020,6 +1143,65 @@ function mergeDebtCarryIssues(
   return targets
     .filter((target) => !content.includes(target.split('：').at(-1) ?? target))
     .map((target) => `未完成叙事债务未被承接：${target}`)
+}
+
+function mergeSceneExecutionIssues(
+  sceneGoals: Array<{ sceneTitle: string; conflict: string; informationReveal: string; emotionalShift: string }>,
+  sceneOutcomeChecklist: Array<{ sceneTitle: string; mustHappen: string[] }>,
+  content: string,
+): string[] {
+  const issues: string[] = []
+
+  for (const goal of sceneGoals) {
+    const sceneTitleMentioned = content.includes(goal.sceneTitle)
+    const conflictCovered = includesAnySegment(content, [goal.conflict])
+    const revealCovered = includesAnySegment(content, [goal.informationReveal])
+
+    if (!sceneTitleMentioned && !conflictCovered && !revealCovered) {
+      issues.push(`场景任务 ${goal.sceneTitle} 在正文中落地不足。`)
+    }
+  }
+
+  for (const checklist of sceneOutcomeChecklist) {
+    const missedItems = checklist.mustHappen.filter((item) => !includesAnySegment(content, [item]))
+
+    if (missedItems.length > 0) {
+      issues.push(`场景 ${checklist.sceneTitle} 缺少结果兑现：${missedItems.join('；')}`)
+    }
+  }
+
+  return uniqueMessages(issues)
+}
+
+function mergeEndingDriveIssues(endingDrive: string, content: string): string[] {
+  if (!endingDrive.trim()) {
+    return []
+  }
+
+  return includesAnySegment(content, [endingDrive])
+    ? []
+    : [`章节结尾牵引不足，未明显兑现计划中的结尾驱动：${endingDrive}`]
+}
+
+function mergeEmotionalProgressionIssues(
+  sceneEmotionalTargets: Array<{ sceneTitle: string; startingEmotion: string; targetEmotion: string; intensity: string }>,
+  content: string,
+): string[] {
+  return sceneEmotionalTargets
+    .filter((target) => {
+      const mentionedStart = includesAnySegment(content, [target.startingEmotion])
+      const mentionedEnd = includesAnySegment(content, [target.targetEmotion])
+      return !mentionedStart || !mentionedEnd
+    })
+    .map((target) => `场景 ${target.sceneTitle} 的情绪推进不足：${target.startingEmotion} -> ${target.targetEmotion} (${target.intensity})`)
+}
+
+function includesAnySegment(content: string, candidates: string[]): boolean {
+  return candidates
+    .flatMap((candidate) => candidate.split(/[，。；、,.;:!?（）()【】\[\]<>《》“”"'\-\/\s]+/))
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2)
+    .some((item) => content.includes(item))
 }
 
 function uniqueStrings(values: string[]): string[] {

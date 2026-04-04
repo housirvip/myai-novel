@@ -290,6 +290,32 @@ export type ChapterPlan = {
   approvedByUser: boolean
 }
 
+export type ToneConstraint = {
+  label: string
+  requirement: string
+}
+
+export type NarrativeVoiceConstraint = {
+  pointOfView: 'first-person' | 'third-person-limited' | 'third-person-omniscient'
+  tense: 'past' | 'present'
+  distance: 'close' | 'medium' | 'far'
+  stabilityRequirement: string
+}
+
+export type EmotionalCurve = {
+  openingEmotion: string
+  midEmotion: string
+  endingEmotion: string
+  targetIntensity: 'low' | 'medium' | 'high'
+}
+
+export type WritingQualityContract = {
+  sceneExecutionRules: string[]
+  stateConsistencyRules: string[]
+  endingDriveRule: string
+  proseQualityRules: string[]
+}
+
 export type PlanningContext = {
   book: Book
   outline: Outline
@@ -308,6 +334,16 @@ export type PlanningContext = {
 
 export type WritingContext = PlanningContext & {
   chapterPlan: ChapterPlan
+  sceneTasks: {
+    goals: ChapterPlan['sceneGoals']
+    constraints: ChapterPlan['sceneConstraints']
+    emotionalTargets: ChapterPlan['sceneEmotionalTargets']
+    outcomeChecklist: ChapterPlan['sceneOutcomeChecklist']
+  }
+  writingQualityContract: WritingQualityContract
+  toneConstraints: ToneConstraint[]
+  narrativeVoiceConstraint: NarrativeVoiceConstraint
+  emotionalCurve: EmotionalCurve
 }
 
 export type ChapterDraft = {
@@ -386,6 +422,37 @@ export type ClosureSuggestions = {
   memory: MemoryClosureSuggestion[]
 }
 
+export type MustFixIssue = {
+  category: 'consistency' | 'state' | 'hook' | 'structure'
+  severity: 'high' | 'critical'
+  summary: string
+}
+
+export type NarrativeQualityIssue = {
+  category: 'scene-execution' | 'pacing' | 'ending-drive' | 'emotion' | 'arc' | 'debt'
+  severity: 'low' | 'medium' | 'high'
+  summary: string
+}
+
+export type LanguageQualityIssue = {
+  category: 'clarity' | 'style' | 'dialogue' | 'show-vs-tell'
+  severity: 'low' | 'medium' | 'high'
+  summary: string
+}
+
+export type RewriteStrategySuggestion = {
+  primary: 'consistency-first' | 'pacing-first' | 'ending-drive-first' | 'dialogue-enhance' | 'emotion-enhance' | 'length-correction'
+  secondary: Array<'consistency-first' | 'pacing-first' | 'ending-drive-first' | 'dialogue-enhance' | 'emotion-enhance' | 'length-correction'>
+  rationale: string[]
+}
+
+export type ReviewLayers = {
+  mustFix: MustFixIssue[]
+  narrativeQuality: NarrativeQualityIssue[]
+  languageQuality: LanguageQualityIssue[]
+  rewriteStrategySuggestion: RewriteStrategySuggestion
+}
+
 export type ReviewReport = {
   id: string
   bookId: string
@@ -398,6 +465,7 @@ export type ReviewReport = {
   memoryIssues: string[]
   pacingIssues: string[]
   hookIssues: string[]
+  reviewLayers: ReviewLayers
   approvalRisk: 'low' | 'medium' | 'high'
   wordCountCheck: WordCountCheck
   newFactCandidates: string[]

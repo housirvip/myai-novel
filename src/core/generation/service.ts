@@ -44,6 +44,8 @@ async function createLlmDraft(
       '必须保持小说感：通过场景、动作、对话、感官细节和人物心理推进剧情，尽量少用抽象总结句。',
       '必须满足以下硬约束：承接上一章局势、完成本章目标、呼应主题、避免违背角色/物品/Hook/记忆真源、结尾形成下一章牵引。',
       '必须保持叙事视角稳定、人物行为动机可解释、情绪递进自然、场景转换清晰。',
+      '必须严格执行场景任务包：每个场景都要兑现其冲突推进、信息释放、情绪变化与结果清单。',
+      '必须显式照顾高压力 Hook、关键债务与受保护事实，不能只写成宽泛剧情摘要。',
       '不要把输入中的 JSON 字段名、标题或说明性标签原样写进正文。不要输出 markdown 代码块、不要解释写作思路。',
       '如果有关键状态约束，请把它自然地转化为正文事实，而不是生硬罗列。',
       '请直接输出章节正文。',
@@ -109,6 +111,7 @@ function buildGenerationPromptPayload(context: WritingContext): Record<string, u
         currentLocationId: state.currentLocationId,
         statusNotes: state.statusNotes,
       })),
+      characterArcs: context.characterArcs,
       importantItems: context.importantItems.map((item) => ({
         id: item.id,
         name: item.name,
@@ -118,18 +121,29 @@ function buildGenerationPromptPayload(context: WritingContext): Record<string, u
         locationId: item.locationId,
       })),
       activeHookStates: context.activeHookStates,
+      hookPressures: context.hookPressures,
       hookPlan: context.chapterPlan.hookPlan,
+      narrativePressure: context.narrativePressure,
       memoryRecall: context.memoryRecall,
+      protectedFactConstraints: context.protectedFactConstraints,
     },
+    sceneTasks: context.sceneTasks,
     writingPlan: {
       sceneCards: context.chapterPlan.sceneCards,
       eventOutline: context.chapterPlan.eventOutline,
       statePredictions: context.chapterPlan.statePredictions,
+      endingDrive: context.chapterPlan.endingDrive,
+      mustResolveDebts: context.chapterPlan.mustResolveDebts,
+      mustAdvanceHooks: context.chapterPlan.mustAdvanceHooks,
+      mustPreserveFacts: context.chapterPlan.mustPreserveFacts,
     },
+    qualityContract: context.writingQualityContract,
     styleGuidelines: {
-      narrativeView: '保持单一稳定叙事视角',
+      toneConstraints: context.toneConstraints,
+      narrativeVoice: context.narrativeVoiceConstraint,
+      emotionalCurve: context.emotionalCurve,
       prosePreference: '用具体动作、对话、感官、心理细节推进，不要写成摘要',
-      endingGoal: '结尾必须形成下一章牵引或新的局势变化',
+      endingGoal: context.chapterPlan.endingDrive,
     },
   }
 }
@@ -150,6 +164,30 @@ function createRuleBasedDraft(context: WritingContext, timestamp: string): Chapt
 }
 
 function buildDraftContent(context: WritingContext): string {
+  const sceneTaskSection = context.sceneTasks.goals.length > 0
+    ? [
+        '## 场景任务',
+        '',
+        ...context.sceneTasks.goals.map((goal) => {
+          const constraint = context.sceneTasks.constraints.find((item) => item.sceneTitle === goal.sceneTitle)
+          const emotion = context.sceneTasks.emotionalTargets.find((item) => item.sceneTitle === goal.sceneTitle)
+          const outcome = context.sceneTasks.outcomeChecklist.find((item) => item.sceneTitle === goal.sceneTitle)
+
+          return [
+            `- 场景=${goal.sceneTitle}`,
+            `  - 冲突推进=${goal.conflict}`,
+            `  - 信息释放=${goal.informationReveal}`,
+            `  - 情绪变化=${goal.emotionalShift}`,
+            `  - 必含=${constraint?.mustInclude.join(' / ') || '无'}`,
+            `  - 禁止=${constraint?.mustAvoid.join(' / ') || '无'}`,
+            `  - 保护事实=${constraint?.protectedFacts.join(' / ') || '无'}`,
+            `  - 起始情绪=${emotion?.startingEmotion ?? '无'} -> 目标情绪=${emotion?.targetEmotion ?? '无'} (${emotion?.intensity ?? 'medium'})`,
+            `  - 结果清单=${outcome?.mustHappen.join(' / ') || '无'}`,
+          ].join('\n')
+        }),
+        '',
+      ]
+    : []
   const characterStatesSection = context.characterStates.length > 0
     ? [
         '## 角色当前状态',
@@ -191,6 +229,22 @@ function buildDraftContent(context: WritingContext): string {
         '',
       ]
     : []
+  const writingConstraintSection = [
+    '## 写作约束',
+    '',
+    `- 结尾驱动：${context.chapterPlan.endingDrive}`,
+    ...context.chapterPlan.mustResolveDebts.map((item) => `- 必须承接债务：${item}`),
+    ...context.chapterPlan.mustAdvanceHooks.map((item) => `- 必须推进 Hook：${item}`),
+    ...context.chapterPlan.mustPreserveFacts.map((item) => `- 必须保护事实：${item}`),
+    ...context.writingQualityContract.sceneExecutionRules.map((item) => `- 场景执行规则：${item}`),
+    ...context.writingQualityContract.stateConsistencyRules.map((item) => `- 一致性规则：${item}`),
+    ...context.writingQualityContract.proseQualityRules.map((item) => `- 正文质量规则：${item}`),
+    ...context.toneConstraints.map((item) => `- 风格约束[${item.label}]：${item.requirement}`),
+    `- 叙事视角：${context.narrativeVoiceConstraint.pointOfView} / ${context.narrativeVoiceConstraint.tense} / ${context.narrativeVoiceConstraint.distance}`,
+    `- 视角稳定要求：${context.narrativeVoiceConstraint.stabilityRequirement}`,
+    `- 情绪曲线：${context.emotionalCurve.openingEmotion} -> ${context.emotionalCurve.midEmotion} -> ${context.emotionalCurve.endingEmotion} (${context.emotionalCurve.targetIntensity})`,
+    '',
+  ]
   const memorySection =
     context.memoryRecall.shortTermSummaries.length > 0 ||
     context.memoryRecall.observationEntries.length > 0 ||
@@ -220,6 +274,8 @@ function buildDraftContent(context: WritingContext): string {
       ? `上一章《${context.previousChapter.title}》留下的局势仍在持续发酵。`
       : '这是故事前期的重要起势章节，需要尽快建立主角处境与冲突压力。',
     '',
+    ...sceneTaskSection,
+    ...writingConstraintSection,
     ...characterStatesSection,
     ...memorySection,
     ...importantItemsSection,
@@ -232,7 +288,7 @@ function buildDraftContent(context: WritingContext): string {
     '',
     '## 结尾推进',
     '',
-    '本章结尾应留下新的局势变化，推动读者进入下一章。',
+    context.chapterPlan.endingDrive,
   ].join('\n')
 }
 
