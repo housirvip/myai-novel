@@ -9,6 +9,8 @@ type RewriteRow = {
   source_review_id: string
   version_id: string
   strategy: ChapterRewrite['strategy']
+  strategy_profile_json: string
+  quality_target_json: string
   goals_json: string
   content: string
   actual_word_count: number
@@ -31,12 +33,14 @@ export class ChapterRewriteRepository {
             source_review_id,
             version_id,
             strategy,
+            strategy_profile_json,
+            quality_target_json,
             goals_json,
             content,
             actual_word_count,
             validation_json,
             created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -47,6 +51,8 @@ export class ChapterRewriteRepository {
         rewrite.sourceReviewId,
         rewrite.versionId,
         rewrite.strategy,
+        JSON.stringify(rewrite.strategyProfile),
+        JSON.stringify(rewrite.qualityTarget),
         JSON.stringify(rewrite.goals),
         rewrite.content,
         rewrite.actualWordCount,
@@ -98,6 +104,8 @@ function mapRewrite(row: RewriteRow): ChapterRewrite {
     sourceReviewId: row.source_review_id,
     versionId: row.version_id,
     strategy: row.strategy,
+    strategyProfile: JSON.parse(row.strategy_profile_json) as ChapterRewrite['strategyProfile'],
+    qualityTarget: JSON.parse(row.quality_target_json) as ChapterRewrite['qualityTarget'],
     goals: JSON.parse(row.goals_json) as string[],
     content: row.content,
     actualWordCount: row.actual_word_count,

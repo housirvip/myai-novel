@@ -517,4 +517,11 @@ export const migrations = [
       ALTER TABLE chapter_reviews ADD COLUMN review_layers_json TEXT NOT NULL DEFAULT '{"mustFix":[],"narrativeQuality":[],"languageQuality":[],"rewriteStrategySuggestion":{"primary":"consistency-first","secondary":[],"rationale":["legacy review"]}}';
     `,
   },
+  {
+    id: '016_rewrite_strategy_profile',
+    sql: `
+      ALTER TABLE chapter_rewrites ADD COLUMN strategy_profile_json TEXT NOT NULL DEFAULT '{"primary":"consistency-first","secondary":[],"source":"fallback","rationale":["legacy rewrite"]}';
+      ALTER TABLE chapter_rewrites ADD COLUMN quality_target_json TEXT NOT NULL DEFAULT '{"preserveFacts":true,"preserveHooks":true,"preserveEndingBeat":true,"targetIssueReduction":30,"focusAreas":[]}';
+    `,
+  },
 ] as const

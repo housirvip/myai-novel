@@ -565,11 +565,36 @@ export type RewriteRequest = {
   preserveEndingBeat: boolean
 }
 
+export type RewriteStrategyKind =
+  | 'consistency-first'
+  | 'pacing-first'
+  | 'ending-drive-first'
+  | 'dialogue-enhance'
+  | 'emotion-enhance'
+  | 'length-correction'
+
+export type RewriteStrategyProfile = {
+  primary: RewriteStrategyKind
+  secondary: RewriteStrategyKind[]
+  source: 'review-layers' | 'manual-goals' | 'fallback'
+  rationale: string[]
+}
+
+export type RewriteQualityTarget = {
+  preserveFacts: boolean
+  preserveHooks: boolean
+  preserveEndingBeat: boolean
+  targetIssueReduction: number
+  focusAreas: string[]
+}
+
 export type ChapterRewriteValidation = {
   reviewDecision: ReviewDecision
   approvalRisk: 'low' | 'medium' | 'high'
   issueCount: number
   preservedClosureScore: number
+  strategyAligned: boolean
+  targetedIssueTypes: string[]
 }
 
 export type ChapterRewrite = {
@@ -580,6 +605,8 @@ export type ChapterRewrite = {
   sourceReviewId: string
   versionId: string
   strategy: RewriteRequest['strategy']
+  strategyProfile: RewriteStrategyProfile
+  qualityTarget: RewriteQualityTarget
   goals: string[]
   content: string
   actualWordCount: number

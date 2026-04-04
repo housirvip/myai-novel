@@ -1,4 +1,13 @@
-import type { ChapterRewrite, ClosureSuggestions, LlmAdapter, RewriteRequest } from '../../shared/types/domain.js'
+import type {
+  ChapterRewrite,
+  ClosureSuggestions,
+  LlmAdapter,
+  RewriteRequest,
+  RewriteStrategyKind,
+  RewriteStrategyProfile,
+  RewriteQualityTarget,
+  ReviewReport,
+} from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { createId } from '../../shared/utils/id.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -97,6 +106,8 @@ export class RewriteService {
       relevantLongTermEntries: longTermMemory?.entries.slice(0, 8) ?? [],
     }
 
+    const strategyProfile = resolveRewriteStrategyProfile(review, request.goals)
+    const qualityTarget = buildRewriteQualityTarget(request, review, strategyProfile)
     const timestamp = nowIso()
     const content = this.llmAdapter
       ? await createLlmRewrite(
@@ -117,9 +128,19 @@ export class RewriteService {
           review.closureSuggestions,
           rewriteContext,
           request.goals,
+          strategyProfile,
+          qualityTarget,
         )
-      : buildRewriteContent(draft.content, review.revisionAdvice, review.closureSuggestions, rewriteContext, request.goals)
-    const validation = validateRewrite(review, content)
+      : buildRewriteContent(
+          draft.content,
+          review.revisionAdvice,
+          review.closureSuggestions,
+          rewriteContext,
+          request.goals,
+          strategyProfile,
+          qualityTarget,
+        )
+    const validation = validateRewrite(review, content, strategyProfile)
     const rewrite: ChapterRewrite = {
       id: createId('rewrite'),
       bookId: book.id,
@@ -128,6 +149,8 @@ export class RewriteService {
       sourceReviewId: review.id,
       versionId: createId('rewrite_version'),
       strategy: request.strategy,
+      strategyProfile,
+      qualityTarget,
       goals: request.goals,
       content,
       actualWordCount: estimateWordCount(content),
@@ -172,6 +195,8 @@ async function createLlmRewrite(
     relevantLongTermEntries: Array<{ summary: string; importance: number; sourceChapterId?: string }>
   },
   goals: string[],
+  strategyProfile: RewriteStrategyProfile,
+  qualityTarget: RewriteQualityTarget,
 ): Promise<string> {
   try {
     const response = await llmAdapter.generateText({
@@ -192,6 +217,8 @@ async function createLlmRewrite(
             chapterTitle,
             chapterObjective,
             goals,
+            strategyProfile,
+            qualityTarget,
             mustKeep: [
               '章节核心目标不变',
               '既有事实不被推翻',
@@ -215,7 +242,15 @@ async function createLlmRewrite(
 
     return response.text.trim()
   } catch {
-    return buildRewriteContent(content, revisionAdvice, closureSuggestions, rewriteContext, goals)
+    return buildRewriteContent(
+      content,
+      revisionAdvice,
+      closureSuggestions,
+      rewriteContext,
+      goals,
+      strategyProfile,
+      qualityTarget,
+    )
   }
 }
 
@@ -232,7 +267,15 @@ function validateRewrite(
     closureSuggestions: ClosureSuggestions
   },
   content: string,
-): { reviewDecision: 'pass' | 'warning' | 'needs-rewrite'; approvalRisk: 'low' | 'medium' | 'high'; issueCount: number; preservedClosureScore: number } {
+  strategyProfile: RewriteStrategyProfile,
+): {
+  reviewDecision: 'pass' | 'warning' | 'needs-rewrite'
+  approvalRisk: 'low' | 'medium' | 'high'
+  issueCount: number
+  preservedClosureScore: number
+  strategyAligned: boolean
+  targetedIssueTypes: string[]
+} {
   const issueCount =
     review.consistencyIssues.length +
     review.characterIssues.length +
@@ -247,11 +290,16 @@ function validateRewrite(
     ? 100
     : Math.round((matchedProtectedFacts / protectedFacts.length) * 100)
 
+  const targetedIssueTypes = collectTargetedIssueTypes(review, strategyProfile)
+  const strategyAligned = isStrategyAligned(content, strategyProfile, targetedIssueTypes)
+
   return {
     reviewDecision: review.decision,
     approvalRisk: review.approvalRisk,
     issueCount,
     preservedClosureScore,
+    strategyAligned,
+    targetedIssueTypes,
   }
 }
 
@@ -277,12 +325,19 @@ function buildRewriteContent(
     relevantLongTermEntries: Array<{ summary: string; importance: number }>
   },
   goals: string[],
+  strategyProfile: RewriteStrategyProfile,
+  qualityTarget: RewriteQualityTarget,
 ): string {
   const protectedFacts = summarizeProtectedFacts(closureSuggestions)
   const contextualConstraints = summarizeRewriteContext(rewriteContext)
   const header = [
     '## 重写说明',
     '',
+    `- 主策略：${strategyProfile.primary}`,
+    ...strategyProfile.secondary.map((item) => `- 次策略：${item}`),
+    ...strategyProfile.rationale.map((item) => `- 策略依据：${item}`),
+    `- 目标问题压降：${qualityTarget.targetIssueReduction}%`,
+    ...qualityTarget.focusAreas.map((item) => `- 聚焦区域：${item}`),
     ...revisionAdvice.map((item) => `- 审查建议：${item}`),
     ...goals.map((goal) => `- 重写目标：${goal}`),
     ...protectedFacts.map((fact) => `- 结构化保护：${fact}`),
@@ -290,7 +345,7 @@ function buildRewriteContent(
     '',
   ].join('\n')
 
-  return `${header}${content}\n\n## 重写后补充\n\n本版本已根据审查意见进行了定向调整，重点优化节奏、目标承接和结尾牵引，同时保持 chapter plan、当前状态与 review 已确认的结构化事实边界一致。`
+  return `${header}${content}\n\n## 重写后补充\n\n本版本已根据审查意见进行了定向调整，重点执行 ${strategyProfile.primary}，同时保持 chapter plan、当前状态与 review 已确认的结构化事实边界一致。`
 }
 
 function summarizeRewriteContext(rewriteContext: {
@@ -328,6 +383,94 @@ function summarizeProtectedFacts(closureSuggestions: ClosureSuggestions): string
   ]
 
   return items.length > 0 ? items : ['保持既有结构化事实边界']
+}
+
+function resolveRewriteStrategyProfile(review: ReviewReport, goals: string[]): RewriteStrategyProfile {
+  const manualGoals = goals.join('；')
+  const primary = review.reviewLayers.rewriteStrategySuggestion.primary
+  const secondary = review.reviewLayers.rewriteStrategySuggestion.secondary
+
+  if (manualGoals.includes('对话')) {
+    return {
+      primary: 'dialogue-enhance',
+      secondary: uniqueStrategyKinds([primary, ...secondary]),
+      source: 'manual-goals',
+      rationale: uniqueMessages(['用户显式要求增强对话表现。', ...review.reviewLayers.rewriteStrategySuggestion.rationale]),
+    }
+  }
+
+  if (manualGoals.includes('情绪')) {
+    return {
+      primary: 'emotion-enhance',
+      secondary: uniqueStrategyKinds([primary, ...secondary]),
+      source: 'manual-goals',
+      rationale: uniqueMessages(['用户显式要求增强情绪推进。', ...review.reviewLayers.rewriteStrategySuggestion.rationale]),
+    }
+  }
+
+  return {
+    primary,
+    secondary,
+    source: 'review-layers',
+    rationale: review.reviewLayers.rewriteStrategySuggestion.rationale,
+  }
+}
+
+function buildRewriteQualityTarget(
+  request: RewriteRequest,
+  review: ReviewReport,
+  strategyProfile: RewriteStrategyProfile,
+): RewriteQualityTarget {
+  const mustFixCount = review.reviewLayers.mustFix.length
+  const narrativeCount = review.reviewLayers.narrativeQuality.length
+
+  return {
+    preserveFacts: request.preserveFacts,
+    preserveHooks: request.preserveHooks,
+    preserveEndingBeat: request.preserveEndingBeat,
+    targetIssueReduction: mustFixCount > 0 ? 70 : (narrativeCount > 0 ? 50 : 30),
+    focusAreas: uniqueMessages([
+      ...review.reviewLayers.mustFix.slice(0, 3).map((item) => item.summary),
+      ...review.reviewLayers.narrativeQuality.slice(0, 3).map((item) => item.summary),
+      ...review.reviewLayers.languageQuality.slice(0, 2).map((item) => item.summary),
+      strategyProfile.primary,
+    ]),
+  }
+}
+
+function collectTargetedIssueTypes(review: {
+  consistencyIssues: string[]
+  characterIssues: string[]
+  itemIssues: string[]
+  memoryIssues: string[]
+  pacingIssues: string[]
+  hookIssues: string[]
+}, strategyProfile: RewriteStrategyProfile): string[] {
+  return uniqueMessages([
+    ...(review.consistencyIssues.length > 0 ? ['consistency'] : []),
+    ...(review.characterIssues.length > 0 || review.itemIssues.length > 0 || review.memoryIssues.length > 0 ? ['state'] : []),
+    ...(review.pacingIssues.length > 0 ? ['pacing'] : []),
+    ...(review.hookIssues.length > 0 ? ['hook'] : []),
+    strategyProfile.primary,
+    ...strategyProfile.secondary,
+  ])
+}
+
+function isStrategyAligned(content: string, strategyProfile: RewriteStrategyProfile, targetedIssueTypes: string[]): boolean {
+  const tokens = uniqueMessages([strategyProfile.primary, ...strategyProfile.secondary, ...targetedIssueTypes])
+    .flatMap((item: string) => item.split(/[-\s]+/))
+    .map((item: string) => item.trim())
+    .filter((item: string) => item.length >= 3)
+
+  return tokens.length === 0 || tokens.some((item: string) => content.includes(item)) || content.includes('重写说明')
+}
+
+function uniqueMessages(values: string[]): string[] {
+  return [...new Set(values)]
+}
+
+function uniqueStrategyKinds(values: RewriteStrategyKind[]): RewriteStrategyKind[] {
+  return [...new Set(values)]
 }
 
 function estimateWordCount(content: string): number {
