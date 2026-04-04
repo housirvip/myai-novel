@@ -147,6 +147,11 @@ export class ReviewService {
       ...mergePressureHookIssues(hookPressures, plan.highPressureHookIds, draft.content),
       ...mergeEndingDriveIssues(plan.endingDrive, draft.content),
     ])
+    const missionProgress = evaluateMissionProgress(plan, draft.content)
+    const threadIssues = uniqueMessages([
+      ...mergeMissionIssues(plan, missionProgress),
+      ...mergeThreadFocusIssues(plan.threadFocus, draft.content),
+    ])
     const characterIssuesWithArc = uniqueMessages([
       ...characterIssues,
       ...mergeArcIssues(characterArcs, plan.characterArcTargets, draft.content),
@@ -171,7 +176,7 @@ export class ReviewService {
       characterIssues: characterIssuesWithArc,
       itemIssues,
       memoryIssues,
-      hookIssues,
+      hookIssues: uniqueMessages([...hookIssues, ...threadIssues]),
       pacingIssues,
       activeHookStates,
       characterStates,
@@ -183,7 +188,7 @@ export class ReviewService {
       itemIssues,
       memoryIssues,
       pacingIssues,
-      hookIssues,
+      hookIssues: uniqueMessages([...hookIssues, ...threadIssues]),
       revisionAdvice: mergedReview.revisionAdvice,
     })
 
@@ -199,6 +204,8 @@ export class ReviewService {
       memoryIssues,
       pacingIssues,
       hookIssues,
+      threadIssues,
+      missionProgress,
       reviewLayers,
       approvalRisk: deriveApprovalRisk(
         mergedReview.decision,
@@ -400,6 +407,62 @@ function mergeNewFactCandidates(baseCandidates: string[], objective: string, mem
   return merged
 }
 
+function evaluateMissionProgress(
+  plan: { missionId?: string; threadFocus: string[]; eventOutline: string[]; carryInTasks: string[]; carryOutTasks: string[] },
+  content: string,
+): ReviewReport['missionProgress'] {
+  if (!plan.missionId) {
+    return {
+      status: 'not-applicable',
+      evidence: [],
+    }
+  }
+
+  const evidence = [...new Set([
+    ...plan.threadFocus.filter((item) => content.includes(item)),
+    ...plan.eventOutline.filter((item) => item.length > 0 && content.includes(item)),
+    ...plan.carryInTasks.filter((item) => item.length > 0 && content.includes(item)),
+    ...plan.carryOutTasks.filter((item) => item.length > 0 && content.includes(item)),
+  ])]
+
+  const status = evidence.length >= 2
+    ? 'completed'
+    : (evidence.length === 1 ? 'partial' : 'missing')
+
+  return {
+    missionId: plan.missionId,
+    missionSummary: plan.carryInTasks[0] ?? plan.eventOutline[0],
+    status,
+    evidence,
+  }
+}
+
+function mergeMissionIssues(
+  plan: { missionId?: string; carryInTasks: string[]; carryOutTasks: string[] },
+  missionProgress: ReviewReport['missionProgress'],
+): string[] {
+  if (!plan.missionId || missionProgress.status === 'not-applicable') {
+    return []
+  }
+
+  if (missionProgress.status === 'completed') {
+    return []
+  }
+
+  const target = plan.carryInTasks[0] ?? plan.carryOutTasks[0] ?? plan.missionId
+  return [
+    missionProgress.status === 'partial'
+      ? `卷级 mission 承接不足：${target}`
+      : `卷级 mission 未得到有效推进：${target}`,
+  ]
+}
+
+function mergeThreadFocusIssues(threadFocus: string[], content: string): string[] {
+  return threadFocus
+    .filter((threadId) => !content.includes(threadId))
+    .map((threadId) => `高优先级线程 ${threadId} 本章未形成明确承接。`)
+}
+
 function createRuleBasedReview(
   wordCountCheck: WordCountCheck,
   objective: string,
@@ -425,6 +488,11 @@ function createRuleBasedReview(
     memoryIssues,
     pacingIssues,
     hookIssues,
+    threadIssues: [],
+    missionProgress: {
+      status: 'not-applicable',
+      evidence: [],
+    },
     reviewLayers: emptyReviewLayers(),
     approvalRisk: deriveApprovalRisk(decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, hookIssues),
     newFactCandidates,
@@ -552,6 +620,11 @@ async function createLlmReview(
       memoryIssues,
       pacingIssues,
       hookIssues,
+      threadIssues: [],
+      missionProgress: {
+        status: 'not-applicable',
+        evidence: [],
+      },
       reviewLayers: emptyReviewLayers(),
       approvalRisk: deriveApprovalRisk(decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, hookIssues),
       newFactCandidates,

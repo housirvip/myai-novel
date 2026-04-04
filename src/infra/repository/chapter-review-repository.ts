@@ -129,6 +129,11 @@ function mapReview(row: ReviewRow): ReviewReport {
     memoryIssues: JSON.parse(row.memory_issues_json) as string[],
     pacingIssues: JSON.parse(row.pacing_issues_json) as string[],
     hookIssues: JSON.parse(row.hook_issues_json) as string[],
+    threadIssues: [],
+    missionProgress: {
+      status: 'not-applicable',
+      evidence: [],
+    },
     approvalRisk: row.approval_risk,
     wordCountCheck: JSON.parse(row.word_count_check_json) as ReviewReport['wordCountCheck'],
     newFactCandidates: JSON.parse(row.new_fact_candidates_json) as string[],

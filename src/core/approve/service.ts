@@ -20,6 +20,7 @@ import type {
   NarrativeDebt,
   ReviewReport,
   StoryState,
+  StoryThreadProgress,
   UpdateTraceDetail,
 } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
@@ -52,6 +53,7 @@ import type { ItemRepository } from '../../infra/repository/item-repository.js'
 import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import type { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import type { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
+import type { StoryThreadProgressRepository } from '../../infra/repository/story-thread-progress-repository.js'
 
 type DraftSource =
   | { sourceType: 'rewrite'; sourceId: string; versionId: string; content: string }
@@ -74,6 +76,7 @@ export class ApproveService {
     private readonly chapterMemoryUpdateRepository: ChapterMemoryUpdateRepository,
     private readonly chapterHookUpdateRepository: ChapterHookUpdateRepository,
     private readonly storyStateRepository: StoryStateRepository,
+    private readonly storyThreadProgressRepository: StoryThreadProgressRepository,
     private readonly characterRepository: CharacterRepository,
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
     private readonly characterArcRepository: CharacterArcRepository,
@@ -234,6 +237,7 @@ export class ApproveService {
     this.chapterContradictionRepository.createBatch(outcome.contradictions)
     this.updateCharacterArcState(book.id, chapterId, approvedAt, outcome)
     this.updateHookPressureState(book.id, chapter.index, chapterId, approvedAt, outcome)
+    this.persistStoryThreadProgress(book.id, chapterId, approvedAt, plan, review, outcome)
 
     this.persistUpdateLogs(stateUpdates, memoryUpdates, hookUpdates)
     this.chapterRepository.finalizeChapter(chapterId, source.versionId, finalPath, chapterSummary, approvedAt)
@@ -246,6 +250,7 @@ export class ApproveService {
       stateUpdated: true,
       memoryUpdated: true,
       hooksUpdated: true,
+      threadProgressUpdated: true,
       approvedAt,
       forcedApproval: Boolean(options?.force && review?.approvalRisk === 'high'),
     }
@@ -655,6 +660,48 @@ export class ApproveService {
 
     for (const update of hookUpdates) {
       this.chapterHookUpdateRepository.create(update)
+    }
+  }
+
+  private persistStoryThreadProgress(
+    bookId: string,
+    chapterId: string,
+    createdAt: string,
+    plan: ChapterPlan | null,
+    review: ReviewReport | null,
+    outcome: ChapterOutcome,
+  ): void {
+    const missionMatchedThreadIds =
+      plan?.missionId && review?.missionProgress.missionId === plan.missionId
+        ? (plan.threadFocus ?? [])
+        : []
+    const threadIds = [...new Set([
+      ...(plan?.threadFocus ?? []),
+      ...missionMatchedThreadIds,
+    ])]
+
+    for (const threadId of threadIds) {
+      const impacts: StoryThreadProgress['impacts'] = [
+        {
+          threadId,
+          impactType: review?.missionProgress.status === 'completed' ? 'advance' : 'stall',
+          summary: review?.missionProgress.missionSummary ?? `章节 ${chapterId} 对线程 ${threadId} 的推进记录。`,
+        },
+      ]
+
+      this.storyThreadProgressRepository.create({
+        id: createId('thread_progress'),
+        bookId,
+        threadId,
+        chapterId,
+        progressStatus: review?.missionProgress.status === 'completed' ? 'advanced' : 'stalled',
+        summary:
+          review?.missionProgress.status === 'completed'
+            ? `本章已完成线程 ${threadId} 对应 mission 推进。`
+            : `本章对线程 ${threadId} 的 mission 推进不足。`,
+        impacts,
+        createdAt,
+      })
     }
   }
 

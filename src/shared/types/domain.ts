@@ -637,6 +637,13 @@ export type ReviewReport = {
   memoryIssues: string[]
   pacingIssues: string[]
   hookIssues: string[]
+  threadIssues: string[]
+  missionProgress: {
+    missionId?: string
+    missionSummary?: string
+    status: 'missing' | 'partial' | 'completed' | 'not-applicable'
+    evidence: string[]
+  }
   reviewLayers: ReviewLayers
   approvalRisk: 'low' | 'medium' | 'high'
   wordCountCheck: WordCountCheck
@@ -812,6 +819,7 @@ export type ApproveResult = {
   stateUpdated: boolean
   memoryUpdated: boolean
   hooksUpdated: boolean
+  threadProgressUpdated: boolean
   approvedAt: IsoTimestamp
   forcedApproval: boolean
 }

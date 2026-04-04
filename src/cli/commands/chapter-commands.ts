@@ -31,6 +31,7 @@ import { ItemRepository } from '../../infra/repository/item-repository.js'
 import { LocationRepository } from '../../infra/repository/location-repository.js'
 import { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
+import { StoryThreadProgressRepository } from '../../infra/repository/story-thread-progress-repository.js'
 import { VolumeRepository } from '../../infra/repository/volume-repository.js'
 import type { DropChapterMode } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
@@ -248,6 +249,7 @@ export function registerChapterCommands(program: Command): void {
             new ChapterMemoryUpdateRepository(database),
             new ChapterHookUpdateRepository(database),
             new StoryStateRepository(database),
+            new StoryThreadProgressRepository(database),
             new CharacterRepository(database),
             new CharacterCurrentStateRepository(database),
             new CharacterArcRepository(database),
@@ -274,6 +276,7 @@ export function registerChapterCommands(program: Command): void {
               stateUpdated: approveResult.stateUpdated,
               memoryUpdated: approveResult.memoryUpdated,
               hooksUpdated: approveResult.hooksUpdated,
+              threadProgressUpdated: approveResult.threadProgressUpdated,
             },
           }
         },
@@ -282,6 +285,7 @@ export function registerChapterCommands(program: Command): void {
       console.log(`Chapter approved: ${result.chapterId}`)
       console.log(`Status: ${result.chapterStatus}`)
       console.log(`Forced approval: ${result.forcedApproval}`)
+      console.log(`Thread progress updated: ${result.threadProgressUpdated}`)
       console.log(`Final path: ${result.finalPath}`)
       console.log(`Approved at: ${result.approvedAt}`)
     })
