@@ -1,4 +1,15 @@
-import type { ChapterPlan, Hook, HookPlan, LlmAdapter, PlanningContext, SceneCard } from '../../shared/types/domain.js'
+import type {
+  ChapterPlan,
+  Hook,
+  HookPlan,
+  LlmAdapter,
+  PlanningContext,
+  SceneCard,
+  SceneConstraint,
+  SceneEmotionalTarget,
+  SceneGoal,
+  SceneOutcomeChecklist,
+} from '../../shared/types/domain.js'
 import { createId } from '../../shared/utils/id.js'
 import { extractJsonObject } from '../../shared/utils/json.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -55,7 +66,7 @@ async function createLlmPlan(
       'statePredictions 必须具体到本章后哪些角色状态、物品状态、Hook 状态、记忆沉淀会发生变化。',
       'memoryCandidates 必须是未来值得沉淀的稳定事实或高价值事件，不要重复空话。',
       '只输出 JSON，不要解释，不要使用 markdown 代码块。',
-      'JSON 至少包含 objective, sceneCards, requiredCharacterIds, requiredLocationIds, requiredItemIds, eventOutline, hookPlan, statePredictions, memoryCandidates。',
+      'JSON 至少包含 objective, sceneCards, sceneGoals, sceneConstraints, sceneEmotionalTargets, sceneOutcomeChecklist, endingDrive, mustResolveDebts, mustAdvanceHooks, mustPreserveFacts, requiredCharacterIds, requiredLocationIds, requiredItemIds, eventOutline, hookPlan, statePredictions, memoryCandidates。',
     ].join(' '),
     user: JSON.stringify(buildPlanningPromptPayload(context, activeHooks), null, 2),
   })
@@ -73,11 +84,31 @@ async function createLlmPlan(
   const normalizedHighPressureHookIds = normalizeStringArray(parsed.highPressureHookIds, fallbackPlan.highPressureHookIds)
   const normalizedCharacterArcTargets = normalizeStringArray(parsed.characterArcTargets, fallbackPlan.characterArcTargets)
   const normalizedDebtCarryTargets = normalizeStringArray(parsed.debtCarryTargets, fallbackPlan.debtCarryTargets)
+  const normalizedSceneGoals = normalizeSceneGoals(parsed.sceneGoals, fallbackPlan.sceneGoals)
+  const normalizedSceneConstraints = normalizeSceneConstraints(parsed.sceneConstraints, fallbackPlan.sceneConstraints)
+  const normalizedSceneEmotionalTargets = normalizeSceneEmotionalTargets(
+    parsed.sceneEmotionalTargets,
+    fallbackPlan.sceneEmotionalTargets,
+  )
+  const normalizedSceneOutcomeChecklist = normalizeSceneOutcomeChecklist(
+    parsed.sceneOutcomeChecklist,
+    fallbackPlan.sceneOutcomeChecklist,
+  )
+  const normalizedEndingDrive = typeof parsed.endingDrive === 'string' && parsed.endingDrive.trim().length > 0
+    ? parsed.endingDrive.trim()
+    : fallbackPlan.endingDrive
+  const normalizedMustResolveDebts = normalizeStringArray(parsed.mustResolveDebts, fallbackPlan.mustResolveDebts)
+  const normalizedMustAdvanceHooks = normalizeStringArray(parsed.mustAdvanceHooks, fallbackPlan.mustAdvanceHooks)
+  const normalizedMustPreserveFacts = normalizeStringArray(parsed.mustPreserveFacts, fallbackPlan.mustPreserveFacts)
 
   return {
     ...fallbackPlan,
     objective: parsed.objective ?? fallbackPlan.objective,
     sceneCards: normalizedSceneCards,
+    sceneGoals: normalizedSceneGoals,
+    sceneConstraints: normalizedSceneConstraints,
+    sceneEmotionalTargets: normalizedSceneEmotionalTargets,
+    sceneOutcomeChecklist: normalizedSceneOutcomeChecklist,
     requiredCharacterIds: normalizedRequiredCharacterIds,
     requiredLocationIds: normalizedRequiredLocationIds,
     requiredFactionIds: normalizedRequiredFactionIds,
@@ -89,6 +120,10 @@ async function createLlmPlan(
     highPressureHookIds: normalizedHighPressureHookIds,
     characterArcTargets: normalizedCharacterArcTargets,
     debtCarryTargets: normalizedDebtCarryTargets,
+    endingDrive: normalizedEndingDrive,
+    mustResolveDebts: normalizedMustResolveDebts,
+    mustAdvanceHooks: normalizedMustAdvanceHooks,
+    mustPreserveFacts: normalizedMustPreserveFacts,
   }
 }
 
@@ -145,6 +180,7 @@ function buildPlanningPromptPayload(context: PlanningContext, activeHooks: Activ
       activeHooks,
       hookPressures: context.hookPressures,
       narrativePressure: context.narrativePressure,
+      protectedFactConstraints: context.protectedFactConstraints,
       memoryRecall: context.memoryRecall,
     },
     outputRules: {
@@ -152,6 +188,7 @@ function buildPlanningPromptPayload(context: PlanningContext, activeHooks: Activ
       eventOutlineGuideline: '使用可执行事件，不要写抽象评价',
       statePredictionGuideline: '尽量具体写出哪些状态将在章末变化',
       hookPlanGuideline: '如果存在活跃 Hook，应给出动作和简短说明',
+      sceneTaskGuideline: '每个场景都应声明冲突推进、信息释放、情绪变化与结果清单',
     },
   }
 }
@@ -330,6 +367,126 @@ function normalizeMemoryCandidates(value: unknown, fallback: string[]): string[]
   return normalized.length > 0 ? normalized : fallback
 }
 
+function normalizeSceneGoals(value: unknown, fallback: SceneGoal[]): SceneGoal[] {
+  if (!Array.isArray(value)) {
+    return fallback
+  }
+
+  const normalized = value
+    .map((item, index) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const candidate = item as Record<string, unknown>
+      const sceneTitle = typeof candidate.sceneTitle === 'string' && candidate.sceneTitle.trim().length > 0
+        ? candidate.sceneTitle.trim()
+        : `场景 ${index + 1}`
+      const conflict = typeof candidate.conflict === 'string' && candidate.conflict.trim().length > 0
+        ? candidate.conflict.trim()
+        : '推进当前核心冲突'
+      const informationReveal = typeof candidate.informationReveal === 'string' && candidate.informationReveal.trim().length > 0
+        ? candidate.informationReveal.trim()
+        : '释放必要的新信息'
+      const emotionalShift = typeof candidate.emotionalShift === 'string' && candidate.emotionalShift.trim().length > 0
+        ? candidate.emotionalShift.trim()
+        : '让角色处境发生情绪变化'
+
+      return { sceneTitle, conflict, informationReveal, emotionalShift }
+    })
+    .filter((item): item is SceneGoal => Boolean(item))
+
+  return normalized.length > 0 ? normalized : fallback
+}
+
+function normalizeSceneConstraints(value: unknown, fallback: SceneConstraint[]): SceneConstraint[] {
+  if (!Array.isArray(value)) {
+    return fallback
+  }
+
+  const normalized = value
+    .map((item, index) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const candidate = item as Record<string, unknown>
+      const sceneTitle = typeof candidate.sceneTitle === 'string' && candidate.sceneTitle.trim().length > 0
+        ? candidate.sceneTitle.trim()
+        : `场景 ${index + 1}`
+
+      return {
+        sceneTitle,
+        mustInclude: normalizeStringArray(candidate.mustInclude, []),
+        mustAvoid: normalizeStringArray(candidate.mustAvoid, []),
+        protectedFacts: normalizeStringArray(candidate.protectedFacts, []),
+      }
+    })
+    .filter((item): item is SceneConstraint => Boolean(item))
+
+  return normalized.length > 0 ? normalized : fallback
+}
+
+function normalizeSceneEmotionalTargets(value: unknown, fallback: SceneEmotionalTarget[]): SceneEmotionalTarget[] {
+  if (!Array.isArray(value)) {
+    return fallback
+  }
+
+  const normalized = value
+    .map((item, index) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const candidate = item as Record<string, unknown>
+      const sceneTitle = typeof candidate.sceneTitle === 'string' && candidate.sceneTitle.trim().length > 0
+        ? candidate.sceneTitle.trim()
+        : `场景 ${index + 1}`
+      const startingEmotion = typeof candidate.startingEmotion === 'string' && candidate.startingEmotion.trim().length > 0
+        ? candidate.startingEmotion.trim()
+        : '紧张'
+      const targetEmotion = typeof candidate.targetEmotion === 'string' && candidate.targetEmotion.trim().length > 0
+        ? candidate.targetEmotion.trim()
+        : '更强的不确定感'
+      const intensity = candidate.intensity === 'low' || candidate.intensity === 'medium' || candidate.intensity === 'high'
+        ? candidate.intensity
+        : 'medium'
+
+      return { sceneTitle, startingEmotion, targetEmotion, intensity }
+    })
+    .filter((item): item is SceneEmotionalTarget => Boolean(item))
+
+  return normalized.length > 0 ? normalized : fallback
+}
+
+function normalizeSceneOutcomeChecklist(value: unknown, fallback: SceneOutcomeChecklist[]): SceneOutcomeChecklist[] {
+  if (!Array.isArray(value)) {
+    return fallback
+  }
+
+  const normalized = value
+    .map((item, index) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const candidate = item as Record<string, unknown>
+      const sceneTitle = typeof candidate.sceneTitle === 'string' && candidate.sceneTitle.trim().length > 0
+        ? candidate.sceneTitle.trim()
+        : `场景 ${index + 1}`
+
+      return {
+        sceneTitle,
+        mustHappen: normalizeStringArray(candidate.mustHappen, []),
+        shouldAdvanceHooks: normalizeStringArray(candidate.shouldAdvanceHooks, []),
+        shouldResolveDebts: normalizeStringArray(candidate.shouldResolveDebts, []),
+      }
+    })
+    .filter((item): item is SceneOutcomeChecklist => Boolean(item))
+
+  return normalized.length > 0 ? normalized : fallback
+}
+
 function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookView[]): ChapterPlan {
   const timestamp = nowIso()
   const previousChapterSummary = context.previousChapter
@@ -386,6 +543,75 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
     .slice(0, 3)
     .map((item) => `${item.characterId}:${item.arc}:${item.currentStage}`)
   const highPressureHookIds = hookPlan.map((item) => item.hookId)
+  const mustResolveDebts = debtCarryTargets.slice(0, 3)
+  const mustAdvanceHooks = hookPlan.slice(0, 3).map((item) => item.hookId)
+  const mustPreserveFacts = context.protectedFactConstraints.slice(0, 5)
+  const endingDrive = hookPlan[0]
+    ? `在章末制造与 Hook ${hookPlan[0].hookId} 相关的新悬念或兑现前置动作。`
+    : '在章末制造明确的局势变化与下一章牵引。'
+  const sceneGoals: SceneGoal[] = [
+    {
+      sceneTitle: `${context.chapter.title}-开场铺垫`,
+      conflict: '把上一章余波与本章目标连接起来',
+      informationReveal: '说明当前局势与本章必须处理的压力来源',
+      emotionalShift: '从承接态进入紧张推进态',
+    },
+    {
+      sceneTitle: `${context.chapter.title}-核心推进`,
+      conflict: '推进本章主冲突并压缩角色选择空间',
+      informationReveal: '释放与卷目标、Hook 或债务相关的关键新信息',
+      emotionalShift: '把局势推向更高风险或更强牵引',
+    },
+  ]
+  const sceneConstraints: SceneConstraint[] = [
+    {
+      sceneTitle: `${context.chapter.title}-开场铺垫`,
+      mustInclude: uniqueStrings([
+        previousChapterSummary,
+        `点明本章目标：${context.chapter.objective}`,
+      ]),
+      mustAvoid: ['空转铺垫', '脱离当前状态体系的解释性段落'],
+      protectedFacts: mustPreserveFacts,
+    },
+    {
+      sceneTitle: `${context.chapter.title}-核心推进`,
+      mustInclude: uniqueStrings([
+        ...mustResolveDebts.slice(0, 2),
+        ...mustAdvanceHooks.slice(0, 2).map((hookId) => `推进 Hook：${hookId}`),
+        endingDrive,
+      ]),
+      mustAvoid: ['只讲设定不推进事件', '结尾没有新的牵引'],
+      protectedFacts: mustPreserveFacts,
+    },
+  ]
+  const sceneEmotionalTargets: SceneEmotionalTarget[] = [
+    {
+      sceneTitle: `${context.chapter.title}-开场铺垫`,
+      startingEmotion: '余波未定',
+      targetEmotion: '紧张聚焦',
+      intensity: 'medium',
+    },
+    {
+      sceneTitle: `${context.chapter.title}-核心推进`,
+      startingEmotion: '紧张聚焦',
+      targetEmotion: '高压悬置',
+      intensity: highPressureHooks.length > 0 ? 'high' : 'medium',
+    },
+  ]
+  const sceneOutcomeChecklist: SceneOutcomeChecklist[] = [
+    {
+      sceneTitle: `${context.chapter.title}-开场铺垫`,
+      mustHappen: ['建立本章即时任务', '承接上一章局势'],
+      shouldAdvanceHooks: highPressureHookIds.slice(0, 1),
+      shouldResolveDebts: mustResolveDebts.slice(0, 1),
+    },
+    {
+      sceneTitle: `${context.chapter.title}-核心推进`,
+      mustHappen: ['主冲突发生实质推进', '章末形成新的牵引'],
+      shouldAdvanceHooks: mustAdvanceHooks,
+      shouldResolveDebts: mustResolveDebts.slice(0, 2),
+    },
+  ]
 
   return {
     id: createId('plan'),
@@ -427,6 +653,10 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
         itemIds: requiredItemIds,
       },
     ],
+    sceneGoals,
+    sceneConstraints,
+    sceneEmotionalTargets,
+    sceneOutcomeChecklist,
     requiredCharacterIds,
     requiredLocationIds,
     requiredFactionIds: [],
@@ -458,6 +688,10 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
     highPressureHookIds,
     characterArcTargets,
     debtCarryTargets,
+    endingDrive,
+    mustResolveDebts,
+    mustAdvanceHooks,
+    mustPreserveFacts,
     createdAt: timestamp,
     approvedByUser: false,
   }

@@ -8,6 +8,10 @@ type ChapterPlanRow = {
   version_id: string
   objective: string
   scene_cards_json: string
+  scene_goals_json: string
+  scene_constraints_json: string
+  scene_emotional_targets_json: string
+  scene_outcome_checklist_json: string
   required_character_ids_json: string
   required_location_ids_json: string
   required_faction_ids_json: string
@@ -19,6 +23,10 @@ type ChapterPlanRow = {
   high_pressure_hook_ids_json: string
   character_arc_targets_json: string
   debt_carry_targets_json: string
+  ending_drive: string
+  must_resolve_debts_json: string
+  must_advance_hooks_json: string
+  must_preserve_facts_json: string
   created_at: string
   approved_by_user: number
 }
@@ -37,6 +45,10 @@ export class ChapterPlanRepository {
             version_id,
             objective,
             scene_cards_json,
+            scene_goals_json,
+            scene_constraints_json,
+            scene_emotional_targets_json,
+            scene_outcome_checklist_json,
             required_character_ids_json,
             required_location_ids_json,
             required_faction_ids_json,
@@ -48,9 +60,13 @@ export class ChapterPlanRepository {
             high_pressure_hook_ids_json,
             character_arc_targets_json,
             debt_carry_targets_json,
+            ending_drive,
+            must_resolve_debts_json,
+            must_advance_hooks_json,
+            must_preserve_facts_json,
             created_at,
             approved_by_user
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -60,6 +76,10 @@ export class ChapterPlanRepository {
         plan.versionId,
         plan.objective,
         JSON.stringify(plan.sceneCards),
+        JSON.stringify(plan.sceneGoals),
+        JSON.stringify(plan.sceneConstraints),
+        JSON.stringify(plan.sceneEmotionalTargets),
+        JSON.stringify(plan.sceneOutcomeChecklist),
         JSON.stringify(plan.requiredCharacterIds),
         JSON.stringify(plan.requiredLocationIds),
         JSON.stringify(plan.requiredFactionIds),
@@ -71,6 +91,10 @@ export class ChapterPlanRepository {
         JSON.stringify(plan.highPressureHookIds),
         JSON.stringify(plan.characterArcTargets),
         JSON.stringify(plan.debtCarryTargets),
+        plan.endingDrive,
+        JSON.stringify(plan.mustResolveDebts),
+        JSON.stringify(plan.mustAdvanceHooks),
+        JSON.stringify(plan.mustPreserveFacts),
         plan.createdAt,
         plan.approvedByUser ? 1 : 0,
       )
@@ -131,6 +155,10 @@ function mapChapterPlan(row: ChapterPlanRow): ChapterPlan {
     versionId: row.version_id,
     objective: row.objective,
     sceneCards: JSON.parse(row.scene_cards_json) as ChapterPlan['sceneCards'],
+    sceneGoals: JSON.parse(row.scene_goals_json) as ChapterPlan['sceneGoals'],
+    sceneConstraints: JSON.parse(row.scene_constraints_json) as ChapterPlan['sceneConstraints'],
+    sceneEmotionalTargets: JSON.parse(row.scene_emotional_targets_json) as ChapterPlan['sceneEmotionalTargets'],
+    sceneOutcomeChecklist: JSON.parse(row.scene_outcome_checklist_json) as ChapterPlan['sceneOutcomeChecklist'],
     requiredCharacterIds: JSON.parse(row.required_character_ids_json) as string[],
     requiredLocationIds: JSON.parse(row.required_location_ids_json) as string[],
     requiredFactionIds: JSON.parse(row.required_faction_ids_json) as string[],
@@ -142,6 +170,10 @@ function mapChapterPlan(row: ChapterPlanRow): ChapterPlan {
     highPressureHookIds: JSON.parse(row.high_pressure_hook_ids_json) as string[],
     characterArcTargets: JSON.parse(row.character_arc_targets_json) as string[],
     debtCarryTargets: JSON.parse(row.debt_carry_targets_json) as string[],
+    endingDrive: row.ending_drive,
+    mustResolveDebts: JSON.parse(row.must_resolve_debts_json) as string[],
+    mustAdvanceHooks: JSON.parse(row.must_advance_hooks_json) as string[],
+    mustPreserveFacts: JSON.parse(row.must_preserve_facts_json) as string[],
     createdAt: row.created_at,
     approvedByUser: row.approved_by_user === 1,
   }

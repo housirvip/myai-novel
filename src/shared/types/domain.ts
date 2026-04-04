@@ -197,6 +197,34 @@ export type SceneCard = {
   itemIds: string[]
 }
 
+export type SceneGoal = {
+  sceneTitle: string
+  conflict: string
+  informationReveal: string
+  emotionalShift: string
+}
+
+export type SceneConstraint = {
+  sceneTitle: string
+  mustInclude: string[]
+  mustAvoid: string[]
+  protectedFacts: string[]
+}
+
+export type SceneEmotionalTarget = {
+  sceneTitle: string
+  startingEmotion: string
+  targetEmotion: string
+  intensity: 'low' | 'medium' | 'high'
+}
+
+export type SceneOutcomeChecklist = {
+  sceneTitle: string
+  mustHappen: string[]
+  shouldAdvanceHooks: string[]
+  shouldResolveDebts: string[]
+}
+
 export type HookPlan = {
   hookId: string
   action: 'hold' | 'foreshadow' | 'advance' | 'payoff'
@@ -229,6 +257,7 @@ export type NarrativePressure = {
   characterArcs: CharacterArc[]
   highPressureHooks: HookPressure[]
   openNarrativeDebts: NarrativeDebt[]
+  protectedFacts: string[]
 }
 
 export type ChapterPlan = {
@@ -238,6 +267,10 @@ export type ChapterPlan = {
   versionId: string
   objective: string
   sceneCards: SceneCard[]
+  sceneGoals: SceneGoal[]
+  sceneConstraints: SceneConstraint[]
+  sceneEmotionalTargets: SceneEmotionalTarget[]
+  sceneOutcomeChecklist: SceneOutcomeChecklist[]
   requiredCharacterIds: string[]
   requiredLocationIds: string[]
   requiredFactionIds: string[]
@@ -249,6 +282,10 @@ export type ChapterPlan = {
   highPressureHookIds: string[]
   characterArcTargets: string[]
   debtCarryTargets: string[]
+  endingDrive: string
+  mustResolveDebts: string[]
+  mustAdvanceHooks: string[]
+  mustPreserveFacts: string[]
   createdAt: IsoTimestamp
   approvedByUser: boolean
 }
@@ -265,6 +302,7 @@ export type PlanningContext = {
   activeHookStates: HookCurrentState[]
   hookPressures: HookPressure[]
   narrativePressure: NarrativePressure
+  protectedFactConstraints: string[]
   memoryRecall: MemoryRecallView
 }
 

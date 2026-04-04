@@ -61,6 +61,13 @@ export class PlanningContextBuilder {
     const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
     const hookPressures = this.hookPressureRepository.listActiveByBookId(book.id)
     const openNarrativeDebts = this.narrativeDebtRepository.listOpenByBookId(book.id)
+    const protectedFactConstraints = [...new Set(
+      this.memoryRepository
+        .recallRelevantLongTermEntries(book.id, [chapter.title, chapter.objective, volume.goal])
+        .filter((entry) => entry.importance >= 70)
+        .map((entry) => entry.summary.trim())
+        .filter((entry) => entry.length > 0),
+    )]
     const recallTerms = buildMemoryRecallQueryTerms(
       chapter.title,
       chapter.objective,
@@ -86,7 +93,9 @@ export class PlanningContextBuilder {
         characterArcs,
         highPressureHooks: hookPressures.filter((item) => item.riskLevel === 'high' || item.pressureScore >= 70),
         openNarrativeDebts,
+        protectedFacts: protectedFactConstraints,
       },
+      protectedFactConstraints,
       memoryRecall: {
         shortTermSummaries: shortTermMemory?.summaries ?? [],
         recentEvents: shortTermMemory?.recentEvents ?? [],
