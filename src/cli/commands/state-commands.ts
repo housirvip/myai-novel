@@ -18,6 +18,9 @@ import { LocationRepository } from '../../infra/repository/location-repository.j
 import { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
+import { EndingReadinessRepository } from '../../infra/repository/ending-readiness-repository.js'
+import { StoryThreadRepository } from '../../infra/repository/story-thread-repository.js'
+import { VolumePlanRepository } from '../../infra/repository/volume-plan-repository.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { formatJson, formatSection } from '../../shared/utils/format.js'
 import { openProjectDatabase, runLoggedCommand } from '../context.js'
@@ -41,6 +44,7 @@ export function registerStateCommands(program: Command): void {
         }
 
         const chapterRepository = new ChapterRepository(database)
+        const chapters = chapterRepository.listByBookId(book.id)
         const storyState = new StoryStateRepository(database).getByBookId(book.id)
         const characterRepository = new CharacterRepository(database)
         const locationRepository = new LocationRepository(database)
@@ -51,6 +55,11 @@ export function registerStateCommands(program: Command): void {
         const importantItems = new ItemCurrentStateRepository(database).listImportantByBookId(book.id)
         const hookStates = new HookStateRepository(database).listByBookId(book.id)
         const hookPressures = new HookPressureRepository(database).listActiveByBookId(book.id)
+        const activeStoryThreads = new StoryThreadRepository(database).listActiveByBookId(book.id)
+        const endingReadiness = new EndingReadinessRepository(database).getByBookId(book.id)
+        const latestVolumePlans = [...new Set(chapters.map((chapter) => chapter.volumeId))]
+          .map((volumeId) => new VolumePlanRepository(database).getLatestByVolumeId(volumeId))
+          .filter((plan): plan is NonNullable<typeof plan> => Boolean(plan))
         const openNarrativeDebts = new NarrativeDebtRepository(database).listOpenByBookId(book.id)
         const memoryRepository = new MemoryRepository(database)
         const shortTermMemory = memoryRepository.getShortTermByBookId(book.id)
@@ -116,6 +125,9 @@ export function registerStateCommands(program: Command): void {
         ))
         console.log(formatSection('Character arc current state:', formatJson(characterArcs)))
         console.log(formatSection('Hook pressure current:', formatJson(hookPressures)))
+        console.log(formatSection('Active story threads:', formatJson(activeStoryThreads)))
+        console.log(formatSection('Latest volume plans:', formatJson(latestVolumePlans)))
+        console.log(formatSection('Ending readiness current:', formatJson(endingReadiness)))
         console.log(formatSection('Open narrative debts:', formatJson(openNarrativeDebts)))
         console.log(formatSection('Short-term memory current:', formatJson(shortTermMemory)))
         console.log(formatSection('Observation memory current:', formatJson(observationMemory)))

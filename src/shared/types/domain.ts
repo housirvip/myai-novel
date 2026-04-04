@@ -260,6 +260,169 @@ export type NarrativePressure = {
   protectedFacts: string[]
 }
 
+/**
+ * 卷级滚动规划窗口，描述一次多章规划覆盖的章节范围。
+ *
+ * 这个结构是 `v4` 多章导演语义的基础：
+ * - `windowStartChapterIndex` / `windowEndChapterIndex` 定义规划边界
+ * - `focusThreadIds` 声明这段窗口内优先推进的故事线程
+ * - `goal` 概括这一小段章节串需要完成的总体推进意图
+ */
+export type RollingPlanWindow = {
+  windowStartChapterIndex: number
+  windowEndChapterIndex: number
+  focusThreadIds: string[]
+  goal: string
+}
+
+export type ThreadStage = 'setup' | 'developing' | 'pressure' | 'turning' | 'payoff' | 'closed'
+
+export type ThreadPriority = 'low' | 'medium' | 'high' | 'critical'
+
+/**
+ * StoryThread 表示跨多个章节持续推进的一条叙事线程。
+ *
+ * 它可以是主线、支线、人物线、关系线或世界线，作用是把 `v3`
+ * 的局部状态压力组织成更长期的创作推进对象。
+ */
+export type StoryThread = {
+  id: string
+  bookId: string
+  volumeId: string
+  title: string
+  threadType: 'main' | 'subplot' | 'character' | 'relationship' | 'mystery' | 'world'
+  summary: string
+  priority: ThreadPriority
+  stage: ThreadStage
+  linkedCharacterIds: string[]
+  linkedHookIds: string[]
+  targetOutcome: string
+  status: 'active' | 'paused' | 'resolved'
+  updatedByChapterId?: string
+  updatedAt: IsoTimestamp
+}
+
+export type ThreadProgressStatus = 'setup' | 'advanced' | 'stalled' | 'turning' | 'payoff' | 'closed'
+
+/**
+ * ChapterThreadImpact 描述某一章对某条故事线程产生了什么类型的推进影响。
+ */
+export type ChapterThreadImpact = {
+  threadId: string
+  impactType: 'setup' | 'advance' | 'stall' | 'turn' | 'payoff'
+  summary: string
+}
+
+/**
+ * StoryThreadProgress 是线程推进轨迹的提交记录。
+ *
+ * 与 `StoryThread` 的“当前状态”不同，这里保留的是按章节累积的推进历史，
+ * 方便后续 review / planning 判断一条线程是否长期停滞或偏航。
+ */
+export type StoryThreadProgress = {
+  id: string
+  bookId: string
+  threadId: string
+  chapterId: string
+  progressStatus: ThreadProgressStatus
+  summary: string
+  impacts: ChapterThreadImpact[]
+  createdAt: IsoTimestamp
+}
+
+export type MissionType = 'setup' | 'advance' | 'complicate' | 'stabilize' | 'foreshadow' | 'payoff'
+
+/**
+ * ChapterMission 用来回答“当前章节在卷级窗口中的职责是什么”。
+ *
+ * 一个章节可以承担多条线程中的某一项具体任务，但 mission 本身应是
+ * 当前章可执行、可审查、可提交的单元，因此这里保留了成功信号与优先级。
+ */
+export type ChapterMission = {
+  id: string
+  bookId: string
+  volumeId: string
+  chapterId: string
+  threadId: string
+  missionType: MissionType
+  summary: string
+  successSignal: string
+  priority: ThreadPriority
+  createdAt: IsoTimestamp
+  updatedAt: IsoTimestamp
+}
+
+/**
+ * 终局准备要求定义“为了未来可收束，当前窗口需要提前布置什么”。
+ */
+export type EndingSetupRequirement = {
+  id: string
+  summary: string
+  relatedThreadId?: string
+  targetChapterIndex?: number
+  status: 'pending' | 'in-progress' | 'ready' | 'fulfilled'
+}
+
+/**
+ * VolumePlan 是高于 ChapterPlan 的卷级导演真源。
+ *
+ * 它不直接替代单章计划，而是提供未来 `3-5` 章的中程推进约束，
+ * 让单章 planning 能知道自己在整段叙事中的职责位置。
+ */
+export type VolumePlan = {
+  id: string
+  bookId: string
+  volumeId: string
+  title: string
+  focusSummary: string
+  rollingWindow: RollingPlanWindow
+  threadIds: string[]
+  chapterMissions: ChapterMission[]
+  endingSetupRequirements: EndingSetupRequirement[]
+  createdAt: IsoTimestamp
+  updatedAt: IsoTimestamp
+}
+
+export type ClosureRiskLevel = 'low' | 'medium' | 'high'
+
+export type PayoffRequirement = {
+  summary: string
+  relatedThreadId?: string
+  targetChapterIndex?: number
+  status: 'pending' | 'ready' | 'fulfilled'
+}
+
+export type ClosureGap = {
+  summary: string
+  severity: ClosureRiskLevel
+  relatedThreadId?: string
+}
+
+export type FinalConflictPrerequisite = {
+  summary: string
+  status: 'missing' | 'partial' | 'ready'
+  relatedThreadId?: string
+}
+
+/**
+ * EndingReadiness 是当前项目距离“可以稳定收束结局”还有多远的结构化表达。
+ *
+ * 它不是最终结局文本，而是对回收压力、终局前提、未补缺口的当前状态快照。
+ */
+export type EndingReadiness = {
+  bookId: string
+  targetVolumeId: string
+  readinessScore: number
+  closureScore: number
+  pendingPayoffs: PayoffRequirement[]
+  closureGaps: ClosureGap[]
+  finalConflictPrerequisites: FinalConflictPrerequisite[]
+  updatedAt: IsoTimestamp
+}
+
+/**
+ * ChapterPlan 仍然是单章执行计划，但在 `v4` 中会逐步与卷级 mission 对齐。
+ */
 export type ChapterPlan = {
   id: string
   bookId: string

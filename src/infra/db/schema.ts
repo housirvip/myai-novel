@@ -524,4 +524,71 @@ export const migrations = [
       ALTER TABLE chapter_rewrites ADD COLUMN quality_target_json TEXT NOT NULL DEFAULT '{"preserveFacts":true,"preserveHooks":true,"preserveEndingBeat":true,"targetIssueReduction":30,"focusAreas":[]}';
     `,
   },
+  {
+    id: '017_volume_director_state',
+    sql: `
+      CREATE TABLE IF NOT EXISTS volume_plans (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        volume_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        focus_summary TEXT NOT NULL,
+        rolling_window_json TEXT NOT NULL,
+        thread_ids_json TEXT NOT NULL,
+        chapter_missions_json TEXT NOT NULL,
+        ending_setup_requirements_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS story_threads (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        volume_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        thread_type TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        linked_character_ids_json TEXT NOT NULL,
+        linked_hook_ids_json TEXT NOT NULL,
+        target_outcome TEXT NOT NULL,
+        status TEXT NOT NULL,
+        updated_by_chapter_id TEXT,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE CASCADE,
+        FOREIGN KEY (updated_by_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS story_thread_progress (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        thread_id TEXT NOT NULL,
+        chapter_id TEXT NOT NULL,
+        progress_status TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        detail_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (thread_id) REFERENCES story_threads(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS ending_readiness_current (
+        book_id TEXT PRIMARY KEY,
+        target_volume_id TEXT NOT NULL,
+        readiness_score INTEGER NOT NULL,
+        closure_score INTEGER NOT NULL,
+        pending_payoffs_json TEXT NOT NULL,
+        closure_gaps_json TEXT NOT NULL,
+        final_conflict_prerequisites_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (target_volume_id) REFERENCES volumes(id) ON DELETE CASCADE
+      );
+    `,
+  },
 ] as const
