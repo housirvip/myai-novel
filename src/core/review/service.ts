@@ -7,20 +7,23 @@ import type {
   ReviewReport,
   WordCountCheck,
 } from '../../shared/types/domain.js'
-import { createId } from '../../shared/utils/id.js'
-import { extractJsonObject } from '../../shared/utils/json.js'
-import { nowIso } from '../../shared/utils/time.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
+import type { CharacterArcRepository } from '../../infra/repository/character-arc-repository.js'
 import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
 import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
+import type { HookPressureRepository } from '../../infra/repository/hook-pressure-repository.js'
 import type { HookRepository } from '../../infra/repository/hook-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
+import type { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
+import { createId } from '../../shared/utils/id.js'
+import { extractJsonObject } from '../../shared/utils/json.js'
 import { NovelError } from '../../shared/utils/errors.js'
+import { nowIso } from '../../shared/utils/time.js'
 
 export class ReviewService {
   constructor(
@@ -30,10 +33,13 @@ export class ReviewService {
     private readonly chapterDraftRepository: ChapterDraftRepository,
     private readonly chapterReviewRepository: ChapterReviewRepository,
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
+    private readonly characterArcRepository: CharacterArcRepository,
     private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
     private readonly memoryRepository: MemoryRepository,
     private readonly hookRepository: HookRepository,
     private readonly hookStateRepository: HookStateRepository,
+    private readonly hookPressureRepository: HookPressureRepository,
+    private readonly narrativeDebtRepository: NarrativeDebtRepository,
     private readonly llmAdapter: LlmAdapter | null,
   ) {}
 
@@ -77,9 +83,12 @@ export class ReviewService {
     )
 
     const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
+    const characterArcs = this.characterArcRepository.listByBookId(book.id)
     const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
     const longTermMemory = this.memoryRepository.getLongTermByBookId(book.id)
     const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
+    const hookPressures = this.hookPressureRepository.listActiveByBookId(book.id)
+    const openNarrativeDebts = this.narrativeDebtRepository.listOpenByBookId(book.id)
     const hooks = this.hookRepository.listByBookId(book.id)
 
     const baseReview = createRuleBasedReview(wordCountCheck, chapter.objective, draft.content, plan.sceneCards.length, plan.hookPlan.length)
@@ -124,7 +133,18 @@ export class ReviewService {
     )
     const itemIssues = mergeItemIssues(mergedReview.itemIssues, importantItems, draft.content, plan.requiredItemIds)
     const memoryIssues = mergeMemoryIssues(mergedReview.memoryIssues, longTermMemory?.entries ?? [], draft.content)
-    const hookIssues = mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan, draft.content)
+    const hookIssues = uniqueMessages([
+      ...mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan, draft.content),
+      ...mergePressureHookIssues(hookPressures, plan.highPressureHookIds, draft.content),
+    ])
+    const characterIssuesWithArc = uniqueMessages([
+      ...characterIssues,
+      ...mergeArcIssues(characterArcs, plan.characterArcTargets, draft.content),
+    ])
+    const pacingIssues = uniqueMessages([
+      ...mergedReview.pacingIssues,
+      ...mergeDebtCarryIssues(plan.debtCarryTargets, openNarrativeDebts, draft.content),
+    ])
 
     const newFactCandidates = mergeNewFactCandidates(
       mergedReview.newFactCandidates,
@@ -137,11 +157,11 @@ export class ReviewService {
       newFactCandidates,
       closureSuggestions,
       consistencyIssues: mergedReview.consistencyIssues,
-      characterIssues,
+      characterIssues: characterIssuesWithArc,
       itemIssues,
       memoryIssues,
       hookIssues,
-      pacingIssues: mergedReview.pacingIssues,
+      pacingIssues,
       activeHookStates,
       characterStates,
     })
@@ -153,15 +173,15 @@ export class ReviewService {
       draftId: draft.id,
       decision: mergedReview.decision,
       consistencyIssues: mergedReview.consistencyIssues,
-      characterIssues,
+      characterIssues: characterIssuesWithArc,
       itemIssues,
       memoryIssues,
-      pacingIssues: mergedReview.pacingIssues,
+      pacingIssues,
       hookIssues,
       approvalRisk: deriveApprovalRisk(
         mergedReview.decision,
         mergedReview.consistencyIssues,
-        characterIssues,
+        characterIssuesWithArc,
         itemIssues,
         memoryIssues,
         hookIssues,
@@ -954,6 +974,52 @@ function emptyClosureSuggestions(): ClosureSuggestions {
     hooks: [],
     memory: [],
   }
+}
+
+function mergePressureHookIssues(
+  hookPressures: Array<{ hookId: string; pressureScore: number; riskLevel: string }>,
+  highPressureHookIds: string[],
+  content: string,
+): string[] {
+  const targetHookIds = uniqueStrings([
+    ...highPressureHookIds,
+    ...hookPressures.filter((item) => item.riskLevel === 'high' || item.pressureScore >= 70).map((item) => item.hookId),
+  ])
+
+  return targetHookIds
+    .filter((hookId) => !content.includes(hookId))
+    .map((hookId) => `高压力 Hook ${hookId} 本章未得到明确推进。`)
+}
+
+function mergeArcIssues(
+  characterArcs: Array<{ characterId: string; arc: string; currentStage: string }>,
+  characterArcTargets: string[],
+  content: string,
+): string[] {
+  const targetEntries = characterArcTargets.length > 0
+    ? characterArcTargets
+    : characterArcs.slice(0, 3).map((item) => `${item.characterId}:${item.arc}:${item.currentStage}`)
+
+  return targetEntries
+    .filter((entry) => !content.includes(entry.split(':')[0] ?? ''))
+    .map((entry) => {
+      const [characterId, arc, stage] = entry.split(':')
+      return `角色 ${characterId} 的弧线 ${arc ?? 'current-arc'}（当前阶段=${stage ?? 'unknown'}）本章承接不足。`
+    })
+}
+
+function mergeDebtCarryIssues(
+  debtCarryTargets: string[],
+  openNarrativeDebts: Array<{ summary: string }>,
+  content: string,
+): string[] {
+  const targets = debtCarryTargets.length > 0
+    ? debtCarryTargets
+    : openNarrativeDebts.slice(0, 3).map((item) => item.summary)
+
+  return targets
+    .filter((target) => !content.includes(target.split('：').at(-1) ?? target))
+    .map((target) => `未完成叙事债务未被承接：${target}`)
 }
 
 function uniqueStrings(values: string[]): string[] {

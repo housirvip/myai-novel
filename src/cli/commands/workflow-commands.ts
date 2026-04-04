@@ -109,6 +109,9 @@ export function registerWorkflowCommands(program: Command): void {
         console.log(formatSection('Scene cards:', formatJson(plan.sceneCards)))
         console.log(formatSection('Event outline:', formatJson(plan.eventOutline)))
         console.log(formatSection('State predictions:', formatJson(plan.statePredictions)))
+        console.log(formatSection('High pressure hooks:', formatJson(plan.highPressureHookIds)))
+        console.log(formatSection('Character arc targets:', formatJson(plan.characterArcTargets)))
+        console.log(formatSection('Debt carry targets:', formatJson(plan.debtCarryTargets)))
         console.log(formatSection('Memory candidates:', formatJson(plan.memoryCandidates)))
       } finally {
         database.close()
@@ -213,10 +216,13 @@ export function registerWorkflowCommands(program: Command): void {
             new ChapterDraftRepository(database),
             new ChapterReviewRepository(database),
             new CharacterCurrentStateRepository(database),
+            new CharacterArcRepository(database),
             new ItemCurrentStateRepository(database),
             new MemoryRepository(database),
             new HookRepository(database),
             new HookStateRepository(database),
+            new HookPressureRepository(database),
+            new NarrativeDebtRepository(database),
             createLlmAdapter(),
           )
 
@@ -282,6 +288,7 @@ export function registerWorkflowCommands(program: Command): void {
         console.log(formatSection('Pacing issues:', formatJson(review.pacingIssues)))
         console.log(formatSection('Hook issues:', formatJson(review.hookIssues)))
         console.log(formatSection('New fact candidates:', formatJson(review.newFactCandidates)))
+        console.log(formatSection('Outcome candidate:', formatJson(review.outcomeCandidate)))
         console.log(formatSection('Closure suggestions:', formatJson(review.closureSuggestions)))
         console.log(formatSection('Word count check:', formatJson(review.wordCountCheck)))
         console.log(formatSection('Revision advice:', formatJson(review.revisionAdvice)))

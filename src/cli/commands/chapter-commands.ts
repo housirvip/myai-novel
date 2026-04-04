@@ -7,6 +7,7 @@ import { WorldService } from '../../core/world/service.js'
 import type { NovelDatabase } from '../../infra/db/database.js'
 import { createLlmAdapter } from '../../infra/llm/factory.js'
 import { BookRepository } from '../../infra/repository/book-repository.js'
+import { CharacterArcRepository } from '../../infra/repository/character-arc-repository.js'
 import { ChapterContradictionRepository } from '../../infra/repository/chapter-contradiction-repository.js'
 import { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import { CharacterRepository } from '../../infra/repository/character-repository.js'
@@ -22,6 +23,7 @@ import { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite
 import { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
 import { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import { FactionRepository } from '../../infra/repository/faction-repository.js'
+import { HookPressureRepository } from '../../infra/repository/hook-pressure-repository.js'
 import { HookRepository } from '../../infra/repository/hook-repository.js'
 import { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
@@ -248,8 +250,10 @@ export function registerChapterCommands(program: Command): void {
             new StoryStateRepository(database),
             new CharacterRepository(database),
             new CharacterCurrentStateRepository(database),
+            new CharacterArcRepository(database),
             new HookRepository(database),
             new HookStateRepository(database),
+            new HookPressureRepository(database),
             new ItemRepository(database),
             new ItemCurrentStateRepository(database),
             new MemoryRepository(database),

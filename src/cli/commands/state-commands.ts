@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 
 import { BookRepository } from '../../infra/repository/book-repository.js'
+import { CharacterArcRepository } from '../../infra/repository/character-arc-repository.js'
 import { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import { CharacterRepository } from '../../infra/repository/character-repository.js'
 import { ChapterHookUpdateRepository } from '../../infra/repository/chapter-hook-update-repository.js'
@@ -8,12 +9,14 @@ import { ChapterMemoryUpdateRepository } from '../../infra/repository/chapter-me
 import { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
 import { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
+import { HookPressureRepository } from '../../infra/repository/hook-pressure-repository.js'
 import { HookRepository } from '../../infra/repository/hook-repository.js'
 import { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import { ItemRepository } from '../../infra/repository/item-repository.js'
 import { LocationRepository } from '../../infra/repository/location-repository.js'
 import { MemoryRepository } from '../../infra/repository/memory-repository.js'
+import { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { formatJson, formatSection } from '../../shared/utils/format.js'
@@ -44,8 +47,11 @@ export function registerStateCommands(program: Command): void {
         const itemRepository = new ItemRepository(database)
         const hookRepository = new HookRepository(database)
         const characterStates = new CharacterCurrentStateRepository(database).listByBookId(book.id)
+        const characterArcs = new CharacterArcRepository(database).listByBookId(book.id)
         const importantItems = new ItemCurrentStateRepository(database).listImportantByBookId(book.id)
         const hookStates = new HookStateRepository(database).listByBookId(book.id)
+        const hookPressures = new HookPressureRepository(database).listActiveByBookId(book.id)
+        const openNarrativeDebts = new NarrativeDebtRepository(database).listOpenByBookId(book.id)
         const memoryRepository = new MemoryRepository(database)
         const shortTermMemory = memoryRepository.getShortTermByBookId(book.id)
         const observationMemory = memoryRepository.getObservationByBookId(book.id)
@@ -108,6 +114,9 @@ export function registerStateCommands(program: Command): void {
             updatedAt: state.updatedAt,
           }))),
         ))
+        console.log(formatSection('Character arc current state:', formatJson(characterArcs)))
+        console.log(formatSection('Hook pressure current:', formatJson(hookPressures)))
+        console.log(formatSection('Open narrative debts:', formatJson(openNarrativeDebts)))
         console.log(formatSection('Short-term memory current:', formatJson(shortTermMemory)))
         console.log(formatSection('Observation memory current:', formatJson(observationMemory)))
         console.log(formatSection('Long-term memory current:', formatJson(longTermMemory)))

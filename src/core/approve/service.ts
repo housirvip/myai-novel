@@ -30,6 +30,7 @@ import {
 } from '../../shared/utils/project-paths.js'
 import { nowIso } from '../../shared/utils/time.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
+import type { CharacterArcRepository } from '../../infra/repository/character-arc-repository.js'
 import type { CharacterRepository } from '../../infra/repository/character-repository.js'
 import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import type { ChapterContradictionRepository } from '../../infra/repository/chapter-contradiction-repository.js'
@@ -43,6 +44,7 @@ import type { ChapterRepository } from '../../infra/repository/chapter-repositor
 import type { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
 import type { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
 import type { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
+import type { HookPressureRepository } from '../../infra/repository/hook-pressure-repository.js'
 import type { HookRepository } from '../../infra/repository/hook-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
@@ -74,8 +76,10 @@ export class ApproveService {
     private readonly storyStateRepository: StoryStateRepository,
     private readonly characterRepository: CharacterRepository,
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
+    private readonly characterArcRepository: CharacterArcRepository,
     private readonly hookRepository: HookRepository,
     private readonly hookStateRepository: HookStateRepository,
+    private readonly hookPressureRepository: HookPressureRepository,
     private readonly itemRepository: ItemRepository,
     private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
     private readonly memoryRepository: MemoryRepository,
@@ -228,6 +232,8 @@ export class ApproveService {
     this.chapterOutcomeRepository.create(outcome)
     this.narrativeDebtRepository.createBatch(outcome.narrativeDebts)
     this.chapterContradictionRepository.createBatch(outcome.contradictions)
+    this.updateCharacterArcState(book.id, chapterId, approvedAt, outcome)
+    this.updateHookPressureState(book.id, chapter.index, chapterId, approvedAt, outcome)
 
     this.persistUpdateLogs(stateUpdates, memoryUpdates, hookUpdates)
     this.chapterRepository.finalizeChapter(chapterId, source.versionId, finalPath, chapterSummary, approvedAt)
@@ -592,6 +598,45 @@ export class ApproveService {
       characterArcProgress: candidate.characterArcProgress,
       hookDebtUpdates: candidate.hookDebtUpdates,
       createdAt,
+    }
+  }
+
+  private updateCharacterArcState(
+    bookId: string,
+    chapterId: string,
+    updatedAt: string,
+    outcome: ChapterOutcome,
+  ): void {
+    for (const progress of outcome.characterArcProgress) {
+      this.characterArcRepository.upsert({
+        bookId,
+        characterId: progress.characterId,
+        arc: progress.arc,
+        currentStage: normalizeCharacterArcStage(progress.stage),
+        updatedByChapterId: chapterId,
+        summary: progress.summary,
+        updatedAt,
+      })
+    }
+  }
+
+  private updateHookPressureState(
+    bookId: string,
+    chapterIndex: number,
+    chapterId: string,
+    updatedAt: string,
+    outcome: ChapterOutcome,
+  ): void {
+    for (const update of outcome.hookDebtUpdates) {
+      this.hookPressureRepository.upsert({
+        bookId,
+        hookId: update.hookId,
+        pressureScore: mapPressureToScore(update.pressure),
+        riskLevel: mapPressureToRiskLevel(update.pressure),
+        lastAdvancedChapterId: chapterId,
+        nextSuggestedChapterIndex: chapterIndex + mapPressureToWindow(update.pressure),
+        updatedAt,
+      })
     }
   }
 
@@ -1147,4 +1192,48 @@ function emptyOutcomeCandidate(decision: ReviewReport['decision']): ReviewReport
     characterArcProgress: [],
     hookDebtUpdates: [],
   }
+}
+
+function normalizeCharacterArcStage(value: string): 'setup' | 'rising' | 'crisis' | 'transform' | 'aftermath' {
+  if (value === 'setup' || value === 'rising' || value === 'crisis' || value === 'transform' || value === 'aftermath') {
+    return value
+  }
+
+  if (value === 'blocked') {
+    return 'crisis'
+  }
+
+  if (value === 'advanced') {
+    return 'rising'
+  }
+
+  return 'rising'
+}
+
+function mapPressureToScore(value: 'low' | 'medium' | 'high'): number {
+  if (value === 'high') {
+    return 90
+  }
+
+  if (value === 'medium') {
+    return 60
+  }
+
+  return 30
+}
+
+function mapPressureToRiskLevel(value: 'low' | 'medium' | 'high'): 'low' | 'medium' | 'high' {
+  return value
+}
+
+function mapPressureToWindow(value: 'low' | 'medium' | 'high'): number {
+  if (value === 'high') {
+    return 1
+  }
+
+  if (value === 'medium') {
+    return 2
+  }
+
+  return 3
 }
