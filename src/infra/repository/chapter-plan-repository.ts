@@ -16,6 +16,9 @@ type ChapterPlanRow = {
   hook_plan_json: string
   state_predictions_json: string
   memory_candidates_json: string
+  high_pressure_hook_ids_json: string
+  character_arc_targets_json: string
+  debt_carry_targets_json: string
   created_at: string
   approved_by_user: number
 }
@@ -42,9 +45,12 @@ export class ChapterPlanRepository {
             hook_plan_json,
             state_predictions_json,
             memory_candidates_json,
+            high_pressure_hook_ids_json,
+            character_arc_targets_json,
+            debt_carry_targets_json,
             created_at,
             approved_by_user
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -62,6 +68,9 @@ export class ChapterPlanRepository {
         JSON.stringify(plan.hookPlan),
         JSON.stringify(plan.statePredictions),
         JSON.stringify(plan.memoryCandidates),
+        JSON.stringify(plan.highPressureHookIds),
+        JSON.stringify(plan.characterArcTargets),
+        JSON.stringify(plan.debtCarryTargets),
         plan.createdAt,
         plan.approvedByUser ? 1 : 0,
       )
@@ -130,6 +139,9 @@ function mapChapterPlan(row: ChapterPlanRow): ChapterPlan {
     hookPlan: JSON.parse(row.hook_plan_json) as ChapterPlan['hookPlan'],
     statePredictions: JSON.parse(row.state_predictions_json) as string[],
     memoryCandidates: JSON.parse(row.memory_candidates_json) as string[],
+    highPressureHookIds: JSON.parse(row.high_pressure_hook_ids_json) as string[],
+    characterArcTargets: JSON.parse(row.character_arc_targets_json) as string[],
+    debtCarryTargets: JSON.parse(row.debt_carry_targets_json) as string[],
     createdAt: row.created_at,
     approvedByUser: row.approved_by_user === 1,
   }

@@ -7,16 +7,19 @@ import { PlanningService } from '../../core/planning/service.js'
 import { ReviewService } from '../../core/review/service.js'
 import { createLlmAdapter } from '../../infra/llm/factory.js'
 import { BookRepository } from '../../infra/repository/book-repository.js'
+import { CharacterArcRepository } from '../../infra/repository/character-arc-repository.js'
 import { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
 import { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
 import { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
 import { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
+import { HookPressureRepository } from '../../infra/repository/hook-pressure-repository.js'
 import { HookRepository } from '../../infra/repository/hook-repository.js'
 import { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import { MemoryRepository } from '../../infra/repository/memory-repository.js'
+import { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import { OutlineRepository } from '../../infra/repository/outline-repository.js'
 import { VolumeRepository } from '../../infra/repository/volume-repository.js'
 import { NovelError } from '../../shared/utils/errors.js'
@@ -49,9 +52,12 @@ export function registerWorkflowCommands(program: Command): void {
             chapterRepository,
             volumeRepository,
             new CharacterCurrentStateRepository(database),
+            new CharacterArcRepository(database),
             new ItemCurrentStateRepository(database),
             new MemoryRepository(database),
             new HookStateRepository(database),
+            new HookPressureRepository(database),
+            new NarrativeDebtRepository(database),
           )
           const planningService = new PlanningService(
             contextBuilder,
@@ -129,9 +135,12 @@ export function registerWorkflowCommands(program: Command): void {
             chapterRepository,
             volumeRepository,
             new CharacterCurrentStateRepository(database),
+            new CharacterArcRepository(database),
             new ItemCurrentStateRepository(database),
             new MemoryRepository(database),
             new HookStateRepository(database),
+            new HookPressureRepository(database),
+            new NarrativeDebtRepository(database),
           )
           const writingContextBuilder = new WritingContextBuilder(
             planningContextBuilder,

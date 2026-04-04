@@ -143,6 +143,9 @@ export const migrations = [
         hook_plan_json TEXT NOT NULL,
         state_predictions_json TEXT NOT NULL,
         memory_candidates_json TEXT NOT NULL,
+        high_pressure_hook_ids_json TEXT NOT NULL DEFAULT '[]',
+        character_arc_targets_json TEXT NOT NULL DEFAULT '[]',
+        debt_carry_targets_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL,
         approved_by_user INTEGER NOT NULL,
         FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
@@ -456,6 +459,46 @@ export const migrations = [
         FOREIGN KEY (source_review_id) REFERENCES chapter_reviews(id) ON DELETE SET NULL,
         FOREIGN KEY (source_rewrite_id) REFERENCES chapter_rewrites(id) ON DELETE SET NULL
       );
+    `,
+  },
+  {
+    id: '012_narrative_pressure_state',
+    sql: `
+      CREATE TABLE IF NOT EXISTS character_arc_current_state (
+        book_id TEXT NOT NULL,
+        character_id TEXT NOT NULL,
+        arc TEXT NOT NULL,
+        current_stage TEXT NOT NULL,
+        updated_by_chapter_id TEXT,
+        summary TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (book_id, character_id, arc),
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE,
+        FOREIGN KEY (updated_by_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS hook_pressure_current (
+        book_id TEXT NOT NULL,
+        hook_id TEXT NOT NULL,
+        pressure_score INTEGER NOT NULL,
+        risk_level TEXT NOT NULL,
+        last_advanced_chapter_id TEXT,
+        next_suggested_chapter_index INTEGER,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (book_id, hook_id),
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (hook_id) REFERENCES hooks(id) ON DELETE CASCADE,
+        FOREIGN KEY (last_advanced_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL
+      );
+    `,
+  },
+  {
+    id: '013_plan_pressure_targets',
+    sql: `
+      ALTER TABLE chapter_plans ADD COLUMN high_pressure_hook_ids_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE chapter_plans ADD COLUMN character_arc_targets_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE chapter_plans ADD COLUMN debt_carry_targets_json TEXT NOT NULL DEFAULT '[]';
     `,
   },
 ] as const

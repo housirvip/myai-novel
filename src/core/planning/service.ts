@@ -70,6 +70,9 @@ async function createLlmPlan(
   const normalizedHookPlan = normalizeHookPlan(parsed.hookPlan, fallbackPlan.hookPlan)
   const normalizedStatePredictions = normalizeStatePredictions(parsed.statePredictions, fallbackPlan.statePredictions)
   const normalizedMemoryCandidates = normalizeMemoryCandidates(parsed.memoryCandidates, fallbackPlan.memoryCandidates)
+  const normalizedHighPressureHookIds = normalizeStringArray(parsed.highPressureHookIds, fallbackPlan.highPressureHookIds)
+  const normalizedCharacterArcTargets = normalizeStringArray(parsed.characterArcTargets, fallbackPlan.characterArcTargets)
+  const normalizedDebtCarryTargets = normalizeStringArray(parsed.debtCarryTargets, fallbackPlan.debtCarryTargets)
 
   return {
     ...fallbackPlan,
@@ -83,6 +86,9 @@ async function createLlmPlan(
     hookPlan: normalizedHookPlan,
     statePredictions: normalizedStatePredictions,
     memoryCandidates: normalizedMemoryCandidates,
+    highPressureHookIds: normalizedHighPressureHookIds,
+    characterArcTargets: normalizedCharacterArcTargets,
+    debtCarryTargets: normalizedDebtCarryTargets,
   }
 }
 
@@ -127,6 +133,7 @@ function buildPlanningPromptPayload(context: PlanningContext, activeHooks: Activ
         currentLocationId: state.currentLocationId,
         statusNotes: state.statusNotes,
       })),
+      characterArcs: context.characterArcs,
       importantItems: context.importantItems.map((item) => ({
         id: item.id,
         name: item.name,
@@ -136,6 +143,8 @@ function buildPlanningPromptPayload(context: PlanningContext, activeHooks: Activ
         locationId: item.locationId,
       })),
       activeHooks,
+      hookPressures: context.hookPressures,
+      narrativePressure: context.narrativePressure,
       memoryRecall: context.memoryRecall,
     },
     outputRules: {
@@ -326,7 +335,11 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
   const previousChapterSummary = context.previousChapter
     ? `承接上一章《${context.previousChapter.title}》的推进结果。`
     : '作为开篇章节建立世界与主角当前局势。'
-  const requiredCharacterIds = context.characterStates.slice(0, 3).map((state) => state.characterId)
+  const highPressureHooks = context.narrativePressure.highPressureHooks.slice(0, 3)
+  const requiredCharacterIds = uniqueStrings([
+    ...context.characterStates.slice(0, 3).map((state) => state.characterId),
+    ...context.characterArcs.slice(0, 2).map((arc) => arc.characterId),
+  ])
   const requiredLocationIds = uniqueStrings(
     context.characterStates
       .filter((state) => requiredCharacterIds.includes(state.characterId))
@@ -340,17 +353,39 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
   const memoryBeat = context.memoryRecall.recentEvents[0]
     ? `承接最近事件：${context.memoryRecall.recentEvents[0]}`
     : undefined
-  const hookPlan = activeHooks.slice(0, 3).map((hook) => ({
-    hookId: hook.hookId,
-    action: suggestHookAction(hook.status),
-    note: `围绕 Hook《${hook.title}》进行${describeHookAction(suggestHookAction(hook.status))}，避免本章脱离当前伏笔。`,
-  }))
+  const hookPlan = (highPressureHooks.length > 0
+    ? highPressureHooks.map((pressure) => {
+        const hook = activeHooks.find((item) => item.hookId === pressure.hookId)
+        const status = hook?.status ?? 'open'
+        const action = pressure.riskLevel === 'high' ? 'advance' : suggestHookAction(status)
+
+        return {
+          hookId: pressure.hookId,
+          action,
+          note: `优先处理高压力 Hook ${pressure.hookId}，当前压力=${pressure.pressureScore}，风险=${pressure.riskLevel}。`,
+        }
+      })
+    : activeHooks.slice(0, 3).map((hook) => ({
+        hookId: hook.hookId,
+        action: suggestHookAction(hook.status),
+        note: `围绕 Hook《${hook.title}》进行${describeHookAction(suggestHookAction(hook.status))}，避免本章脱离当前伏笔。`,
+      })))
   const characterStateBeat = context.characterStates[0]
     ? `承接关键角色 ${context.characterStates[0].characterId} 的当前位置与状态。`
+    : undefined
+  const arcBeat = context.characterArcs[0]
+    ? `推动角色 ${context.characterArcs[0].characterId} 的弧线 ${context.characterArcs[0].arc} 从 ${context.characterArcs[0].currentStage} 继续前进。`
     : undefined
   const hookBeat = hookPlan[0]
     ? `处理活跃 Hook：${hookPlan[0].hookId}，执行 ${hookPlan[0].action}`
     : undefined
+  const debtCarryTargets = context.narrativePressure.openNarrativeDebts
+    .slice(0, 3)
+    .map((item) => `${item.debtType}：${item.summary}`)
+  const characterArcTargets = context.characterArcs
+    .slice(0, 3)
+    .map((item) => `${item.characterId}:${item.arc}:${item.currentStage}`)
+  const highPressureHookIds = hookPlan.map((item) => item.hookId)
 
   return {
     id: createId('plan'),
@@ -366,6 +401,7 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
           previousChapterSummary,
           ...(memoryBeat ? [memoryBeat] : []),
           ...(characterStateBeat ? [characterStateBeat] : []),
+          ...(arcBeat ? [arcBeat] : []),
           `点明本章目标：${context.chapter.objective}`,
           `引入卷目标压力：${context.volume.goal}`,
         ],
@@ -378,11 +414,12 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
         title: `${context.chapter.title}-核心推进`,
         purpose: '推进本章核心事件并形成章节结尾钩子',
         beats: context.chapter.plannedBeats.length > 0
-          ? context.chapter.plannedBeats
+          ? [...context.chapter.plannedBeats, ...debtCarryTargets.slice(0, 2)]
           : [
               '推进当前核心冲突',
               '形成新的局势变化',
               '在结尾制造下一章牵引力',
+              ...debtCarryTargets.slice(0, 2),
             ],
         characterIds: requiredCharacterIds,
         locationId: requiredLocationIds[0],
@@ -400,21 +437,27 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
       `至少推进一条核心冲突：${context.outline.coreConflicts[0]}`,
       ...(importantItemBeat ? [importantItemBeat] : []),
       ...(hookBeat ? [hookBeat] : []),
+      ...debtCarryTargets,
     ],
     hookPlan,
     statePredictions: [
       '更新当前章节推进位置',
       '记录本章形成的关键事件',
       ...(requiredCharacterIds.length > 0 ? ['关键角色状态应在本章后产生可追踪变化'] : []),
-      ...(hookPlan.length > 0 ? ['至少一条活跃 Hook 的状态应在本章后发生推进'] : []),
+      ...(hookPlan.length > 0 ? ['至少一条高压力或活跃 Hook 的状态应在本章后发生推进'] : []),
       ...(context.memoryRecall.relevantLongTermEntries.length > 0 ? ['避免与高重要长期记忆冲突'] : []),
+      ...(characterArcTargets.length > 0 ? ['至少一条角色弧线在本章后应进入下一推进阶段'] : []),
     ],
     memoryCandidates: [
       `${context.chapter.title} 的关键事件摘要`,
       `${context.chapter.objective} 对主线造成的推进结果`,
       ...hookPlan.slice(0, 2).map((item) => `Hook ${item.hookId} 在本章的推进结果`),
       ...context.memoryRecall.relevantLongTermEntries.slice(0, 2).map((entry) => `承接长期记忆：${entry.summary}`),
+      ...debtCarryTargets.slice(0, 2).map((item) => `待承接债务：${item}`),
     ],
+    highPressureHookIds,
+    characterArcTargets,
+    debtCarryTargets,
     createdAt: timestamp,
     approvedByUser: false,
   }

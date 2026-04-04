@@ -203,6 +203,34 @@ export type HookPlan = {
   note: string
 }
 
+export type CharacterArcStage = 'setup' | 'rising' | 'crisis' | 'transform' | 'aftermath'
+
+export type CharacterArc = {
+  bookId: string
+  characterId: string
+  arc: string
+  currentStage: CharacterArcStage
+  updatedByChapterId?: string
+  summary: string
+  updatedAt: IsoTimestamp
+}
+
+export type HookPressure = {
+  bookId: string
+  hookId: string
+  pressureScore: number
+  riskLevel: 'low' | 'medium' | 'high'
+  lastAdvancedChapterId?: string
+  nextSuggestedChapterIndex?: number
+  updatedAt: IsoTimestamp
+}
+
+export type NarrativePressure = {
+  characterArcs: CharacterArc[]
+  highPressureHooks: HookPressure[]
+  openNarrativeDebts: NarrativeDebt[]
+}
+
 export type ChapterPlan = {
   id: string
   bookId: string
@@ -218,6 +246,9 @@ export type ChapterPlan = {
   hookPlan: HookPlan[]
   statePredictions: string[]
   memoryCandidates: string[]
+  highPressureHookIds: string[]
+  characterArcTargets: string[]
+  debtCarryTargets: string[]
   createdAt: IsoTimestamp
   approvedByUser: boolean
 }
@@ -229,8 +260,11 @@ export type PlanningContext = {
   volume: Volume
   previousChapter: Chapter | null
   characterStates: CharacterCurrentState[]
+  characterArcs: CharacterArc[]
   importantItems: ContextItemView[]
   activeHookStates: HookCurrentState[]
+  hookPressures: HookPressure[]
+  narrativePressure: NarrativePressure
   memoryRecall: MemoryRecallView
 }
 

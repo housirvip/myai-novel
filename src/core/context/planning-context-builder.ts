@@ -1,11 +1,14 @@
 import type { PlanningContext } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
+import type { CharacterArcRepository } from '../../infra/repository/character-arc-repository.js'
 import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
+import type { HookPressureRepository } from '../../infra/repository/hook-pressure-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
+import type { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import type { OutlineRepository } from '../../infra/repository/outline-repository.js'
 import type { VolumeRepository } from '../../infra/repository/volume-repository.js'
 
@@ -16,9 +19,12 @@ export class PlanningContextBuilder {
     private readonly chapterRepository: ChapterRepository,
     private readonly volumeRepository: VolumeRepository,
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
+    private readonly characterArcRepository: CharacterArcRepository,
     private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
     private readonly memoryRepository: MemoryRepository,
     private readonly hookStateRepository: HookStateRepository,
+    private readonly hookPressureRepository: HookPressureRepository,
+    private readonly narrativeDebtRepository: NarrativeDebtRepository,
   ) {}
 
   build(chapterId: string): PlanningContext {
@@ -48,10 +54,13 @@ export class PlanningContextBuilder {
 
     const previousChapter = this.chapterRepository.getPreviousChapter(book.id, chapter.index)
     const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
+    const characterArcs = this.characterArcRepository.listByBookId(book.id)
     const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
     const shortTermMemory = this.memoryRepository.getShortTermByBookId(book.id)
     const observationMemory = this.memoryRepository.getObservationByBookId(book.id)
     const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
+    const hookPressures = this.hookPressureRepository.listActiveByBookId(book.id)
+    const openNarrativeDebts = this.narrativeDebtRepository.listOpenByBookId(book.id)
     const recallTerms = buildMemoryRecallQueryTerms(
       chapter.title,
       chapter.objective,
@@ -69,8 +78,15 @@ export class PlanningContextBuilder {
       volume,
       previousChapter,
       characterStates,
+      characterArcs,
       importantItems,
       activeHookStates,
+      hookPressures,
+      narrativePressure: {
+        characterArcs,
+        highPressureHooks: hookPressures.filter((item) => item.riskLevel === 'high' || item.pressureScore >= 70),
+        openNarrativeDebts,
+      },
       memoryRecall: {
         shortTermSummaries: shortTermMemory?.summaries ?? [],
         recentEvents: shortTermMemory?.recentEvents ?? [],
