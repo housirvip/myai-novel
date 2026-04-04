@@ -677,6 +677,7 @@ export type ReviewReport = {
   pacingIssues: string[]
   hookIssues: string[]
   threadIssues: string[]
+  endingReadinessIssues: string[]
   missionProgress: {
     missionId?: string
     missionSummary?: string
@@ -859,6 +860,7 @@ export type ApproveResult = {
   memoryUpdated: boolean
   hooksUpdated: boolean
   threadProgressUpdated: boolean
+  endingReadinessUpdated: boolean
   approvedAt: IsoTimestamp
   forcedApproval: boolean
 }

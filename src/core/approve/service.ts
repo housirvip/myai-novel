@@ -51,6 +51,7 @@ import type { HookStateRepository } from '../../infra/repository/hook-state-repo
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { ItemRepository } from '../../infra/repository/item-repository.js'
 import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
+import type { EndingReadinessRepository } from '../../infra/repository/ending-readiness-repository.js'
 import type { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import type { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
 import type { StoryThreadProgressRepository } from '../../infra/repository/story-thread-progress-repository.js'
@@ -77,6 +78,7 @@ export class ApproveService {
     private readonly chapterHookUpdateRepository: ChapterHookUpdateRepository,
     private readonly storyStateRepository: StoryStateRepository,
     private readonly storyThreadProgressRepository: StoryThreadProgressRepository,
+    private readonly endingReadinessRepository: EndingReadinessRepository,
     private readonly characterRepository: CharacterRepository,
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
     private readonly characterArcRepository: CharacterArcRepository,
@@ -238,6 +240,7 @@ export class ApproveService {
     this.updateCharacterArcState(book.id, chapterId, approvedAt, outcome)
     this.updateHookPressureState(book.id, chapter.index, chapterId, approvedAt, outcome)
     this.persistStoryThreadProgress(book.id, chapterId, approvedAt, plan, review, outcome)
+    this.updateEndingReadiness(book.id, chapter.volumeId, chapterId, approvedAt, plan, review)
 
     this.persistUpdateLogs(stateUpdates, memoryUpdates, hookUpdates)
     this.chapterRepository.finalizeChapter(chapterId, source.versionId, finalPath, chapterSummary, approvedAt)
@@ -251,6 +254,7 @@ export class ApproveService {
       memoryUpdated: true,
       hooksUpdated: true,
       threadProgressUpdated: true,
+      endingReadinessUpdated: true,
       approvedAt,
       forcedApproval: Boolean(options?.force && review?.approvalRisk === 'high'),
     }
@@ -661,6 +665,43 @@ export class ApproveService {
     for (const update of hookUpdates) {
       this.chapterHookUpdateRepository.create(update)
     }
+  }
+
+  private updateEndingReadiness(
+    bookId: string,
+    targetVolumeId: string,
+    chapterId: string,
+    updatedAt: string,
+    plan: ChapterPlan | null,
+    review: ReviewReport | null,
+  ): void {
+    const previous = this.endingReadinessRepository.getByBookId(bookId)
+    const remainingCarryThreads = (plan?.subplotCarryThreadIds ?? []).filter((threadId) => !review?.endingReadinessIssues.some((issue) => issue.includes(threadId)))
+    const readinessScore = Math.max(0, Math.min(100, 100 - (review?.endingReadinessIssues.length ?? 0) * 15))
+    const closureScore = Math.max(0, Math.min(100, 100 - remainingCarryThreads.length * 20))
+
+    this.endingReadinessRepository.upsert({
+      bookId,
+      targetVolumeId,
+      readinessScore,
+      closureScore,
+      pendingPayoffs: remainingCarryThreads.map((threadId) => ({
+        summary: `线程 ${threadId} 仍需在终局前完成回收。`,
+        relatedThreadId: threadId,
+        status: 'pending',
+      })),
+      closureGaps: (review?.endingReadinessIssues ?? []).map((summary) => ({
+        summary,
+        severity: 'high',
+      })),
+      finalConflictPrerequisites: previous?.finalConflictPrerequisites ?? [
+        {
+          summary: `章节 ${chapterId} 后的终局前提持续跟踪中。`,
+          status: review?.endingReadinessIssues.length ? 'partial' : 'ready',
+        },
+      ],
+      updatedAt,
+    })
   }
 
   private persistStoryThreadProgress(

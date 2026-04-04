@@ -130,6 +130,7 @@ function mapReview(row: ReviewRow): ReviewReport {
     pacingIssues: JSON.parse(row.pacing_issues_json) as string[],
     hookIssues: JSON.parse(row.hook_issues_json) as string[],
     threadIssues: [],
+    endingReadinessIssues: [],
     missionProgress: {
       status: 'not-applicable',
       evidence: [],

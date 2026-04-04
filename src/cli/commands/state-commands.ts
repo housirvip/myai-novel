@@ -19,6 +19,7 @@ import { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
 import { EndingReadinessRepository } from '../../infra/repository/ending-readiness-repository.js'
+import { StoryThreadProgressRepository } from '../../infra/repository/story-thread-progress-repository.js'
 import { StoryThreadRepository } from '../../infra/repository/story-thread-repository.js'
 import { VolumePlanRepository } from '../../infra/repository/volume-plan-repository.js'
 import { NovelError } from '../../shared/utils/errors.js'
@@ -56,6 +57,7 @@ export function registerStateCommands(program: Command): void {
         const hookStates = new HookStateRepository(database).listByBookId(book.id)
         const hookPressures = new HookPressureRepository(database).listActiveByBookId(book.id)
         const activeStoryThreads = new StoryThreadRepository(database).listActiveByBookId(book.id)
+        const recentThreadProgress = new StoryThreadProgressRepository(database).listByBookId(book.id).slice(0, 10)
         const endingReadiness = new EndingReadinessRepository(database).getByBookId(book.id)
         const latestVolumePlans = [...new Set(chapters.map((chapter) => chapter.volumeId))]
           .map((volumeId) => new VolumePlanRepository(database).getLatestByVolumeId(volumeId))
@@ -126,6 +128,7 @@ export function registerStateCommands(program: Command): void {
         console.log(formatSection('Character arc current state:', formatJson(characterArcs)))
         console.log(formatSection('Hook pressure current:', formatJson(hookPressures)))
         console.log(formatSection('Active story threads:', formatJson(activeStoryThreads)))
+        console.log(formatSection('Recent thread progress:', formatJson(recentThreadProgress)))
         console.log(formatSection('Latest volume plans:', formatJson(latestVolumePlans)))
         console.log(formatSection('Ending readiness current:', formatJson(endingReadiness)))
         console.log(formatSection('Open narrative debts:', formatJson(openNarrativeDebts)))

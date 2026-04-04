@@ -138,6 +138,7 @@ export class ReviewService {
     )
     const itemIssues = mergeItemIssues(mergedReview.itemIssues, importantItems, draft.content, plan.requiredItemIds)
     const memoryIssues = mergeMemoryIssues(mergedReview.memoryIssues, longTermMemory?.entries ?? [], draft.content)
+    const endingReadinessIssues = mergeEndingReadinessIssues(plan, draft.content)
     const consistencyIssues = uniqueMessages([
       ...mergedReview.consistencyIssues,
       ...mergeSceneExecutionIssues(plan.sceneGoals, plan.sceneOutcomeChecklist, draft.content),
@@ -177,7 +178,7 @@ export class ReviewService {
       characterIssues: characterIssuesWithArc,
       itemIssues,
       memoryIssues,
-      hookIssues: uniqueMessages([...hookIssues, ...threadIssues]),
+      hookIssues: uniqueMessages([...hookIssues, ...threadIssues, ...endingReadinessIssues]),
       pacingIssues,
       activeHookStates,
       characterStates,
@@ -189,7 +190,7 @@ export class ReviewService {
       itemIssues,
       memoryIssues,
       pacingIssues,
-      hookIssues: uniqueMessages([...hookIssues, ...threadIssues]),
+      hookIssues: uniqueMessages([...hookIssues, ...threadIssues, ...endingReadinessIssues]),
       revisionAdvice: mergedReview.revisionAdvice,
     })
 
@@ -206,6 +207,7 @@ export class ReviewService {
       pacingIssues,
       hookIssues,
       threadIssues,
+      endingReadinessIssues,
       missionProgress,
       reviewLayers,
       approvalRisk: deriveApprovalRisk(
@@ -490,6 +492,7 @@ function createRuleBasedReview(
     pacingIssues,
     hookIssues,
     threadIssues: [],
+    endingReadinessIssues: [],
     missionProgress: {
       status: 'not-applicable',
       evidence: [],
@@ -622,6 +625,7 @@ async function createLlmReview(
       pacingIssues,
       hookIssues,
       threadIssues: [],
+      endingReadinessIssues: [],
       missionProgress: {
         status: 'not-applicable',
         evidence: [],
@@ -1203,6 +1207,23 @@ function mergeArcIssues(
       const [characterId, arc, stage] = entry.split(':')
       return `角色 ${characterId} 的弧线 ${arc ?? 'current-arc'}（当前阶段=${stage ?? 'unknown'}）本章承接不足。`
     })
+}
+
+function mergeEndingReadinessIssues(
+  plan: { subplotCarryThreadIds: string[]; carryOutTasks: string[]; endingDrive: string },
+  content: string,
+): string[] {
+  return [
+    ...plan.subplotCarryThreadIds
+      .filter((threadId) => !content.includes(threadId))
+      .map((threadId) => `终局收束准备不足：关键支线 ${threadId} 尚未在本章形成承接。`),
+    ...(plan.endingDrive.trim().length > 0 && !includesAnySegment(content, [plan.endingDrive])
+      ? [`终局收束准备不足：章末未体现结局前置牵引。`]
+      : []),
+    ...plan.carryOutTasks
+      .filter((task) => task.includes('后续') && !includesAnySegment(content, [task]))
+      .map((task) => `终局收束准备不足：未形成后续收束承接口。${task}`),
+  ]
 }
 
 function mergeEnsembleBalanceIssues(
