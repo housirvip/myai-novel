@@ -13,7 +13,7 @@
 1. 多章连续规划
 2. 长期主线推进控制
 3. 结局收束与回收控制
-4. 可维护性强化
+4. 命令层拆分重构与可维护性强化
 5. 最后再补配套验证与可视化
 
 ---
@@ -95,6 +95,7 @@
 - `domain` 层类型要补足结构化注释，明确每个模型在创作链中的职责
 - 核心 service 的关键决策点要补足注释，说明为什么这样推进状态和质量控制
 - 注释重点应放在“叙事语义”和“状态流转语义”，而不是重复代码表面行为
+- 注释强化应从 `M0-M1` 开始同步执行，而不是等卷级能力做完后再补
 - 后续新增类型和主链逻辑默认要把注释视作交付件的一部分
 
 ### 3.6 CLI 命令层必须按职责拆分，避免命令文件继续膨胀
@@ -168,12 +169,13 @@
 
 建议执行顺序如下：
 
-1. 先定义卷级计划与多章路线真源
-2. 再把 [`PlanningContextBuilder.build()`](src/core/context/planning-context-builder.ts:30) 和 [`PlanningService.planChapter()`](src/core/planning/service.ts:39) 升级为滚动规划入口
+1. 先定义卷级计划与多章路线真源，并从 `M0` 开始同步补注释
+2. 再把 [`PlanningContextBuilder.build()`](src/core/context/planning-context-builder.ts:30) 和 [`PlanningService.planChapter()`](src/core/planning/service.ts:39) 升级为滚动规划入口，并在 `M1` 同步补注释
 3. 再把 [`ReviewService.reviewChapter()`](src/core/review/service.ts:46) 与 [`ApproveService.approveChapter()`](src/core/approve/service.ts:88) 升级为长线推进校验与提交入口
 4. 再补结局收束控制
-5. 再做注释强化与命令层拆分重构
-6. 最后补卷级 CLI 与回归验证
+5. 先完成命令层拆分重构，执行方式以 [`plans/v4-command-refactor-plan.md`](plans/v4-command-refactor-plan.md:1) 为准，再进入卷级 CLI 扩张
+6. 持续补齐剩余核心链路的可解释性注释
+7. 最后补卷级 CLI 与回归验证
 
 如果顺序反过来，会出现：
 
@@ -200,6 +202,7 @@
   - 新增 `ThreadStage`
   - 新增 `RollingPlanWindow`
   - 新增 `EndingSetupRequirement`
+  - 同步补足这些卷级模型的结构化注释与字段语义说明
 - [`src/infra/db/schema.ts`](src/infra/db/schema.ts:1)
   - 新增 `volume_plans`
   - 新增 `story_threads`
@@ -218,6 +221,7 @@
 - 系统可以表达未来 `3-5` 章的推进窗口
 - 每章可以被分配“主线职责”与“支线职责”
 - 主线推进不再只依赖单章 [`ChapterPlan`](src/shared/types/domain.ts:343)
+- 卷级核心 `domain` 模型已具备注释化语义，可直接支持后续实现与评审
 
 ---
 
@@ -234,10 +238,12 @@
   - 注入活跃 `StoryThread`
   - 注入未来若干章的 mission 空槽
   - 注入结局准备度约束
+  - 为卷级上下文拼装逻辑补足注释
 - [`src/core/planning/service.ts`](src/core/planning/service.ts:39)
   - 新增 `planVolumeWindow()`
   - 补强 `planChapter()` 使其消费卷级 mission
   - 让单章 planning 自动解释“本章在多章窗口中的职责”
+  - 为多章规划决策点补足注释
 - [`src/infra/repository/chapter-plan-repository.ts`](src/infra/repository/chapter-plan-repository.ts:1)
   - 持久化 mission 引用字段
   - 持久化跨章承接字段
@@ -250,6 +256,7 @@
 - planning 能生成未来 `3-5` 章连续路线
 - 当前章计划明确知道自己承担哪条主线推进任务
 - 多章之间不再只是“上一章摘要 + 当前章目标”的弱承接
+- `M1` 范围内的核心上下文与规划逻辑已同步具备注释化解释
 
 ---
 
@@ -346,13 +353,42 @@
 
 ---
 
-## M5：注释强化与命令层重构
+## M5：命令层拆分重构
+
+这部分执行以 [`plans/v4-command-refactor-plan.md`](plans/v4-command-refactor-plan.md:1) 为专项依据。
 
 ### M5 目标
 
-在不改变 `v4` 创作路线主目标的前提下，把代码可解释性与命令层结构同步提升，避免后续多章能力继续叠加在高复杂度文件上。
+在进入卷级 CLI 扩张前，先把现有 command 相关文件按职责拆开，避免 `v4` 新命令继续叠加到高复杂度文件上。
 
 ### M5 模块任务
+
+- `src/cli/commands/`
+  - 按命令域拆分大型命令文件
+  - 抽离命令装配辅助函数
+  - 抽离格式化输出与结果打印函数
+  - 抽离 service 装配逻辑，减少命令定义文件中的依赖堆积
+- [`src/cli.ts`](src/cli.ts:3)
+  - 保持顶层注册简洁，只负责挂接模块化后的命令入口
+- [`src/cli/context.ts`](src/cli/context.ts:1)
+  - 明确保留通用数据库、日志、公共解析入口
+  - 避免继续承担命令域业务逻辑
+
+### M5 完成定义
+
+- command 相关文件职责更内聚，单文件复杂度下降
+- 卷级 CLI 新命令可以落在新结构中，而不是继续堆积到现有大文件
+- 后续 `v4` CLI 能在更清晰的模块边界上扩展
+
+---
+
+## M6：注释强化与可解释性补强
+
+### M6 目标
+
+在卷级能力继续扩张前后，同步提升代码可解释性，特别是 `domain` 与核心主链逻辑的叙事语义说明。
+
+### M6 模块任务
 
 - [`src/shared/types/domain.ts`](src/shared/types/domain.ts:1)
   - 为新增的卷级模型补足注释
@@ -363,28 +399,21 @@
   - 为主线推进审查、偏航判断、收束风险判断补足注释
 - [`src/core/approve/service.ts`](src/core/approve/service.ts:88)
   - 为线程进度提交、终局准备度更新补足注释
-- `src/cli/commands/`
-  - 按命令域拆分大型命令文件
-  - 抽离命令装配辅助函数
-  - 抽离格式化输出与结果打印函数
-- [`src/cli.ts`](src/cli.ts:3)
-  - 保持顶层注册简洁，只负责挂接模块化后的命令入口
 
-### M5 完成定义
+### M6 完成定义
 
 - `domain` 与核心主链逻辑的叙事语义可直接从代码中读懂
-- command 相关文件职责更内聚，单文件复杂度下降
-- 后续 `v4` 新命令不再继续堆积到现有大文件
+- 新增卷级能力不再依赖隐式知识理解
 
 ---
 
-## M6：生成链路接入卷级导演语义
+## M7：生成链路接入卷级导演语义
 
-### M5 目标
+### M7 目标
 
 让正文生成真正感知自己在长线中的位置。
 
-### M5 模块任务
+### M7 模块任务
 
 - [`src/core/context/writing-context-builder.ts`](src/core/context/writing-context-builder.ts:12)
   - 注入 chapter mission
@@ -397,20 +426,20 @@
 - [`src/core/rewrite/service.ts`](src/core/rewrite/service.ts:1)
   - 策略增加 thread-focus、closure-focus、ensemble-balance
 
-### M5 完成定义
+### M7 完成定义
 
 - generation 写作不再只围绕 scene task，也围绕卷级 mission 展开
 - rewrite 可以针对“主线推进不足”或“收束准备不足”做定向修复
 
 ---
 
-## M7：卷级 CLI、报告与验证
+## M8：卷级 CLI、报告与验证
 
-### M6 目标
+### M8 目标
 
 为 `v4` 的多章导演能力提供可检查、可回归、可解释入口。
 
-### M6 模块任务
+### M8 模块任务
 
 - [`src/cli/commands/state-commands.ts`](src/cli/commands/state-commands.ts:1)
   - 新增 `state threads`
@@ -427,7 +456,7 @@
   - 固化多章推进样本
   - 固化终局收束样本
 
-### M6 完成定义
+### M8 完成定义
 
 - `v4` 的卷级导演能力可以被命令化检查
 - 回归不只看单章 review，还能看多章推进是否跑偏
@@ -436,14 +465,14 @@
 
 ## 7. 推荐第一批执行任务
 
-如果要从 `v4` 开始实现，建议第一批只做下面四件事：
+如果要从 `v4` 开始实现，建议第一批只做下面六件事：
 
-1. 在 [`src/shared/types/domain.ts`](src/shared/types/domain.ts:1) 中定义 `VolumePlan / StoryThread / ChapterMission / EndingReadiness`
+1. 在 [`src/shared/types/domain.ts`](src/shared/types/domain.ts:1) 中定义 `VolumePlan / StoryThread / ChapterMission / EndingReadiness`，并同步补结构化注释
 2. 增加卷级仓储与表结构
-3. 先升级 [`PlanningContextBuilder.build()`](src/core/context/planning-context-builder.ts:30) 与 [`PlanningService.planChapter()`](src/core/planning/service.ts:39)
+3. 先升级 [`PlanningContextBuilder.build()`](src/core/context/planning-context-builder.ts:30) 与 [`PlanningService.planChapter()`](src/core/planning/service.ts:39)，并同步补关键注释
 4. 再让 [`ReviewService.reviewChapter()`](src/core/review/service.ts:46) 能检查“本章是否完成卷级 mission”
-5. 同步为 `domain` 和核心 service 补结构化注释
-6. 启动 command 相关文件拆分，先从大型命令文件开始收口职责
+5. 先启动 command 相关文件拆分，优先收口大型命令文件职责，执行依据为 [`plans/v4-command-refactor-plan.md`](plans/v4-command-refactor-plan.md:1)
+6. 再继续扩展剩余核心 service 的结构化注释
 
 这样做的原因是：
 
@@ -456,15 +485,15 @@
 ## 8. v4 执行清单
 
 - [ ] 定义卷级计划与故事线程核心类型
+- [ ] 在 `M0-M1` 同步为 `domain` 与规划核心逻辑补结构化注释
 - [ ] 增加卷级数据库表与 repository
 - [ ] 为 planning 注入卷级上下文
 - [ ] 实现多章滚动规划入口
 - [ ] 为单章计划增加 mission 语义
 - [ ] 为 review 增加主线推进与偏航检查
 - [ ] 为 approve 增加线程进度与终局准备度提交
+- [ ] 先按 [`plans/v4-command-refactor-plan.md`](plans/v4-command-refactor-plan.md:1) 拆分重构 command 相关文件并收敛职责
 - [ ] 为 generation / rewrite 接入卷级导演约束
-- [ ] 为 `domain` 与核心逻辑补结构化注释
-- [ ] 拆分重构 command 相关文件并收敛职责
 - [ ] 增加卷级 state / doctor / snapshot / regression 命令
 - [ ] 固化 `v4` 回归样本与计划文档
 
