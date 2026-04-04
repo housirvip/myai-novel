@@ -1,7 +1,10 @@
 import { Command } from 'commander'
 
 import { registerChapterCommands } from './cli/commands/chapter-commands.js'
+import { registerDoctorCommands } from './cli/commands/doctor-commands.js'
 import { registerProjectCommands } from './cli/commands/project-commands.js'
+import { registerRegressionCommands } from './cli/commands/regression-commands.js'
+import { registerSnapshotCommands } from './cli/commands/snapshot-commands.js'
 import { registerStateCommands } from './cli/commands/state-commands.js'
 import { registerWorkflowCommands } from './cli/commands/workflow-commands.js'
 import { registerWorldCommands } from './cli/commands/world-commands.js'
@@ -19,6 +22,9 @@ registerWorldCommands(program)
 registerChapterCommands(program)
 registerWorkflowCommands(program)
 registerStateCommands(program)
+registerDoctorCommands(program)
+registerRegressionCommands(program)
+registerSnapshotCommands(program)
 
 program.parseAsync(process.argv).catch((error: unknown) => {
   const message = toErrorMessage(error)
