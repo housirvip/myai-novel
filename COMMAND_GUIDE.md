@@ -72,6 +72,7 @@ novel <command>
   - `chapter show <chapterId>`
   - `chapter rewrite <chapterId>`
   - `chapter approve <chapterId>`
+  - `chapter drop <chapterId>`
 - 工作流命令
   - `plan chapter <chapterId>`
   - `plan show <chapterId>`
@@ -84,6 +85,13 @@ novel <command>
   - `story show`
   - `state show`
   - `state-updates show <chapterId>`
+- 运维与回归
+  - `doctor`
+  - `doctor chapter <chapterId>`
+  - `regression list`
+  - `regression run <case>`
+  - `snapshot state`
+  - `snapshot chapter <chapterId>`
 
 ---
 
@@ -106,6 +114,9 @@ novel <command>
 13. `chapter rewrite`（按需）
 14. `chapter approve`
 15. `state show`
+16. `doctor chapter <chapterId>`（排障时）
+17. `snapshot chapter <chapterId>`（留存快照时）
+18. `chapter drop <chapterId>`（需要安全回退当前链路时）
 
 这个顺序对应了项目中“规划 → 写作 → 审查 → 重写 → 批准 → 状态沉淀”的主链路，核心实现分布在：
 
@@ -804,6 +815,90 @@ novel state show
 novel state-updates show <chapterId>
 novel story show
 ```
+
+---
+
+### 10.4 `v3` 运维与回归命令
+
+#### `chapter drop <chapterId>`
+
+用于安全清理当前章节的当前 plan / draft 链，不默认回滚主线状态。
+
+```bash
+novel chapter drop <chapterId> --all-current
+novel chapter drop <chapterId> --plan-only
+novel chapter drop <chapterId> --draft-only --force
+```
+
+默认建议：
+
+- 只在确认当前章节需要重做时使用
+- 优先先执行 `novel chapter show <chapterId>` 观察当前链路
+- 若章节已批准，只有在明确知道后果时才使用 `--force`
+
+#### 日志目录说明
+
+关键命令会写本地操作日志，目录解析逻辑见 [`src/shared/utils/project-paths.ts`](src/shared/utils/project-paths.ts:78)。
+
+默认关注两个目录：
+
+- `logs/operations/`：主命令运行日志，按日写入 `ndjson`
+- `logs/errors/`：日志写入失败或补充错误信息时的兜底输出
+
+可配合：
+
+```bash
+novel doctor
+novel doctor chapter <chapterId>
+```
+
+一起确认链路状态与日志目录位置。
+
+#### `doctor`
+
+用于快速排查项目级或章节级工作流断链。
+
+```bash
+novel doctor
+novel doctor chapter <chapterId>
+```
+
+当前第一版会输出：
+
+- 章节是否存在 `plan / draft / review / rewrite / output`
+- 当前章节指针是否存在
+- 操作日志目录位置
+
+#### `regression`
+
+用于管理标准回归样本名称和后续执行入口。
+
+```bash
+novel regression list
+novel regression run hook-pressure-smoke
+```
+
+当前第一版先提供：
+
+- 样本列表输出
+- 统一的回归执行结果格式占位
+
+#### `snapshot`
+
+用于冻结当前项目或单章链路快照，便于排障与回归比对。
+
+```bash
+novel snapshot state
+novel snapshot chapter <chapterId>
+```
+
+推荐标准回归路径：
+
+1. `novel snapshot chapter <chapterId>`
+2. `novel review chapter <chapterId>` / `novel chapter rewrite <chapterId>`
+3. `novel doctor chapter <chapterId>`
+4. `novel snapshot chapter <chapterId>`
+5. 对比前后快照、状态和日志输出
 
 ---
 
