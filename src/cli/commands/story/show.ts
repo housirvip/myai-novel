@@ -1,10 +1,8 @@
 import { Command } from 'commander'
 
-import { BookRepository } from '../../../infra/repository/book-repository.js'
-import { StoryStateRepository } from '../../../infra/repository/story-state-repository.js'
-import { NovelError } from '../../../shared/utils/errors.js'
 import { openProjectDatabase } from '../../context.js'
 import { printStoryState } from '../state/printers.js'
+import { loadStoryStateView } from '../state/services.js'
 
 export function registerStoryShowCommand(program: Command): void {
   program
@@ -16,14 +14,7 @@ export function registerStoryShowCommand(program: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        const book = new BookRepository(database).getFirst()
-
-        if (!book) {
-          throw new NovelError('Project is not initialized. Run `novel init` first.')
-        }
-
-        const state = new StoryStateRepository(database).getByBookId(book.id)
-        printStoryState(state)
+        printStoryState(loadStoryStateView(database).state)
       } finally {
         database.close()
       }
