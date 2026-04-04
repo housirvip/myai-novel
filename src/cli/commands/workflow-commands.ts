@@ -1,30 +1,10 @@
 import { Command } from 'commander'
 
-import { PlanningContextBuilder } from '../../core/context/planning-context-builder.js'
-import { WritingContextBuilder } from '../../core/context/writing-context-builder.js'
-import { GenerationService } from '../../core/generation/service.js'
-import { PlanningService } from '../../core/planning/service.js'
-import { ReviewService } from '../../core/review/service.js'
-import { createLlmAdapter } from '../../infra/llm/factory.js'
-import { BookRepository } from '../../infra/repository/book-repository.js'
-import { CharacterArcRepository } from '../../infra/repository/character-arc-repository.js'
-import { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
 import { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
-import { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
 import { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
-import { EndingReadinessRepository } from '../../infra/repository/ending-readiness-repository.js'
-import { HookPressureRepository } from '../../infra/repository/hook-pressure-repository.js'
-import { HookRepository } from '../../infra/repository/hook-repository.js'
-import { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
-import { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
-import { MemoryRepository } from '../../infra/repository/memory-repository.js'
-import { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
-import { OutlineRepository } from '../../infra/repository/outline-repository.js'
-import { StoryThreadRepository } from '../../infra/repository/story-thread-repository.js'
-import { VolumePlanRepository } from '../../infra/repository/volume-plan-repository.js'
-import { VolumeRepository } from '../../infra/repository/volume-repository.js'
+import { createWorkflowGenerationService, createWorkflowPlanningService, createWorkflowReviewService } from './workflow-services.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { formatJson, formatSection } from '../../shared/utils/format.js'
 import { openProjectDatabase, runLoggedCommand } from '../context.js'
@@ -45,34 +25,7 @@ export function registerWorkflowCommands(program: Command): void {
         args: [chapterId],
         chapterId,
         action: async (database) => {
-          const bookRepository = new BookRepository(database)
-          const outlineRepository = new OutlineRepository(database)
-          const chapterRepository = new ChapterRepository(database)
-          const volumeRepository = new VolumeRepository(database)
-          const contextBuilder = new PlanningContextBuilder(
-            bookRepository,
-            outlineRepository,
-            chapterRepository,
-            volumeRepository,
-            new VolumePlanRepository(database),
-            new StoryThreadRepository(database),
-            new EndingReadinessRepository(database),
-            new CharacterCurrentStateRepository(database),
-            new CharacterArcRepository(database),
-            new ItemCurrentStateRepository(database),
-            new MemoryRepository(database),
-            new HookStateRepository(database),
-            new HookPressureRepository(database),
-            new NarrativeDebtRepository(database),
-          )
-          const planningService = new PlanningService(
-            contextBuilder,
-            new ChapterPlanRepository(database),
-            chapterRepository,
-            createLlmAdapter(),
-            new HookRepository(database),
-          )
-
+          const planningService = createWorkflowPlanningService(database)
           const result = await planningService.planChapter(chapterId)
 
           return {
@@ -146,38 +99,7 @@ export function registerWorkflowCommands(program: Command): void {
         args: [chapterId],
         chapterId,
         action: async (database) => {
-          const bookRepository = new BookRepository(database)
-          const outlineRepository = new OutlineRepository(database)
-          const chapterRepository = new ChapterRepository(database)
-          const volumeRepository = new VolumeRepository(database)
-          const chapterPlanRepository = new ChapterPlanRepository(database)
-          const planningContextBuilder = new PlanningContextBuilder(
-            bookRepository,
-            outlineRepository,
-            chapterRepository,
-            volumeRepository,
-            new VolumePlanRepository(database),
-            new StoryThreadRepository(database),
-            new EndingReadinessRepository(database),
-            new CharacterCurrentStateRepository(database),
-            new CharacterArcRepository(database),
-            new ItemCurrentStateRepository(database),
-            new MemoryRepository(database),
-            new HookStateRepository(database),
-            new HookPressureRepository(database),
-            new NarrativeDebtRepository(database),
-          )
-          const writingContextBuilder = new WritingContextBuilder(
-            planningContextBuilder,
-            chapterPlanRepository,
-          )
-          const generationService = new GenerationService(
-            writingContextBuilder,
-            new ChapterDraftRepository(database),
-            chapterRepository,
-            createLlmAdapter(),
-          )
-
+          const generationService = createWorkflowGenerationService(database)
           const writeResult = await generationService.writeNext(chapterId)
 
           return {
@@ -231,23 +153,7 @@ export function registerWorkflowCommands(program: Command): void {
         args: [chapterId],
         chapterId,
         action: async (database) => {
-          const reviewService = new ReviewService(
-            new BookRepository(database),
-            new ChapterRepository(database),
-            new ChapterPlanRepository(database),
-            new ChapterDraftRepository(database),
-            new ChapterReviewRepository(database),
-            new CharacterCurrentStateRepository(database),
-            new CharacterArcRepository(database),
-            new ItemCurrentStateRepository(database),
-            new MemoryRepository(database),
-            new HookRepository(database),
-            new HookStateRepository(database),
-            new HookPressureRepository(database),
-            new NarrativeDebtRepository(database),
-            createLlmAdapter(),
-          )
-
+          const reviewService = createWorkflowReviewService(database)
           const result = await reviewService.reviewChapter(chapterId)
 
           return {
