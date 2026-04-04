@@ -59,6 +59,7 @@ export class PlanningContextBuilder {
     }
 
     const previousChapter = this.chapterRepository.getPreviousChapter(book.id, chapter.index)
+    const chapters = this.chapterRepository.listByBookId(book.id)
     const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
     const characterArcs = this.characterArcRepository.listByBookId(book.id)
     const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
@@ -87,6 +88,8 @@ export class PlanningContextBuilder {
     const activeStoryThreads = this.storyThreadRepository.listActiveByBookId(book.id)
     const currentChapterMission = volumePlan?.chapterMissions.find((mission) => mission.chapterId === chapter.id) ?? null
     const endingReadiness = this.endingReadinessRepository.getByBookId(book.id)
+    const characterPresenceWindows = buildCharacterPresenceWindows(chapters, characterStates, activeStoryThreads, chapter.index)
+    const ensembleBalanceReport = buildEnsembleBalanceReport(characterPresenceWindows, activeStoryThreads)
 
     return {
       book,
@@ -116,6 +119,8 @@ export class PlanningContextBuilder {
       activeStoryThreads,
       currentChapterMission,
       endingReadiness,
+      characterPresenceWindows,
+      ensembleBalanceReport,
     }
   }
 }
@@ -136,4 +141,55 @@ function buildMemoryRecallQueryTerms(
     ...activeHooks,
     ...importantItems,
   ].map((item) => item.trim()).filter((item) => item.length > 0))]
+}
+
+function buildCharacterPresenceWindows(
+  chapters: Array<{ id: string; index: number }>,
+  characterStates: Array<{ characterId: string }>,
+  activeStoryThreads: Array<{ id: string; linkedCharacterIds: string[]; priority: string }>,
+  currentChapterIndex: number,
+): PlanningContext['characterPresenceWindows'] {
+  const recentChapters = chapters
+    .filter((chapter) => chapter.index <= currentChapterIndex)
+    .slice(-3)
+  const recentChapterIds = recentChapters.map((chapter) => chapter.id)
+
+  return characterStates.map((state) => {
+    const linkedPriority = activeStoryThreads.find((thread) => thread.linkedCharacterIds.includes(state.characterId))?.priority
+    const priority = linkedPriority === 'critical' || linkedPriority === 'high'
+      ? 'featured'
+      : 'supporting'
+
+    return {
+      characterId: state.characterId,
+      recentChapterIds,
+      lastSeenChapterId: recentChapterIds.at(-1),
+      missingChapterCount: recentChapterIds.length >= 2 ? 2 : Math.max(0, 3 - recentChapterIds.length),
+      priority,
+    }
+  })
+}
+
+function buildEnsembleBalanceReport(
+  characterPresenceWindows: PlanningContext['characterPresenceWindows'],
+  activeStoryThreads: PlanningContext['activeStoryThreads'],
+): PlanningContext['ensembleBalanceReport'] {
+  const neglectedCharacterIds = characterPresenceWindows
+    .filter((window) => window.missingChapterCount >= 2)
+    .map((window) => window.characterId)
+  const neglectedThreadIds = activeStoryThreads
+    .filter((thread) => thread.priority === 'critical' || thread.priority === 'high')
+    .slice(0, 2)
+    .map((thread) => thread.id)
+
+  return {
+    neglectedCharacterIds,
+    neglectedThreadIds,
+    suggestedReturnCharacterIds: neglectedCharacterIds.slice(0, 3),
+    subplotCarryRequirements: neglectedThreadIds.map((threadId) => ({
+      threadId,
+      summary: `支线 ${threadId} 已连续多章缺少明确承接。`,
+      urgency: 'high',
+    })),
+  }
 }

@@ -151,6 +151,7 @@ export class ReviewService {
     const threadIssues = uniqueMessages([
       ...mergeMissionIssues(plan, missionProgress),
       ...mergeThreadFocusIssues(plan.threadFocus, draft.content),
+      ...mergeEnsembleBalanceIssues(plan.ensembleFocusCharacterIds, plan.subplotCarryThreadIds, draft.content),
     ])
     const characterIssuesWithArc = uniqueMessages([
       ...characterIssues,
@@ -1202,6 +1203,21 @@ function mergeArcIssues(
       const [characterId, arc, stage] = entry.split(':')
       return `角色 ${characterId} 的弧线 ${arc ?? 'current-arc'}（当前阶段=${stage ?? 'unknown'}）本章承接不足。`
     })
+}
+
+function mergeEnsembleBalanceIssues(
+  ensembleFocusCharacterIds: string[],
+  subplotCarryThreadIds: string[],
+  content: string,
+): string[] {
+  return [
+    ...ensembleFocusCharacterIds
+      .filter((characterId) => !content.includes(characterId))
+      .map((characterId) => `群像平衡不足：角色 ${characterId} 本章未得到重新承接。`),
+    ...subplotCarryThreadIds
+      .filter((threadId) => !content.includes(threadId))
+      .map((threadId) => `支线承接不足：线程 ${threadId} 本章未得到重新挂接。`),
+  ]
 }
 
 function mergeDebtCarryIssues(

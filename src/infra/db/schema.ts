@@ -510,6 +510,8 @@ export const migrations = [
       ALTER TABLE chapter_plans ADD COLUMN window_role TEXT;
       ALTER TABLE chapter_plans ADD COLUMN carry_in_tasks_json TEXT NOT NULL DEFAULT '[]';
       ALTER TABLE chapter_plans ADD COLUMN carry_out_tasks_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE chapter_plans ADD COLUMN ensemble_focus_character_ids_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE chapter_plans ADD COLUMN subplot_carry_thread_ids_json TEXT NOT NULL DEFAULT '[]';
       ALTER TABLE chapter_plans ADD COLUMN ending_drive TEXT NOT NULL DEFAULT '';
       ALTER TABLE chapter_plans ADD COLUMN must_resolve_debts_json TEXT NOT NULL DEFAULT '[]';
       ALTER TABLE chapter_plans ADD COLUMN must_advance_hooks_json TEXT NOT NULL DEFAULT '[]';

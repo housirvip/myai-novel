@@ -420,6 +420,41 @@ export type EndingReadiness = {
   updatedAt: IsoTimestamp
 }
 
+export type CharacterFocusPriority = 'background' | 'supporting' | 'featured' | 'spotlight'
+
+/**
+ * CharacterPresenceWindow 表示角色在最近若干章节中的出场连续性。
+ *
+ * `missingChapterCount` 用来表达“该角色已经多少章没有被有效承接”，
+ * 是 `M3` 群像平衡判断的核心信号之一。
+ */
+export type CharacterPresenceWindow = {
+  characterId: string
+  recentChapterIds: string[]
+  lastSeenChapterId?: string
+  missingChapterCount: number
+  priority: CharacterFocusPriority
+}
+
+/**
+ * 支线承接要求描述“哪条支线正在脱离读者视野，需要重新挂回正文”。
+ */
+export type SubplotCarryRequirement = {
+  threadId: string
+  summary: string
+  urgency: 'low' | 'medium' | 'high'
+}
+
+/**
+ * EnsembleBalanceReport 是 planning / review 共享的群像失衡摘要。
+ */
+export type EnsembleBalanceReport = {
+  neglectedCharacterIds: string[]
+  neglectedThreadIds: string[]
+  suggestedReturnCharacterIds: string[]
+  subplotCarryRequirements: SubplotCarryRequirement[]
+}
+
 /**
  * ChapterPlan 仍然是单章执行计划，但在 `v4` 中会逐步与卷级 mission 对齐。
  */
@@ -450,6 +485,8 @@ export type ChapterPlan = {
   windowRole?: string
   carryInTasks: string[]
   carryOutTasks: string[]
+  ensembleFocusCharacterIds: string[]
+  subplotCarryThreadIds: string[]
   endingDrive: string
   mustResolveDebts: string[]
   mustAdvanceHooks: string[]
@@ -502,6 +539,8 @@ export type PlanningContext = {
   activeStoryThreads: StoryThread[]
   currentChapterMission: ChapterMission | null
   endingReadiness: EndingReadiness | null
+  characterPresenceWindows: CharacterPresenceWindow[]
+  ensembleBalanceReport: EnsembleBalanceReport
 }
 
 export type WritingContext = PlanningContext & {

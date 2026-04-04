@@ -231,6 +231,8 @@ function buildPlanningPromptPayload(context: PlanningContext, activeHooks: Activ
       currentChapterMission: context.currentChapterMission,
       activeStoryThreads: context.activeStoryThreads,
       endingReadiness: context.endingReadiness,
+      characterPresenceWindows: context.characterPresenceWindows,
+      ensembleBalanceReport: context.ensembleBalanceReport,
     },
     stateConstraints: {
       characterStates: context.characterStates.map((state) => ({
@@ -577,7 +579,16 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
     ? `为终局缺口补前置：${context.endingReadiness.closureGaps[0].summary}`
     : undefined
   const highPressureHooks = context.narrativePressure.highPressureHooks.slice(0, 3)
+  const ensembleFocusCharacterIds = context.ensembleBalanceReport.suggestedReturnCharacterIds.slice(0, 3)
+  const subplotCarryThreadIds = context.ensembleBalanceReport.subplotCarryRequirements.map((item) => item.threadId)
+  const ensembleBeat = ensembleFocusCharacterIds[0]
+    ? `优先让角色 ${ensembleFocusCharacterIds[0]} 重新回到叙事核心。`
+    : undefined
+  const subplotBeat = subplotCarryThreadIds[0]
+    ? `本章补承接支线线程：${subplotCarryThreadIds[0]}`
+    : undefined
   const requiredCharacterIds = uniqueStrings([
+    ...ensembleFocusCharacterIds,
     ...context.characterStates.slice(0, 3).map((state) => state.characterId),
     ...context.characterArcs.slice(0, 2).map((arc) => arc.characterId),
   ])
@@ -654,6 +665,7 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
         previousChapterSummary,
         `点明本章目标：${context.chapter.objective}`,
         `卷级任务：${currentMissionSummary}`,
+        ...(ensembleBeat ? [ensembleBeat] : []),
       ]),
       mustAvoid: ['空转铺垫', '脱离当前状态体系的解释性段落'],
       protectedFacts: mustPreserveFacts,
@@ -663,6 +675,7 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
       mustInclude: uniqueStrings([
         ...mustResolveDebts.slice(0, 2),
         ...mustAdvanceHooks.slice(0, 2).map((hookId) => `推进 Hook：${hookId}`),
+        ...(subplotBeat ? [subplotBeat] : []),
         endingDrive,
       ]),
       mustAvoid: ['只讲设定不推进事件', '结尾没有新的牵引'],
@@ -715,6 +728,7 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
           ...(arcBeat ? [arcBeat] : []),
           `点明本章目标：${context.chapter.objective}`,
           `引入卷目标压力：${context.volume.goal}`,
+          ...(ensembleBeat ? [ensembleBeat] : []),
         ],
         characterIds: requiredCharacterIds.slice(0, 2),
         locationId: requiredLocationIds[0],
@@ -752,6 +766,8 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
       `卷级任务：${currentMissionSummary}`,
       `至少推进一条核心冲突：${context.outline.coreConflicts[0]}`,
       ...(threadBeat ? [threadBeat] : []),
+      ...(ensembleBeat ? [ensembleBeat] : []),
+      ...(subplotBeat ? [subplotBeat] : []),
       ...(importantItemBeat ? [importantItemBeat] : []),
       ...(hookBeat ? [hookBeat] : []),
       ...(endingGapBeat ? [endingGapBeat] : []),
@@ -766,6 +782,7 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
       ...(hookPlan.length > 0 ? ['至少一条高压力或活跃 Hook 的状态应在本章后发生推进'] : []),
       ...(context.memoryRecall.relevantLongTermEntries.length > 0 ? ['避免与高重要长期记忆冲突'] : []),
       ...(characterArcTargets.length > 0 ? ['至少一条角色弧线在本章后应进入下一推进阶段'] : []),
+      ...(ensembleFocusCharacterIds.length > 0 ? ['至少一名长期缺席角色应在本章重新获得承接'] : []),
     ],
     memoryCandidates: [
       `${context.chapter.title} 的关键事件摘要`,
@@ -789,6 +806,8 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
       currentMissionSignal,
       ...mustAdvanceHooks.slice(0, 2).map((hookId) => `后续继续推进 Hook：${hookId}`),
     ]),
+    ensembleFocusCharacterIds: context.ensembleBalanceReport.suggestedReturnCharacterIds,
+    subplotCarryThreadIds: context.ensembleBalanceReport.subplotCarryRequirements.map((item) => item.threadId),
     endingDrive,
     mustResolveDebts,
     mustAdvanceHooks,

@@ -28,6 +28,8 @@ type ChapterPlanRow = {
   window_role: string | null
   carry_in_tasks_json: string
   carry_out_tasks_json: string
+  ensemble_focus_character_ids_json: string
+  subplot_carry_thread_ids_json: string
   ending_drive: string
   must_resolve_debts_json: string
   must_advance_hooks_json: string
@@ -70,13 +72,15 @@ export class ChapterPlanRepository {
             window_role,
             carry_in_tasks_json,
             carry_out_tasks_json,
+            ensemble_focus_character_ids_json,
+            subplot_carry_thread_ids_json,
             ending_drive,
             must_resolve_debts_json,
             must_advance_hooks_json,
             must_preserve_facts_json,
             created_at,
             approved_by_user
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -106,6 +110,8 @@ export class ChapterPlanRepository {
         plan.windowRole ?? null,
         JSON.stringify(plan.carryInTasks),
         JSON.stringify(plan.carryOutTasks),
+        JSON.stringify(plan.ensembleFocusCharacterIds),
+        JSON.stringify(plan.subplotCarryThreadIds),
         plan.endingDrive,
         JSON.stringify(plan.mustResolveDebts),
         JSON.stringify(plan.mustAdvanceHooks),
@@ -190,6 +196,8 @@ function mapChapterPlan(row: ChapterPlanRow): ChapterPlan {
     windowRole: row.window_role ?? undefined,
     carryInTasks: JSON.parse(row.carry_in_tasks_json) as string[],
     carryOutTasks: JSON.parse(row.carry_out_tasks_json) as string[],
+    ensembleFocusCharacterIds: JSON.parse(row.ensemble_focus_character_ids_json) as string[],
+    subplotCarryThreadIds: JSON.parse(row.subplot_carry_thread_ids_json) as string[],
     endingDrive: row.ending_drive,
     mustResolveDebts: JSON.parse(row.must_resolve_debts_json) as string[],
     mustAdvanceHooks: JSON.parse(row.must_advance_hooks_json) as string[],
