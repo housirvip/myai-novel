@@ -14,6 +14,7 @@ import { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repos
 import { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
 import { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
+import { EndingReadinessRepository } from '../../infra/repository/ending-readiness-repository.js'
 import { HookPressureRepository } from '../../infra/repository/hook-pressure-repository.js'
 import { HookRepository } from '../../infra/repository/hook-repository.js'
 import { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
@@ -21,6 +22,8 @@ import { ItemCurrentStateRepository } from '../../infra/repository/item-current-
 import { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import { OutlineRepository } from '../../infra/repository/outline-repository.js'
+import { StoryThreadRepository } from '../../infra/repository/story-thread-repository.js'
+import { VolumePlanRepository } from '../../infra/repository/volume-plan-repository.js'
 import { VolumeRepository } from '../../infra/repository/volume-repository.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { formatJson, formatSection } from '../../shared/utils/format.js'
@@ -51,6 +54,9 @@ export function registerWorkflowCommands(program: Command): void {
             outlineRepository,
             chapterRepository,
             volumeRepository,
+            new VolumePlanRepository(database),
+            new StoryThreadRepository(database),
+            new EndingReadinessRepository(database),
             new CharacterCurrentStateRepository(database),
             new CharacterArcRepository(database),
             new ItemCurrentStateRepository(database),
@@ -106,6 +112,11 @@ export function registerWorkflowCommands(program: Command): void {
 
         console.log(`Plan version: ${plan.versionId}`)
         console.log(`Objective: ${plan.objective}`)
+        console.log(formatSection('Mission id:', plan.missionId ?? '(none)'))
+        console.log(formatSection('Thread focus:', formatJson(plan.threadFocus)))
+        console.log(formatSection('Window role:', plan.windowRole ?? '(none)'))
+        console.log(formatSection('Carry-in tasks:', formatJson(plan.carryInTasks)))
+        console.log(formatSection('Carry-out tasks:', formatJson(plan.carryOutTasks)))
         console.log(formatSection('Scene cards:', formatJson(plan.sceneCards)))
         console.log(formatSection('Scene goals:', formatJson(plan.sceneGoals)))
         console.log(formatSection('Scene constraints:', formatJson(plan.sceneConstraints)))
@@ -145,6 +156,9 @@ export function registerWorkflowCommands(program: Command): void {
             outlineRepository,
             chapterRepository,
             volumeRepository,
+            new VolumePlanRepository(database),
+            new StoryThreadRepository(database),
+            new EndingReadinessRepository(database),
             new CharacterCurrentStateRepository(database),
             new CharacterArcRepository(database),
             new ItemCurrentStateRepository(database),

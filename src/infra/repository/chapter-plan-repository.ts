@@ -23,6 +23,11 @@ type ChapterPlanRow = {
   high_pressure_hook_ids_json: string
   character_arc_targets_json: string
   debt_carry_targets_json: string
+  mission_id: string | null
+  thread_focus_json: string
+  window_role: string | null
+  carry_in_tasks_json: string
+  carry_out_tasks_json: string
   ending_drive: string
   must_resolve_debts_json: string
   must_advance_hooks_json: string
@@ -60,13 +65,18 @@ export class ChapterPlanRepository {
             high_pressure_hook_ids_json,
             character_arc_targets_json,
             debt_carry_targets_json,
+            mission_id,
+            thread_focus_json,
+            window_role,
+            carry_in_tasks_json,
+            carry_out_tasks_json,
             ending_drive,
             must_resolve_debts_json,
             must_advance_hooks_json,
             must_preserve_facts_json,
             created_at,
             approved_by_user
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -91,6 +101,11 @@ export class ChapterPlanRepository {
         JSON.stringify(plan.highPressureHookIds),
         JSON.stringify(plan.characterArcTargets),
         JSON.stringify(plan.debtCarryTargets),
+        plan.missionId ?? null,
+        JSON.stringify(plan.threadFocus),
+        plan.windowRole ?? null,
+        JSON.stringify(plan.carryInTasks),
+        JSON.stringify(plan.carryOutTasks),
         plan.endingDrive,
         JSON.stringify(plan.mustResolveDebts),
         JSON.stringify(plan.mustAdvanceHooks),
@@ -170,6 +185,11 @@ function mapChapterPlan(row: ChapterPlanRow): ChapterPlan {
     highPressureHookIds: JSON.parse(row.high_pressure_hook_ids_json) as string[],
     characterArcTargets: JSON.parse(row.character_arc_targets_json) as string[],
     debtCarryTargets: JSON.parse(row.debt_carry_targets_json) as string[],
+    missionId: row.mission_id ?? undefined,
+    threadFocus: JSON.parse(row.thread_focus_json) as string[],
+    windowRole: row.window_role ?? undefined,
+    carryInTasks: JSON.parse(row.carry_in_tasks_json) as string[],
+    carryOutTasks: JSON.parse(row.carry_out_tasks_json) as string[],
     endingDrive: row.ending_drive,
     mustResolveDebts: JSON.parse(row.must_resolve_debts_json) as string[],
     mustAdvanceHooks: JSON.parse(row.must_advance_hooks_json) as string[],

@@ -445,6 +445,11 @@ export type ChapterPlan = {
   highPressureHookIds: string[]
   characterArcTargets: string[]
   debtCarryTargets: string[]
+  missionId?: string
+  threadFocus: string[]
+  windowRole?: string
+  carryInTasks: string[]
+  carryOutTasks: string[]
   endingDrive: string
   mustResolveDebts: string[]
   mustAdvanceHooks: string[]
@@ -493,6 +498,10 @@ export type PlanningContext = {
   narrativePressure: NarrativePressure
   protectedFactConstraints: string[]
   memoryRecall: MemoryRecallView
+  volumePlan: VolumePlan | null
+  activeStoryThreads: StoryThread[]
+  currentChapterMission: ChapterMission | null
+  endingReadiness: EndingReadiness | null
 }
 
 export type WritingContext = PlanningContext & {

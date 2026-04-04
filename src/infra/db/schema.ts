@@ -505,6 +505,11 @@ export const migrations = [
       ALTER TABLE chapter_plans ADD COLUMN scene_constraints_json TEXT NOT NULL DEFAULT '[]';
       ALTER TABLE chapter_plans ADD COLUMN scene_emotional_targets_json TEXT NOT NULL DEFAULT '[]';
       ALTER TABLE chapter_plans ADD COLUMN scene_outcome_checklist_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE chapter_plans ADD COLUMN mission_id TEXT;
+      ALTER TABLE chapter_plans ADD COLUMN thread_focus_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE chapter_plans ADD COLUMN window_role TEXT;
+      ALTER TABLE chapter_plans ADD COLUMN carry_in_tasks_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE chapter_plans ADD COLUMN carry_out_tasks_json TEXT NOT NULL DEFAULT '[]';
       ALTER TABLE chapter_plans ADD COLUMN ending_drive TEXT NOT NULL DEFAULT '';
       ALTER TABLE chapter_plans ADD COLUMN must_resolve_debts_json TEXT NOT NULL DEFAULT '[]';
       ALTER TABLE chapter_plans ADD COLUMN must_advance_hooks_json TEXT NOT NULL DEFAULT '[]';

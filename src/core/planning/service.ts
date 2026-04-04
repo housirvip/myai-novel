@@ -9,6 +9,7 @@ import type {
   SceneEmotionalTarget,
   SceneGoal,
   SceneOutcomeChecklist,
+  VolumePlan,
 } from '../../shared/types/domain.js'
 import { createId } from '../../shared/utils/id.js'
 import { extractJsonObject } from '../../shared/utils/json.js'
@@ -37,7 +38,16 @@ export class PlanningService {
   ) {}
 
   async planChapter(chapterId: string): Promise<ChapterPlan> {
-    const context = this.contextBuilder.build(chapterId)
+    const baseContext = this.contextBuilder.build(chapterId)
+    const derivedVolumePlan = baseContext.volumePlan ?? this.planVolumeWindow(baseContext)
+    const context = baseContext.volumePlan
+      ? baseContext
+      : {
+          ...baseContext,
+          volumePlan: derivedVolumePlan,
+          currentChapterMission:
+            derivedVolumePlan.chapterMissions.find((mission) => mission.chapterId === baseContext.chapter.id) ?? null,
+        }
     const activeHooks = buildActiveHookViews(context, this.hookRepository.listByBookId(context.book.id))
     const plan = this.llmAdapter
       ? await createLlmPlan(this.llmAdapter, context, activeHooks)
@@ -47,6 +57,60 @@ export class PlanningService {
     this.chapterRepository.updateCurrentPlanVersion(chapterId, plan.versionId, plan.createdAt)
 
     return plan
+  }
+
+  planVolumeWindow(context: PlanningContext): VolumePlan {
+    const timestamp = nowIso()
+    const chaptersInWindow = this.chapterRepository
+      .listByBookId(context.book.id)
+      .filter((chapter) => chapter.volumeId === context.volume.id && chapter.index >= context.chapter.index)
+      .slice(0, 3)
+    const focusThreads = context.activeStoryThreads.slice(0, 3)
+    const fallbackThreadId = focusThreads[0]?.id ?? `${context.volume.id}_window_thread`
+    const chapterMissions: VolumePlan['chapterMissions'] = chaptersInWindow.map((chapter, index) => ({
+      id: createId('mission'),
+      bookId: context.book.id,
+      volumeId: context.volume.id,
+      chapterId: chapter.id,
+      threadId: focusThreads[index % Math.max(focusThreads.length, 1)]?.id ?? fallbackThreadId,
+      missionType: index === 0 ? 'advance' : (index === chaptersInWindow.length - 1 ? 'payoff' : 'complicate'),
+      summary:
+        index === 0
+          ? `优先推进卷级焦点任务：${context.chapter.objective}`
+          : `承接卷级线程并推进 ${chapter.title} 的窗口职责`,
+      successSignal:
+        index === 0
+          ? '当前章对至少一条高优先级线程形成实质推进'
+          : '该章对窗口级连续规划形成清晰承接',
+      priority: focusThreads[index % Math.max(focusThreads.length, 1)]?.priority ?? 'high',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }))
+
+    return {
+      id: createId('volume_plan'),
+      bookId: context.book.id,
+      volumeId: context.volume.id,
+      title: `${context.volume.title} 滚动窗口计划`,
+      focusSummary: context.currentChapterMission?.summary ?? `围绕卷目标“${context.volume.goal}”推进未来章节串。`,
+      rollingWindow: {
+        windowStartChapterIndex: context.chapter.index,
+        windowEndChapterIndex: chaptersInWindow.at(-1)?.index ?? context.chapter.index,
+        focusThreadIds: focusThreads.map((thread) => thread.id),
+        goal: `在 ${chaptersInWindow.length} 章窗口内持续推进卷目标与高优先级线程。`,
+      },
+      threadIds: focusThreads.map((thread) => thread.id),
+      chapterMissions,
+      endingSetupRequirements: (context.endingReadiness?.closureGaps ?? []).slice(0, 2).map((gap, index) => ({
+        id: createId(`ending_req_${index}`),
+        summary: gap.summary,
+        relatedThreadId: gap.relatedThreadId,
+        targetChapterIndex: chaptersInWindow.at(-1)?.index,
+        status: 'pending',
+      })),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }
   }
 }
 
@@ -161,6 +225,12 @@ function buildPlanningPromptPayload(context: PlanningContext, activeHooks: Activ
       coreConflicts: context.outline.coreConflicts,
       endingVision: context.outline.endingVision,
       previousChapterSummary: context.previousChapter?.summary,
+    },
+    volumeDirector: {
+      volumePlan: context.volumePlan,
+      currentChapterMission: context.currentChapterMission,
+      activeStoryThreads: context.activeStoryThreads,
+      endingReadiness: context.endingReadiness,
     },
     stateConstraints: {
       characterStates: context.characterStates.map((state) => ({
@@ -492,6 +562,20 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
   const previousChapterSummary = context.previousChapter
     ? `承接上一章《${context.previousChapter.title}》的推进结果。`
     : '作为开篇章节建立世界与主角当前局势。'
+  const currentMissionSummary =
+    context.currentChapterMission?.summary
+    ?? context.volumePlan?.focusSummary
+    ?? `围绕卷目标“${context.volume.goal}”推进当前章节。`
+  const currentMissionSignal =
+    context.currentChapterMission?.successSignal
+    ?? '本章应对至少一条卷级线程形成可追踪推进。'
+  const prioritizedThreads = context.activeStoryThreads.slice(0, 3)
+  const threadBeat = prioritizedThreads[0]
+    ? `优先推进故事线程《${prioritizedThreads[0].title}》。`
+    : undefined
+  const endingGapBeat = context.endingReadiness?.closureGaps[0]
+    ? `为终局缺口补前置：${context.endingReadiness.closureGaps[0].summary}`
+    : undefined
   const highPressureHooks = context.narrativePressure.highPressureHooks.slice(0, 3)
   const requiredCharacterIds = uniqueStrings([
     ...context.characterStates.slice(0, 3).map((state) => state.characterId),
@@ -569,6 +653,7 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
       mustInclude: uniqueStrings([
         previousChapterSummary,
         `点明本章目标：${context.chapter.objective}`,
+        `卷级任务：${currentMissionSummary}`,
       ]),
       mustAvoid: ['空转铺垫', '脱离当前状态体系的解释性段落'],
       protectedFacts: mustPreserveFacts,
@@ -601,7 +686,7 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
   const sceneOutcomeChecklist: SceneOutcomeChecklist[] = [
     {
       sceneTitle: `${context.chapter.title}-开场铺垫`,
-      mustHappen: ['建立本章即时任务', '承接上一章局势'],
+      mustHappen: ['建立本章即时任务', '承接上一章局势', currentMissionSignal],
       shouldAdvanceHooks: highPressureHookIds.slice(0, 1),
       shouldResolveDebts: mustResolveDebts.slice(0, 1),
     },
@@ -664,15 +749,19 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
     eventOutline: [
       `围绕章节目标推进：${context.chapter.objective}`,
       `呼应卷目标：${context.volume.goal}`,
+      `卷级任务：${currentMissionSummary}`,
       `至少推进一条核心冲突：${context.outline.coreConflicts[0]}`,
+      ...(threadBeat ? [threadBeat] : []),
       ...(importantItemBeat ? [importantItemBeat] : []),
       ...(hookBeat ? [hookBeat] : []),
+      ...(endingGapBeat ? [endingGapBeat] : []),
       ...debtCarryTargets,
     ],
     hookPlan,
     statePredictions: [
       '更新当前章节推进位置',
       '记录本章形成的关键事件',
+      '记录本章对卷级线程的推进结果',
       ...(requiredCharacterIds.length > 0 ? ['关键角色状态应在本章后产生可追踪变化'] : []),
       ...(hookPlan.length > 0 ? ['至少一条高压力或活跃 Hook 的状态应在本章后发生推进'] : []),
       ...(context.memoryRecall.relevantLongTermEntries.length > 0 ? ['避免与高重要长期记忆冲突'] : []),
@@ -681,6 +770,7 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
     memoryCandidates: [
       `${context.chapter.title} 的关键事件摘要`,
       `${context.chapter.objective} 对主线造成的推进结果`,
+      `卷级任务完成度：${currentMissionSummary}`,
       ...hookPlan.slice(0, 2).map((item) => `Hook ${item.hookId} 在本章的推进结果`),
       ...context.memoryRecall.relevantLongTermEntries.slice(0, 2).map((entry) => `承接长期记忆：${entry.summary}`),
       ...debtCarryTargets.slice(0, 2).map((item) => `待承接债务：${item}`),
@@ -688,6 +778,17 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
     highPressureHookIds,
     characterArcTargets,
     debtCarryTargets,
+    missionId: context.currentChapterMission?.id,
+    threadFocus: prioritizedThreads.map((thread) => thread.id),
+    windowRole: context.currentChapterMission?.missionType ?? 'advance',
+    carryInTasks: uniqueStrings([
+      currentMissionSummary,
+      ...mustResolveDebts.slice(0, 2),
+    ]),
+    carryOutTasks: uniqueStrings([
+      currentMissionSignal,
+      ...mustAdvanceHooks.slice(0, 2).map((hookId) => `后续继续推进 Hook：${hookId}`),
+    ]),
     endingDrive,
     mustResolveDebts,
     mustAdvanceHooks,

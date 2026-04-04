@@ -4,12 +4,15 @@ import type { BookRepository } from '../../infra/repository/book-repository.js'
 import type { CharacterArcRepository } from '../../infra/repository/character-arc-repository.js'
 import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
+import type { EndingReadinessRepository } from '../../infra/repository/ending-readiness-repository.js'
 import type { HookPressureRepository } from '../../infra/repository/hook-pressure-repository.js'
 import type { HookStateRepository } from '../../infra/repository/hook-state-repository.js'
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import type { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import type { OutlineRepository } from '../../infra/repository/outline-repository.js'
+import type { StoryThreadRepository } from '../../infra/repository/story-thread-repository.js'
+import type { VolumePlanRepository } from '../../infra/repository/volume-plan-repository.js'
 import type { VolumeRepository } from '../../infra/repository/volume-repository.js'
 
 export class PlanningContextBuilder {
@@ -18,6 +21,9 @@ export class PlanningContextBuilder {
     private readonly outlineRepository: OutlineRepository,
     private readonly chapterRepository: ChapterRepository,
     private readonly volumeRepository: VolumeRepository,
+    private readonly volumePlanRepository: VolumePlanRepository,
+    private readonly storyThreadRepository: StoryThreadRepository,
+    private readonly endingReadinessRepository: EndingReadinessRepository,
     private readonly characterCurrentStateRepository: CharacterCurrentStateRepository,
     private readonly characterArcRepository: CharacterArcRepository,
     private readonly itemCurrentStateRepository: ItemCurrentStateRepository,
@@ -77,6 +83,10 @@ export class PlanningContextBuilder {
       importantItems.flatMap((item) => [item.name, item.id, item.status]),
     )
     const relevantLongTermEntries = this.memoryRepository.recallRelevantLongTermEntries(book.id, recallTerms)
+    const volumePlan = this.volumePlanRepository.getLatestByVolumeId(volume.id)
+    const activeStoryThreads = this.storyThreadRepository.listActiveByBookId(book.id)
+    const currentChapterMission = volumePlan?.chapterMissions.find((mission) => mission.chapterId === chapter.id) ?? null
+    const endingReadiness = this.endingReadinessRepository.getByBookId(book.id)
 
     return {
       book,
@@ -102,6 +112,10 @@ export class PlanningContextBuilder {
         observationEntries: observationMemory?.entries ?? [],
         relevantLongTermEntries,
       },
+      volumePlan,
+      activeStoryThreads,
+      currentChapterMission,
+      endingReadiness,
     }
   }
 }
