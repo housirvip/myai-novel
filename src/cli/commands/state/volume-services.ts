@@ -1,0 +1,59 @@
+import type { NovelDatabase } from '../../../infra/db/database.js'
+import { BookRepository } from '../../../infra/repository/book-repository.js'
+import { ChapterRepository } from '../../../infra/repository/chapter-repository.js'
+import { EndingReadinessRepository } from '../../../infra/repository/ending-readiness-repository.js'
+import { StoryThreadRepository } from '../../../infra/repository/story-thread-repository.js'
+import { VolumePlanRepository } from '../../../infra/repository/volume-plan-repository.js'
+import { VolumeRepository } from '../../../infra/repository/volume-repository.js'
+import { NovelError } from '../../../shared/utils/errors.js'
+
+export function loadStateVolumeView(database: NovelDatabase, volumeId: string): {
+  book: { id: string; title: string }
+  volume: {
+    id: string
+    title: string
+    goal: string
+    summary: string
+    chapterIds: string[]
+  }
+  chapters: Array<{
+    id: string
+    index: number
+    title: string
+    status: string
+  }>
+  latestVolumePlan: unknown | null
+  storyThreads: unknown[]
+  endingReadiness: unknown | null
+} {
+  const book = new BookRepository(database).getFirst()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const volume = new VolumeRepository(database).getById(volumeId)
+
+  if (!volume) {
+    throw new NovelError(`Volume not found: ${volumeId}`)
+  }
+
+  const chapters = new ChapterRepository(database)
+    .listByBookId(book.id)
+    .filter((chapter) => chapter.volumeId === volumeId)
+    .map((chapter) => ({
+      id: chapter.id,
+      index: chapter.index,
+      title: chapter.title,
+      status: chapter.status,
+    }))
+
+  return {
+    book,
+    volume,
+    chapters,
+    latestVolumePlan: new VolumePlanRepository(database).getLatestByVolumeId(volumeId),
+    storyThreads: new StoryThreadRepository(database).listByVolumeId(volumeId),
+    endingReadiness: new EndingReadinessRepository(database).getByBookId(book.id),
+  }
+}
