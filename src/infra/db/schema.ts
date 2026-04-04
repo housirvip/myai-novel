@@ -394,4 +394,68 @@ export const migrations = [
       ALTER TABLE chapter_rewrites ADD COLUMN validation_json TEXT NOT NULL DEFAULT '{"reviewDecision":"warning","approvalRisk":"medium","issueCount":0,"preservedClosureScore":0}';
     `,
   },
+  {
+    id: '011_chapter_outcomes',
+    sql: `
+      ALTER TABLE chapter_reviews ADD COLUMN outcome_candidate_json TEXT NOT NULL DEFAULT '{"decision":"warning","resolvedFacts":[],"observationFacts":[],"contradictions":[],"narrativeDebts":[],"characterArcProgress":[],"hookDebtUpdates":[]}';
+
+      CREATE TABLE IF NOT EXISTS chapter_outcomes (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        chapter_id TEXT NOT NULL,
+        source_review_id TEXT,
+        source_rewrite_id TEXT,
+        decision TEXT NOT NULL,
+        resolved_facts_json TEXT NOT NULL,
+        observation_facts_json TEXT NOT NULL,
+        character_arc_progress_json TEXT NOT NULL,
+        hook_debt_updates_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_review_id) REFERENCES chapter_reviews(id) ON DELETE SET NULL,
+        FOREIGN KEY (source_rewrite_id) REFERENCES chapter_rewrites(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS chapter_narrative_debts (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        chapter_id TEXT NOT NULL,
+        outcome_id TEXT NOT NULL,
+        source_review_id TEXT,
+        source_rewrite_id TEXT,
+        debt_type TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
+        FOREIGN KEY (outcome_id) REFERENCES chapter_outcomes(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_review_id) REFERENCES chapter_reviews(id) ON DELETE SET NULL,
+        FOREIGN KEY (source_rewrite_id) REFERENCES chapter_rewrites(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS chapter_contradictions (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        chapter_id TEXT NOT NULL,
+        outcome_id TEXT NOT NULL,
+        source_review_id TEXT,
+        source_rewrite_id TEXT,
+        contradiction_type TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+        FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
+        FOREIGN KEY (outcome_id) REFERENCES chapter_outcomes(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_review_id) REFERENCES chapter_reviews(id) ON DELETE SET NULL,
+        FOREIGN KEY (source_rewrite_id) REFERENCES chapter_rewrites(id) ON DELETE SET NULL
+      );
+    `,
+  },
 ] as const

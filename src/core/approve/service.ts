@@ -4,6 +4,7 @@ import { writeFile } from 'node:fs/promises'
 import type {
   ApproveResult,
   ChapterHookUpdate,
+  ChapterOutcome,
   ChapterPlan,
   ChapterMemoryUpdate,
   ChapterOutput,
@@ -15,6 +16,8 @@ import type {
   HookPlan,
   ItemCurrentState,
   LongTermMemoryEntry,
+  NarrativeContradiction,
+  NarrativeDebt,
   ReviewReport,
   StoryState,
   UpdateTraceDetail,
@@ -29,9 +32,11 @@ import { nowIso } from '../../shared/utils/time.js'
 import type { BookRepository } from '../../infra/repository/book-repository.js'
 import type { CharacterRepository } from '../../infra/repository/character-repository.js'
 import type { CharacterCurrentStateRepository } from '../../infra/repository/character-current-state-repository.js'
+import type { ChapterContradictionRepository } from '../../infra/repository/chapter-contradiction-repository.js'
 import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
 import type { ChapterHookUpdateRepository } from '../../infra/repository/chapter-hook-update-repository.js'
 import type { ChapterMemoryUpdateRepository } from '../../infra/repository/chapter-memory-update-repository.js'
+import type { ChapterOutcomeRepository } from '../../infra/repository/chapter-outcome-repository.js'
 import type { ChapterOutputRepository } from '../../infra/repository/chapter-output-repository.js'
 import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
@@ -43,6 +48,7 @@ import type { HookStateRepository } from '../../infra/repository/hook-state-repo
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { ItemRepository } from '../../infra/repository/item-repository.js'
 import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
+import type { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import type { StoryStateRepository } from '../../infra/repository/story-state-repository.js'
 
 type DraftSource =
@@ -58,6 +64,9 @@ export class ApproveService {
     private readonly chapterRewriteRepository: ChapterRewriteRepository,
     private readonly chapterPlanRepository: ChapterPlanRepository,
     private readonly chapterReviewRepository: ChapterReviewRepository,
+    private readonly chapterOutcomeRepository: ChapterOutcomeRepository,
+    private readonly narrativeDebtRepository: NarrativeDebtRepository,
+    private readonly chapterContradictionRepository: ChapterContradictionRepository,
     private readonly chapterOutputRepository: ChapterOutputRepository,
     private readonly chapterStateUpdateRepository: ChapterStateUpdateRepository,
     private readonly chapterMemoryUpdateRepository: ChapterMemoryUpdateRepository,
@@ -131,9 +140,6 @@ export class ApproveService {
       recentEvents: [`第 ${chapter.index} 章《${chapter.title}》已确认终稿`],
       updatedAt: approvedAt,
     }
-
-    this.chapterOutputRepository.create(output)
-    this.storyStateRepository.upsert(state)
 
     const hookUpdates = this.updateHookStates(
       book.id,
@@ -214,6 +220,14 @@ export class ApproveService {
       nextLongTermEntries,
       closureSuggestions,
     )
+
+    const outcome = this.buildChapterOutcome(book.id, chapterId, review, source.sourceType === 'rewrite' ? source.sourceId : undefined, approvedAt)
+
+    this.chapterOutputRepository.create(output)
+    this.storyStateRepository.upsert(state)
+    this.chapterOutcomeRepository.create(outcome)
+    this.narrativeDebtRepository.createBatch(outcome.narrativeDebts)
+    this.chapterContradictionRepository.createBatch(outcome.contradictions)
 
     this.persistUpdateLogs(stateUpdates, memoryUpdates, hookUpdates)
     this.chapterRepository.finalizeChapter(chapterId, source.versionId, finalPath, chapterSummary, approvedAt)
@@ -526,6 +540,59 @@ export class ApproveService {
         createdAt,
       },
     ]
+  }
+
+  private buildChapterOutcome(
+    bookId: string,
+    chapterId: string,
+    review: ReviewReport | null,
+    sourceRewriteId: string | undefined,
+    createdAt: string,
+  ): ChapterOutcome {
+    const outcomeId = createId('outcome')
+    const candidate = review?.outcomeCandidate ?? emptyOutcomeCandidate(review?.decision ?? 'warning')
+    const narrativeDebts: NarrativeDebt[] = candidate.narrativeDebts.map((item) => ({
+      id: createId('debt'),
+      bookId,
+      chapterId,
+      outcomeId,
+      debtType: item.debtType,
+      summary: item.summary,
+      priority: item.priority,
+      status: item.status,
+      sourceReviewId: review?.id,
+      sourceRewriteId,
+      createdAt,
+    }))
+    const contradictions: NarrativeContradiction[] = candidate.contradictions.map((item) => ({
+      id: createId('contradiction'),
+      bookId,
+      chapterId,
+      outcomeId,
+      contradictionType: item.contradictionType,
+      summary: item.summary,
+      severity: item.severity,
+      status: item.status,
+      sourceReviewId: review?.id,
+      sourceRewriteId,
+      createdAt,
+    }))
+
+    return {
+      id: outcomeId,
+      bookId,
+      chapterId,
+      sourceReviewId: review?.id,
+      sourceRewriteId,
+      decision: candidate.decision,
+      resolvedFacts: candidate.resolvedFacts,
+      observationFacts: candidate.observationFacts,
+      contradictions,
+      narrativeDebts,
+      characterArcProgress: candidate.characterArcProgress,
+      hookDebtUpdates: candidate.hookDebtUpdates,
+      createdAt,
+    }
   }
 
   private persistUpdateLogs(
@@ -1067,5 +1134,17 @@ function emptyClosureSuggestions(): ClosureSuggestions {
     items: [],
     hooks: [],
     memory: [],
+  }
+}
+
+function emptyOutcomeCandidate(decision: ReviewReport['decision']): ReviewReport['outcomeCandidate'] {
+  return {
+    decision,
+    resolvedFacts: [],
+    observationFacts: [],
+    contradictions: [],
+    narrativeDebts: [],
+    characterArcProgress: [],
+    hookDebtUpdates: [],
   }
 }

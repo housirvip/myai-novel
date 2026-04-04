@@ -330,7 +330,89 @@ export type ReviewReport = {
   wordCountCheck: WordCountCheck
   newFactCandidates: string[]
   closureSuggestions: ClosureSuggestions
+  outcomeCandidate: ChapterOutcomeCandidate
   revisionAdvice: string[]
+  createdAt: IsoTimestamp
+}
+
+export type ResolvedFact = {
+  summary: string
+  factType: 'character' | 'item' | 'hook' | 'world' | 'plot' | 'memory'
+  source: 'review' | 'rewrite' | 'approve'
+}
+
+export type ObservationFact = {
+  summary: string
+  reason: string
+  source: 'review' | 'rewrite' | 'approve'
+}
+
+export type NarrativeDebt = {
+  id: string
+  bookId: string
+  chapterId: string
+  outcomeId: string
+  debtType: 'hook' | 'promise' | 'conflict' | 'emotion' | 'arc' | 'fact'
+  summary: string
+  priority: 'low' | 'medium' | 'high'
+  status: 'open' | 'resolved'
+  sourceReviewId?: string
+  sourceRewriteId?: string
+  createdAt: IsoTimestamp
+  resolvedAt?: IsoTimestamp
+}
+
+export type NarrativeContradiction = {
+  id: string
+  bookId: string
+  chapterId: string
+  outcomeId: string
+  contradictionType: 'world' | 'character' | 'plot' | 'fact' | 'hook'
+  summary: string
+  severity: 'low' | 'medium' | 'high'
+  status: 'open' | 'resolved'
+  sourceReviewId?: string
+  sourceRewriteId?: string
+  createdAt: IsoTimestamp
+  resolvedAt?: IsoTimestamp
+}
+
+export type CharacterArcProgress = {
+  characterId: string
+  arc: string
+  stage: string
+  summary: string
+}
+
+export type HookDebtUpdate = {
+  hookId: string
+  pressure: 'low' | 'medium' | 'high'
+  summary: string
+}
+
+export type ChapterOutcomeCandidate = {
+  decision: ReviewDecision
+  resolvedFacts: ResolvedFact[]
+  observationFacts: ObservationFact[]
+  contradictions: Array<Omit<NarrativeContradiction, 'id' | 'bookId' | 'chapterId' | 'outcomeId' | 'createdAt' | 'resolvedAt'>>
+  narrativeDebts: Array<Omit<NarrativeDebt, 'id' | 'bookId' | 'chapterId' | 'outcomeId' | 'createdAt' | 'resolvedAt'>>
+  characterArcProgress: CharacterArcProgress[]
+  hookDebtUpdates: HookDebtUpdate[]
+}
+
+export type ChapterOutcome = {
+  id: string
+  bookId: string
+  chapterId: string
+  sourceReviewId?: string
+  sourceRewriteId?: string
+  decision: ReviewDecision
+  resolvedFacts: ResolvedFact[]
+  observationFacts: ObservationFact[]
+  contradictions: NarrativeContradiction[]
+  narrativeDebts: NarrativeDebt[]
+  characterArcProgress: CharacterArcProgress[]
+  hookDebtUpdates: HookDebtUpdate[]
   createdAt: IsoTimestamp
 }
 

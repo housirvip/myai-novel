@@ -17,6 +17,7 @@ type ReviewRow = {
   word_count_check_json: string
   new_fact_candidates_json: string
   closure_suggestions_json: string
+  outcome_candidate_json: string
   revision_advice_json: string
   created_at: string
 }
@@ -44,9 +45,10 @@ export class ChapterReviewRepository {
             word_count_check_json,
             new_fact_candidates_json,
             closure_suggestions_json,
+            outcome_candidate_json,
             revision_advice_json,
             created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -65,6 +67,7 @@ export class ChapterReviewRepository {
         JSON.stringify(review.wordCountCheck),
         JSON.stringify(review.newFactCandidates),
         JSON.stringify(review.closureSuggestions),
+        JSON.stringify(review.outcomeCandidate),
         JSON.stringify(review.revisionAdvice),
         review.createdAt,
       )
@@ -127,6 +130,7 @@ function mapReview(row: ReviewRow): ReviewReport {
     wordCountCheck: JSON.parse(row.word_count_check_json) as ReviewReport['wordCountCheck'],
     newFactCandidates: JSON.parse(row.new_fact_candidates_json) as string[],
     closureSuggestions: JSON.parse(row.closure_suggestions_json) as ReviewReport['closureSuggestions'],
+    outcomeCandidate: JSON.parse(row.outcome_candidate_json) as ReviewReport['outcomeCandidate'],
     revisionAdvice: JSON.parse(row.revision_advice_json) as string[],
     createdAt: row.created_at,
   }

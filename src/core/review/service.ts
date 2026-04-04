@@ -126,6 +126,26 @@ export class ReviewService {
     const memoryIssues = mergeMemoryIssues(mergedReview.memoryIssues, longTermMemory?.entries ?? [], draft.content)
     const hookIssues = mergeHookIssues(mergedReview.hookIssues, activeHookStates, plan.hookPlan, draft.content)
 
+    const newFactCandidates = mergeNewFactCandidates(
+      mergedReview.newFactCandidates,
+      chapter.objective,
+      plan.memoryCandidates,
+    )
+    const outcomeCandidate = buildOutcomeCandidate({
+      decision: mergedReview.decision,
+      chapterObjective: chapter.objective,
+      newFactCandidates,
+      closureSuggestions,
+      consistencyIssues: mergedReview.consistencyIssues,
+      characterIssues,
+      itemIssues,
+      memoryIssues,
+      hookIssues,
+      pacingIssues: mergedReview.pacingIssues,
+      activeHookStates,
+      characterStates,
+    })
+
     const review: ReviewReport = {
       id: createId('review'),
       bookId: book.id,
@@ -147,8 +167,9 @@ export class ReviewService {
         hookIssues,
       ),
       wordCountCheck,
-      newFactCandidates: mergeNewFactCandidates(mergedReview.newFactCandidates, chapter.objective, plan.memoryCandidates),
+      newFactCandidates,
       closureSuggestions,
+      outcomeCandidate,
       revisionAdvice: mergedReview.revisionAdvice,
       createdAt: nowIso(),
     }
@@ -365,6 +386,15 @@ function createRuleBasedReview(
     approvalRisk: deriveApprovalRisk(decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, hookIssues),
     newFactCandidates,
     closureSuggestions: emptyClosureSuggestions(),
+    outcomeCandidate: {
+      decision,
+      resolvedFacts: [],
+      observationFacts: [],
+      contradictions: [],
+      narrativeDebts: [],
+      characterArcProgress: [],
+      hookDebtUpdates: [],
+    },
     revisionAdvice: buildRevisionAdvice(wordCountCheck, consistencyIssues, hookIssues, itemIssues),
   }
 }
@@ -470,6 +500,15 @@ async function createLlmReview(
       approvalRisk: deriveApprovalRisk(decision, consistencyIssues, characterIssues, itemIssues, memoryIssues, hookIssues),
       newFactCandidates,
       closureSuggestions: normalizeClosureSuggestions(parsed.closureSuggestions, 'llm'),
+      outcomeCandidate: {
+        decision,
+        resolvedFacts: [],
+        observationFacts: [],
+        contradictions: [],
+        narrativeDebts: [],
+        characterArcProgress: [],
+        hookDebtUpdates: [],
+      },
       revisionAdvice: revisionAdvice.length > 0 ? revisionAdvice : ['建议人工复核本章审查结果。'],
     }
   } catch {
@@ -1013,6 +1052,195 @@ function splitStructuredNotes(value: string): string[] {
     .split(/[；;、，,]/)
     .map((item) => item.trim())
     .filter(Boolean)
+}
+
+function buildOutcomeCandidate(input: {
+  decision: ReviewDecision
+  chapterObjective: string
+  newFactCandidates: string[]
+  closureSuggestions: ClosureSuggestions
+  consistencyIssues: string[]
+  characterIssues: string[]
+  itemIssues: string[]
+  memoryIssues: string[]
+  hookIssues: string[]
+  pacingIssues: string[]
+  activeHookStates: Array<{ hookId: string; status: string }>
+  characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>
+}): ReviewReport['outcomeCandidate'] {
+  const resolvedFacts = uniqueMessages([
+    input.chapterObjective,
+    ...input.newFactCandidates,
+    ...input.closureSuggestions.memory.map((item) => item.summary),
+  ])
+    .slice(0, 8)
+    .map((summary) => ({
+      summary,
+      factType: inferResolvedFactType(summary),
+      source: 'review' as const,
+    }))
+
+  const observationFacts = uniqueMessages([
+    ...input.memoryIssues.map((item) => `待观察：${item}`),
+    ...input.closureSuggestions.memory
+      .filter((item) => item.memoryScope === 'observation')
+      .map((item) => item.summary),
+  ])
+    .slice(0, 6)
+    .map((summary) => ({
+      summary,
+      reason: 'review 判断该事实仍需后续章节继续观察',
+      source: 'review' as const,
+    }))
+
+  const contradictions = uniqueMessages([
+    ...input.consistencyIssues,
+    ...input.characterIssues,
+    ...input.itemIssues,
+    ...input.hookIssues,
+  ])
+    .slice(0, 8)
+    .map((summary) => ({
+      contradictionType: inferContradictionType(summary),
+      summary,
+      severity: inferSeverity(summary),
+      status: 'open' as const,
+      sourceReviewId: undefined,
+      sourceRewriteId: undefined,
+    }))
+
+  const narrativeDebts = uniqueMessages([
+    ...input.pacingIssues.map((item) => `节奏债务：${item}`),
+    ...input.hookIssues.map((item) => `Hook 债务：${item}`),
+    ...input.closureSuggestions.hooks.map((item) => `需要继续处理 Hook ${item.hookId}：${item.actualOutcome}`),
+  ])
+    .slice(0, 8)
+    .map((summary) => ({
+      debtType: inferDebtType(summary),
+      summary,
+      priority: inferPriority(summary),
+      status: 'open' as const,
+      sourceReviewId: undefined,
+      sourceRewriteId: undefined,
+    }))
+
+  const characterArcProgress = input.characterStates
+    .slice(0, 6)
+    .map((state) => ({
+      characterId: state.characterId,
+      arc: 'current-arc',
+      stage: input.characterIssues.some((item) => item.includes(state.characterId)) ? 'blocked' : 'advanced',
+      summary: state.statusNotes[0] ?? `角色 ${state.characterId} 在本章继续推进`,
+    }))
+
+  const hookDebtUpdates = uniqueHookIds([
+    ...input.activeHookStates.map((item) => item.hookId),
+    ...input.closureSuggestions.hooks.map((item) => item.hookId),
+  ])
+    .slice(0, 8)
+    .map((hookId) => ({
+      hookId,
+      pressure: input.hookIssues.some((item) => item.includes(hookId)) ? 'high' as const : 'medium' as const,
+      summary: `Hook ${hookId} 仍需后续章节继续承接`,
+    }))
+
+  return {
+    decision: input.decision,
+    resolvedFacts,
+    observationFacts,
+    contradictions,
+    narrativeDebts,
+    characterArcProgress,
+    hookDebtUpdates,
+  }
+}
+
+function inferResolvedFactType(summary: string): 'character' | 'item' | 'hook' | 'world' | 'plot' | 'memory' {
+  if (summary.includes('角色')) {
+    return 'character'
+  }
+
+  if (summary.includes('物品')) {
+    return 'item'
+  }
+
+  if (summary.includes('Hook') || summary.includes('伏笔')) {
+    return 'hook'
+  }
+
+  if (summary.includes('记忆')) {
+    return 'memory'
+  }
+
+  if (summary.includes('世界') || summary.includes('地点')) {
+    return 'world'
+  }
+
+  return 'plot'
+}
+
+function inferContradictionType(summary: string): 'world' | 'character' | 'plot' | 'fact' | 'hook' {
+  if (summary.includes('角色')) {
+    return 'character'
+  }
+
+  if (summary.includes('Hook') || summary.includes('伏笔')) {
+    return 'hook'
+  }
+
+  if (summary.includes('世界') || summary.includes('地点')) {
+    return 'world'
+  }
+
+  if (summary.includes('事实') || summary.includes('一致')) {
+    return 'fact'
+  }
+
+  return 'plot'
+}
+
+function inferDebtType(summary: string): 'hook' | 'promise' | 'conflict' | 'emotion' | 'arc' | 'fact' {
+  if (summary.includes('Hook') || summary.includes('伏笔')) {
+    return 'hook'
+  }
+
+  if (summary.includes('情绪')) {
+    return 'emotion'
+  }
+
+  if (summary.includes('角色')) {
+    return 'arc'
+  }
+
+  if (summary.includes('冲突')) {
+    return 'conflict'
+  }
+
+  if (summary.includes('事实')) {
+    return 'fact'
+  }
+
+  return 'promise'
+}
+
+function inferSeverity(summary: string): 'low' | 'medium' | 'high' {
+  if (summary.includes('冲突') || summary.includes('矛盾') || summary.includes('违背')) {
+    return 'high'
+  }
+
+  return 'medium'
+}
+
+function inferPriority(summary: string): 'low' | 'medium' | 'high' {
+  if (summary.includes('Hook') || summary.includes('冲突') || summary.includes('结尾')) {
+    return 'high'
+  }
+
+  return 'medium'
+}
+
+function uniqueHookIds(values: string[]): string[] {
+  return [...new Set(values.filter((item) => item.trim().length > 0))]
 }
 
 function uniqueMessages(messages: string[]): string[] {
