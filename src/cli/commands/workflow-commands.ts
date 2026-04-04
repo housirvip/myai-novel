@@ -5,6 +5,14 @@ import { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repos
 import { ChapterReviewRepository } from '../../infra/repository/chapter-review-repository.js'
 import { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite-repository.js'
 import { createWorkflowGenerationService, createWorkflowPlanningService, createWorkflowReviewService } from './workflow-services.js'
+import {
+  printWorkflowDraftCreated,
+  printWorkflowPlanCreated,
+  printWorkflowPlanDetail,
+  printWorkflowReviewCreated,
+  printWorkflowReviewDetail,
+  printWorkflowRewriteDetail,
+} from './workflow-printers.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { formatJson, formatSection } from '../../shared/utils/format.js'
 import { openProjectDatabase, runLoggedCommand } from '../context.js'
@@ -44,10 +52,7 @@ export function registerWorkflowCommands(program: Command): void {
         },
       })
 
-      console.log(`Chapter plan created: ${plan.versionId}`)
-      console.log(`Objective: ${plan.objective}`)
-      console.log(`Scenes: ${plan.sceneCards.length}`)
-      console.log(`Events: ${plan.eventOutline.length}`)
+      printWorkflowPlanCreated(plan)
     })
 
   planCommand
@@ -63,28 +68,7 @@ export function registerWorkflowCommands(program: Command): void {
           throw new NovelError(`No chapter plan found for chapter: ${chapterId}`)
         }
 
-        console.log(`Plan version: ${plan.versionId}`)
-        console.log(`Objective: ${plan.objective}`)
-        console.log(formatSection('Mission id:', plan.missionId ?? '(none)'))
-        console.log(formatSection('Thread focus:', formatJson(plan.threadFocus)))
-        console.log(formatSection('Window role:', plan.windowRole ?? '(none)'))
-        console.log(formatSection('Carry-in tasks:', formatJson(plan.carryInTasks)))
-        console.log(formatSection('Carry-out tasks:', formatJson(plan.carryOutTasks)))
-        console.log(formatSection('Scene cards:', formatJson(plan.sceneCards)))
-        console.log(formatSection('Scene goals:', formatJson(plan.sceneGoals)))
-        console.log(formatSection('Scene constraints:', formatJson(plan.sceneConstraints)))
-        console.log(formatSection('Scene emotional targets:', formatJson(plan.sceneEmotionalTargets)))
-        console.log(formatSection('Scene outcome checklist:', formatJson(plan.sceneOutcomeChecklist)))
-        console.log(formatSection('Event outline:', formatJson(plan.eventOutline)))
-        console.log(formatSection('State predictions:', formatJson(plan.statePredictions)))
-        console.log(formatSection('High pressure hooks:', formatJson(plan.highPressureHookIds)))
-        console.log(formatSection('Character arc targets:', formatJson(plan.characterArcTargets)))
-        console.log(formatSection('Debt carry targets:', formatJson(plan.debtCarryTargets)))
-        console.log(formatSection('Ending drive:', plan.endingDrive))
-        console.log(formatSection('Must resolve debts:', formatJson(plan.mustResolveDebts)))
-        console.log(formatSection('Must advance hooks:', formatJson(plan.mustAdvanceHooks)))
-        console.log(formatSection('Must preserve facts:', formatJson(plan.mustPreserveFacts)))
-        console.log(formatSection('Memory candidates:', formatJson(plan.memoryCandidates)))
+        printWorkflowPlanDetail(plan)
       } finally {
         database.close()
       }
@@ -116,10 +100,7 @@ export function registerWorkflowCommands(program: Command): void {
         },
       })
 
-      console.log(`Chapter draft created: ${result.draftId}`)
-      console.log(`Status: ${result.chapterStatus}`)
-      console.log(`Word count: ${result.actualWordCount}`)
-      console.log(`Next action: ${result.nextAction}`)
+      printWorkflowDraftCreated(result)
     })
 
   draftCommand
@@ -183,16 +164,7 @@ export function registerWorkflowCommands(program: Command): void {
         },
       })
 
-      console.log(`Chapter review created: ${review.id}`)
-      console.log(`Decision: ${review.decision}`)
-      console.log(`Approval risk: ${review.approvalRisk}`)
-      console.log(`Mission progress: ${review.missionProgress.status}`)
-      console.log(`Thread issues: ${review.threadIssues.length}`)
-      console.log(`Word count passed: ${review.wordCountCheck.passed}`)
-      console.log(
-        `Closure suggestions: ${review.closureSuggestions.characters.length + review.closureSuggestions.items.length + review.closureSuggestions.hooks.length + review.closureSuggestions.memory.length}`,
-      )
-      console.log(`Revision advice: ${review.revisionAdvice.join('；')}`)
+      printWorkflowReviewCreated(review)
     })
 
   reviewCommand
@@ -208,26 +180,7 @@ export function registerWorkflowCommands(program: Command): void {
           throw new NovelError(`No chapter review found for chapter: ${chapterId}`)
         }
 
-        console.log(`Review id: ${review.id}`)
-        console.log(`Decision: ${review.decision}`)
-        console.log(`Approval risk: ${review.approvalRisk}`)
-        console.log(formatSection('Mission progress:', formatJson(review.missionProgress)))
-        console.log(formatSection('Thread issues:', formatJson(review.threadIssues)))
-        console.log(formatSection('Consistency issues:', formatJson(review.consistencyIssues)))
-        console.log(formatSection('Character issues:', formatJson(review.characterIssues)))
-        console.log(formatSection('Item issues:', formatJson(review.itemIssues)))
-        console.log(formatSection('Memory issues:', formatJson(review.memoryIssues)))
-        console.log(formatSection('Pacing issues:', formatJson(review.pacingIssues)))
-        console.log(formatSection('Hook issues:', formatJson(review.hookIssues)))
-        console.log(formatSection('Must-fix issues:', formatJson(review.reviewLayers.mustFix)))
-        console.log(formatSection('Narrative quality issues:', formatJson(review.reviewLayers.narrativeQuality)))
-        console.log(formatSection('Language quality issues:', formatJson(review.reviewLayers.languageQuality)))
-        console.log(formatSection('Rewrite strategy suggestion:', formatJson(review.reviewLayers.rewriteStrategySuggestion)))
-        console.log(formatSection('New fact candidates:', formatJson(review.newFactCandidates)))
-        console.log(formatSection('Outcome candidate:', formatJson(review.outcomeCandidate)))
-        console.log(formatSection('Closure suggestions:', formatJson(review.closureSuggestions)))
-        console.log(formatSection('Word count check:', formatJson(review.wordCountCheck)))
-        console.log(formatSection('Revision advice:', formatJson(review.revisionAdvice)))
+        printWorkflowReviewDetail(review)
       } finally {
         database.close()
       }
@@ -246,16 +199,7 @@ export function registerWorkflowCommands(program: Command): void {
           throw new NovelError(`No chapter rewrite found for chapter: ${chapterId}`)
         }
 
-        console.log(`Rewrite id: ${rewrite.id}`)
-        console.log(`Version: ${rewrite.versionId}`)
-        console.log(`Strategy: ${rewrite.strategy}`)
-        console.log(`Primary rewrite strategy: ${rewrite.strategyProfile.primary}`)
-        console.log(`Word count: ${rewrite.actualWordCount}`)
-        console.log(formatSection('Rewrite strategy profile:', formatJson(rewrite.strategyProfile)))
-        console.log(formatSection('Rewrite quality target:', formatJson(rewrite.qualityTarget)))
-        console.log(formatSection('Validation:', formatJson(rewrite.validation)))
-        console.log(formatSection('Goals:', formatJson(rewrite.goals)))
-        console.log(formatSection('Content preview:', rewrite.content))
+        printWorkflowRewriteDetail(rewrite)
       } finally {
         database.close()
       }

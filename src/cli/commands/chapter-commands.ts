@@ -13,6 +13,13 @@ import { ChapterRewriteRepository } from '../../infra/repository/chapter-rewrite
 import { ChapterStateUpdateRepository } from '../../infra/repository/chapter-state-update-repository.js'
 import { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
 import { createChapterApproveService, createChapterDropService, createChapterRewriteService, createChapterWorldService } from './chapter-services.js'
+import {
+  printChapterApproved,
+  printChapterCreated,
+  printChapterDropApplied,
+  printChapterRewriteCreated,
+  printChapterShowSummary,
+} from './chapter-printers.js'
 import type { DropChapterMode } from '../../shared/types/domain.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -41,7 +48,7 @@ export function registerChapterCommands(program: Command): void {
           index: options.index,
         })
 
-        console.log(`Chapter created: #${chapter.index} ${chapter.title} (${chapter.id})`)
+        printChapterCreated(chapter)
       } finally {
         database.close()
       }
@@ -84,58 +91,20 @@ export function registerChapterCommands(program: Command): void {
         const latestMemoryUpdates = memoryUpdateRepository.listByChapterId(chapterId)
         const latestHookUpdates = hookUpdateRepository.listByChapterId(chapterId)
 
-        console.log(`Chapter: #${chapter.index} ${chapter.title}`)
-        console.log(`ID: ${chapter.id}`)
-        console.log(`Status: ${chapter.status}`)
-        console.log(`Objective: ${chapter.objective}`)
-        console.log(`Planned beats: ${chapter.plannedBeats.length}`)
-        console.log(`Current plan version: ${chapter.currentPlanVersionId ?? '(none)'}`)
-        console.log(`Current version: ${chapter.currentVersionId ?? '(none)'}`)
-        console.log(`Approved at: ${chapter.approvedAt ?? '(not approved)'}`)
-
-        if (latestPlan) {
-          console.log(`Latest plan: ${latestPlan.versionId}`)
-        }
-
-        if (latestDraft) {
-          console.log(`Latest draft: ${latestDraft.id} (${latestDraft.actualWordCount} chars)`)
-        }
-
-        if (latestReview) {
-          console.log(`Latest review: ${latestReview.id} [${latestReview.decision}]`)
-          console.log(`Latest review risk: ${latestReview.approvalRisk}`)
-          console.log(`Latest review closures: ${latestReview.closureSuggestions.characters.length + latestReview.closureSuggestions.items.length + latestReview.closureSuggestions.hooks.length + latestReview.closureSuggestions.memory.length}`)
-          console.log(`Latest review advice: ${latestReview.revisionAdvice.slice(0, 2).join('；') || '(none)'}`)
-        }
-
-        if (latestRewrite) {
-          console.log(`Latest rewrite: ${latestRewrite.id} (${latestRewrite.actualWordCount} chars)`)
-        }
-
-        if (latestOutput) {
-          console.log(`Final output: ${latestOutput.finalPath}`)
-        }
-
-        if (latestOutcome) {
-          console.log(`Latest outcome: ${latestOutcome.id} [${latestOutcome.decision}]`)
-          console.log(`Outcome facts: ${latestOutcome.resolvedFacts.length}`)
-          console.log(`Outcome debts: ${chapterDebts.length}`)
-          console.log(`Outcome contradictions: ${chapterContradictions.length}`)
-        }
-
-        console.log(`Trace summary: state=${latestStateUpdates.length}; memory=${latestMemoryUpdates.length}; hook=${latestHookUpdates.length}`)
-
-        if (latestStateUpdates[0]) {
-          console.log(`Latest state trace: ${latestStateUpdates[0].summary}`)
-        }
-
-        if (latestMemoryUpdates[0]) {
-          console.log(`Latest memory trace: ${latestMemoryUpdates[0].summary}`)
-        }
-
-        if (latestHookUpdates[0]) {
-          console.log(`Latest hook trace: ${latestHookUpdates[0].summary}`)
-        }
+        printChapterShowSummary({
+          chapter,
+          latestPlan,
+          latestDraft,
+          latestReview,
+          latestRewrite,
+          latestOutput,
+          latestOutcome,
+          chapterDebts,
+          chapterContradictions,
+          latestStateUpdates,
+          latestMemoryUpdates,
+          latestHookUpdates,
+        })
       } finally {
         database.close()
       }
@@ -183,10 +152,7 @@ export function registerChapterCommands(program: Command): void {
         },
       })
 
-      console.log(`Chapter rewrite created: ${rewrite.id}`)
-      console.log(`Version: ${rewrite.versionId}`)
-      console.log(`Word count: ${rewrite.actualWordCount}`)
-      console.log(`Goals: ${rewrite.goals.join('；')}`)
+      printChapterRewriteCreated(rewrite)
     })
 
   chapterCommand
@@ -225,13 +191,7 @@ export function registerChapterCommands(program: Command): void {
         },
       })
 
-      console.log(`Chapter approved: ${result.chapterId}`)
-      console.log(`Status: ${result.chapterStatus}`)
-      console.log(`Forced approval: ${result.forcedApproval}`)
-      console.log(`Thread progress updated: ${result.threadProgressUpdated}`)
-      console.log(`Ending readiness updated: ${result.endingReadinessUpdated}`)
-      console.log(`Final path: ${result.finalPath}`)
-      console.log(`Approved at: ${result.approvedAt}`)
+      printChapterApproved(result)
     })
 
   chapterCommand
@@ -279,13 +239,7 @@ export function registerChapterCommands(program: Command): void {
         },
       })
 
-      console.log(`Chapter drop applied: ${result.chapterId}`)
-      console.log(`Mode: ${result.dropMode}`)
-      console.log(`Status: ${result.previousChapterStatus} -> ${result.nextChapterStatus}`)
-      console.log(`Dropped plan: ${result.droppedPlanVersionId ?? '(none)'}`)
-      console.log(`Dropped draft chain: ${result.droppedDraftVersionId ?? '(none)'}`)
-      console.log(`Dropped review: ${result.droppedReviewId ?? '(none)'}`)
-      console.log(`Dropped rewrite: ${result.droppedRewriteId ?? '(none)'}`)
+      printChapterDropApplied(result)
     })
 }
 
