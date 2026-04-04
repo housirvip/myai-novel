@@ -22,9 +22,8 @@ import { StoryThreadProgressRepository } from '../../../infra/repository/story-t
 import { StoryThreadRepository } from '../../../infra/repository/story-thread-repository.js'
 import { VolumePlanRepository } from '../../../infra/repository/volume-plan-repository.js'
 import { NovelError } from '../../../shared/utils/errors.js'
-import { formatJson, formatSection } from '../../../shared/utils/format.js'
 import { openProjectDatabase } from '../../context.js'
-import { formatTrace } from './shared.js'
+import { printStateShowSummary } from './printers.js'
 
 export function registerStateShowCommand(stateCommand: Command): void {
   stateCommand
@@ -75,88 +74,35 @@ export function registerStateShowCommand(stateCommand: Command): void {
         const locationNameById = new Map(locations.map((location) => [location.id, location.name]))
         const itemNameById = new Map(items.map((item) => [item.id, item.name]))
         const hookTitleById = new Map(hooks.map((hook) => [hook.id, hook.title]))
+        const currentChapterTitle = storyState?.currentChapterId
+          ? chapterRepository.getById(storyState.currentChapterId)?.title ?? null
+          : null
 
-        console.log(`Book: ${book.title}`)
-        console.log(`Book ID: ${book.id}`)
-        console.log(formatSection('Story current state:', formatJson({
-          currentChapterId: storyState?.currentChapterId ?? null,
-          currentChapterTitle: storyState?.currentChapterId
-            ? chapterRepository.getById(storyState.currentChapterId)?.title ?? null
-            : null,
-          recentEvents: storyState?.recentEvents ?? [],
-          updatedAt: storyState?.updatedAt ?? null,
-        })))
-        console.log(formatSection(
-          'Character current state:',
-          formatJson(characterStates.map((state) => ({
-            characterId: state.characterId,
-            characterName: characterNameById.get(state.characterId) ?? state.characterId,
-            currentLocationId: state.currentLocationId ?? null,
-            currentLocationName: state.currentLocationId ? (locationNameById.get(state.currentLocationId) ?? null) : null,
-            statusNotes: state.statusNotes,
-            updatedAt: state.updatedAt,
-          }))),
-        ))
-        console.log(formatSection(
-          'Important item current state:',
-          formatJson(importantItems.map((item) => ({
-            itemId: item.id,
-            itemName: item.name,
-            ownerCharacterId: item.ownerCharacterId ?? null,
-            ownerCharacterName: item.ownerCharacterId ? (characterNameById.get(item.ownerCharacterId) ?? null) : null,
-            locationId: item.locationId ?? null,
-            locationName: item.locationId ? (locationNameById.get(item.locationId) ?? null) : null,
-            quantity: item.quantity,
-            status: item.status,
-            updatedAt: item.updatedAt || null,
-          }))),
-        ))
-        console.log(formatSection(
-          'Hook current state:',
-          formatJson(hookStates.map((state) => ({
-            hookId: state.hookId,
-            hookTitle: hookTitleById.get(state.hookId) ?? state.hookId,
-            status: state.status,
-            updatedByChapterId: state.updatedByChapterId ?? null,
-            updatedAt: state.updatedAt,
-          }))),
-        ))
-        console.log(formatSection('Character arc current state:', formatJson(characterArcs)))
-        console.log(formatSection('Hook pressure current:', formatJson(hookPressures)))
-        console.log(formatSection('Active story threads:', formatJson(activeStoryThreads)))
-        console.log(formatSection('Recent thread progress:', formatJson(recentThreadProgress)))
-        console.log(formatSection('Latest volume plans:', formatJson(latestVolumePlans)))
-        console.log(formatSection('Ending readiness current:', formatJson(endingReadiness)))
-        console.log(formatSection('Open narrative debts:', formatJson(openNarrativeDebts)))
-        console.log(formatSection('Short-term memory current:', formatJson(shortTermMemory)))
-        console.log(formatSection('Observation memory current:', formatJson(observationMemory)))
-        console.log(formatSection('Long-term memory current:', formatJson(longTermMemory)))
-        console.log(formatSection(
-          'Recent state updates:',
-          formatJson(recentStateUpdates.map((update) => ({
-            ...update,
-            entityName:
-              update.entityType === 'character'
-                ? (characterNameById.get(update.entityId) ?? update.entityId)
-                : (itemNameById.get(update.entityId) ?? update.entityId),
-            trace: formatTrace(update.detail),
-          }))),
-        ))
-        console.log(formatSection(
-          'Recent memory updates:',
-          formatJson(recentMemoryUpdates.map((update) => ({
-            ...update,
-            trace: formatTrace(update.detail),
-          }))),
-        ))
-        console.log(formatSection(
-          'Recent hook updates:',
-          formatJson(recentHookUpdates.map((update) => ({
-            ...update,
-            hookTitle: hookTitleById.get(update.hookId) ?? update.hookId,
-            trace: formatTrace(update.detail),
-          }))),
-        ))
+        printStateShowSummary({
+          book,
+          currentChapterTitle,
+          storyState,
+          characterStates,
+          characterNameById,
+          locationNameById,
+          importantItems,
+          hookStates,
+          hookTitleById,
+          characterArcs,
+          hookPressures,
+          activeStoryThreads,
+          recentThreadProgress,
+          latestVolumePlans,
+          endingReadiness,
+          openNarrativeDebts,
+          shortTermMemory,
+          observationMemory,
+          longTermMemory,
+          recentStateUpdates,
+          itemNameById,
+          recentMemoryUpdates,
+          recentHookUpdates,
+        })
       } finally {
         database.close()
       }

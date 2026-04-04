@@ -3,8 +3,8 @@ import { Command } from 'commander'
 import { BookRepository } from '../../../infra/repository/book-repository.js'
 import { StoryStateRepository } from '../../../infra/repository/story-state-repository.js'
 import { NovelError } from '../../../shared/utils/errors.js'
-import { formatJson } from '../../../shared/utils/format.js'
 import { openProjectDatabase } from '../../context.js'
+import { printStoryState } from '../state/printers.js'
 
 export function registerStoryShowCommand(program: Command): void {
   program
@@ -23,13 +23,7 @@ export function registerStoryShowCommand(program: Command): void {
         }
 
         const state = new StoryStateRepository(database).getByBookId(book.id)
-
-        if (!state) {
-          console.log('Story state: (empty)')
-          return
-        }
-
-        console.log(formatJson(state))
+        printStoryState(state)
       } finally {
         database.close()
       }

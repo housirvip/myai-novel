@@ -8,9 +8,8 @@ import { ChapterReviewRepository } from '../../../infra/repository/chapter-revie
 import { ChapterStateUpdateRepository } from '../../../infra/repository/chapter-state-update-repository.js'
 import { HookRepository } from '../../../infra/repository/hook-repository.js'
 import { ItemRepository } from '../../../infra/repository/item-repository.js'
-import { formatJson, formatSection } from '../../../shared/utils/format.js'
 import { runLoggedCommand } from '../../context.js'
-import { formatTrace, summarizeClosureSuggestions } from '../state/shared.js'
+import { printStateUpdatesSummary } from '../state/printers.js'
 
 export function registerStateUpdatesShowCommand(stateUpdatesCommand: Command): void {
   stateUpdatesCommand
@@ -63,58 +62,6 @@ export function registerStateUpdatesShowCommand(stateUpdatesCommand: Command): v
         },
       })
 
-      if (output.chapter) {
-        console.log(`Chapter: #${output.chapter.index} ${output.chapter.title}`)
-        console.log(`Chapter ID: ${output.chapter.id}`)
-        console.log(`Status: ${output.chapter.status}`)
-      }
-
-      if (output.review) {
-        console.log(formatSection(
-          'Latest review:',
-          formatJson({
-            reviewId: output.review.id,
-            decision: output.review.decision,
-            approvalRisk: output.review.approvalRisk,
-            closureSummary: summarizeClosureSuggestions(output.review.closureSuggestions),
-            topIssues: [
-              ...output.review.consistencyIssues,
-              ...output.review.characterIssues,
-              ...output.review.itemIssues,
-              ...output.review.memoryIssues,
-              ...output.review.hookIssues,
-            ].slice(0, 5),
-            revisionAdvice: output.review.revisionAdvice.slice(0, 5),
-          }),
-        ))
-        console.log(formatSection('Review closure suggestions:', formatJson(output.review.closureSuggestions)))
-      }
-
-      console.log(formatSection(
-        'State updates:',
-        formatJson(output.stateUpdates.map((update) => ({
-          ...update,
-          entityName:
-            update.entityType === 'character'
-              ? (output.characterNameById.get(update.entityId) ?? update.entityId)
-              : (output.itemNameById.get(update.entityId) ?? update.entityId),
-          trace: formatTrace(update.detail),
-        }))),
-      ))
-      console.log(formatSection(
-        'Memory updates:',
-        formatJson(output.memoryUpdates.map((update) => ({
-          ...update,
-          trace: formatTrace(update.detail),
-        }))),
-      ))
-      console.log(formatSection(
-        'Hook updates:',
-        formatJson(output.hookUpdates.map((update) => ({
-          ...update,
-          hookTitle: output.hookTitleById.get(update.hookId) ?? update.hookId,
-          trace: formatTrace(update.detail),
-        }))),
-      ))
+      printStateUpdatesSummary(output)
     })
 }

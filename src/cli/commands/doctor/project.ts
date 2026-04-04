@@ -8,9 +8,9 @@ import { ChapterRepository } from '../../../infra/repository/chapter-repository.
 import { ChapterReviewRepository } from '../../../infra/repository/chapter-review-repository.js'
 import { ChapterRewriteRepository } from '../../../infra/repository/chapter-rewrite-repository.js'
 import { NovelError } from '../../../shared/utils/errors.js'
-import { formatJson, formatSection } from '../../../shared/utils/format.js'
 import { resolveOperationLogDir } from '../../../shared/utils/project-paths.js'
 import { openProjectDatabase } from '../../context.js'
+import { printDoctorProjectSummary } from './printers.js'
 
 export function registerDoctorProjectCommand(doctorCommand: Command): void {
   doctorCommand
@@ -43,17 +43,12 @@ export function registerDoctorProjectCommand(doctorCommand: Command): void {
           hasOutput: Boolean(outputRepository.getLatestByChapterId(chapter.id)),
         }))
 
-        console.log(
-          formatSection(
-            'Doctor summary:',
-            formatJson({
-              bookId: book.id,
-              chapterCount: chapters.length,
-              operationLogDir: resolveOperationLogDir(process.cwd()),
-              chapters: diagnostics,
-            }),
-          ),
-        )
+        printDoctorProjectSummary({
+          bookId: book.id,
+          chapterCount: chapters.length,
+          operationLogDir: resolveOperationLogDir(process.cwd()),
+          chapters: diagnostics,
+        })
       } finally {
         database.close()
       }

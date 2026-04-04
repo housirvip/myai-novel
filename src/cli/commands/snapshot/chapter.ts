@@ -7,8 +7,8 @@ import { ChapterRepository } from '../../../infra/repository/chapter-repository.
 import { ChapterReviewRepository } from '../../../infra/repository/chapter-review-repository.js'
 import { ChapterRewriteRepository } from '../../../infra/repository/chapter-rewrite-repository.js'
 import { NovelError } from '../../../shared/utils/errors.js'
-import { formatJson, formatSection } from '../../../shared/utils/format.js'
 import { openProjectDatabase } from '../../context.js'
+import { printChapterSnapshot } from './printers.js'
 
 export function registerSnapshotChapterCommand(snapshotCommand: Command): void {
   snapshotCommand
@@ -25,19 +25,14 @@ export function registerSnapshotChapterCommand(snapshotCommand: Command): void {
           throw new NovelError(`Chapter not found: ${chapterId}`)
         }
 
-        console.log(
-          formatSection(
-            'Chapter snapshot:',
-            formatJson({
-              chapter,
-              latestPlan: new ChapterPlanRepository(database).getLatestByChapterId(chapterId),
-              latestDraft: new ChapterDraftRepository(database).getLatestByChapterId(chapterId),
-              latestReview: new ChapterReviewRepository(database).getLatestByChapterId(chapterId),
-              latestRewrite: new ChapterRewriteRepository(database).getLatestByChapterId(chapterId),
-              latestOutput: new ChapterOutputRepository(database).getLatestByChapterId(chapterId),
-            }),
-          ),
-        )
+        printChapterSnapshot({
+          chapter,
+          latestPlan: new ChapterPlanRepository(database).getLatestByChapterId(chapterId),
+          latestDraft: new ChapterDraftRepository(database).getLatestByChapterId(chapterId),
+          latestReview: new ChapterReviewRepository(database).getLatestByChapterId(chapterId),
+          latestRewrite: new ChapterRewriteRepository(database).getLatestByChapterId(chapterId),
+          latestOutput: new ChapterOutputRepository(database).getLatestByChapterId(chapterId),
+        })
       } finally {
         database.close()
       }

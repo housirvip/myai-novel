@@ -7,9 +7,9 @@ import { ChapterRepository } from '../../../infra/repository/chapter-repository.
 import { ChapterReviewRepository } from '../../../infra/repository/chapter-review-repository.js'
 import { ChapterRewriteRepository } from '../../../infra/repository/chapter-rewrite-repository.js'
 import { NovelError } from '../../../shared/utils/errors.js'
-import { formatJson, formatSection } from '../../../shared/utils/format.js'
 import { resolveOperationLogDir } from '../../../shared/utils/project-paths.js'
 import { openProjectDatabase } from '../../context.js'
+import { printDoctorChapterSummary } from './printers.js'
 
 export function registerDoctorChapterCommand(doctorCommand: Command): void {
   doctorCommand
@@ -31,24 +31,21 @@ export function registerDoctorChapterCommand(doctorCommand: Command): void {
           throw new NovelError(`Chapter not found: ${chapterId}`)
         }
 
-        console.log(`Doctor chapter: #${chapter.index} ${chapter.title}`)
-        console.log(
-          formatSection(
-            'Workflow chain:',
-            formatJson({
-              chapterId: chapter.id,
-              status: chapter.status,
-              currentPlanVersionId: chapter.currentPlanVersionId ?? null,
-              currentVersionId: chapter.currentVersionId ?? null,
-              latestPlanId: planRepository.getLatestByChapterId(chapterId)?.versionId ?? null,
-              latestDraftId: draftRepository.getLatestByChapterId(chapterId)?.id ?? null,
-              latestReviewId: reviewRepository.getLatestByChapterId(chapterId)?.id ?? null,
-              latestRewriteId: rewriteRepository.getLatestByChapterId(chapterId)?.id ?? null,
-              latestOutputId: outputRepository.getLatestByChapterId(chapterId)?.id ?? null,
-              operationLogDir: resolveOperationLogDir(process.cwd()),
-            }),
-          ),
-        )
+        printDoctorChapterSummary({
+          chapter,
+          workflowChain: {
+            chapterId: chapter.id,
+            status: chapter.status,
+            currentPlanVersionId: chapter.currentPlanVersionId ?? null,
+            currentVersionId: chapter.currentVersionId ?? null,
+            latestPlanId: planRepository.getLatestByChapterId(chapterId)?.versionId ?? null,
+            latestDraftId: draftRepository.getLatestByChapterId(chapterId)?.id ?? null,
+            latestReviewId: reviewRepository.getLatestByChapterId(chapterId)?.id ?? null,
+            latestRewriteId: rewriteRepository.getLatestByChapterId(chapterId)?.id ?? null,
+            latestOutputId: outputRepository.getLatestByChapterId(chapterId)?.id ?? null,
+            operationLogDir: resolveOperationLogDir(process.cwd()),
+          },
+        })
       } finally {
         database.close()
       }
