@@ -20,8 +20,8 @@ export async function runMigrations(database: NovelDatabase): Promise<void> {
   }
 
   for (const migration of migrations) {
-    const alreadyApplied = await database.dbAsync.get<{ exists: number }>(
-      'SELECT 1 as exists FROM schema_migrations WHERE id = ?',
+    const alreadyApplied = await database.dbAsync.get<{ applied: number }>(
+      'SELECT 1 as applied FROM schema_migrations WHERE id = ?',
       migration.id,
     )
 
@@ -38,6 +38,27 @@ export async function runMigrations(database: NovelDatabase): Promise<void> {
       )
     })
 
-    await transaction()
+    try {
+      await transaction()
+    } catch (error) {
+      if (!isIgnorableMigrationError(error)) {
+        throw error
+      }
+
+      await database.dbAsync.run(
+        'INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)',
+        migration.id,
+        new Date().toISOString(),
+      )
+    }
   }
+}
+
+function isIgnorableMigrationError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false
+  }
+
+  const message = error.message.toLowerCase()
+  return message.includes('duplicate column name')
 }
