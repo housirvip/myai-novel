@@ -12,6 +12,23 @@ export function printWorkflowPlanCreated(plan: {
   console.log(`Events: ${plan.eventOutline.length}`)
 }
 
+export function printWorkflowMissionDetail(input: {
+  chapter: {
+    id: string
+    title: string
+    volumeId: string
+    index: number
+  }
+  volumePlan: unknown | null
+  mission: unknown | null
+}): void {
+  console.log(`Chapter: #${input.chapter.index} ${input.chapter.title}`)
+  console.log(`Chapter ID: ${input.chapter.id}`)
+  console.log(`Volume ID: ${input.chapter.volumeId}`)
+  console.log(formatSection('Volume plan:', formatJson(input.volumePlan)))
+  console.log(formatSection('Current mission:', formatJson(input.mission)))
+}
+
 export function printWorkflowVolumePlanCreated(plan: {
   id: string
   title: string

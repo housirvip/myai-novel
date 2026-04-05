@@ -64,6 +64,37 @@ export function createWorkflowVolumePlanRepository(database: NovelDatabase): Vol
   return new VolumePlanRepository(database)
 }
 
+export function loadWorkflowMissionView(database: NovelDatabase, chapterId: string): {
+  chapter: {
+    id: string
+    title: string
+    volumeId: string
+    index: number
+  }
+  volumePlan: unknown | null
+  mission: unknown | null
+} {
+  const chapter = new ChapterRepository(database).getById(chapterId)
+
+  if (!chapter) {
+    throw new NovelError(`Chapter not found: ${chapterId}`)
+  }
+
+  const volumePlan = new VolumePlanRepository(database).getLatestByVolumeId(chapter.volumeId)
+  const mission = volumePlan?.chapterMissions.find((item) => item.chapterId === chapterId) ?? null
+
+  return {
+    chapter: {
+      id: chapter.id,
+      title: chapter.title,
+      volumeId: chapter.volumeId,
+      index: chapter.index,
+    },
+    volumePlan,
+    mission,
+  }
+}
+
 export function loadWorkflowVolumeReviewView(database: NovelDatabase, volumeId: string): {
   volume: {
     id: string

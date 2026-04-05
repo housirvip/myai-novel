@@ -105,6 +105,24 @@ function buildGenerationPromptPayload(context: WritingContext): Record<string, u
       coreConflicts: context.outline.coreConflicts,
       previousChapterSummary: context.previousChapter?.summary,
     },
+    volumeDirector: {
+      volumePlan: context.volumePlan,
+      currentChapterMission: context.currentChapterMission,
+      activeStoryThreads: context.activeStoryThreads,
+      endingReadiness: context.endingReadiness,
+      characterPresenceWindows: context.characterPresenceWindows,
+      ensembleBalanceReport: context.ensembleBalanceReport,
+      chapterPlanDirectives: {
+        missionId: context.chapterPlan.missionId,
+        threadFocus: context.chapterPlan.threadFocus,
+        windowRole: context.chapterPlan.windowRole,
+        carryInTasks: context.chapterPlan.carryInTasks,
+        carryOutTasks: context.chapterPlan.carryOutTasks,
+        ensembleFocusCharacterIds: context.chapterPlan.ensembleFocusCharacterIds,
+        subplotCarryThreadIds: context.chapterPlan.subplotCarryThreadIds,
+        endingDrive: context.chapterPlan.endingDrive,
+      },
+    },
     stateConstraints: {
       characterStates: context.characterStates.map((state) => ({
         characterId: state.characterId,
@@ -188,6 +206,29 @@ function buildDraftContent(context: WritingContext): string {
         '',
       ]
     : []
+  const volumeDirectorSection =
+    context.currentChapterMission ||
+    context.chapterPlan.threadFocus.length > 0 ||
+    context.chapterPlan.carryInTasks.length > 0 ||
+    context.chapterPlan.carryOutTasks.length > 0 ||
+    context.chapterPlan.ensembleFocusCharacterIds.length > 0 ||
+    context.chapterPlan.subplotCarryThreadIds.length > 0 ||
+    context.volumePlan
+      ? [
+          '## 卷级导演约束',
+          '',
+          `- 卷计划焦点=${context.volumePlan?.focusSummary ?? `围绕卷目标“${context.volume.goal}”持续推进`}`,
+          `- 当前 mission=${context.currentChapterMission?.summary ?? context.chapterPlan.carryInTasks[0] ?? '无'}`,
+          `- mission 成功信号=${context.currentChapterMission?.successSignal ?? context.chapterPlan.carryOutTasks[0] ?? '无'}`,
+          `- 线程焦点=${context.chapterPlan.threadFocus.join(' / ') || '无'}`,
+          `- 窗口职责=${context.chapterPlan.windowRole ?? '无'}`,
+          `- 承接任务=${context.chapterPlan.carryInTasks.join(' / ') || '无'}`,
+          `- 后续任务=${context.chapterPlan.carryOutTasks.join(' / ') || '无'}`,
+          `- 群像聚焦=${context.chapterPlan.ensembleFocusCharacterIds.join(' / ') || '无'}`,
+          `- 支线承接=${context.chapterPlan.subplotCarryThreadIds.join(' / ') || '无'}`,
+          '',
+        ]
+      : []
   const characterStatesSection = context.characterStates.length > 0
     ? [
         '## 角色当前状态',
@@ -275,6 +316,7 @@ function buildDraftContent(context: WritingContext): string {
       : '这是故事前期的重要起势章节，需要尽快建立主角处境与冲突压力。',
     '',
     ...sceneTaskSection,
+    ...volumeDirectorSection,
     ...writingConstraintSection,
     ...characterStatesSection,
     ...memorySection,

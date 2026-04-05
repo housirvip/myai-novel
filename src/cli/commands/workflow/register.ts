@@ -2,6 +2,7 @@ import { Command } from 'commander'
 
 import { registerWorkflowDraftShowCommand } from './draft-show.js'
 import { registerWorkflowPlanChapterCommand } from './plan-chapter.js'
+import { registerWorkflowPlanMissionShowCommand } from './plan-mission-show.js'
 import { registerWorkflowPlanShowCommand } from './plan-show.js'
 import { registerWorkflowPlanVolumeShowCommand } from './plan-volume-show.js'
 import { registerWorkflowPlanVolumeWindowCommand } from './plan-volume-window.js'
@@ -20,6 +21,7 @@ export function registerWorkflowCommands(program: Command): void {
 
   registerWorkflowPlanChapterCommand(planCommand)
   registerWorkflowPlanShowCommand(planCommand)
+  registerWorkflowPlanMissionShowCommand(planCommand)
   registerWorkflowPlanVolumeWindowCommand(planCommand)
   registerWorkflowPlanVolumeShowCommand(planCommand)
   registerWorkflowWriteNextCommand(writeCommand)

@@ -83,6 +83,14 @@ export class RewriteService {
       eventOutline: plan?.eventOutline ?? [],
       statePredictions: plan?.statePredictions ?? [],
       hookPlan: plan?.hookPlan ?? [],
+      missionId: plan?.missionId,
+      threadFocus: plan?.threadFocus ?? [],
+      windowRole: plan?.windowRole,
+      carryInTasks: plan?.carryInTasks ?? [],
+      carryOutTasks: plan?.carryOutTasks ?? [],
+      ensembleFocusCharacterIds: plan?.ensembleFocusCharacterIds ?? [],
+      subplotCarryThreadIds: plan?.subplotCarryThreadIds ?? [],
+      endingDrive: plan?.endingDrive ?? '',
       characterStates: characterStates.map((state) => ({
         characterId: state.characterId,
         currentLocationId: state.currentLocationId,
@@ -186,6 +194,14 @@ async function createLlmRewrite(
     eventOutline: string[]
     statePredictions: string[]
     hookPlan: Array<{ hookId: string; action: 'hold' | 'foreshadow' | 'advance' | 'payoff'; note: string }>
+    missionId?: string
+    threadFocus: string[]
+    windowRole?: string
+    carryInTasks: string[]
+    carryOutTasks: string[]
+    ensembleFocusCharacterIds: string[]
+    subplotCarryThreadIds: string[]
+    endingDrive: string
     characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>
     importantItems: Array<{ itemId: string; itemName: string; quantity: number; status: string; ownerCharacterId?: string; locationId?: string }>
     activeHookStates: Array<{ hookId: string; status: string }>
@@ -203,6 +219,7 @@ async function createLlmRewrite(
       system: [
         '你是长篇小说章节重写助手。你的任务不是自由改写，而是在不破坏既有事实与状态连续性的前提下，定向修复问题。',
         '必须优先修复：目标承接、节奏、关键场景、角色状态一致性、关键物品连续性、Hook 承接、结尾牵引。',
+        '必须保持与当前卷级导演语义一致：不得偏离 mission、thread focus、carry tasks、群像聚焦与 ending drive。',
         '不得把正文改写成摘要、说明文或审查报告。',
         '不得随意删除关键事实、不得推翻已成立的剧情因果、不得削弱结尾牵引。',
         'review 已经给出 closureSuggestions，它们代表当前应被保护的结构化事实边界。',
@@ -227,6 +244,7 @@ async function createLlmRewrite(
               'review closureSuggestions 给出的结构化事实边界不被破坏',
               '不得偏离 chapter plan 的核心场景推进与事件顺序',
               '不得推翻当前角色、物品、Hook、memory 真源',
+              '不得破坏 mission、thread focus、carry tasks 与 ending drive 的卷级导演约束',
             ],
           },
           draft: content,
@@ -316,6 +334,14 @@ function buildRewriteContent(
     eventOutline: string[]
     statePredictions: string[]
     hookPlan: Array<{ hookId: string; action: 'hold' | 'foreshadow' | 'advance' | 'payoff'; note: string }>
+    missionId?: string
+    threadFocus: string[]
+    windowRole?: string
+    carryInTasks: string[]
+    carryOutTasks: string[]
+    ensembleFocusCharacterIds: string[]
+    subplotCarryThreadIds: string[]
+    endingDrive: string
     characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>
     importantItems: Array<{ itemId: string; itemName: string; quantity: number; status: string; ownerCharacterId?: string; locationId?: string }>
     activeHookStates: Array<{ hookId: string; status: string }>
@@ -353,6 +379,14 @@ function summarizeRewriteContext(rewriteContext: {
   eventOutline: string[]
   statePredictions: string[]
   hookPlan: Array<{ hookId: string; action: 'hold' | 'foreshadow' | 'advance' | 'payoff'; note: string }>
+  missionId?: string
+  threadFocus: string[]
+  windowRole?: string
+  carryInTasks: string[]
+  carryOutTasks: string[]
+  ensembleFocusCharacterIds: string[]
+  subplotCarryThreadIds: string[]
+  endingDrive: string
   characterStates: Array<{ characterId: string; currentLocationId?: string; statusNotes: string[] }>
   importantItems: Array<{ itemId: string; itemName: string; quantity: number; status: string; ownerCharacterId?: string; locationId?: string }>
   activeHookStates: Array<{ hookId: string; status: string }>
@@ -362,6 +396,14 @@ function summarizeRewriteContext(rewriteContext: {
   relevantLongTermEntries: Array<{ summary: string; importance: number }>
 }): string[] {
   const items = [
+    ...(rewriteContext.missionId ? [`mission=${rewriteContext.missionId}`] : []),
+    ...(rewriteContext.windowRole ? [`窗口职责=${rewriteContext.windowRole}`] : []),
+    ...rewriteContext.threadFocus.slice(0, 3).map((item) => `线程焦点：${item}`),
+    ...rewriteContext.carryInTasks.slice(0, 2).map((item) => `承接任务：${item}`),
+    ...rewriteContext.carryOutTasks.slice(0, 2).map((item) => `后续任务：${item}`),
+    ...rewriteContext.ensembleFocusCharacterIds.slice(0, 2).map((item) => `群像聚焦：${item}`),
+    ...rewriteContext.subplotCarryThreadIds.slice(0, 2).map((item) => `支线承接：${item}`),
+    ...(rewriteContext.endingDrive.trim() ? [`结尾牵引：${rewriteContext.endingDrive}`] : []),
     ...rewriteContext.sceneCards.slice(0, 2).map((item) => `场景 ${item.title}：${item.purpose}`),
     ...rewriteContext.eventOutline.slice(0, 2).map((item) => `事件：${item}`),
     ...rewriteContext.statePredictions.slice(0, 2).map((item) => `预计状态变化：${item}`),
