@@ -26,6 +26,8 @@ export function loadDoctorVolumeView(database: NovelDatabase, volumeId: string):
     closureGapCount: number
     neglectedThreadCount: number
     unfinishedChapterCount: number
+    missionChainGapCount: number
+    ensembleRiskCount: number
   }
   chapters: Array<{
     id: string
@@ -69,6 +71,12 @@ export function loadDoctorVolumeView(database: NovelDatabase, volumeId: string):
     .filter((threadId, index, values) => values.indexOf(threadId) === index)
   const stalledThreadCount = storyThreads.filter((thread) => thread.status === 'active' && thread.stage === 'setup').length
   const unfinishedChapterCount = chapters.filter((chapter) => chapter.status !== 'finalized').length
+  const missionChainGapCount = volumePlan
+    ? volumePlan.chapterMissions.filter((mission) => !chapters.some((chapter) => chapter.id === mission.chapterId)).length
+    : 0
+  const ensembleRiskCount = storyThreads.filter((thread) => thread.threadType === 'character' || thread.threadType === 'relationship').length > 0
+    ? Math.max(neglectedThreadIds.length, storyThreads.filter((thread) => thread.threadType === 'character' || thread.threadType === 'relationship').length - chapters.length)
+    : 0
 
   return {
     volume,
@@ -82,6 +90,8 @@ export function loadDoctorVolumeView(database: NovelDatabase, volumeId: string):
       closureGapCount: endingReadiness?.closureGaps.length ?? 0,
       neglectedThreadCount: neglectedThreadIds.length,
       unfinishedChapterCount,
+      missionChainGapCount,
+      ensembleRiskCount,
     },
     chapters,
   }

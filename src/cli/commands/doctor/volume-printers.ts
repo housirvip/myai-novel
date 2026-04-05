@@ -17,6 +17,8 @@ export function printDoctorVolumeSummary(input: {
     closureGapCount: number
     neglectedThreadCount: number
     unfinishedChapterCount: number
+    missionChainGapCount: number
+    ensembleRiskCount: number
   }
   chapters: unknown
 }): void {
