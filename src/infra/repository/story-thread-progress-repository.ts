@@ -1,5 +1,6 @@
 import type { StoryThreadProgress } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type StoryThreadProgressRow = {
   id: string
@@ -16,76 +17,76 @@ export class StoryThreadProgressRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(progress: StoryThreadProgress): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO story_thread_progress (
-            id,
-            book_id,
-            thread_id,
-            chapter_id,
-            progress_status,
-            summary,
-            detail_json,
-            created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        progress.id,
-        progress.bookId,
-        progress.threadId,
-        progress.chapterId,
-        progress.progressStatus,
-        progress.summary,
-        JSON.stringify(progress.impacts),
-        progress.createdAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO story_thread_progress (
+          id,
+          book_id,
+          thread_id,
+          chapter_id,
+          progress_status,
+          summary,
+          detail_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      progress.id,
+      progress.bookId,
+      progress.threadId,
+      progress.chapterId,
+      progress.progressStatus,
+      progress.summary,
+      JSON.stringify(progress.impacts),
+      progress.createdAt,
+    )
   }
 
   getLatestByThreadId(threadId: string): StoryThreadProgress | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM story_thread_progress
-          WHERE thread_id = ?
-          ORDER BY created_at DESC
-          LIMIT 1
-        `,
-      )
-      .get(threadId) as StoryThreadProgressRow | undefined
+    const row = sqliteGet<StoryThreadProgressRow>(
+      this.database,
+      `
+        SELECT *
+        FROM story_thread_progress
+        WHERE thread_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      threadId,
+    )
 
     return row ? mapStoryThreadProgress(row) : null
   }
 
   listByBookId(bookId: string): StoryThreadProgress[] {
-    const rows = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM story_thread_progress
-          WHERE book_id = ?
-          ORDER BY created_at DESC
-        `,
-      )
-      .all(bookId) as StoryThreadProgressRow[]
+    const rows = sqliteAll<StoryThreadProgressRow>(
+      this.database,
+      `
+        SELECT *
+        FROM story_thread_progress
+        WHERE book_id = ?
+        ORDER BY created_at DESC
+      `,
+      bookId,
+    )
 
     return rows.map(mapStoryThreadProgress)
   }
 
   listRecentByChapterWindow(bookId: string, startChapterId: string, endChapterId: string): StoryThreadProgress[] {
-    const rows = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM story_thread_progress
-          WHERE book_id = ?
-            AND chapter_id IN (?, ?)
-          ORDER BY created_at DESC
-        `,
-      )
-      .all(bookId, startChapterId, endChapterId) as StoryThreadProgressRow[]
+    const rows = sqliteAll<StoryThreadProgressRow>(
+      this.database,
+      `
+        SELECT *
+        FROM story_thread_progress
+        WHERE book_id = ?
+          AND chapter_id IN (?, ?)
+        ORDER BY created_at DESC
+      `,
+      bookId,
+      startChapterId,
+      endChapterId,
+    )
 
     return rows.map(mapStoryThreadProgress)
   }

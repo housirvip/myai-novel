@@ -1,5 +1,6 @@
 import type { VolumePlan } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type VolumePlanRow = {
   id: string
@@ -19,66 +20,64 @@ export class VolumePlanRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(plan: VolumePlan): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO volume_plans (
-            id,
-            book_id,
-            volume_id,
-            title,
-            focus_summary,
-            rolling_window_json,
-            thread_ids_json,
-            chapter_missions_json,
-            ending_setup_requirements_json,
-            created_at,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        plan.id,
-        plan.bookId,
-        plan.volumeId,
-        plan.title,
-        plan.focusSummary,
-        JSON.stringify(plan.rollingWindow),
-        JSON.stringify(plan.threadIds),
-        JSON.stringify(plan.chapterMissions),
-        JSON.stringify(plan.endingSetupRequirements),
-        plan.createdAt,
-        plan.updatedAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO volume_plans (
+          id,
+          book_id,
+          volume_id,
+          title,
+          focus_summary,
+          rolling_window_json,
+          thread_ids_json,
+          chapter_missions_json,
+          ending_setup_requirements_json,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      plan.id,
+      plan.bookId,
+      plan.volumeId,
+      plan.title,
+      plan.focusSummary,
+      JSON.stringify(plan.rollingWindow),
+      JSON.stringify(plan.threadIds),
+      JSON.stringify(plan.chapterMissions),
+      JSON.stringify(plan.endingSetupRequirements),
+      plan.createdAt,
+      plan.updatedAt,
+    )
   }
 
   getLatestByVolumeId(volumeId: string): VolumePlan | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM volume_plans
-          WHERE volume_id = ?
-          ORDER BY updated_at DESC, created_at DESC
-          LIMIT 1
-        `,
-      )
-      .get(volumeId) as VolumePlanRow | undefined
+    const row = sqliteGet<VolumePlanRow>(
+      this.database,
+      `
+        SELECT *
+        FROM volume_plans
+        WHERE volume_id = ?
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT 1
+      `,
+      volumeId,
+    )
 
     return row ? mapVolumePlan(row) : null
   }
 
   listByVolumeId(volumeId: string): VolumePlan[] {
-    const rows = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM volume_plans
-          WHERE volume_id = ?
-          ORDER BY updated_at DESC, created_at DESC
-        `,
-      )
-      .all(volumeId) as VolumePlanRow[]
+    const rows = sqliteAll<VolumePlanRow>(
+      this.database,
+      `
+        SELECT *
+        FROM volume_plans
+        WHERE volume_id = ?
+        ORDER BY updated_at DESC, created_at DESC
+      `,
+      volumeId,
+    )
 
     return rows.map(mapVolumePlan)
   }

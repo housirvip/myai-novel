@@ -1,5 +1,6 @@
 import type { ChapterStateUpdate } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
 
 type ChapterStateUpdateRow = {
   id: string
@@ -16,38 +17,40 @@ export class ChapterStateUpdateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(update: ChapterStateUpdate): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO chapter_state_updates (
-            id, book_id, chapter_id, entity_type, entity_id, summary, detail_json, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        update.id,
-        update.bookId,
-        update.chapterId,
-        update.entityType,
-        update.entityId,
-        update.summary,
-        JSON.stringify(update.detail),
-        update.createdAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO chapter_state_updates (
+          id, book_id, chapter_id, entity_type, entity_id, summary, detail_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      update.id,
+      update.bookId,
+      update.chapterId,
+      update.entityType,
+      update.entityId,
+      update.summary,
+      JSON.stringify(update.detail),
+      update.createdAt,
+    )
   }
 
   listByChapterId(chapterId: string): ChapterStateUpdate[] {
-    const rows = this.database
-      .prepare('SELECT * FROM chapter_state_updates WHERE chapter_id = ? ORDER BY created_at ASC')
-      .all(chapterId) as ChapterStateUpdateRow[]
+    const rows = sqliteAll<ChapterStateUpdateRow>(
+      this.database,
+      'SELECT * FROM chapter_state_updates WHERE chapter_id = ? ORDER BY created_at ASC',
+      chapterId,
+    )
 
     return rows.map(mapChapterStateUpdate)
   }
 
   listByBookId(bookId: string): ChapterStateUpdate[] {
-    const rows = this.database
-      .prepare('SELECT * FROM chapter_state_updates WHERE book_id = ? ORDER BY created_at DESC')
-      .all(bookId) as ChapterStateUpdateRow[]
+    const rows = sqliteAll<ChapterStateUpdateRow>(
+      this.database,
+      'SELECT * FROM chapter_state_updates WHERE book_id = ? ORDER BY created_at DESC',
+      bookId,
+    )
 
     return rows.map(mapChapterStateUpdate)
   }

@@ -1,5 +1,6 @@
 import type { HookPressure } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type HookPressureRow = {
   book_id: string
@@ -15,66 +16,65 @@ export class HookPressureRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   getByHookId(bookId: string, hookId: string): HookPressure | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM hook_pressure_current
-          WHERE book_id = ? AND hook_id = ?
-          LIMIT 1
-        `,
-      )
-      .get(bookId, hookId) as HookPressureRow | undefined
+    const row = sqliteGet<HookPressureRow>(
+      this.database,
+      `
+        SELECT *
+        FROM hook_pressure_current
+        WHERE book_id = ? AND hook_id = ?
+        LIMIT 1
+      `,
+      bookId,
+      hookId,
+    )
 
     return row ? mapHookPressure(row) : null
   }
 
   listActiveByBookId(bookId: string): HookPressure[] {
-    const rows = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM hook_pressure_current
-          WHERE book_id = ?
-          ORDER BY pressure_score DESC, updated_at DESC
-        `,
-      )
-      .all(bookId) as HookPressureRow[]
+    const rows = sqliteAll<HookPressureRow>(
+      this.database,
+      `
+        SELECT *
+        FROM hook_pressure_current
+        WHERE book_id = ?
+        ORDER BY pressure_score DESC, updated_at DESC
+      `,
+      bookId,
+    )
 
     return rows.map(mapHookPressure)
   }
 
   upsert(pressure: HookPressure): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO hook_pressure_current (
-            book_id,
-            hook_id,
-            pressure_score,
-            risk_level,
-            last_advanced_chapter_id,
-            next_suggested_chapter_index,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(book_id, hook_id)
-          DO UPDATE SET
-            pressure_score = excluded.pressure_score,
-            risk_level = excluded.risk_level,
-            last_advanced_chapter_id = excluded.last_advanced_chapter_id,
-            next_suggested_chapter_index = excluded.next_suggested_chapter_index,
-            updated_at = excluded.updated_at
-        `,
-      )
-      .run(
-        pressure.bookId,
-        pressure.hookId,
-        pressure.pressureScore,
-        pressure.riskLevel,
-        pressure.lastAdvancedChapterId ?? null,
-        pressure.nextSuggestedChapterIndex ?? null,
-        pressure.updatedAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO hook_pressure_current (
+          book_id,
+          hook_id,
+          pressure_score,
+          risk_level,
+          last_advanced_chapter_id,
+          next_suggested_chapter_index,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(book_id, hook_id)
+        DO UPDATE SET
+          pressure_score = excluded.pressure_score,
+          risk_level = excluded.risk_level,
+          last_advanced_chapter_id = excluded.last_advanced_chapter_id,
+          next_suggested_chapter_index = excluded.next_suggested_chapter_index,
+          updated_at = excluded.updated_at
+      `,
+      pressure.bookId,
+      pressure.hookId,
+      pressure.pressureScore,
+      pressure.riskLevel,
+      pressure.lastAdvancedChapterId ?? null,
+      pressure.nextSuggestedChapterIndex ?? null,
+      pressure.updatedAt,
+    )
   }
 }
 

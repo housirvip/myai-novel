@@ -1,5 +1,6 @@
 import type { ChapterHookUpdate } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
 
 type ChapterHookUpdateRow = {
   id: string
@@ -16,38 +17,40 @@ export class ChapterHookUpdateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(update: ChapterHookUpdate): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO chapter_hook_updates (
-            id, book_id, chapter_id, hook_id, status, summary, detail_json, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        update.id,
-        update.bookId,
-        update.chapterId,
-        update.hookId,
-        update.status,
-        update.summary,
-        JSON.stringify(update.detail),
-        update.createdAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO chapter_hook_updates (
+          id, book_id, chapter_id, hook_id, status, summary, detail_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      update.id,
+      update.bookId,
+      update.chapterId,
+      update.hookId,
+      update.status,
+      update.summary,
+      JSON.stringify(update.detail),
+      update.createdAt,
+    )
   }
 
   listByChapterId(chapterId: string): ChapterHookUpdate[] {
-    const rows = this.database
-      .prepare('SELECT * FROM chapter_hook_updates WHERE chapter_id = ? ORDER BY created_at ASC')
-      .all(chapterId) as ChapterHookUpdateRow[]
+    const rows = sqliteAll<ChapterHookUpdateRow>(
+      this.database,
+      'SELECT * FROM chapter_hook_updates WHERE chapter_id = ? ORDER BY created_at ASC',
+      chapterId,
+    )
 
     return rows.map(mapChapterHookUpdate)
   }
 
   listByBookId(bookId: string): ChapterHookUpdate[] {
-    const rows = this.database
-      .prepare('SELECT * FROM chapter_hook_updates WHERE book_id = ? ORDER BY created_at DESC')
-      .all(bookId) as ChapterHookUpdateRow[]
+    const rows = sqliteAll<ChapterHookUpdateRow>(
+      this.database,
+      'SELECT * FROM chapter_hook_updates WHERE book_id = ? ORDER BY created_at DESC',
+      bookId,
+    )
 
     return rows.map(mapChapterHookUpdate)
   }

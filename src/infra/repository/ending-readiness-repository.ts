@@ -1,5 +1,6 @@
 import type { EndingReadiness } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type EndingReadinessRow = {
   book_id: string
@@ -16,55 +17,53 @@ export class EndingReadinessRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   getByBookId(bookId: string): EndingReadiness | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM ending_readiness_current
-          WHERE book_id = ?
-          LIMIT 1
-        `,
-      )
-      .get(bookId) as EndingReadinessRow | undefined
+    const row = sqliteGet<EndingReadinessRow>(
+      this.database,
+      `
+        SELECT *
+        FROM ending_readiness_current
+        WHERE book_id = ?
+        LIMIT 1
+      `,
+      bookId,
+    )
 
     return row ? mapEndingReadiness(row) : null
   }
 
   upsert(readiness: EndingReadiness): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO ending_readiness_current (
-            book_id,
-            target_volume_id,
-            readiness_score,
-            closure_score,
-            pending_payoffs_json,
-            closure_gaps_json,
-            final_conflict_prerequisites_json,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(book_id)
-          DO UPDATE SET
-            target_volume_id = excluded.target_volume_id,
-            readiness_score = excluded.readiness_score,
-            closure_score = excluded.closure_score,
-            pending_payoffs_json = excluded.pending_payoffs_json,
-            closure_gaps_json = excluded.closure_gaps_json,
-            final_conflict_prerequisites_json = excluded.final_conflict_prerequisites_json,
-            updated_at = excluded.updated_at
-        `,
-      )
-      .run(
-        readiness.bookId,
-        readiness.targetVolumeId,
-        readiness.readinessScore,
-        readiness.closureScore,
-        JSON.stringify(readiness.pendingPayoffs),
-        JSON.stringify(readiness.closureGaps),
-        JSON.stringify(readiness.finalConflictPrerequisites),
-        readiness.updatedAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO ending_readiness_current (
+          book_id,
+          target_volume_id,
+          readiness_score,
+          closure_score,
+          pending_payoffs_json,
+          closure_gaps_json,
+          final_conflict_prerequisites_json,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(book_id)
+        DO UPDATE SET
+          target_volume_id = excluded.target_volume_id,
+          readiness_score = excluded.readiness_score,
+          closure_score = excluded.closure_score,
+          pending_payoffs_json = excluded.pending_payoffs_json,
+          closure_gaps_json = excluded.closure_gaps_json,
+          final_conflict_prerequisites_json = excluded.final_conflict_prerequisites_json,
+          updated_at = excluded.updated_at
+      `,
+      readiness.bookId,
+      readiness.targetVolumeId,
+      readiness.readinessScore,
+      readiness.closureScore,
+      JSON.stringify(readiness.pendingPayoffs),
+      JSON.stringify(readiness.closureGaps),
+      JSON.stringify(readiness.finalConflictPrerequisites),
+      readiness.updatedAt,
+    )
   }
 }
 
