@@ -1,5 +1,6 @@
 import type { ReviewReport } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type ReviewRow = {
   id: string
@@ -27,90 +28,86 @@ export class ChapterReviewRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(review: ReviewReport): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO chapter_reviews (
-            id,
-            book_id,
-            chapter_id,
-            draft_id,
-            decision,
-            consistency_issues_json,
-            character_issues_json,
-            item_issues_json,
-            memory_issues_json,
-            pacing_issues_json,
-            hook_issues_json,
-            approval_risk,
-            word_count_check_json,
-            new_fact_candidates_json,
-            closure_suggestions_json,
-            review_layers_json,
-            outcome_candidate_json,
-            revision_advice_json,
-            created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        review.id,
-        review.bookId,
-        review.chapterId,
-        review.draftId,
-        review.decision,
-        JSON.stringify(review.consistencyIssues),
-        JSON.stringify(review.characterIssues),
-        JSON.stringify(review.itemIssues),
-        JSON.stringify(review.memoryIssues),
-        JSON.stringify(review.pacingIssues),
-        JSON.stringify(review.hookIssues),
-        review.approvalRisk,
-        JSON.stringify(review.wordCountCheck),
-        JSON.stringify(review.newFactCandidates),
-        JSON.stringify(review.closureSuggestions),
-        JSON.stringify(review.reviewLayers),
-        JSON.stringify(review.outcomeCandidate),
-        JSON.stringify(review.revisionAdvice),
-        review.createdAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO chapter_reviews (
+          id,
+          book_id,
+          chapter_id,
+          draft_id,
+          decision,
+          consistency_issues_json,
+          character_issues_json,
+          item_issues_json,
+          memory_issues_json,
+          pacing_issues_json,
+          hook_issues_json,
+          approval_risk,
+          word_count_check_json,
+          new_fact_candidates_json,
+          closure_suggestions_json,
+          review_layers_json,
+          outcome_candidate_json,
+          revision_advice_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      review.id,
+      review.bookId,
+      review.chapterId,
+      review.draftId,
+      review.decision,
+      JSON.stringify(review.consistencyIssues),
+      JSON.stringify(review.characterIssues),
+      JSON.stringify(review.itemIssues),
+      JSON.stringify(review.memoryIssues),
+      JSON.stringify(review.pacingIssues),
+      JSON.stringify(review.hookIssues),
+      review.approvalRisk,
+      JSON.stringify(review.wordCountCheck),
+      JSON.stringify(review.newFactCandidates),
+      JSON.stringify(review.closureSuggestions),
+      JSON.stringify(review.reviewLayers),
+      JSON.stringify(review.outcomeCandidate),
+      JSON.stringify(review.revisionAdvice),
+      review.createdAt,
+    )
   }
 
   getLatestByChapterId(chapterId: string): ReviewReport | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapter_reviews
-          WHERE chapter_id = ?
-          ORDER BY created_at DESC
-          LIMIT 1
-        `,
-      )
-      .get(chapterId) as ReviewRow | undefined
+    const row = sqliteGet<ReviewRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_reviews
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      chapterId,
+    )
 
     return row ? mapReview(row) : null
   }
 
   getById(id: string): ReviewReport | null {
-    const row = this.database.prepare('SELECT * FROM chapter_reviews WHERE id = ?').get(id) as
-      | ReviewRow
-      | undefined
+    const row = sqliteGet<ReviewRow>(this.database, 'SELECT * FROM chapter_reviews WHERE id = ?', id)
 
     return row ? mapReview(row) : null
   }
 
   listByChapterId(chapterId: string): ReviewReport[] {
-    const rows = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapter_reviews
-          WHERE chapter_id = ?
-          ORDER BY created_at DESC
-        `,
-      )
-      .all(chapterId) as ReviewRow[]
+    const rows = sqliteAll<ReviewRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_reviews
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+      `,
+      chapterId,
+    )
 
     return rows.map(mapReview)
   }

@@ -1,5 +1,6 @@
 import type { Chapter, ChapterStatus } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type ChapterRow = {
   id: string
@@ -34,61 +35,59 @@ export class ChapterRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(chapter: Chapter): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO chapters (
-            id,
-            book_id,
-            volume_id,
-            chapter_index,
-            title,
-            objective,
-            summary,
-            planned_beats_json,
-            status,
-            current_plan_version_id,
-            current_version_id,
-            draft_path,
-            final_path,
-            approved_at,
-            created_at,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        chapter.id,
-        chapter.bookId,
-        chapter.volumeId,
-        chapter.index,
-        chapter.title,
-        chapter.objective,
-        chapter.summary ?? null,
-        JSON.stringify(chapter.plannedBeats),
-        chapter.status,
-        chapter.currentPlanVersionId ?? null,
-        chapter.currentVersionId ?? null,
-        chapter.draftPath ?? null,
-        chapter.finalPath ?? null,
-        chapter.approvedAt ?? null,
-        chapter.createdAt,
-        chapter.updatedAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO chapters (
+          id,
+          book_id,
+          volume_id,
+          chapter_index,
+          title,
+          objective,
+          summary,
+          planned_beats_json,
+          status,
+          current_plan_version_id,
+          current_version_id,
+          draft_path,
+          final_path,
+          approved_at,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      chapter.id,
+      chapter.bookId,
+      chapter.volumeId,
+      chapter.index,
+      chapter.title,
+      chapter.objective,
+      chapter.summary ?? null,
+      JSON.stringify(chapter.plannedBeats),
+      chapter.status,
+      chapter.currentPlanVersionId ?? null,
+      chapter.currentVersionId ?? null,
+      chapter.draftPath ?? null,
+      chapter.finalPath ?? null,
+      chapter.approvedAt ?? null,
+      chapter.createdAt,
+      chapter.updatedAt,
+    )
   }
 
   getNextIndex(bookId: string): number {
-    const row = this.database
-      .prepare('SELECT COALESCE(MAX(chapter_index), 0) AS maxIndex FROM chapters WHERE book_id = ?')
-      .get(bookId) as { maxIndex: number }
+    const row = sqliteGet<{ maxIndex: number }>(
+      this.database,
+      'SELECT COALESCE(MAX(chapter_index), 0) AS maxIndex FROM chapters WHERE book_id = ?',
+      bookId,
+    ) as { maxIndex: number }
 
     return row.maxIndex + 1
   }
 
   getById(id: string): Chapter | null {
-    const row = this.database.prepare('SELECT * FROM chapters WHERE id = ?').get(id) as
-      | ChapterRow
-      | undefined
+    const row = sqliteGet<ChapterRow>(this.database, 'SELECT * FROM chapters WHERE id = ?', id)
 
     return row ? mapChapter(row) : null
   }
@@ -116,9 +115,11 @@ export class ChapterRepository {
   }
 
   listByBookId(bookId: string): Chapter[] {
-    const rows = this.database
-      .prepare('SELECT * FROM chapters WHERE book_id = ? ORDER BY chapter_index ASC')
-      .all(bookId) as ChapterRow[]
+    const rows = sqliteAll<ChapterRow>(
+      this.database,
+      'SELECT * FROM chapters WHERE book_id = ? ORDER BY chapter_index ASC',
+      bookId,
+    )
 
     return rows.map(mapChapter)
   }

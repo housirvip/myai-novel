@@ -1,6 +1,7 @@
 import type { Book } from '../../shared/types/domain.js'
 import { readLlmEnv } from '../../shared/utils/env.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type BookRow = {
   id: string
@@ -21,15 +22,13 @@ export class BookRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   getFirst(): Book | null {
-    const row = this.database.prepare('SELECT * FROM books ORDER BY created_at ASC LIMIT 1').get() as
-      | BookRow
-      | undefined
+    const row = sqliteGet<BookRow>(this.database, 'SELECT * FROM books ORDER BY created_at ASC LIMIT 1')
 
     return row ? mapBook(row) : null
   }
 
   getById(id: string): Book | null {
-    const row = this.database.prepare('SELECT * FROM books WHERE id = ?').get(id) as BookRow | undefined
+    const row = sqliteGet<BookRow>(this.database, 'SELECT * FROM books WHERE id = ?', id)
 
     return row ? mapBook(row) : null
   }
@@ -37,40 +36,38 @@ export class BookRepository {
   create(book: Book): void {
     const env = readLlmEnv()
 
-    this.database
-      .prepare(
-        `
-          INSERT INTO books (
-            id,
-            title,
-            genre,
-            style_guide_json,
-            default_chapter_word_count,
-            chapter_word_count_tolerance_ratio,
-            model_provider,
-            model_name,
-            model_temperature,
-            model_max_tokens,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        book.id,
-        book.title,
-        book.genre,
-        JSON.stringify(book.styleGuide),
-        book.defaultChapterWordCount,
-        book.chapterWordCountToleranceRatio,
-        env.provider,
-        env.defaultModel,
-        null,
-        null,
-        book.createdAt,
-        book.updatedAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO books (
+          id,
+          title,
+          genre,
+          style_guide_json,
+          default_chapter_word_count,
+          chapter_word_count_tolerance_ratio,
+          model_provider,
+          model_name,
+          model_temperature,
+          model_max_tokens,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      book.id,
+      book.title,
+      book.genre,
+      JSON.stringify(book.styleGuide),
+      book.defaultChapterWordCount,
+      book.chapterWordCountToleranceRatio,
+      env.provider,
+      env.defaultModel,
+      null,
+      null,
+      book.createdAt,
+      book.updatedAt,
+    )
   }
 }
 

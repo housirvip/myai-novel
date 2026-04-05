@@ -1,5 +1,6 @@
 import type { ChapterPlan } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type ChapterPlanRow = {
   id: string
@@ -42,127 +43,126 @@ export class ChapterPlanRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(plan: ChapterPlan): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO chapter_plans (
-            id,
-            book_id,
-            chapter_id,
-            version_id,
-            objective,
-            scene_cards_json,
-            scene_goals_json,
-            scene_constraints_json,
-            scene_emotional_targets_json,
-            scene_outcome_checklist_json,
-            required_character_ids_json,
-            required_location_ids_json,
-            required_faction_ids_json,
-            required_item_ids_json,
-            event_outline_json,
-            hook_plan_json,
-            state_predictions_json,
-            memory_candidates_json,
-            high_pressure_hook_ids_json,
-            character_arc_targets_json,
-            debt_carry_targets_json,
-            mission_id,
-            thread_focus_json,
-            window_role,
-            carry_in_tasks_json,
-            carry_out_tasks_json,
-            ensemble_focus_character_ids_json,
-            subplot_carry_thread_ids_json,
-            ending_drive,
-            must_resolve_debts_json,
-            must_advance_hooks_json,
-            must_preserve_facts_json,
-            created_at,
-            approved_by_user
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        plan.id,
-        plan.bookId,
-        plan.chapterId,
-        plan.versionId,
-        plan.objective,
-        JSON.stringify(plan.sceneCards),
-        JSON.stringify(plan.sceneGoals),
-        JSON.stringify(plan.sceneConstraints),
-        JSON.stringify(plan.sceneEmotionalTargets),
-        JSON.stringify(plan.sceneOutcomeChecklist),
-        JSON.stringify(plan.requiredCharacterIds),
-        JSON.stringify(plan.requiredLocationIds),
-        JSON.stringify(plan.requiredFactionIds),
-        JSON.stringify(plan.requiredItemIds),
-        JSON.stringify(plan.eventOutline),
-        JSON.stringify(plan.hookPlan),
-        JSON.stringify(plan.statePredictions),
-        JSON.stringify(plan.memoryCandidates),
-        JSON.stringify(plan.highPressureHookIds),
-        JSON.stringify(plan.characterArcTargets),
-        JSON.stringify(plan.debtCarryTargets),
-        plan.missionId ?? null,
-        JSON.stringify(plan.threadFocus),
-        plan.windowRole ?? null,
-        JSON.stringify(plan.carryInTasks),
-        JSON.stringify(plan.carryOutTasks),
-        JSON.stringify(plan.ensembleFocusCharacterIds),
-        JSON.stringify(plan.subplotCarryThreadIds),
-        plan.endingDrive,
-        JSON.stringify(plan.mustResolveDebts),
-        JSON.stringify(plan.mustAdvanceHooks),
-        JSON.stringify(plan.mustPreserveFacts),
-        plan.createdAt,
-        plan.approvedByUser ? 1 : 0,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO chapter_plans (
+          id,
+          book_id,
+          chapter_id,
+          version_id,
+          objective,
+          scene_cards_json,
+          scene_goals_json,
+          scene_constraints_json,
+          scene_emotional_targets_json,
+          scene_outcome_checklist_json,
+          required_character_ids_json,
+          required_location_ids_json,
+          required_faction_ids_json,
+          required_item_ids_json,
+          event_outline_json,
+          hook_plan_json,
+          state_predictions_json,
+          memory_candidates_json,
+          high_pressure_hook_ids_json,
+          character_arc_targets_json,
+          debt_carry_targets_json,
+          mission_id,
+          thread_focus_json,
+          window_role,
+          carry_in_tasks_json,
+          carry_out_tasks_json,
+          ensemble_focus_character_ids_json,
+          subplot_carry_thread_ids_json,
+          ending_drive,
+          must_resolve_debts_json,
+          must_advance_hooks_json,
+          must_preserve_facts_json,
+          created_at,
+          approved_by_user
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      plan.id,
+      plan.bookId,
+      plan.chapterId,
+      plan.versionId,
+      plan.objective,
+      JSON.stringify(plan.sceneCards),
+      JSON.stringify(plan.sceneGoals),
+      JSON.stringify(plan.sceneConstraints),
+      JSON.stringify(plan.sceneEmotionalTargets),
+      JSON.stringify(plan.sceneOutcomeChecklist),
+      JSON.stringify(plan.requiredCharacterIds),
+      JSON.stringify(plan.requiredLocationIds),
+      JSON.stringify(plan.requiredFactionIds),
+      JSON.stringify(plan.requiredItemIds),
+      JSON.stringify(plan.eventOutline),
+      JSON.stringify(plan.hookPlan),
+      JSON.stringify(plan.statePredictions),
+      JSON.stringify(plan.memoryCandidates),
+      JSON.stringify(plan.highPressureHookIds),
+      JSON.stringify(plan.characterArcTargets),
+      JSON.stringify(plan.debtCarryTargets),
+      plan.missionId ?? null,
+      JSON.stringify(plan.threadFocus),
+      plan.windowRole ?? null,
+      JSON.stringify(plan.carryInTasks),
+      JSON.stringify(plan.carryOutTasks),
+      JSON.stringify(plan.ensembleFocusCharacterIds),
+      JSON.stringify(plan.subplotCarryThreadIds),
+      plan.endingDrive,
+      JSON.stringify(plan.mustResolveDebts),
+      JSON.stringify(plan.mustAdvanceHooks),
+      JSON.stringify(plan.mustPreserveFacts),
+      plan.createdAt,
+      plan.approvedByUser ? 1 : 0,
+    )
   }
 
   getLatestByChapterId(chapterId: string): ChapterPlan | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapter_plans
-          WHERE chapter_id = ?
-          ORDER BY created_at DESC
-          LIMIT 1
-        `,
-      )
-      .get(chapterId) as ChapterPlanRow | undefined
+    const row = sqliteGet<ChapterPlanRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_plans
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      chapterId,
+    )
 
     return row ? mapChapterPlan(row) : null
   }
 
   getByVersionId(chapterId: string, versionId: string): ChapterPlan | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapter_plans
-          WHERE chapter_id = ? AND version_id = ?
-          LIMIT 1
-        `,
-      )
-      .get(chapterId, versionId) as ChapterPlanRow | undefined
+    const row = sqliteGet<ChapterPlanRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_plans
+        WHERE chapter_id = ? AND version_id = ?
+        LIMIT 1
+      `,
+      chapterId,
+      versionId,
+    )
 
     return row ? mapChapterPlan(row) : null
   }
 
   listByChapterId(chapterId: string): ChapterPlan[] {
-    const rows = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapter_plans
-          WHERE chapter_id = ?
-          ORDER BY created_at DESC
-        `,
-      )
-      .all(chapterId) as ChapterPlanRow[]
+    const rows = sqliteAll<ChapterPlanRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_plans
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+      `,
+      chapterId,
+    )
 
     return rows.map(mapChapterPlan)
   }
