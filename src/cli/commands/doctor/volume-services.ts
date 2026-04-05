@@ -168,6 +168,115 @@ export function loadDoctorVolumeView(database: NovelDatabase, volumeId: string):
   }
 }
 
+export async function loadDoctorVolumeViewAsync(database: NovelDatabase, volumeId: string): Promise<DoctorVolumeView> {
+  const book = await new BookRepository(database).getFirstAsync()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const volume = await new VolumeRepository(database).getByIdAsync(volumeId)
+
+  if (!volume) {
+    throw new NovelError(`Volume not found: ${volumeId}`)
+  }
+
+  const chapterRepository = new ChapterRepository(database)
+  const outputRepository = new ChapterOutputRepository(database)
+  const chapterRows = await chapterRepository.listByBookIdAsync(book.id)
+  const chapters = await Promise.all(
+    chapterRows
+      .filter((chapter) => chapter.volumeId === volumeId)
+      .map(async (chapter) => ({
+        id: chapter.id,
+        index: chapter.index,
+        title: chapter.title,
+        status: chapter.status,
+        hasOutput: Boolean(await outputRepository.getLatestByChapterIdAsync(chapter.id)),
+      })),
+  )
+  const chapterIds = chapters.map((chapter) => chapter.id)
+  const chapterIdSet = new Set(chapterIds)
+  const chapterIndexes = chapters.map((chapter) => chapter.index)
+  const minChapterIndex = chapterIndexes.length > 0 ? Math.min(...chapterIndexes) : undefined
+  const maxChapterIndex = chapterIndexes.length > 0 ? Math.max(...chapterIndexes) : undefined
+
+  const endingReadiness = await new EndingReadinessRepository(database).getByBookIdAsync(book.id)
+  const volumePlan = await new VolumePlanRepository(database).getLatestByVolumeIdAsync(volumeId)
+  const storyThreads = await new StoryThreadRepository(database).listByVolumeIdAsync(volumeId)
+  const threadProgress = await new StoryThreadProgressRepository(database).listByBookIdAsync(book.id)
+  const threadProgressByThreadId = new Map<string, typeof threadProgress>()
+
+  for (const progress of threadProgress) {
+    const existing = threadProgressByThreadId.get(progress.threadId) ?? []
+    existing.push(progress)
+    threadProgressByThreadId.set(progress.threadId, existing)
+  }
+
+  const missionRisks = buildMissionRisks({
+    volumeId,
+    chapterIds,
+    chapterIdSet,
+    minChapterIndex,
+    maxChapterIndex,
+    volumePlan,
+  })
+  const threadRisks = buildThreadRisks({
+    storyThreads,
+    threadProgressByThreadId,
+    chapterIds,
+    chapterCount: chapters.length,
+  })
+  const endingRisks = buildEndingRisks({
+    volumeId,
+    endingReadiness,
+    maxChapterIndex,
+  })
+  const chapterRisks = buildChapterRisks({
+    chapters,
+    volumePlan,
+  })
+
+  const stalledThreadCount = threadRisks.filter((risk) => risk.code === 'thread-stalled').length
+  const neglectedThreadIds = (endingReadiness?.closureGaps ?? [])
+    .map((gap) => gap.relatedThreadId)
+    .filter((threadId): threadId is string => Boolean(threadId))
+    .filter((threadId, index, values) => values.indexOf(threadId) === index)
+  const unfinishedChapterCount = chapters.filter((chapter) => chapter.status !== 'finalized').length
+  const missionChainGapCount = missionRisks.length
+  const ensembleRiskCount = threadRisks.filter((risk) => risk.code.startsWith('ensemble-')).length
+  const pendingPayoffPressure = (endingReadiness?.pendingPayoffs ?? []).filter((payoff) => payoff.status === 'pending').length
+  const allRisks = [...missionRisks, ...threadRisks, ...endingRisks, ...chapterRisks]
+  const highRiskCount = allRisks.filter((risk) => risk.level === 'high').length
+  const mediumRiskCount = allRisks.filter((risk) => risk.level === 'medium').length
+
+  return {
+    volume,
+    diagnostics: {
+      chapterCount: chapters.length,
+      finalizedOutputCount: chapters.filter((chapter) => chapter.hasOutput).length,
+      hasVolumePlan: Boolean(volumePlan),
+      threadCount: storyThreads.length,
+      endingTargetMatches: endingReadiness?.targetVolumeId === volumeId,
+      stalledThreadCount,
+      closureGapCount: endingReadiness?.closureGaps.length ?? 0,
+      neglectedThreadCount: neglectedThreadIds.length,
+      unfinishedChapterCount,
+      missionChainGapCount,
+      ensembleRiskCount,
+      pendingPayoffPressure,
+      highRiskCount,
+      mediumRiskCount,
+    },
+    overview: buildOverview(allRisks),
+    missionRisks,
+    threadRisks,
+    endingRisks,
+    chapterRisks,
+    chapters,
+  }
+}
+
 type BuildMissionRisksInput = {
   volumeId: string
   chapterIds: string[]

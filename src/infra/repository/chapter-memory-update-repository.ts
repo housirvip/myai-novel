@@ -1,6 +1,6 @@
 import type { ChapterMemoryUpdate } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type ChapterMemoryUpdateRow = {
   id: string
@@ -33,6 +33,24 @@ export class ChapterMemoryUpdateRepository {
     )
   }
 
+  async createAsync(update: ChapterMemoryUpdate): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO chapter_memory_updates (
+          id, book_id, chapter_id, memory_type, summary, detail_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+      update.id,
+      update.bookId,
+      update.chapterId,
+      update.memoryType,
+      update.summary,
+      JSON.stringify(update.detail),
+      update.createdAt,
+    )
+  }
+
   listByChapterId(chapterId: string): ChapterMemoryUpdate[] {
     const rows = dbAll<ChapterMemoryUpdateRow>(
       this.database,
@@ -43,8 +61,28 @@ export class ChapterMemoryUpdateRepository {
     return rows.map(mapChapterMemoryUpdate)
   }
 
+  async listByChapterIdAsync(chapterId: string): Promise<ChapterMemoryUpdate[]> {
+    const rows = await dbAllAsync<ChapterMemoryUpdateRow>(
+      this.database,
+      'SELECT * FROM chapter_memory_updates WHERE chapter_id = ? ORDER BY created_at ASC',
+      chapterId,
+    )
+
+    return rows.map(mapChapterMemoryUpdate)
+  }
+
   listByBookId(bookId: string): ChapterMemoryUpdate[] {
     const rows = dbAll<ChapterMemoryUpdateRow>(
+      this.database,
+      'SELECT * FROM chapter_memory_updates WHERE book_id = ? ORDER BY created_at DESC',
+      bookId,
+    )
+
+    return rows.map(mapChapterMemoryUpdate)
+  }
+
+  async listByBookIdAsync(bookId: string): Promise<ChapterMemoryUpdate[]> {
+    const rows = await dbAllAsync<ChapterMemoryUpdateRow>(
       this.database,
       'SELECT * FROM chapter_memory_updates WHERE book_id = ? ORDER BY created_at DESC',
       bookId,

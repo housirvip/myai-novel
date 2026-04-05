@@ -1,6 +1,6 @@
 import type { StoryThreadProgress } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbGet, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbGet, dbGetAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type StoryThreadProgressRow = {
   id: string
@@ -42,8 +42,50 @@ export class StoryThreadProgressRepository {
     )
   }
 
+  async createAsync(progress: StoryThreadProgress): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO story_thread_progress (
+          id,
+          book_id,
+          thread_id,
+          chapter_id,
+          progress_status,
+          summary,
+          detail_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      progress.id,
+      progress.bookId,
+      progress.threadId,
+      progress.chapterId,
+      progress.progressStatus,
+      progress.summary,
+      JSON.stringify(progress.impacts),
+      progress.createdAt,
+    )
+  }
+
   getLatestByThreadId(threadId: string): StoryThreadProgress | null {
     const row = dbGet<StoryThreadProgressRow>(
+      this.database,
+      `
+        SELECT *
+        FROM story_thread_progress
+        WHERE thread_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      threadId,
+    )
+
+    return row ? mapStoryThreadProgress(row) : null
+  }
+
+  async getLatestByThreadIdAsync(threadId: string): Promise<StoryThreadProgress | null> {
+    const row = await dbGetAsync<StoryThreadProgressRow>(
       this.database,
       `
         SELECT *
@@ -73,8 +115,45 @@ export class StoryThreadProgressRepository {
     return rows.map(mapStoryThreadProgress)
   }
 
+  async listByBookIdAsync(bookId: string): Promise<StoryThreadProgress[]> {
+    const rows = await dbAllAsync<StoryThreadProgressRow>(
+      this.database,
+      `
+        SELECT *
+        FROM story_thread_progress
+        WHERE book_id = ?
+        ORDER BY created_at DESC
+      `,
+      bookId,
+    )
+
+    return rows.map(mapStoryThreadProgress)
+  }
+
   listRecentByChapterWindow(bookId: string, startChapterId: string, endChapterId: string): StoryThreadProgress[] {
     const rows = dbAll<StoryThreadProgressRow>(
+      this.database,
+      `
+        SELECT *
+        FROM story_thread_progress
+        WHERE book_id = ?
+          AND chapter_id IN (?, ?)
+        ORDER BY created_at DESC
+      `,
+      bookId,
+      startChapterId,
+      endChapterId,
+    )
+
+    return rows.map(mapStoryThreadProgress)
+  }
+
+  async listRecentByChapterWindowAsync(
+    bookId: string,
+    startChapterId: string,
+    endChapterId: string,
+  ): Promise<StoryThreadProgress[]> {
+    const rows = await dbAllAsync<StoryThreadProgressRow>(
       this.database,
       `
         SELECT *

@@ -87,6 +87,41 @@ export function loadDoctorProjectView(database: NovelDatabase): DoctorProjectSum
   }
 }
 
+export async function loadDoctorProjectViewAsync(database: NovelDatabase): Promise<DoctorProjectSummary> {
+  const book = await new BookRepository(database).getFirstAsync()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const chapterRepository = new ChapterRepository(database)
+  const planRepository = new ChapterPlanRepository(database)
+  const draftRepository = new ChapterDraftRepository(database)
+  const reviewRepository = new ChapterReviewRepository(database)
+  const rewriteRepository = new ChapterRewriteRepository(database)
+  const outputRepository = new ChapterOutputRepository(database)
+  const chapters = await chapterRepository.listByBookIdAsync(book.id)
+  const llmStages: readonly LlmTaskStage[] = ['planning', 'generation', 'review', 'rewrite']
+
+  return {
+    projectInitialized: true,
+    bookId: book.id,
+    chapterCount: chapters.length,
+    operationLogDir: resolveOperationLogDir(process.cwd()),
+    infrastructure: buildDoctorInfrastructureView(database.client, llmStages),
+    chapters: await Promise.all(chapters.map(async (chapter) => ({
+      chapterId: chapter.id,
+      title: chapter.title,
+      status: chapter.status,
+      hasPlan: Boolean(await planRepository.getLatestByChapterIdAsync(chapter.id)),
+      hasDraft: Boolean(await draftRepository.getLatestByChapterIdAsync(chapter.id)),
+      hasReview: Boolean(await reviewRepository.getLatestByChapterIdAsync(chapter.id)),
+      hasRewrite: Boolean(await rewriteRepository.getLatestByChapterIdAsync(chapter.id)),
+      hasOutput: Boolean(await outputRepository.getLatestByChapterIdAsync(chapter.id)),
+    }))),
+  }
+}
+
 export function loadDoctorBootstrapView(): DoctorProjectSummary {
   const llmStages: readonly LlmTaskStage[] = ['planning', 'generation', 'review', 'rewrite']
 
@@ -145,6 +180,57 @@ export function loadDoctorChapterView(database: NovelDatabase, chapterId: string
       latestReviewId: reviewRepository.getLatestByChapterId(chapterId)?.id ?? null,
       latestRewriteId: rewriteRepository.getLatestByChapterId(chapterId)?.id ?? null,
       latestOutputId: outputRepository.getLatestByChapterId(chapterId)?.id ?? null,
+      operationLogDir: resolveOperationLogDir(process.cwd()),
+    },
+  }
+}
+
+export async function loadDoctorChapterViewAsync(database: NovelDatabase, chapterId: string): Promise<{
+  chapter: {
+    id: string
+    index: number
+    title: string
+    status: string
+    currentPlanVersionId?: string
+    currentVersionId?: string
+  }
+  workflowChain: {
+    chapterId: string
+    status: string
+    currentPlanVersionId: string | null
+    currentVersionId: string | null
+    latestPlanId: string | null
+    latestDraftId: string | null
+    latestReviewId: string | null
+    latestRewriteId: string | null
+    latestOutputId: string | null
+    operationLogDir: string
+  }
+}> {
+  const chapterRepository = new ChapterRepository(database)
+  const planRepository = new ChapterPlanRepository(database)
+  const draftRepository = new ChapterDraftRepository(database)
+  const reviewRepository = new ChapterReviewRepository(database)
+  const rewriteRepository = new ChapterRewriteRepository(database)
+  const outputRepository = new ChapterOutputRepository(database)
+  const chapter = await chapterRepository.getByIdAsync(chapterId)
+
+  if (!chapter) {
+    throw new NovelError(`Chapter not found: ${chapterId}`)
+  }
+
+  return {
+    chapter,
+    workflowChain: {
+      chapterId: chapter.id,
+      status: chapter.status,
+      currentPlanVersionId: chapter.currentPlanVersionId ?? null,
+      currentVersionId: chapter.currentVersionId ?? null,
+      latestPlanId: (await planRepository.getLatestByChapterIdAsync(chapterId))?.versionId ?? null,
+      latestDraftId: (await draftRepository.getLatestByChapterIdAsync(chapterId))?.id ?? null,
+      latestReviewId: (await reviewRepository.getLatestByChapterIdAsync(chapterId))?.id ?? null,
+      latestRewriteId: (await rewriteRepository.getLatestByChapterIdAsync(chapterId))?.id ?? null,
+      latestOutputId: (await outputRepository.getLatestByChapterIdAsync(chapterId))?.id ?? null,
       operationLogDir: resolveOperationLogDir(process.cwd()),
     },
   }

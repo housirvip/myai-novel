@@ -10,14 +10,14 @@ export function registerRegressionRunCommand(regressionCommand: Command): void {
     .description('Execute a regression case with an optional chapter or volume target')
     .action(async (caseName: string, targetId?: string) => {
       if (isProjectlessRegressionCase(caseName)) {
-        printRegressionRun(executeRegressionCase(null, caseName, targetId))
+        printRegressionRun(await executeRegressionCase(null, caseName, targetId))
         return
       }
 
       const database = await openProjectDatabase()
 
       try {
-        printRegressionRun(executeRegressionCase(database, caseName, targetId))
+        printRegressionRun(await executeRegressionCase(database, caseName, targetId))
       } finally {
         database.close()
       }

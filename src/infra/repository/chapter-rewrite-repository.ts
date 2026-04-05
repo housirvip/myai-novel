@@ -1,6 +1,6 @@
 import type { ChapterRewrite } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbGet, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbGet, dbGetAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type RewriteRow = {
   id: string
@@ -60,6 +60,44 @@ export class ChapterRewriteRepository {
     )
   }
 
+  async createAsync(rewrite: ChapterRewrite): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO chapter_rewrites (
+          id,
+          book_id,
+          chapter_id,
+          source_draft_id,
+          source_review_id,
+          version_id,
+          strategy,
+          strategy_profile_json,
+          quality_target_json,
+          goals_json,
+          content,
+          actual_word_count,
+          validation_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      rewrite.id,
+      rewrite.bookId,
+      rewrite.chapterId,
+      rewrite.sourceDraftId,
+      rewrite.sourceReviewId,
+      rewrite.versionId,
+      rewrite.strategy,
+      JSON.stringify(rewrite.strategyProfile),
+      JSON.stringify(rewrite.qualityTarget),
+      JSON.stringify(rewrite.goals),
+      rewrite.content,
+      rewrite.actualWordCount,
+      JSON.stringify(rewrite.validation),
+      rewrite.createdAt,
+    )
+  }
+
   getLatestByChapterId(chapterId: string): ChapterRewrite | null {
     const row = dbGet<RewriteRow>(
       this.database,
@@ -76,8 +114,39 @@ export class ChapterRewriteRepository {
     return row ? mapRewrite(row) : null
   }
 
+  async getLatestByChapterIdAsync(chapterId: string): Promise<ChapterRewrite | null> {
+    const row = await dbGetAsync<RewriteRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_rewrites
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      chapterId,
+    )
+
+    return row ? mapRewrite(row) : null
+  }
+
   listByChapterId(chapterId: string): ChapterRewrite[] {
     const rows = dbAll<RewriteRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_rewrites
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+      `,
+      chapterId,
+    )
+
+    return rows.map(mapRewrite)
+  }
+
+  async listByChapterIdAsync(chapterId: string): Promise<ChapterRewrite[]> {
+    const rows = await dbAllAsync<RewriteRow>(
       this.database,
       `
         SELECT *

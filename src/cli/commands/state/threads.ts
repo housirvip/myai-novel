@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { openProjectDatabase } from '../../context.js'
 import { printStateThreadsSummary } from './printers.js'
-import { loadStateThreadsView } from './services.js'
+import { loadStateThreadsViewAsync } from './services.js'
 
 export function registerStateThreadsCommand(stateCommand: Command): void {
   stateCommand
@@ -12,7 +12,7 @@ export function registerStateThreadsCommand(stateCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        printStateThreadsSummary(loadStateThreadsView(database, volumeId))
+        printStateThreadsSummary(await loadStateThreadsViewAsync(database, volumeId))
       } finally {
         database.close()
       }

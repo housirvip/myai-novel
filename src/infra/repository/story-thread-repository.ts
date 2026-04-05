@@ -1,6 +1,6 @@
 import type { StoryThread } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type StoryThreadRow = {
   id: string
@@ -64,8 +64,65 @@ export class StoryThreadRepository {
     }
   }
 
+  async createBatchAsync(threads: StoryThread[]): Promise<void> {
+    const insertSql = `
+      INSERT INTO story_threads (
+        id,
+        book_id,
+        volume_id,
+        title,
+        thread_type,
+        summary,
+        priority,
+        stage,
+        linked_character_ids_json,
+        linked_hook_ids_json,
+        target_outcome,
+        status,
+        updated_by_chapter_id,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+
+    for (const thread of threads) {
+      await dbRunAsync(
+        this.database,
+        insertSql,
+        thread.id,
+        thread.bookId,
+        thread.volumeId,
+        thread.title,
+        thread.threadType,
+        thread.summary,
+        thread.priority,
+        thread.stage,
+        JSON.stringify(thread.linkedCharacterIds),
+        JSON.stringify(thread.linkedHookIds),
+        thread.targetOutcome,
+        thread.status,
+        thread.updatedByChapterId ?? null,
+        thread.updatedAt,
+      )
+    }
+  }
+
   listActiveByBookId(bookId: string): StoryThread[] {
     const rows = dbAll<StoryThreadRow>(
+      this.database,
+      `
+        SELECT *
+        FROM story_threads
+        WHERE book_id = ? AND status = 'active'
+        ORDER BY updated_at DESC, priority DESC
+      `,
+      bookId,
+    )
+
+    return rows.map(mapStoryThread)
+  }
+
+  async listActiveByBookIdAsync(bookId: string): Promise<StoryThread[]> {
+    const rows = await dbAllAsync<StoryThreadRow>(
       this.database,
       `
         SELECT *
@@ -94,8 +151,74 @@ export class StoryThreadRepository {
     return rows.map(mapStoryThread)
   }
 
+  async listByVolumeIdAsync(volumeId: string): Promise<StoryThread[]> {
+    const rows = await dbAllAsync<StoryThreadRow>(
+      this.database,
+      `
+        SELECT *
+        FROM story_threads
+        WHERE volume_id = ?
+        ORDER BY updated_at DESC, priority DESC
+      `,
+      volumeId,
+    )
+
+    return rows.map(mapStoryThread)
+  }
+
   upsert(thread: StoryThread): void {
     dbRun(
+      this.database,
+      `
+        INSERT INTO story_threads (
+          id,
+          book_id,
+          volume_id,
+          title,
+          thread_type,
+          summary,
+          priority,
+          stage,
+          linked_character_ids_json,
+          linked_hook_ids_json,
+          target_outcome,
+          status,
+          updated_by_chapter_id,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id)
+        DO UPDATE SET
+          title = excluded.title,
+          thread_type = excluded.thread_type,
+          summary = excluded.summary,
+          priority = excluded.priority,
+          stage = excluded.stage,
+          linked_character_ids_json = excluded.linked_character_ids_json,
+          linked_hook_ids_json = excluded.linked_hook_ids_json,
+          target_outcome = excluded.target_outcome,
+          status = excluded.status,
+          updated_by_chapter_id = excluded.updated_by_chapter_id,
+          updated_at = excluded.updated_at
+      `,
+      thread.id,
+      thread.bookId,
+      thread.volumeId,
+      thread.title,
+      thread.threadType,
+      thread.summary,
+      thread.priority,
+      thread.stage,
+      JSON.stringify(thread.linkedCharacterIds),
+      JSON.stringify(thread.linkedHookIds),
+      thread.targetOutcome,
+      thread.status,
+      thread.updatedByChapterId ?? null,
+      thread.updatedAt,
+    )
+  }
+
+  async upsertAsync(thread: StoryThread): Promise<void> {
+    await dbRunAsync(
       this.database,
       `
         INSERT INTO story_threads (

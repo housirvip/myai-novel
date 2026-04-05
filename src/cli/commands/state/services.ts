@@ -75,6 +75,22 @@ export function loadStoryStateView(database: NovelDatabase): {
   }
 }
 
+export async function loadStoryStateViewAsync(database: NovelDatabase): Promise<{
+  book: { id: string; title: string }
+  state: unknown | null
+}> {
+  const book = await new BookRepository(database).getFirstAsync()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  return {
+    book,
+    state: await new StoryStateRepository(database).getByBookIdAsync(book.id),
+  }
+}
+
 export function loadStateShowView(database: NovelDatabase): {
   book: { id: string; title: string }
   currentChapterTitle: string | null
@@ -194,6 +210,126 @@ export function loadStateShowView(database: NovelDatabase): {
   }
 }
 
+export async function loadStateShowViewAsync(database: NovelDatabase): Promise<{
+  book: { id: string; title: string }
+  currentChapterTitle: string | null
+  storyState: {
+    currentChapterId?: string | null
+    recentEvents: unknown[]
+    updatedAt?: string | null
+  } | null
+  characterStates: Array<{
+    characterId: string
+    currentLocationId?: string | null
+    statusNotes: string[]
+    updatedAt: string
+  }>
+  characterNameById: Map<string, string>
+  locationNameById: Map<string, string>
+  importantItems: Array<{
+    id: string
+    name: string
+    ownerCharacterId?: string | null
+    locationId?: string | null
+    quantity: number
+    status: string
+    updatedAt?: string | null
+  }>
+  hookStates: Array<{
+    hookId: string
+    status: string
+    updatedByChapterId?: string | null
+    updatedAt: string
+  }>
+  hookTitleById: Map<string, string>
+  characterArcs: unknown
+  hookPressures: unknown
+  activeStoryThreads: unknown
+  recentThreadProgress: unknown
+  latestVolumePlans: unknown
+  endingReadiness: unknown
+  openNarrativeDebts: unknown
+  shortTermMemory: unknown
+  observationMemory: unknown
+  longTermMemory: unknown
+  recentStateUpdates: StateUpdateView[]
+  itemNameById: Map<string, string>
+  recentMemoryUpdates: MemoryUpdateView[]
+  recentHookUpdates: HookUpdateView[]
+}> {
+  const book = await new BookRepository(database).getFirstAsync()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const chapterRepository = new ChapterRepository(database)
+  const chapters = await chapterRepository.listByBookIdAsync(book.id)
+  const storyState = await new StoryStateRepository(database).getByBookIdAsync(book.id)
+  const characterRepository = new CharacterRepository(database)
+  const locationRepository = new LocationRepository(database)
+  const itemRepository = new ItemRepository(database)
+  const hookRepository = new HookRepository(database)
+  const characterStates = await new CharacterCurrentStateRepository(database).listByBookIdAsync(book.id)
+  const characterArcs = await new CharacterArcRepository(database).listByBookIdAsync(book.id)
+  const importantItems = await new ItemCurrentStateRepository(database).listImportantByBookIdAsync(book.id)
+  const hookStates = await new HookStateRepository(database).listByBookIdAsync(book.id)
+  const hookPressures = await new HookPressureRepository(database).listActiveByBookIdAsync(book.id)
+  const activeStoryThreads = await new StoryThreadRepository(database).listActiveByBookIdAsync(book.id)
+  const recentThreadProgress = (await new StoryThreadProgressRepository(database).listByBookIdAsync(book.id)).slice(0, 10)
+  const endingReadiness = await new EndingReadinessRepository(database).getByBookIdAsync(book.id)
+  const latestVolumePlans = (await Promise.all(
+    [...new Set(chapters.map((chapter) => chapter.volumeId))]
+      .map((volumeId) => new VolumePlanRepository(database).getLatestByVolumeIdAsync(volumeId)),
+  )).filter((plan): plan is NonNullable<typeof plan> => Boolean(plan))
+  const openNarrativeDebts = await new NarrativeDebtRepository(database).listOpenByBookIdAsync(book.id)
+  const memoryRepository = new MemoryRepository(database)
+  const shortTermMemory = await memoryRepository.getShortTermByBookIdAsync(book.id)
+  const observationMemory = await memoryRepository.getObservationByBookIdAsync(book.id)
+  const longTermMemory = await memoryRepository.getLongTermByBookIdAsync(book.id)
+  const characters = await characterRepository.listByBookIdAsync(book.id)
+  const locations = await locationRepository.listByBookIdAsync(book.id)
+  const items = await itemRepository.listByBookIdAsync(book.id)
+  const hooks = await hookRepository.listByBookIdAsync(book.id)
+  const recentStateUpdates = (await new ChapterStateUpdateRepository(database).listByBookIdAsync(book.id)).slice(0, 10) as StateUpdateView[]
+  const recentMemoryUpdates = (await new ChapterMemoryUpdateRepository(database).listByBookIdAsync(book.id)).slice(0, 10) as MemoryUpdateView[]
+  const recentHookUpdates = (await new ChapterHookUpdateRepository(database).listByBookIdAsync(book.id)).slice(0, 10) as HookUpdateView[]
+
+  const characterNameById = new Map(characters.map((character) => [character.id, character.name]))
+  const locationNameById = new Map(locations.map((location) => [location.id, location.name]))
+  const itemNameById = new Map(items.map((item) => [item.id, item.name]))
+  const hookTitleById = new Map(hooks.map((hook) => [hook.id, hook.title]))
+  const currentChapterTitle = storyState?.currentChapterId
+    ? (await chapterRepository.getByIdAsync(storyState.currentChapterId))?.title ?? null
+    : null
+
+  return {
+    book,
+    currentChapterTitle,
+    storyState,
+    characterStates,
+    characterNameById,
+    locationNameById,
+    importantItems,
+    hookStates,
+    hookTitleById,
+    characterArcs,
+    hookPressures,
+    activeStoryThreads,
+    recentThreadProgress,
+    latestVolumePlans,
+    endingReadiness,
+    openNarrativeDebts,
+    shortTermMemory,
+    observationMemory,
+    longTermMemory,
+    recentStateUpdates,
+    itemNameById,
+    recentMemoryUpdates,
+    recentHookUpdates,
+  }
+}
+
 export function loadStateUpdatesView(database: NovelDatabase, chapterId: string): {
   chapter: { index: number; title: string; id: string; status: string; bookId: string } | null
   review: {
@@ -247,6 +383,59 @@ export function loadStateUpdatesView(database: NovelDatabase, chapterId: string)
   }
 }
 
+export async function loadStateUpdatesViewAsync(database: NovelDatabase, chapterId: string): Promise<{
+  chapter: { index: number; title: string; id: string; status: string; bookId: string } | null
+  review: {
+    id: string
+    decision: string
+    approvalRisk: string
+    closureSuggestions: {
+      characters: unknown[]
+      items: unknown[]
+      hooks: unknown[]
+      memory: unknown[]
+    }
+    consistencyIssues: string[]
+    characterIssues: string[]
+    itemIssues: string[]
+    memoryIssues: string[]
+    hookIssues: string[]
+    revisionAdvice: string[]
+  } | null
+  stateUpdates: StateUpdateView[]
+  memoryUpdates: MemoryUpdateView[]
+  hookUpdates: HookUpdateView[]
+  characterNameById: Map<string, string>
+  itemNameById: Map<string, string>
+  hookTitleById: Map<string, string>
+}> {
+  const chapterRepository = new ChapterRepository(database)
+  const characterRepository = new CharacterRepository(database)
+  const itemRepository = new ItemRepository(database)
+  const hookRepository = new HookRepository(database)
+  const chapter = await chapterRepository.getByIdAsync(chapterId)
+  const review = await new ChapterReviewRepository(database).getLatestByChapterIdAsync(chapterId)
+  const stateUpdates = await new ChapterStateUpdateRepository(database).listByChapterIdAsync(chapterId) as StateUpdateView[]
+  const memoryUpdates = await new ChapterMemoryUpdateRepository(database).listByChapterIdAsync(chapterId) as MemoryUpdateView[]
+  const hookUpdates = await new ChapterHookUpdateRepository(database).listByChapterIdAsync(chapterId) as HookUpdateView[]
+  const characterNameById = new Map(
+    (await characterRepository.listByBookIdAsync(chapter?.bookId ?? '')).map((item) => [item.id, item.name]),
+  )
+  const itemNameById = new Map((await itemRepository.listByBookIdAsync(chapter?.bookId ?? '')).map((item) => [item.id, item.name]))
+  const hookTitleById = new Map((await hookRepository.listByBookIdAsync(chapter?.bookId ?? '')).map((item) => [item.id, item.title]))
+
+  return {
+    chapter,
+    review,
+    stateUpdates,
+    memoryUpdates,
+    hookUpdates,
+    characterNameById,
+    itemNameById,
+    hookTitleById,
+  }
+}
+
 export function loadStateThreadsView(database: NovelDatabase, volumeId?: string): {
   book: { id: string; title: string }
   volume: { id: string; title: string } | null
@@ -281,6 +470,40 @@ export function loadStateThreadsView(database: NovelDatabase, volumeId?: string)
   }
 }
 
+export async function loadStateThreadsViewAsync(database: NovelDatabase, volumeId?: string): Promise<{
+  book: { id: string; title: string }
+  volume: { id: string; title: string } | null
+  activeThreads: unknown[]
+  recentProgress: unknown[]
+}> {
+  const book = await new BookRepository(database).getFirstAsync()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const volume = volumeId ? await new VolumeRepository(database).getByIdAsync(volumeId) : null
+
+  if (volumeId && !volume) {
+    throw new NovelError(`Volume not found: ${volumeId}`)
+  }
+
+  const activeThreads = volumeId
+    ? await new StoryThreadRepository(database).listByVolumeIdAsync(volumeId)
+    : await new StoryThreadRepository(database).listActiveByBookIdAsync(book.id)
+  const recentProgress = (await new StoryThreadProgressRepository(database)
+    .listByBookIdAsync(book.id))
+    .filter((progress) => !volumeId || activeThreads.some((thread) => (thread as { id: string }).id === progress.threadId))
+    .slice(0, 10)
+
+  return {
+    book,
+    volume: volume ? { id: volume.id, title: volume.title } : null,
+    activeThreads,
+    recentProgress,
+  }
+}
+
 export function loadStateEndingView(database: NovelDatabase): {
   book: { id: string; title: string }
   endingReadiness: unknown | null
@@ -294,6 +517,22 @@ export function loadStateEndingView(database: NovelDatabase): {
   return {
     book,
     endingReadiness: new EndingReadinessRepository(database).getByBookId(book.id),
+  }
+}
+
+export async function loadStateEndingViewAsync(database: NovelDatabase): Promise<{
+  book: { id: string; title: string }
+  endingReadiness: unknown | null
+}> {
+  const book = await new BookRepository(database).getFirstAsync()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  return {
+    book,
+    endingReadiness: await new EndingReadinessRepository(database).getByBookIdAsync(book.id),
   }
 }
 
@@ -323,5 +562,34 @@ export function loadStateVolumePlanView(database: NovelDatabase, volumeId: strin
     book,
     volume,
     latestVolumePlan: new VolumePlanRepository(database).getLatestByVolumeId(volumeId),
+  }
+}
+
+export async function loadStateVolumePlanViewAsync(database: NovelDatabase, volumeId: string): Promise<{
+  book: { id: string; title: string }
+  volume: {
+    id: string
+    title: string
+    goal: string
+    summary: string
+  }
+  latestVolumePlan: unknown | null
+}> {
+  const book = await new BookRepository(database).getFirstAsync()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const volume = await new VolumeRepository(database).getByIdAsync(volumeId)
+
+  if (!volume) {
+    throw new NovelError(`Volume not found: ${volumeId}`)
+  }
+
+  return {
+    book,
+    volume,
+    latestVolumePlan: await new VolumePlanRepository(database).getLatestByVolumeIdAsync(volumeId),
   }
 }

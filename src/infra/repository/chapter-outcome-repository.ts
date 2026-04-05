@@ -1,6 +1,6 @@
 import type { ChapterOutcome } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbGet, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbGet, dbGetAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type ChapterOutcomeRow = {
   id: string
@@ -51,6 +51,38 @@ export class ChapterOutcomeRepository {
     )
   }
 
+  async createAsync(outcome: ChapterOutcome): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO chapter_outcomes (
+          id,
+          book_id,
+          chapter_id,
+          source_review_id,
+          source_rewrite_id,
+          decision,
+          resolved_facts_json,
+          observation_facts_json,
+          character_arc_progress_json,
+          hook_debt_updates_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      outcome.id,
+      outcome.bookId,
+      outcome.chapterId,
+      outcome.sourceReviewId ?? null,
+      outcome.sourceRewriteId ?? null,
+      outcome.decision,
+      JSON.stringify(outcome.resolvedFacts),
+      JSON.stringify(outcome.observationFacts),
+      JSON.stringify(outcome.characterArcProgress),
+      JSON.stringify(outcome.hookDebtUpdates),
+      outcome.createdAt,
+    )
+  }
+
   getLatestByChapterId(chapterId: string): ChapterOutcome | null {
     const row = dbGet<ChapterOutcomeRow>(
       this.database,
@@ -67,8 +99,39 @@ export class ChapterOutcomeRepository {
     return row ? mapChapterOutcome(row) : null
   }
 
+  async getLatestByChapterIdAsync(chapterId: string): Promise<ChapterOutcome | null> {
+    const row = await dbGetAsync<ChapterOutcomeRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_outcomes
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      chapterId,
+    )
+
+    return row ? mapChapterOutcome(row) : null
+  }
+
   listByChapterId(chapterId: string): ChapterOutcome[] {
     const rows = dbAll<ChapterOutcomeRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_outcomes
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+      `,
+      chapterId,
+    )
+
+    return rows.map(mapChapterOutcome)
+  }
+
+  async listByChapterIdAsync(chapterId: string): Promise<ChapterOutcome[]> {
+    const rows = await dbAllAsync<ChapterOutcomeRow>(
       this.database,
       `
         SELECT *

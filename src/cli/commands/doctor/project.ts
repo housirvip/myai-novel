@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { openProjectDatabase } from '../../context.js'
 import { printDoctorProjectSummary } from './printers.js'
-import { loadDoctorBootstrapView, loadDoctorProjectView } from './services.js'
+import { loadDoctorBootstrapView, loadDoctorProjectViewAsync } from './services.js'
 
 export function registerDoctorProjectCommand(doctorCommand: Command): void {
   doctorCommand
@@ -12,7 +12,7 @@ export function registerDoctorProjectCommand(doctorCommand: Command): void {
         const database = await openProjectDatabase()
 
         try {
-          printDoctorProjectSummary(loadDoctorProjectView(database))
+          printDoctorProjectSummary(await loadDoctorProjectViewAsync(database))
         } finally {
           database.close()
         }

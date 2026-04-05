@@ -4,9 +4,9 @@ import type { NovelDatabase } from '../../../infra/db/database.js'
 import { readLlmEnv, readLlmStageConfig } from '../../../shared/utils/env.js'
 import { resolveProjectPaths } from '../../../shared/utils/project-paths.js'
 
-import { loadDoctorVolumeView } from '../doctor/volume-services.js'
-import { loadStateEndingView, loadStateThreadsView, loadStateVolumePlanView } from '../state/services.js'
-import { loadWorkflowMissionView } from '../workflow-services.js'
+import { loadDoctorVolumeViewAsync } from '../doctor/volume-services.js'
+import { loadStateEndingViewAsync, loadStateThreadsViewAsync, loadStateVolumePlanViewAsync } from '../state/services.js'
+import { loadWorkflowMissionViewAsync } from '../workflow-services.js'
 import { BUILTIN_CASES, BUILTIN_VOLUME_CASES, type RegressionCaseName } from './cases.js'
 
 type RegressionStepStatus = 'pass' | 'fail' | 'skip'
@@ -45,11 +45,11 @@ export type RegressionVolumeSuiteResult = {
   summary: string
 }
 
-export function executeRegressionCase(
+export async function executeRegressionCase(
   database: NovelDatabase | null,
   caseName: string,
   targetId?: string,
-): RegressionRunResult {
+): Promise<RegressionRunResult> {
   if (!BUILTIN_CASES.includes(caseName as RegressionCaseName)) {
     return {
       caseName,
@@ -78,31 +78,31 @@ export function executeRegressionCase(
         return createProjectRequiredResult(caseName)
       }
 
-      return executeVolumePlanSmoke(database, targetId)
+      return await executeVolumePlanSmoke(database, targetId)
     case 'mission-carry-smoke':
       if (!database) {
         return createProjectRequiredResult(caseName)
       }
 
-      return executeMissionCarrySmoke(database, targetId)
+      return await executeMissionCarrySmoke(database, targetId)
     case 'thread-progression-smoke':
       if (!database) {
         return createProjectRequiredResult(caseName)
       }
 
-      return executeThreadProgressionSmoke(database, targetId)
+      return await executeThreadProgressionSmoke(database, targetId)
     case 'ending-readiness-smoke':
       if (!database) {
         return createProjectRequiredResult(caseName)
       }
 
-      return executeEndingReadinessSmoke(database, targetId)
+      return await executeEndingReadinessSmoke(database, targetId)
     case 'volume-doctor-smoke':
       if (!database) {
         return createProjectRequiredResult(caseName)
       }
 
-      return executeVolumeDoctorSmoke(database, targetId)
+      return await executeVolumeDoctorSmoke(database, targetId)
     case 'hook-pressure-smoke':
     case 'chapter-drop-safety':
     case 'review-layering-smoke':
@@ -258,11 +258,11 @@ function readConfiguredBackend(): NovelDatabase['client'] | null {
   return raw.database?.client === 'mysql' ? 'mysql' : 'sqlite'
 }
 
-export function executeVolumeRegressionSuite(
+export async function executeVolumeRegressionSuite(
   database: NovelDatabase,
   volumeId: string,
-): RegressionVolumeSuiteResult {
-  const results = BUILTIN_VOLUME_CASES.map((caseName) => executeRegressionCase(database, caseName, volumeId))
+): Promise<RegressionVolumeSuiteResult> {
+  const results = await Promise.all(BUILTIN_VOLUME_CASES.map((caseName) => executeRegressionCase(database, caseName, volumeId)))
   const passedCount = results.filter((item) => item.status === 'pass').length
   const warningCount = results.filter((item) => item.status === 'warning').length
   const missingPrerequisiteCount = results.filter((item) => item.status === 'missing-prerequisite').length
@@ -281,12 +281,12 @@ export function executeVolumeRegressionSuite(
   }
 }
 
-function executeVolumePlanSmoke(database: NovelDatabase, volumeId?: string): RegressionRunResult {
+async function executeVolumePlanSmoke(database: NovelDatabase, volumeId?: string): Promise<RegressionRunResult> {
   if (!volumeId) {
     return createMissingPrerequisiteResult('volume-plan-smoke', 'volumeId', 'This case requires a volume id.')
   }
 
-  const view = loadStateVolumePlanView(database, volumeId)
+  const view = await loadStateVolumePlanViewAsync(database, volumeId)
   const hasPlan = Boolean(view.latestVolumePlan)
 
   return {
@@ -318,12 +318,12 @@ function executeVolumePlanSmoke(database: NovelDatabase, volumeId?: string): Reg
   }
 }
 
-function executeMissionCarrySmoke(database: NovelDatabase, chapterId?: string): RegressionRunResult {
+async function executeMissionCarrySmoke(database: NovelDatabase, chapterId?: string): Promise<RegressionRunResult> {
   if (!chapterId) {
     return createMissingPrerequisiteResult('mission-carry-smoke', 'chapterId', 'This case requires a chapter id.')
   }
 
-  const view = loadWorkflowMissionView(database, chapterId)
+  const view = await loadWorkflowMissionViewAsync(database, chapterId)
   const hasVolumePlan = Boolean(view.volumePlan)
   const hasMission = Boolean(view.mission)
 
@@ -364,12 +364,12 @@ function executeMissionCarrySmoke(database: NovelDatabase, chapterId?: string): 
   }
 }
 
-function executeThreadProgressionSmoke(database: NovelDatabase, volumeId?: string): RegressionRunResult {
+async function executeThreadProgressionSmoke(database: NovelDatabase, volumeId?: string): Promise<RegressionRunResult> {
   if (!volumeId) {
     return createMissingPrerequisiteResult('thread-progression-smoke', 'volumeId', 'This case requires a volume id.')
   }
 
-  const view = loadStateThreadsView(database, volumeId)
+  const view = await loadStateThreadsViewAsync(database, volumeId)
   const activeThreadCount = view.activeThreads.length
   const recentProgressCount = view.recentProgress.length
 
@@ -409,8 +409,8 @@ function executeThreadProgressionSmoke(database: NovelDatabase, volumeId?: strin
   }
 }
 
-function executeEndingReadinessSmoke(database: NovelDatabase, targetId?: string): RegressionRunResult {
-  const view = loadStateEndingView(database)
+async function executeEndingReadinessSmoke(database: NovelDatabase, targetId?: string): Promise<RegressionRunResult> {
+  const view = await loadStateEndingViewAsync(database)
   const endingReadiness = view.endingReadiness as { targetVolumeId?: string } | null
   const hasEndingReadiness = Boolean(endingReadiness)
   const targetMatches = targetId ? endingReadiness?.targetVolumeId === targetId : hasEndingReadiness
@@ -451,12 +451,12 @@ function executeEndingReadinessSmoke(database: NovelDatabase, targetId?: string)
   }
 }
 
-function executeVolumeDoctorSmoke(database: NovelDatabase, volumeId?: string): RegressionRunResult {
+async function executeVolumeDoctorSmoke(database: NovelDatabase, volumeId?: string): Promise<RegressionRunResult> {
   if (!volumeId) {
     return createMissingPrerequisiteResult('volume-doctor-smoke', 'volumeId', 'This case requires a volume id.')
   }
 
-  const view = loadDoctorVolumeView(database, volumeId)
+  const view = await loadDoctorVolumeViewAsync(database, volumeId)
   const diagnostics = view.diagnostics
   const hasCriticalRisk =
     diagnostics.missionChainGapCount > 0 ||

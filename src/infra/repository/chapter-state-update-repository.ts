@@ -1,6 +1,6 @@
 import type { ChapterStateUpdate } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type ChapterStateUpdateRow = {
   id: string
@@ -35,6 +35,25 @@ export class ChapterStateUpdateRepository {
     )
   }
 
+  async createAsync(update: ChapterStateUpdate): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO chapter_state_updates (
+          id, book_id, chapter_id, entity_type, entity_id, summary, detail_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      update.id,
+      update.bookId,
+      update.chapterId,
+      update.entityType,
+      update.entityId,
+      update.summary,
+      JSON.stringify(update.detail),
+      update.createdAt,
+    )
+  }
+
   listByChapterId(chapterId: string): ChapterStateUpdate[] {
     const rows = dbAll<ChapterStateUpdateRow>(
       this.database,
@@ -45,8 +64,28 @@ export class ChapterStateUpdateRepository {
     return rows.map(mapChapterStateUpdate)
   }
 
+  async listByChapterIdAsync(chapterId: string): Promise<ChapterStateUpdate[]> {
+    const rows = await dbAllAsync<ChapterStateUpdateRow>(
+      this.database,
+      'SELECT * FROM chapter_state_updates WHERE chapter_id = ? ORDER BY created_at ASC',
+      chapterId,
+    )
+
+    return rows.map(mapChapterStateUpdate)
+  }
+
   listByBookId(bookId: string): ChapterStateUpdate[] {
     const rows = dbAll<ChapterStateUpdateRow>(
+      this.database,
+      'SELECT * FROM chapter_state_updates WHERE book_id = ? ORDER BY created_at DESC',
+      bookId,
+    )
+
+    return rows.map(mapChapterStateUpdate)
+  }
+
+  async listByBookIdAsync(bookId: string): Promise<ChapterStateUpdate[]> {
+    const rows = await dbAllAsync<ChapterStateUpdateRow>(
       this.database,
       'SELECT * FROM chapter_state_updates WHERE book_id = ? ORDER BY created_at DESC',
       bookId,

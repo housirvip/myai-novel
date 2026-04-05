@@ -17,7 +17,7 @@ export async function openProjectDatabase(): Promise<NovelDatabase> {
       : config.database,
   )
 
-  runMigrations(database)
+  await runMigrations(database)
 
   return database
 }

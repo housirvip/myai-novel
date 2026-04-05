@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { openProjectDatabase } from '../../context.js'
 import { printDoctorVolumeSummary } from './volume-printers.js'
-import { loadDoctorVolumeView } from './volume-services.js'
+import { loadDoctorVolumeViewAsync } from './volume-services.js'
 
 export function registerDoctorVolumeCommand(doctorCommand: Command): void {
   doctorCommand
@@ -14,7 +14,7 @@ export function registerDoctorVolumeCommand(doctorCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        const view = loadDoctorVolumeView(database, volumeId)
+        const view = await loadDoctorVolumeViewAsync(database, volumeId)
 
         if (options.json) {
           console.log(JSON.stringify(view, null, 2))

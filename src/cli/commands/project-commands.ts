@@ -39,7 +39,7 @@ export function registerProjectCommands(program: Command): void {
           new OutlineRepository(database),
         )
 
-        const outline = bookService.setOutline({
+        const outline = await bookService.setOutlineAsync({
           premise: options.premise,
           theme: options.theme,
           worldview: options.worldview,
@@ -64,15 +64,15 @@ export function registerProjectCommands(program: Command): void {
         const outlineRepository = new OutlineRepository(database)
         const volumeRepository = new VolumeRepository(database)
         const chapterRepository = new ChapterRepository(database)
-        const book = bookRepository.getFirst()
+        const book = await bookRepository.getFirstAsync()
 
         if (!book) {
           throw new NovelError('Project is not initialized. Run `novel init` first.')
         }
 
-        const outline = outlineRepository.getByBookId(book.id)
-        const volumes = volumeRepository.listByBookId(book.id)
-        const chapters = chapterRepository.listByBookId(book.id)
+        const outline = await outlineRepository.getByBookIdAsync(book.id)
+        const volumes = await volumeRepository.listByBookIdAsync(book.id)
+        const chapters = await chapterRepository.listByBookIdAsync(book.id)
 
         console.log(`Book: ${book.title}`)
         console.log(`ID: ${book.id}`)
@@ -126,14 +126,14 @@ function registerInitCommand(program: Command): void {
       )
 
       try {
-        runMigrations(database)
+        await runMigrations(database)
 
         const bookService = new BookService(
           new BookRepository(database),
           new OutlineRepository(database),
         )
 
-        const book = bookService.initializeBook({
+        const book = await bookService.initializeBookAsync({
           title: options.title,
           genre: options.genre,
           defaultChapterWordCount: options.wordCount,

@@ -56,6 +56,31 @@ export class BookService {
     return book
   }
 
+  async initializeBookAsync(input: InitBookInput): Promise<Book> {
+    const parsed = initBookInputSchema.parse(input)
+    const existingBook = await this.bookRepository.getFirstAsync()
+
+    if (existingBook) {
+      return existingBook
+    }
+
+    const timestamp = nowIso()
+    const book: Book = {
+      id: createId('book'),
+      title: parsed.title,
+      genre: parsed.genre,
+      styleGuide: [],
+      defaultChapterWordCount: parsed.defaultChapterWordCount,
+      chapterWordCountToleranceRatio: parsed.chapterWordCountToleranceRatio,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }
+
+    await this.bookRepository.createAsync(book)
+
+    return book
+  }
+
   setOutline(input: SetOutlineInput): Outline {
     const parsed = setOutlineInputSchema.parse(input)
     const book = this.bookRepository.getFirst()
@@ -75,6 +100,29 @@ export class BookService {
     }
 
     this.outlineRepository.upsert(outline)
+
+    return outline
+  }
+
+  async setOutlineAsync(input: SetOutlineInput): Promise<Outline> {
+    const parsed = setOutlineInputSchema.parse(input)
+    const book = await this.bookRepository.getFirstAsync()
+
+    if (!book) {
+      throw new NovelError('Project is not initialized. Run `novel init` first.')
+    }
+
+    const outline: Outline = {
+      bookId: book.id,
+      premise: parsed.premise,
+      theme: parsed.theme,
+      worldview: parsed.worldview,
+      coreConflicts: parsed.coreConflicts,
+      endingVision: parsed.endingVision,
+      updatedAt: nowIso(),
+    }
+
+    await this.outlineRepository.upsertAsync(outline)
 
     return outline
   }

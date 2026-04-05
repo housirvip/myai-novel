@@ -57,3 +57,54 @@ export function loadStateVolumeView(database: NovelDatabase, volumeId: string): 
     endingReadiness: new EndingReadinessRepository(database).getByBookId(book.id),
   }
 }
+
+export async function loadStateVolumeViewAsync(database: NovelDatabase, volumeId: string): Promise<{
+  book: { id: string; title: string }
+  volume: {
+    id: string
+    title: string
+    goal: string
+    summary: string
+    chapterIds: string[]
+  }
+  chapters: Array<{
+    id: string
+    index: number
+    title: string
+    status: string
+  }>
+  latestVolumePlan: unknown | null
+  storyThreads: unknown[]
+  endingReadiness: unknown | null
+}> {
+  const book = await new BookRepository(database).getFirstAsync()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const volume = await new VolumeRepository(database).getByIdAsync(volumeId)
+
+  if (!volume) {
+    throw new NovelError(`Volume not found: ${volumeId}`)
+  }
+
+  const chapters = (await new ChapterRepository(database)
+    .listByBookIdAsync(book.id))
+    .filter((chapter) => chapter.volumeId === volumeId)
+    .map((chapter) => ({
+      id: chapter.id,
+      index: chapter.index,
+      title: chapter.title,
+      status: chapter.status,
+    }))
+
+  return {
+    book,
+    volume,
+    chapters,
+    latestVolumePlan: await new VolumePlanRepository(database).getLatestByVolumeIdAsync(volumeId),
+    storyThreads: await new StoryThreadRepository(database).listByVolumeIdAsync(volumeId),
+    endingReadiness: await new EndingReadinessRepository(database).getByBookIdAsync(book.id),
+  }
+}

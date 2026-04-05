@@ -12,7 +12,7 @@ export function registerRegressionVolumeCommand(regressionCommand: Command): voi
       const database = await openProjectDatabase()
 
       try {
-        printRegressionVolumeSuite(executeVolumeRegressionSuite(database, volumeId))
+        printRegressionVolumeSuite(await executeVolumeRegressionSuite(database, volumeId))
       } finally {
         database.close()
       }

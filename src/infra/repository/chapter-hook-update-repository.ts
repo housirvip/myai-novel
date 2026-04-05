@@ -1,6 +1,6 @@
 import type { ChapterHookUpdate } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type ChapterHookUpdateRow = {
   id: string
@@ -35,6 +35,25 @@ export class ChapterHookUpdateRepository {
     )
   }
 
+  async createAsync(update: ChapterHookUpdate): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO chapter_hook_updates (
+          id, book_id, chapter_id, hook_id, status, summary, detail_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      update.id,
+      update.bookId,
+      update.chapterId,
+      update.hookId,
+      update.status,
+      update.summary,
+      JSON.stringify(update.detail),
+      update.createdAt,
+    )
+  }
+
   listByChapterId(chapterId: string): ChapterHookUpdate[] {
     const rows = dbAll<ChapterHookUpdateRow>(
       this.database,
@@ -45,8 +64,28 @@ export class ChapterHookUpdateRepository {
     return rows.map(mapChapterHookUpdate)
   }
 
+  async listByChapterIdAsync(chapterId: string): Promise<ChapterHookUpdate[]> {
+    const rows = await dbAllAsync<ChapterHookUpdateRow>(
+      this.database,
+      'SELECT * FROM chapter_hook_updates WHERE chapter_id = ? ORDER BY created_at ASC',
+      chapterId,
+    )
+
+    return rows.map(mapChapterHookUpdate)
+  }
+
   listByBookId(bookId: string): ChapterHookUpdate[] {
     const rows = dbAll<ChapterHookUpdateRow>(
+      this.database,
+      'SELECT * FROM chapter_hook_updates WHERE book_id = ? ORDER BY created_at DESC',
+      bookId,
+    )
+
+    return rows.map(mapChapterHookUpdate)
+  }
+
+  async listByBookIdAsync(bookId: string): Promise<ChapterHookUpdate[]> {
+    const rows = await dbAllAsync<ChapterHookUpdateRow>(
       this.database,
       'SELECT * FROM chapter_hook_updates WHERE book_id = ? ORDER BY created_at DESC',
       bookId,

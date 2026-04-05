@@ -123,6 +123,96 @@ export class PlanningContextBuilder {
       ensembleBalanceReport,
     }
   }
+
+  async buildAsync(chapterId: string): Promise<PlanningContext> {
+    const book = await this.bookRepository.getFirstAsync()
+
+    if (!book) {
+      throw new NovelError('Project is not initialized. Run `novel init` first.')
+    }
+
+    const outline = await this.outlineRepository.getByBookIdAsync(book.id)
+
+    if (!outline) {
+      throw new NovelError('Outline is required before planning a chapter. Run `novel outline set`.')
+    }
+
+    const chapter = await this.chapterRepository.getByIdAsync(chapterId)
+
+    if (!chapter) {
+      throw new NovelError(`Chapter not found: ${chapterId}`)
+    }
+
+    const volume = await this.volumeRepository.getByIdAsync(chapter.volumeId)
+
+    if (!volume) {
+      throw new NovelError(`Volume not found for chapter: ${chapterId}`)
+    }
+
+    const previousChapter = await this.chapterRepository.getPreviousChapterAsync(book.id, chapter.index)
+    const chapters = await this.chapterRepository.listByBookIdAsync(book.id)
+    const characterStates = await this.characterCurrentStateRepository.listByBookIdAsync(book.id)
+    const characterArcs = await this.characterArcRepository.listByBookIdAsync(book.id)
+    const importantItems = await this.itemCurrentStateRepository.listImportantByBookIdAsync(book.id)
+    const shortTermMemory = await this.memoryRepository.getShortTermByBookIdAsync(book.id)
+    const observationMemory = await this.memoryRepository.getObservationByBookIdAsync(book.id)
+    const activeHookStates = await this.hookStateRepository.listActiveByBookIdAsync(book.id)
+    const hookPressures = await this.hookPressureRepository.listActiveByBookIdAsync(book.id)
+    const openNarrativeDebts = await this.narrativeDebtRepository.listOpenByBookIdAsync(book.id)
+    const protectedFactConstraints = [...new Set(
+      (await this.memoryRepository.recallRelevantLongTermEntriesAsync(book.id, [chapter.title, chapter.objective, volume.goal]))
+        .filter((entry) => entry.importance >= 70)
+        .map((entry) => entry.summary.trim())
+        .filter((entry) => entry.length > 0),
+    )]
+    const recallTerms = buildMemoryRecallQueryTerms(
+      chapter.title,
+      chapter.objective,
+      volume.goal,
+      chapter.plannedBeats,
+      activeHookStates.map((item) => `${item.hookId} ${item.status}`),
+      importantItems.flatMap((item) => [item.name, item.id, item.status]),
+    )
+    const relevantLongTermEntries = await this.memoryRepository.recallRelevantLongTermEntriesAsync(book.id, recallTerms)
+    const volumePlan = await this.volumePlanRepository.getLatestByVolumeIdAsync(volume.id)
+    const activeStoryThreads = await this.storyThreadRepository.listActiveByBookIdAsync(book.id)
+    const currentChapterMission = volumePlan?.chapterMissions.find((mission) => mission.chapterId === chapter.id) ?? null
+    const endingReadiness = await this.endingReadinessRepository.getByBookIdAsync(book.id)
+    const characterPresenceWindows = buildCharacterPresenceWindows(chapters, characterStates, activeStoryThreads, chapter.index)
+    const ensembleBalanceReport = buildEnsembleBalanceReport(characterPresenceWindows, activeStoryThreads)
+
+    return {
+      book,
+      outline,
+      chapter,
+      volume,
+      previousChapter,
+      characterStates,
+      characterArcs,
+      importantItems,
+      activeHookStates,
+      hookPressures,
+      narrativePressure: {
+        characterArcs,
+        highPressureHooks: hookPressures.filter((item) => item.riskLevel === 'high' || item.pressureScore >= 70),
+        openNarrativeDebts,
+        protectedFacts: protectedFactConstraints,
+      },
+      protectedFactConstraints,
+      memoryRecall: {
+        shortTermSummaries: shortTermMemory?.summaries ?? [],
+        recentEvents: shortTermMemory?.recentEvents ?? [],
+        observationEntries: observationMemory?.entries ?? [],
+        relevantLongTermEntries,
+      },
+      volumePlan,
+      activeStoryThreads,
+      currentChapterMission,
+      endingReadiness,
+      characterPresenceWindows,
+      ensembleBalanceReport,
+    }
+  }
 }
 
 function buildMemoryRecallQueryTerms(

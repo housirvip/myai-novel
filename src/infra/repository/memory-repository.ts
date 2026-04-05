@@ -1,6 +1,6 @@
 import type { LongTermMemory, ObservationMemory, ShortTermMemory } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbGet, dbRun } from '../db/db-client.js'
+import { dbGet, dbGetAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type ShortTermMemoryRow = {
   book_id: string
@@ -48,8 +48,48 @@ export class MemoryRepository {
     )
   }
 
+  async upsertShortTermAsync(memory: ShortTermMemory): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO short_term_memory_current (
+          book_id, chapter_id, summaries_json, recent_events_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(book_id) DO UPDATE SET
+          chapter_id = excluded.chapter_id,
+          summaries_json = excluded.summaries_json,
+          recent_events_json = excluded.recent_events_json,
+          updated_at = excluded.updated_at
+      `,
+      memory.bookId,
+      memory.chapterId,
+      JSON.stringify(memory.summaries),
+      JSON.stringify(memory.recentEvents),
+      memory.updatedAt,
+    )
+  }
+
   upsertObservation(memory: ObservationMemory): void {
     dbRun(
+      this.database,
+      `
+        INSERT INTO observation_memory_current (
+          book_id, chapter_id, entries_json, updated_at
+        ) VALUES (?, ?, ?, ?)
+        ON CONFLICT(book_id) DO UPDATE SET
+          chapter_id = excluded.chapter_id,
+          entries_json = excluded.entries_json,
+          updated_at = excluded.updated_at
+      `,
+      memory.bookId,
+      memory.chapterId,
+      JSON.stringify(memory.entries),
+      memory.updatedAt,
+    )
+  }
+
+  async upsertObservationAsync(memory: ObservationMemory): Promise<void> {
+    await dbRunAsync(
       this.database,
       `
         INSERT INTO observation_memory_current (
@@ -86,8 +126,45 @@ export class MemoryRepository {
     )
   }
 
+  async upsertLongTermAsync(memory: LongTermMemory): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO long_term_memory_current (
+          book_id, chapter_id, entries_json, updated_at
+        ) VALUES (?, ?, ?, ?)
+        ON CONFLICT(book_id) DO UPDATE SET
+          chapter_id = excluded.chapter_id,
+          entries_json = excluded.entries_json,
+          updated_at = excluded.updated_at
+      `,
+      memory.bookId,
+      memory.chapterId,
+      JSON.stringify(memory.entries),
+      memory.updatedAt,
+    )
+  }
+
   getShortTermByBookId(bookId: string): ShortTermMemory | null {
     const row = dbGet<ShortTermMemoryRow>(
+      this.database,
+      'SELECT * FROM short_term_memory_current WHERE book_id = ?',
+      bookId,
+    )
+
+    return row
+      ? {
+          bookId: row.book_id,
+          chapterId: row.chapter_id,
+          summaries: JSON.parse(row.summaries_json) as string[],
+          recentEvents: JSON.parse(row.recent_events_json) as string[],
+          updatedAt: row.updated_at,
+        }
+      : null
+  }
+
+  async getShortTermByBookIdAsync(bookId: string): Promise<ShortTermMemory | null> {
+    const row = await dbGetAsync<ShortTermMemoryRow>(
       this.database,
       'SELECT * FROM short_term_memory_current WHERE book_id = ?',
       bookId,
@@ -121,6 +198,23 @@ export class MemoryRepository {
       : null
   }
 
+  async getObservationByBookIdAsync(bookId: string): Promise<ObservationMemory | null> {
+    const row = await dbGetAsync<ObservationMemoryRow>(
+      this.database,
+      'SELECT * FROM observation_memory_current WHERE book_id = ?',
+      bookId,
+    )
+
+    return row
+      ? {
+          bookId: row.book_id,
+          chapterId: row.chapter_id,
+          entries: JSON.parse(row.entries_json) as ObservationMemory['entries'],
+          updatedAt: row.updated_at,
+        }
+      : null
+  }
+
   getLongTermByBookId(bookId: string): LongTermMemory | null {
     const row = dbGet<LongTermMemoryRow>(
       this.database,
@@ -138,8 +232,48 @@ export class MemoryRepository {
       : null
   }
 
+  async getLongTermByBookIdAsync(bookId: string): Promise<LongTermMemory | null> {
+    const row = await dbGetAsync<LongTermMemoryRow>(
+      this.database,
+      'SELECT * FROM long_term_memory_current WHERE book_id = ?',
+      bookId,
+    )
+
+    return row
+      ? {
+          bookId: row.book_id,
+          chapterId: row.chapter_id,
+          entries: JSON.parse(row.entries_json) as LongTermMemory['entries'],
+          updatedAt: row.updated_at,
+        }
+      : null
+  }
+
   recallRelevantLongTermEntries(bookId: string, queryTerms: string[], maxEntries = 5): LongTermMemory['entries'] {
     const memory = this.getLongTermByBookId(bookId)
+
+    if (!memory) {
+      return []
+    }
+
+    const normalizedTerms = normalizeQueryTerms(queryTerms)
+
+    return [...memory.entries]
+      .map((entry) => ({
+        entry,
+        score: scoreLongTermEntry(entry, normalizedTerms),
+      }))
+      .sort((left, right) => right.score - left.score)
+      .slice(0, maxEntries)
+      .map((item) => item.entry)
+  }
+
+  async recallRelevantLongTermEntriesAsync(
+    bookId: string,
+    queryTerms: string[],
+    maxEntries = 5,
+  ): Promise<LongTermMemory['entries']> {
+    const memory = await this.getLongTermByBookIdAsync(bookId)
 
     if (!memory) {
       return []

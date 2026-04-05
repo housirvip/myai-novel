@@ -1,6 +1,6 @@
 import type { HookPressure } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbGet, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbGet, dbGetAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type HookPressureRow = {
   book_id: string
@@ -31,6 +31,22 @@ export class HookPressureRepository {
     return row ? mapHookPressure(row) : null
   }
 
+  async getByHookIdAsync(bookId: string, hookId: string): Promise<HookPressure | null> {
+    const row = await dbGetAsync<HookPressureRow>(
+      this.database,
+      `
+        SELECT *
+        FROM hook_pressure_current
+        WHERE book_id = ? AND hook_id = ?
+        LIMIT 1
+      `,
+      bookId,
+      hookId,
+    )
+
+    return row ? mapHookPressure(row) : null
+  }
+
   listActiveByBookId(bookId: string): HookPressure[] {
     const rows = dbAll<HookPressureRow>(
       this.database,
@@ -46,8 +62,54 @@ export class HookPressureRepository {
     return rows.map(mapHookPressure)
   }
 
+  async listActiveByBookIdAsync(bookId: string): Promise<HookPressure[]> {
+    const rows = await dbAllAsync<HookPressureRow>(
+      this.database,
+      `
+        SELECT *
+        FROM hook_pressure_current
+        WHERE book_id = ?
+        ORDER BY pressure_score DESC, updated_at DESC
+      `,
+      bookId,
+    )
+
+    return rows.map(mapHookPressure)
+  }
+
   upsert(pressure: HookPressure): void {
     dbRun(
+      this.database,
+      `
+        INSERT INTO hook_pressure_current (
+          book_id,
+          hook_id,
+          pressure_score,
+          risk_level,
+          last_advanced_chapter_id,
+          next_suggested_chapter_index,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(book_id, hook_id)
+        DO UPDATE SET
+          pressure_score = excluded.pressure_score,
+          risk_level = excluded.risk_level,
+          last_advanced_chapter_id = excluded.last_advanced_chapter_id,
+          next_suggested_chapter_index = excluded.next_suggested_chapter_index,
+          updated_at = excluded.updated_at
+      `,
+      pressure.bookId,
+      pressure.hookId,
+      pressure.pressureScore,
+      pressure.riskLevel,
+      pressure.lastAdvancedChapterId ?? null,
+      pressure.nextSuggestedChapterIndex ?? null,
+      pressure.updatedAt,
+    )
+  }
+
+  async upsertAsync(pressure: HookPressure): Promise<void> {
+    await dbRunAsync(
       this.database,
       `
         INSERT INTO hook_pressure_current (

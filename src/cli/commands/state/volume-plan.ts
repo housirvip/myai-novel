@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { openProjectDatabase } from '../../context.js'
 import { printStateVolumePlanSummary } from './printers.js'
-import { loadStateVolumePlanView } from './services.js'
+import { loadStateVolumePlanViewAsync } from './services.js'
 
 export function registerStateVolumePlanCommand(stateCommand: Command): void {
   stateCommand
@@ -12,7 +12,7 @@ export function registerStateVolumePlanCommand(stateCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        printStateVolumePlanSummary(loadStateVolumePlanView(database, volumeId))
+        printStateVolumePlanSummary(await loadStateVolumePlanViewAsync(database, volumeId))
       } finally {
         database.close()
       }

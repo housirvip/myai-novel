@@ -1,6 +1,6 @@
 import type { HookCurrentState } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbRun, dbTransaction } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbRun, dbRunAsync, dbTransaction, dbTransactionAsync } from '../db/db-client.js'
 
 type HookCurrentStateRow = {
   book_id: string
@@ -32,8 +32,37 @@ export class HookStateRepository {
     )
   }
 
+  async upsertAsync(state: HookCurrentState): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO hook_current_state (book_id, hook_id, status, updated_by_chapter_id, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(book_id, hook_id) DO UPDATE SET
+          status = excluded.status,
+          updated_by_chapter_id = excluded.updated_by_chapter_id,
+          updated_at = excluded.updated_at
+      `,
+      state.bookId,
+      state.hookId,
+      state.status,
+      state.updatedByChapterId ?? null,
+      state.updatedAt,
+    )
+  }
+
   listByBookId(bookId: string): HookCurrentState[] {
     const rows = dbAll<HookCurrentStateRow>(
+      this.database,
+      'SELECT * FROM hook_current_state WHERE book_id = ? ORDER BY updated_at DESC',
+      bookId,
+    )
+
+    return rows.map(mapHookCurrentState)
+  }
+
+  async listByBookIdAsync(bookId: string): Promise<HookCurrentState[]> {
+    const rows = await dbAllAsync<HookCurrentStateRow>(
       this.database,
       'SELECT * FROM hook_current_state WHERE book_id = ? ORDER BY updated_at DESC',
       bookId,
@@ -57,6 +86,21 @@ export class HookStateRepository {
     return rows.map(mapHookCurrentState)
   }
 
+  async listActiveByBookIdAsync(bookId: string): Promise<HookCurrentState[]> {
+    const rows = await dbAllAsync<HookCurrentStateRow>(
+      this.database,
+      `
+        SELECT *
+        FROM hook_current_state
+        WHERE book_id = ? AND status != 'resolved'
+        ORDER BY updated_at DESC
+      `,
+      bookId,
+    )
+
+    return rows.map(mapHookCurrentState)
+  }
+
   upsertBatch(states: HookCurrentState[]): void {
     const transaction = dbTransaction(this.database, (items: HookCurrentState[]) => {
       for (const item of items) {
@@ -65,6 +109,16 @@ export class HookStateRepository {
     })
 
     transaction(states)
+  }
+
+  async upsertBatchAsync(states: HookCurrentState[]): Promise<void> {
+    const transaction = dbTransactionAsync(this.database, async (items: HookCurrentState[]) => {
+      for (const item of items) {
+        await this.upsertAsync(item)
+      }
+    })
+
+    await transaction(states)
   }
 }
 

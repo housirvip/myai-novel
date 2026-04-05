@@ -39,7 +39,7 @@ export class PlanningService {
   ) {}
 
   async planChapter(chapterId: string): Promise<ChapterPlan> {
-    const baseContext = this.contextBuilder.build(chapterId)
+    const baseContext = await this.contextBuilder.buildAsync(chapterId)
     const derivedVolumePlan = baseContext.volumePlan ?? this.planVolumeWindow(baseContext)
     const context = baseContext.volumePlan
       ? baseContext
@@ -49,13 +49,13 @@ export class PlanningService {
           currentChapterMission:
             derivedVolumePlan.chapterMissions.find((mission) => mission.chapterId === baseContext.chapter.id) ?? null,
         }
-    const activeHooks = buildActiveHookViews(context, this.hookRepository.listByBookId(context.book.id))
+    const activeHooks = buildActiveHookViews(context, await this.hookRepository.listByBookIdAsync(context.book.id))
     const plan = this.llmAdapter
       ? await createLlmPlan(this.llmAdapter, context, activeHooks)
       : createRuleBasedPlan(context, activeHooks)
 
-    this.chapterPlanRepository.create(plan)
-    this.chapterRepository.updateCurrentPlanVersion(chapterId, plan.versionId, plan.createdAt)
+    await this.chapterPlanRepository.createAsync(plan)
+    await this.chapterRepository.updateCurrentPlanVersionAsync(chapterId, plan.versionId, plan.createdAt)
 
     return plan
   }
@@ -76,6 +76,60 @@ export class PlanningService {
      *
      * 这也是 `currentChapterMission` 与“未来窗口任务”的连接点：当前章不是孤立的，而是整个窗口的起笔。
      */
+    const chapterMissions: VolumePlan['chapterMissions'] = chaptersInWindow.map((chapter, index) => ({
+      id: createId('mission'),
+      bookId: context.book.id,
+      volumeId: context.volume.id,
+      chapterId: chapter.id,
+      threadId: focusThreads[index % Math.max(focusThreads.length, 1)]?.id ?? fallbackThreadId,
+      missionType: index === 0 ? 'advance' : (index === chaptersInWindow.length - 1 ? 'payoff' : 'complicate'),
+      summary:
+        index === 0
+          ? `优先推进卷级焦点任务：${context.chapter.objective}`
+          : `承接卷级线程并推进 ${chapter.title} 的窗口职责`,
+      successSignal:
+        index === 0
+          ? '当前章对至少一条高优先级线程形成实质推进'
+          : '该章对窗口级连续规划形成清晰承接',
+      priority: focusThreads[index % Math.max(focusThreads.length, 1)]?.priority ?? 'high',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }))
+
+    return {
+      id: createId('volume_plan'),
+      bookId: context.book.id,
+      volumeId: context.volume.id,
+      title: `${context.volume.title} 滚动窗口计划`,
+      focusSummary: context.currentChapterMission?.summary ?? `围绕卷目标“${context.volume.goal}”推进未来章节串。`,
+      rollingWindow: {
+        windowStartChapterIndex: context.chapter.index,
+        windowEndChapterIndex: chaptersInWindow.at(-1)?.index ?? context.chapter.index,
+        focusThreadIds: focusThreads.map((thread) => thread.id),
+        goal: `在 ${chaptersInWindow.length} 章窗口内持续推进卷目标与高优先级线程。`,
+      },
+      threadIds: focusThreads.map((thread) => thread.id),
+      chapterMissions,
+      endingSetupRequirements: (context.endingReadiness?.closureGaps ?? []).slice(0, 2).map((gap, index) => ({
+        id: createId(`ending_req_${index}`),
+        summary: gap.summary,
+        relatedThreadId: gap.relatedThreadId,
+        targetChapterIndex: chaptersInWindow.at(-1)?.index,
+        status: 'pending',
+      })),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }
+  }
+
+  async planVolumeWindowAsync(context: PlanningContext): Promise<VolumePlan> {
+    const timestamp = nowIso()
+    const chaptersInWindow = (await this.chapterRepository.listByBookIdAsync(context.book.id))
+      .filter((chapter) => chapter.volumeId === context.volume.id && chapter.index >= context.chapter.index)
+      .slice(0, 3)
+    const focusThreads = context.activeStoryThreads.slice(0, 3)
+    const fallbackThreadId = focusThreads[0]?.id ?? `${context.volume.id}_window_thread`
+
     const chapterMissions: VolumePlan['chapterMissions'] = chaptersInWindow.map((chapter, index) => ({
       id: createId('mission'),
       bookId: context.book.id,

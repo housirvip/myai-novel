@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { runLoggedCommand } from '../../context.js'
 import { printStateUpdatesSummary } from '../state/printers.js'
-import { loadStateUpdatesView } from '../state/services.js'
+import { loadStateUpdatesViewAsync } from '../state/services.js'
 
 export function registerStateUpdatesShowCommand(stateUpdatesCommand: Command): void {
   stateUpdatesCommand
@@ -14,7 +14,7 @@ export function registerStateUpdatesShowCommand(stateUpdatesCommand: Command): v
         args: [chapterId],
         chapterId,
         action: async (database) => {
-          const result = loadStateUpdatesView(database, chapterId)
+          const result = await loadStateUpdatesViewAsync(database, chapterId)
 
           return {
             result,

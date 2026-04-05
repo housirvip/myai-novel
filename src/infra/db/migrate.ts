@@ -2,20 +2,25 @@ import type { NovelDatabase } from './database.js'
 import { migrations } from './schema.js'
 import { isSqliteDatabase } from './sqlite-support.js'
 
-export function runMigrations(database: NovelDatabase): void {
+export async function runMigrations(database: NovelDatabase): Promise<void> {
   if (!isSqliteDatabase(database)) {
-    throw new Error('MySQL backend is configured, but migration execution is not wired yet in v5.')
+    await database.dbAsync.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id VARCHAR(191) PRIMARY KEY,
+        applied_at VARCHAR(64) NOT NULL
+      );
+    `)
+  } else {
+    database.db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      );
+    `)
   }
 
-  database.db.exec(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      id TEXT PRIMARY KEY,
-      applied_at TEXT NOT NULL
-    );
-  `)
-
   for (const migration of migrations) {
-    const alreadyApplied = database.db.get<{ exists: number }>(
+    const alreadyApplied = await database.dbAsync.get<{ exists: number }>(
       'SELECT 1 as exists FROM schema_migrations WHERE id = ?',
       migration.id,
     )
@@ -24,15 +29,15 @@ export function runMigrations(database: NovelDatabase): void {
       continue
     }
 
-    const transaction = database.db.transaction(() => {
-      database.db.exec(migration.sql)
-      database.db.run(
+    const transaction = database.dbAsync.transaction(async () => {
+      await database.dbAsync.exec(migration.sql)
+      await database.dbAsync.run(
         'INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)',
         migration.id,
         new Date().toISOString(),
       )
     })
 
-    transaction()
+    await transaction()
   }
 }

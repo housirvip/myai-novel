@@ -1,3 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+
+import { createPool, type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from 'mysql2/promise'
+
 import type { MySqlDatabaseConfig } from '../../shared/types/domain.js'
 
 export type DatabaseRunResult = {
@@ -18,38 +22,114 @@ export type DatabaseRunResult = {
 export type MySqlAdapter = {
   client: 'mysql'
   config: MySqlDatabaseConfig
-  connect(): never
+  connect(): Promise<void>
   get<T>(sql: string, ...params: unknown[]): T | undefined
   all<T>(sql: string, ...params: unknown[]): T[]
   run(sql: string, ...params: unknown[]): DatabaseRunResult
   exec(sql: string): void
   transaction<TArgs extends unknown[], TResult>(action: (...args: TArgs) => TResult): (...args: TArgs) => TResult
-  close(): void
+  getAsync<T>(sql: string, ...params: unknown[]): Promise<T | undefined>
+  allAsync<T>(sql: string, ...params: unknown[]): Promise<T[]>
+  runAsync(sql: string, ...params: unknown[]): Promise<DatabaseRunResult>
+  execAsync(sql: string): Promise<void>
+  transactionAsync<TArgs extends unknown[], TResult>(
+    action: (...args: TArgs) => Promise<TResult> | TResult,
+  ): (...args: TArgs) => Promise<TResult>
+  close(): Promise<void>
 }
 
 export function createMySqlAdapter(config: MySqlDatabaseConfig): MySqlAdapter {
+  const pool = createPool({
+    host: config.host,
+    port: config.port,
+    user: config.user,
+    password: config.password,
+    database: config.database,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+    multipleStatements: true,
+  })
+  const connectionStore = new AsyncLocalStorage<PoolConnection>()
+
+  function notWiredSync(operation: string): never {
+    throw new Error(`MySQL backend requires async database access. Sync operation is not supported: ${operation}.`)
+  }
+
+  async function withExecutor<T>(action: (executor: Pool | PoolConnection) => Promise<T>): Promise<T> {
+    const activeConnection = connectionStore.getStore()
+    return action(activeConnection ?? pool)
+  }
+
   return {
     client: 'mysql',
     config,
-    connect(): never {
-      throw new Error('MySQL backend is configured but repository execution is not wired yet in v5.')
+    async connect(): Promise<void> {
+      const connection = await pool.getConnection()
+      connection.release()
     },
     get<T>(_sql: string, ..._params: unknown[]): T | undefined {
-      throw new Error('MySQL backend is configured but query execution is not wired yet in v5.')
+      return notWiredSync('get')
     },
     all<T>(_sql: string, ..._params: unknown[]): T[] {
-      throw new Error('MySQL backend is configured but query execution is not wired yet in v5.')
+      return notWiredSync('all')
     },
     run(_sql: string, ..._params: unknown[]): DatabaseRunResult {
-      throw new Error('MySQL backend is configured but command execution is not wired yet in v5.')
+      return notWiredSync('run')
     },
     exec(_sql: string): void {
-      throw new Error('MySQL backend is configured but migration execution is not wired yet in v5.')
+      return notWiredSync('exec')
     },
     transaction<TArgs extends unknown[], TResult>(_action: (...args: TArgs) => TResult): (...args: TArgs) => TResult {
-      throw new Error('MySQL backend is configured but transaction execution is not wired yet in v5.')
+      return notWiredSync('transaction')
     },
-    close(): void {
+    async getAsync<T>(sql: string, ...params: unknown[]): Promise<T | undefined> {
+      return withExecutor(async (executor) => {
+        const [rows] = await executor.query<RowDataPacket[]>(sql, params)
+        return rows[0] as T | undefined
+      })
+    },
+    async allAsync<T>(sql: string, ...params: unknown[]): Promise<T[]> {
+      return withExecutor(async (executor) => {
+        const [rows] = await executor.query<RowDataPacket[]>(sql, params)
+        return rows as T[]
+      })
+    },
+    async runAsync(sql: string, ...params: unknown[]): Promise<DatabaseRunResult> {
+      return withExecutor(async (executor) => {
+        const [result] = await executor.query<ResultSetHeader>(sql, params)
+        return {
+          changes: result.affectedRows,
+          lastInsertRowid: result.insertId,
+        }
+      })
+    },
+    async execAsync(sql: string): Promise<void> {
+      await withExecutor(async (executor) => {
+        await executor.query(sql)
+      })
+    },
+    transactionAsync<TArgs extends unknown[], TResult>(
+      action: (...args: TArgs) => Promise<TResult> | TResult,
+    ): (...args: TArgs) => Promise<TResult> {
+      return async (...args: TArgs): Promise<TResult> => {
+        const connection = await pool.getConnection()
+
+        try {
+          await connection.beginTransaction()
+          const result = await connectionStore.run(connection, async () => action(...args))
+          await connection.commit()
+          return result
+        } catch (error) {
+          await connection.rollback()
+          throw error
+        } finally {
+          connection.release()
+        }
+      }
+    },
+    async close(): Promise<void> {
+      await pool.end()
     },
   }
 }

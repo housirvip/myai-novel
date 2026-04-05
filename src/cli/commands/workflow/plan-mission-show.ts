@@ -3,7 +3,7 @@ import { Command } from 'commander'
 import { NovelError } from '../../../shared/utils/errors.js'
 import { openProjectDatabase } from '../../context.js'
 import { printWorkflowMissionDetail } from '../workflow-printers.js'
-import { loadWorkflowMissionView } from '../workflow-services.js'
+import { loadWorkflowMissionViewAsync } from '../workflow-services.js'
 
 export function registerWorkflowPlanMissionShowCommand(planCommand: Command): void {
   planCommand
@@ -13,7 +13,7 @@ export function registerWorkflowPlanMissionShowCommand(planCommand: Command): vo
       const database = await openProjectDatabase()
 
       try {
-        const missionView = loadWorkflowMissionView(database, chapterId)
+        const missionView = await loadWorkflowMissionViewAsync(database, chapterId)
 
         if (!missionView.mission) {
           throw new NovelError(`No mission found for chapter: ${chapterId}`)

@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { openProjectDatabase } from '../../context.js'
 import { printWorkflowVolumeReviewDetail } from '../workflow-printers.js'
-import { loadWorkflowVolumeReviewView } from '../workflow-services.js'
+import { loadWorkflowVolumeReviewViewAsync } from '../workflow-services.js'
 
 export function registerWorkflowReviewVolumeCommand(reviewCommand: Command): void {
   reviewCommand
@@ -12,7 +12,7 @@ export function registerWorkflowReviewVolumeCommand(reviewCommand: Command): voi
       const database = await openProjectDatabase()
 
       try {
-        printWorkflowVolumeReviewDetail(loadWorkflowVolumeReviewView(database, volumeId))
+        printWorkflowVolumeReviewDetail(await loadWorkflowVolumeReviewViewAsync(database, volumeId))
       } finally {
         database.close()
       }

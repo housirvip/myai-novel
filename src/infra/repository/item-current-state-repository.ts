@@ -1,6 +1,6 @@
 import type { ContextItemView, ItemCurrentState } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbGet, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbGet, dbGetAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type ItemCurrentStateRow = {
   book_id: string
@@ -61,6 +61,36 @@ export class ItemCurrentStateRepository {
     )
   }
 
+  async upsertAsync(state: ItemCurrentState): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO item_current_state (
+          book_id,
+          item_id,
+          owner_character_id,
+          location_id,
+          quantity,
+          status,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(book_id, item_id) DO UPDATE SET
+          owner_character_id = excluded.owner_character_id,
+          location_id = excluded.location_id,
+          quantity = excluded.quantity,
+          status = excluded.status,
+          updated_at = excluded.updated_at
+      `,
+      state.bookId,
+      state.itemId,
+      state.ownerCharacterId ?? null,
+      state.locationId ?? null,
+      state.quantity,
+      state.status,
+      state.updatedAt,
+    )
+  }
+
   getByItemId(bookId: string, itemId: string): ItemCurrentState | null {
     const row = dbGet<ItemCurrentStateRow>(
       this.database,
@@ -72,8 +102,51 @@ export class ItemCurrentStateRepository {
     return row ? mapItemCurrentState(row) : null
   }
 
+  async getByItemIdAsync(bookId: string, itemId: string): Promise<ItemCurrentState | null> {
+    const row = await dbGetAsync<ItemCurrentStateRow>(
+      this.database,
+      'SELECT * FROM item_current_state WHERE book_id = ? AND item_id = ?',
+      bookId,
+      itemId,
+    )
+
+    return row ? mapItemCurrentState(row) : null
+  }
+
   listImportantByBookId(bookId: string): ContextItemView[] {
     const rows = dbAll<ImportantItemRow>(
+      this.database,
+      `
+        SELECT
+          items.id,
+          items.book_id,
+          items.name,
+          items.unit,
+          items.type,
+          items.description,
+          items.is_unique_worldwide,
+          items.is_important,
+          item_current_state.owner_character_id,
+          item_current_state.location_id,
+          item_current_state.quantity,
+          item_current_state.status,
+          item_current_state.updated_at
+        FROM items
+        LEFT JOIN item_current_state
+          ON items.book_id = item_current_state.book_id
+         AND items.id = item_current_state.item_id
+        WHERE items.book_id = ?
+          AND items.is_important = 1
+        ORDER BY items.created_at ASC
+      `,
+      bookId,
+    )
+
+    return rows.map(mapContextItemView)
+  }
+
+  async listImportantByBookIdAsync(bookId: string): Promise<ContextItemView[]> {
+    const rows = await dbAllAsync<ImportantItemRow>(
       this.database,
       `
         SELECT

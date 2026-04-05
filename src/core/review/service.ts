@@ -45,13 +45,13 @@ export class ReviewService {
   ) {}
 
   async reviewChapter(chapterId: string): Promise<ReviewReport> {
-    const book = this.bookRepository.getFirst()
+    const book = await this.bookRepository.getFirstAsync()
 
     if (!book) {
       throw new NovelError('Project is not initialized. Run `novel init` first.')
     }
 
-    const chapter = this.chapterRepository.getById(chapterId)
+    const chapter = await this.chapterRepository.getByIdAsync(chapterId)
 
     if (!chapter) {
       throw new NovelError(`Chapter not found: ${chapterId}`)
@@ -61,7 +61,7 @@ export class ReviewService {
       throw new NovelError('Current draft chain is missing. Run `novel write next <id>`.')
     }
 
-    const draft = this.chapterDraftRepository.getLatestByChapterId(chapterId)
+    const draft = await this.chapterDraftRepository.getLatestByChapterIdAsync(chapterId)
 
     if (!draft) {
       throw new NovelError('Draft is required before review. Run `novel write next <id>`.')
@@ -71,7 +71,7 @@ export class ReviewService {
       throw new NovelError('Current chapter plan is missing for review.')
     }
 
-    const plan = this.chapterPlanRepository.getByVersionId(chapterId, chapter.currentPlanVersionId)
+    const plan = await this.chapterPlanRepository.getByVersionIdAsync(chapterId, chapter.currentPlanVersionId)
 
     if (!plan) {
       throw new NovelError('Current chapter plan is missing for review.')
@@ -83,14 +83,14 @@ export class ReviewService {
       book.chapterWordCountToleranceRatio,
     )
 
-    const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
-    const characterArcs = this.characterArcRepository.listByBookId(book.id)
-    const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
-    const longTermMemory = this.memoryRepository.getLongTermByBookId(book.id)
-    const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
-    const hookPressures = this.hookPressureRepository.listActiveByBookId(book.id)
-    const openNarrativeDebts = this.narrativeDebtRepository.listOpenByBookId(book.id)
-    const hooks = this.hookRepository.listByBookId(book.id)
+    const characterStates = await this.characterCurrentStateRepository.listByBookIdAsync(book.id)
+    const characterArcs = await this.characterArcRepository.listByBookIdAsync(book.id)
+    const importantItems = await this.itemCurrentStateRepository.listImportantByBookIdAsync(book.id)
+    const longTermMemory = await this.memoryRepository.getLongTermByBookIdAsync(book.id)
+    const activeHookStates = await this.hookStateRepository.listActiveByBookIdAsync(book.id)
+    const hookPressures = await this.hookPressureRepository.listActiveByBookIdAsync(book.id)
+    const openNarrativeDebts = await this.narrativeDebtRepository.listOpenByBookIdAsync(book.id)
+    const hooks = await this.hookRepository.listByBookIdAsync(book.id)
 
     const baseReview = createRuleBasedReview(wordCountCheck, chapter.objective, draft.content, plan.sceneCards.length, plan.hookPlan.length)
     const aiReview = this.llmAdapter
@@ -230,8 +230,8 @@ export class ReviewService {
       createdAt: nowIso(),
     }
 
-    this.chapterReviewRepository.create(review)
-    this.chapterRepository.markReviewed(chapterId, review.createdAt)
+    await this.chapterReviewRepository.createAsync(review)
+    await this.chapterRepository.markReviewedAsync(chapterId, review.createdAt)
 
     return review
   }

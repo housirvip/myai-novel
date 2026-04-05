@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { openProjectDatabase } from '../../context.js'
 import { printStateEndingSummary } from './printers.js'
-import { loadStateEndingView } from './services.js'
+import { loadStateEndingViewAsync } from './services.js'
 
 export function registerStateEndingCommand(stateCommand: Command): void {
   stateCommand
@@ -12,7 +12,7 @@ export function registerStateEndingCommand(stateCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        printStateEndingSummary(loadStateEndingView(database))
+        printStateEndingSummary(await loadStateEndingViewAsync(database))
       } finally {
         database.close()
       }

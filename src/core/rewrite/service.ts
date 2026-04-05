@@ -39,13 +39,13 @@ export class RewriteService {
   ) {}
 
   async rewriteChapter(request: RewriteRequest): Promise<ChapterRewrite> {
-    const book = this.bookRepository.getFirst()
+    const book = await this.bookRepository.getFirstAsync()
 
     if (!book) {
       throw new NovelError('Project is not initialized. Run `novel init` first.')
     }
 
-    const chapter = this.chapterRepository.getById(request.chapterId)
+    const chapter = await this.chapterRepository.getByIdAsync(request.chapterId)
 
     if (!chapter) {
       throw new NovelError(`Chapter not found: ${request.chapterId}`)
@@ -55,13 +55,13 @@ export class RewriteService {
       throw new NovelError('Current draft chain is missing. Run `novel write next <id>`.')
     }
 
-    const draft = this.chapterDraftRepository.getLatestByChapterId(request.chapterId)
+    const draft = await this.chapterDraftRepository.getLatestByChapterIdAsync(request.chapterId)
 
     if (!draft) {
       throw new NovelError('Draft is required before rewrite. Run `novel write next <id>`.')
     }
 
-    const review = this.chapterReviewRepository.getLatestByChapterId(request.chapterId)
+    const review = await this.chapterReviewRepository.getLatestByChapterIdAsync(request.chapterId)
 
     if (!review) {
       throw new NovelError('Review is required before rewrite. Run `novel review chapter <id>`.')
@@ -71,14 +71,14 @@ export class RewriteService {
       throw new NovelError('Current chapter plan is missing for rewrite.')
     }
 
-    const plan = this.chapterPlanRepository.getByVersionId(request.chapterId, chapter.currentPlanVersionId)
+    const plan = await this.chapterPlanRepository.getByVersionIdAsync(request.chapterId, chapter.currentPlanVersionId)
 
-    const characterStates = this.characterCurrentStateRepository.listByBookId(book.id)
-    const importantItems = this.itemCurrentStateRepository.listImportantByBookId(book.id)
-    const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
-    const shortTermMemory = this.memoryRepository.getShortTermByBookId(book.id)
-    const observationMemory = this.memoryRepository.getObservationByBookId(book.id)
-    const longTermMemory = this.memoryRepository.getLongTermByBookId(book.id)
+    const characterStates = await this.characterCurrentStateRepository.listByBookIdAsync(book.id)
+    const importantItems = await this.itemCurrentStateRepository.listImportantByBookIdAsync(book.id)
+    const activeHookStates = await this.hookStateRepository.listActiveByBookIdAsync(book.id)
+    const shortTermMemory = await this.memoryRepository.getShortTermByBookIdAsync(book.id)
+    const observationMemory = await this.memoryRepository.getObservationByBookIdAsync(book.id)
+    const longTermMemory = await this.memoryRepository.getLongTermByBookIdAsync(book.id)
     const rewriteContext = {
       sceneCards: plan?.sceneCards ?? [],
       eventOutline: plan?.eventOutline ?? [],
@@ -167,8 +167,8 @@ export class RewriteService {
       createdAt: timestamp,
     }
 
-    this.chapterRewriteRepository.create(rewrite)
-    this.chapterRepository.updateCurrentVersion(request.chapterId, rewrite.versionId, timestamp)
+    await this.chapterRewriteRepository.createAsync(rewrite)
+    await this.chapterRepository.updateCurrentVersionAsync(request.chapterId, rewrite.versionId, timestamp)
 
     return rewrite
   }

@@ -15,14 +15,14 @@ export class GenerationService {
   ) {}
 
   async writeNext(chapterId: string): Promise<WriteNextResult> {
-    const context = this.writingContextBuilder.build(chapterId)
+    const context = await this.writingContextBuilder.buildAsync(chapterId)
     const timestamp = nowIso()
     const draft = this.llmAdapter
       ? await createLlmDraft(this.llmAdapter, context, timestamp)
       : createRuleBasedDraft(context, timestamp)
 
-    this.chapterDraftRepository.create(draft)
-    this.chapterRepository.markDrafted(chapterId, draft.versionId, undefined, timestamp)
+    await this.chapterDraftRepository.createAsync(draft)
+    await this.chapterRepository.markDraftedAsync(chapterId, draft.versionId, undefined, timestamp)
 
     return {
       chapterId,

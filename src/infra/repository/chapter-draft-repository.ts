@@ -1,6 +1,6 @@
 import type { ChapterDraft } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbGet, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbGet, dbGetAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type ChapterDraftRow = {
   id: string
@@ -42,8 +42,50 @@ export class ChapterDraftRepository {
     )
   }
 
+  async createAsync(draft: ChapterDraft): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO chapter_drafts (
+          id,
+          book_id,
+          chapter_id,
+          version_id,
+          chapter_plan_id,
+          content,
+          actual_word_count,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      draft.id,
+      draft.bookId,
+      draft.chapterId,
+      draft.versionId,
+      draft.chapterPlanId,
+      draft.content,
+      draft.actualWordCount,
+      draft.createdAt,
+    )
+  }
+
   getLatestByChapterId(chapterId: string): ChapterDraft | null {
     const row = dbGet<ChapterDraftRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_drafts
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      chapterId,
+    )
+
+    return row ? mapDraft(row) : null
+  }
+
+  async getLatestByChapterIdAsync(chapterId: string): Promise<ChapterDraft | null> {
+    const row = await dbGetAsync<ChapterDraftRow>(
       this.database,
       `
         SELECT *
@@ -64,8 +106,29 @@ export class ChapterDraftRepository {
     return row ? mapDraft(row) : null
   }
 
+  async getByIdAsync(id: string): Promise<ChapterDraft | null> {
+    const row = await dbGetAsync<ChapterDraftRow>(this.database, 'SELECT * FROM chapter_drafts WHERE id = ?', id)
+
+    return row ? mapDraft(row) : null
+  }
+
   listByChapterId(chapterId: string): ChapterDraft[] {
     const rows = dbAll<ChapterDraftRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_drafts
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+      `,
+      chapterId,
+    )
+
+    return rows.map(mapDraft)
+  }
+
+  async listByChapterIdAsync(chapterId: string): Promise<ChapterDraft[]> {
+    const rows = await dbAllAsync<ChapterDraftRow>(
       this.database,
       `
         SELECT *

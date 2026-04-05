@@ -91,13 +91,13 @@ export class ApproveService {
   ) {}
 
   async approveChapter(chapterId: string, options?: { force?: boolean }): Promise<ApproveResult> {
-    const book = this.bookRepository.getFirst()
+    const book = await this.bookRepository.getFirstAsync()
 
     if (!book) {
       throw new NovelError('Project is not initialized. Run `novel init` first.')
     }
 
-    const chapter = this.chapterRepository.getById(chapterId)
+    const chapter = await this.chapterRepository.getByIdAsync(chapterId)
 
     if (!chapter) {
       throw new NovelError(`Chapter not found: ${chapterId}`)
@@ -115,15 +115,15 @@ export class ApproveService {
       throw new NovelError('Current chapter source is missing for approval.')
     }
 
-    const plan = this.resolvePlan(chapterId, chapter.currentPlanVersionId)
-    const review = this.chapterReviewRepository.getLatestByChapterId(chapterId)
+    const plan = await this.resolvePlanAsync(chapterId, chapter.currentPlanVersionId)
+    const review = await this.chapterReviewRepository.getLatestByChapterIdAsync(chapterId)
 
     if (review?.approvalRisk === 'high' && !options?.force) {
       throw new NovelError(`Chapter review risk is high for ${chapterId}. Re-run after rewrite or use --force to approve anyway.`)
     }
 
     const closureSuggestions = review?.closureSuggestions ?? emptyClosureSuggestions()
-    const source = this.resolveSource(chapterId, chapter.currentVersionId)
+    const source = await this.resolveSourceAsync(chapterId, chapter.currentVersionId)
     const approvedAt = nowIso()
     const chapterSummary = buildChapterSummary(chapter, review)
     const projectPaths = resolveProjectPaths(this.rootDir)
@@ -150,7 +150,7 @@ export class ApproveService {
       updatedAt: approvedAt,
     }
 
-    const hookUpdates = this.updateHookStates(
+    const hookUpdates = await this.updateHookStatesAsync(
       book.id,
       chapterId,
       source.content,
@@ -159,7 +159,7 @@ export class ApproveService {
       plan?.hookPlan ?? [],
     )
     const stateUpdates = [
-      ...this.updateCharacterState(
+      ...await this.updateCharacterStateAsync(
         book.id,
         chapterId,
         source.content,
@@ -167,7 +167,7 @@ export class ApproveService {
         closureSuggestions,
         plan?.requiredCharacterIds ?? [],
       ),
-      ...this.updateItemStates(
+      ...await this.updateItemStatesAsync(
         book.id,
         chapterId,
         source.content,
@@ -177,9 +177,9 @@ export class ApproveService {
       ),
     ]
 
-    const previousShortTerm = this.memoryRepository.getShortTermByBookId(book.id)
-    const previousObservation = this.memoryRepository.getObservationByBookId(book.id)
-    const previousLongTerm = this.memoryRepository.getLongTermByBookId(book.id)
+    const previousShortTerm = await this.memoryRepository.getShortTermByBookIdAsync(book.id)
+    const previousObservation = await this.memoryRepository.getObservationByBookIdAsync(book.id)
+    const previousLongTerm = await this.memoryRepository.getLongTermByBookIdAsync(book.id)
     const nextShortTermSummaries = mergeRecentStrings(
       previousShortTerm?.summaries ?? [],
       buildShortTermSummaries(chapter.index, chapter.title, closureSuggestions),
@@ -195,20 +195,20 @@ export class ApproveService {
       buildLongTermCandidates(review, chapter.index, chapter.title, chapterId),
     )
 
-    this.memoryRepository.upsertShortTerm({
+    await this.memoryRepository.upsertShortTermAsync({
       bookId: book.id,
       chapterId,
       summaries: nextShortTermSummaries,
       recentEvents: nextShortTermEvents,
       updatedAt: approvedAt,
     })
-    this.memoryRepository.upsertObservation({
+    await this.memoryRepository.upsertObservationAsync({
       bookId: book.id,
       chapterId,
       entries: buildObservationEntries(closureSuggestions, previousObservation?.entries ?? [], chapterId),
       updatedAt: approvedAt,
     })
-    this.memoryRepository.upsertLongTerm({
+    await this.memoryRepository.upsertLongTermAsync({
       bookId: book.id,
       chapterId,
       entries: nextLongTermEntries,
@@ -232,18 +232,18 @@ export class ApproveService {
 
     const outcome = this.buildChapterOutcome(book.id, chapterId, review, source.sourceType === 'rewrite' ? source.sourceId : undefined, approvedAt)
 
-    this.chapterOutputRepository.create(output)
-    this.storyStateRepository.upsert(state)
-    this.chapterOutcomeRepository.create(outcome)
-    this.narrativeDebtRepository.createBatch(outcome.narrativeDebts)
-    this.chapterContradictionRepository.createBatch(outcome.contradictions)
-    this.updateCharacterArcState(book.id, chapterId, approvedAt, outcome)
-    this.updateHookPressureState(book.id, chapter.index, chapterId, approvedAt, outcome)
-    this.persistStoryThreadProgress(book.id, chapterId, approvedAt, plan, review, outcome)
-    this.updateEndingReadiness(book.id, chapter.volumeId, chapterId, approvedAt, plan, review)
+    await this.chapterOutputRepository.createAsync(output)
+    await this.storyStateRepository.upsertAsync(state)
+    await this.chapterOutcomeRepository.createAsync(outcome)
+    await this.narrativeDebtRepository.createBatchAsync(outcome.narrativeDebts)
+    await this.chapterContradictionRepository.createBatchAsync(outcome.contradictions)
+    await this.updateCharacterArcStateAsync(book.id, chapterId, approvedAt, outcome)
+    await this.updateHookPressureStateAsync(book.id, chapter.index, chapterId, approvedAt, outcome)
+    await this.persistStoryThreadProgressAsync(book.id, chapterId, approvedAt, plan, review, outcome)
+    await this.updateEndingReadinessAsync(book.id, chapter.volumeId, chapterId, approvedAt, plan, review)
 
-    this.persistUpdateLogs(stateUpdates, memoryUpdates, hookUpdates)
-    this.chapterRepository.finalizeChapter(chapterId, source.versionId, finalPath, chapterSummary, approvedAt)
+    await this.persistUpdateLogsAsync(stateUpdates, memoryUpdates, hookUpdates)
+    await this.chapterRepository.finalizeChapterAsync(chapterId, source.versionId, finalPath, chapterSummary, approvedAt)
 
     return {
       chapterId,
@@ -260,17 +260,17 @@ export class ApproveService {
     }
   }
 
-  private updateHookStates(
+  private async updateHookStatesAsync(
     bookId: string,
     chapterId: string,
     content: string,
     updatedAt: string,
     closureSuggestions: ClosureSuggestions,
     hookPlan: HookPlan[],
-  ): ChapterHookUpdate[] {
-    const hooks = this.hookRepository.listByBookId(bookId)
+  ): Promise<ChapterHookUpdate[]> {
+    const hooks = await this.hookRepository.listByBookIdAsync(bookId)
     const hookById = new Map(hooks.map((hook) => [hook.id, hook]))
-    const currentStates = this.hookStateRepository.listByBookId(bookId)
+    const currentStates = await this.hookStateRepository.listByBookIdAsync(bookId)
     const currentStateByHookId = new Map(currentStates.map((state) => [state.hookId, state]))
     const hookPlanById = new Map(hookPlan.map((item) => [item.hookId, item]))
     const hookSuggestionById = new Map(closureSuggestions.hooks.map((item) => [item.hookId, item]))
@@ -305,7 +305,7 @@ export class ApproveService {
             ? transitionHookStatus(currentStatus, planItem.action)
             : currentStatus
 
-      this.hookStateRepository.upsert({
+      await this.hookStateRepository.upsertAsync({
         bookId,
         hookId,
         status: nextStatus,
@@ -328,16 +328,16 @@ export class ApproveService {
     return updates
   }
 
-  private updateCharacterState(
+  private async updateCharacterStateAsync(
     bookId: string,
     chapterId: string,
     content: string,
     updatedAt: string,
     closureSuggestions: ClosureSuggestions,
     requiredCharacterIds: string[],
-  ): ChapterStateUpdate[] {
-    const protagonist = this.characterRepository.getPrimaryByBookId(bookId)
-    const currentStates = this.characterCurrentStateRepository.listByBookId(bookId)
+  ): Promise<ChapterStateUpdate[]> {
+    const protagonist = await this.characterRepository.getPrimaryByBookIdAsync(bookId)
+    const currentStates = await this.characterCurrentStateRepository.listByBookIdAsync(bookId)
     const stateByCharacterId = new Map(currentStates.map((state) => [state.characterId, state]))
     const characterSuggestionById = new Map(closureSuggestions.characters.map((item) => [item.characterId, item]))
     const targetCharacterIds = uniqueStrings([
@@ -377,7 +377,7 @@ export class ApproveService {
         updatedAt,
       }
 
-      this.characterCurrentStateRepository.upsert(state)
+      await this.characterCurrentStateRepository.upsertAsync(state)
 
       updates.push({
         id: createId('state_update'),
@@ -396,15 +396,15 @@ export class ApproveService {
     return updates
   }
 
-  private updateItemStates(
+  private async updateItemStatesAsync(
     bookId: string,
     chapterId: string,
     content: string,
     updatedAt: string,
     closureSuggestions: ClosureSuggestions,
     requiredItemIds: string[],
-  ): ChapterStateUpdate[] {
-    const items = this.itemRepository.listByBookId(bookId)
+  ): Promise<ChapterStateUpdate[]> {
+    const items = await this.itemRepository.listByBookIdAsync(bookId)
     const updates: ChapterStateUpdate[] = []
     const targetItemIds = new Set([...requiredItemIds, ...closureSuggestions.items.map((item) => item.itemId)])
     const itemSuggestionById = new Map(closureSuggestions.items.map((item) => [item.itemId, item]))
@@ -417,7 +417,7 @@ export class ApproveService {
         continue
       }
 
-      const previousState = this.itemCurrentStateRepository.getByItemId(bookId, item.id)
+      const previousState = await this.itemCurrentStateRepository.getByItemIdAsync(bookId, item.id)
       const suggestion = itemSuggestionById.get(item.id)
       const explicitQuantity = line ? extractStructuredValue(line, '数量') : undefined
       const explicitStatus = line ? extractStructuredValue(line, '状态') : undefined
@@ -437,7 +437,7 @@ export class ApproveService {
         updatedAt,
       }
 
-      this.itemCurrentStateRepository.upsert(nextState)
+      await this.itemCurrentStateRepository.upsertAsync(nextState)
 
       updates.push({
         id: createId('state_update'),
@@ -610,14 +610,14 @@ export class ApproveService {
     }
   }
 
-  private updateCharacterArcState(
+  private async updateCharacterArcStateAsync(
     bookId: string,
     chapterId: string,
     updatedAt: string,
     outcome: ChapterOutcome,
-  ): void {
+  ): Promise<void> {
     for (const progress of outcome.characterArcProgress) {
-      this.characterArcRepository.upsert({
+      await this.characterArcRepository.upsertAsync({
         bookId,
         characterId: progress.characterId,
         arc: progress.arc,
@@ -629,15 +629,15 @@ export class ApproveService {
     }
   }
 
-  private updateHookPressureState(
+  private async updateHookPressureStateAsync(
     bookId: string,
     chapterIndex: number,
     chapterId: string,
     updatedAt: string,
     outcome: ChapterOutcome,
-  ): void {
+  ): Promise<void> {
     for (const update of outcome.hookDebtUpdates) {
-      this.hookPressureRepository.upsert({
+      await this.hookPressureRepository.upsertAsync({
         bookId,
         hookId: update.hookId,
         pressureScore: mapPressureToScore(update.pressure),
@@ -649,21 +649,21 @@ export class ApproveService {
     }
   }
 
-  private persistUpdateLogs(
+  private async persistUpdateLogsAsync(
     stateUpdates: ChapterStateUpdate[],
     memoryUpdates: ChapterMemoryUpdate[],
     hookUpdates: ChapterHookUpdate[],
-  ): void {
+  ): Promise<void> {
     for (const update of stateUpdates) {
-      this.chapterStateUpdateRepository.create(update)
+      await this.chapterStateUpdateRepository.createAsync(update)
     }
 
     for (const update of memoryUpdates) {
-      this.chapterMemoryUpdateRepository.create(update)
+      await this.chapterMemoryUpdateRepository.createAsync(update)
     }
 
     for (const update of hookUpdates) {
-      this.chapterHookUpdateRepository.create(update)
+      await this.chapterHookUpdateRepository.createAsync(update)
     }
   }
 
@@ -676,20 +676,20 @@ export class ApproveService {
    *
    * 这样后续 `doctor volume`、`regression volume` 与下一次 planning 都能继续消费同一份终局压力快照。
    */
-  private updateEndingReadiness(
+  private async updateEndingReadinessAsync(
     bookId: string,
     targetVolumeId: string,
     chapterId: string,
     updatedAt: string,
     plan: ChapterPlan | null,
     review: ReviewReport | null,
-  ): void {
-    const previous = this.endingReadinessRepository.getByBookId(bookId)
+  ): Promise<void> {
+    const previous = await this.endingReadinessRepository.getByBookIdAsync(bookId)
     const remainingCarryThreads = (plan?.subplotCarryThreadIds ?? []).filter((threadId) => !review?.endingReadinessIssues.some((issue) => issue.includes(threadId)))
     const readinessScore = Math.max(0, Math.min(100, 100 - (review?.endingReadinessIssues.length ?? 0) * 15))
     const closureScore = Math.max(0, Math.min(100, 100 - remainingCarryThreads.length * 20))
 
-    this.endingReadinessRepository.upsert({
+    await this.endingReadinessRepository.upsertAsync({
       bookId,
       targetVolumeId,
       readinessScore,
@@ -713,14 +713,14 @@ export class ApproveService {
     })
   }
 
-  private persistStoryThreadProgress(
+  private async persistStoryThreadProgressAsync(
     bookId: string,
     chapterId: string,
     createdAt: string,
     plan: ChapterPlan | null,
     review: ReviewReport | null,
     outcome: ChapterOutcome,
-  ): void {
+  ): Promise<void> {
     const missionMatchedThreadIds =
       plan?.missionId && review?.missionProgress.missionId === plan.missionId
         ? (plan.threadFocus ?? [])
@@ -739,7 +739,7 @@ export class ApproveService {
         },
       ]
 
-      this.storyThreadProgressRepository.create({
+      await this.storyThreadProgressRepository.createAsync({
         id: createId('thread_progress'),
         bookId,
         threadId,
@@ -755,14 +755,14 @@ export class ApproveService {
     }
   }
 
-  private resolveSource(chapterId: string, currentVersionId: string): DraftSource {
-    const rewrite = this.chapterRewriteRepository.getLatestByChapterId(chapterId)
+  private async resolveSourceAsync(chapterId: string, currentVersionId: string): Promise<DraftSource> {
+    const rewrite = await this.chapterRewriteRepository.getLatestByChapterIdAsync(chapterId)
 
     if (rewrite?.versionId === currentVersionId) {
       return mapRewriteSource(rewrite)
     }
 
-    const draft = this.chapterDraftRepository.getLatestByChapterId(chapterId)
+    const draft = await this.chapterDraftRepository.getLatestByChapterIdAsync(chapterId)
 
     if (draft?.versionId === currentVersionId) {
       return {
@@ -776,8 +776,8 @@ export class ApproveService {
     throw new NovelError('Current draft or rewrite candidate is missing for approval.')
   }
 
-  private resolvePlan(chapterId: string, currentPlanVersionId: string): ChapterPlan | null {
-    return this.chapterPlanRepository.getByVersionId(chapterId, currentPlanVersionId)
+  private resolvePlanAsync(chapterId: string, currentPlanVersionId: string): Promise<ChapterPlan | null> {
+    return this.chapterPlanRepository.getByVersionIdAsync(chapterId, currentPlanVersionId)
   }
 }
 

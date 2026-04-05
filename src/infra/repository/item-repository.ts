@@ -1,6 +1,6 @@
 import type { Item } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { dbAll, dbGet, dbRun } from '../db/db-client.js'
+import { dbAll, dbAllAsync, dbGet, dbGetAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
 type ItemRow = {
   id: string
@@ -48,14 +48,60 @@ export class ItemRepository {
     )
   }
 
+  async createAsync(item: Item): Promise<void> {
+    await dbRunAsync(
+      this.database,
+      `
+        INSERT INTO items (
+          id,
+          book_id,
+          name,
+          unit,
+          type,
+          is_unique_worldwide,
+          is_important,
+          description,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      item.id,
+      item.bookId,
+      item.name,
+      item.unit,
+      item.type,
+      item.isUniqueWorldwide ? 1 : 0,
+      item.isImportant ? 1 : 0,
+      item.description,
+      item.createdAt,
+      item.updatedAt,
+    )
+  }
+
   getById(itemId: string): Item | null {
     const row = dbGet<ItemRow>(this.database, 'SELECT * FROM items WHERE id = ?', itemId)
 
     return row ? mapItem(row) : null
   }
 
+  async getByIdAsync(itemId: string): Promise<Item | null> {
+    const row = await dbGetAsync<ItemRow>(this.database, 'SELECT * FROM items WHERE id = ?', itemId)
+
+    return row ? mapItem(row) : null
+  }
+
   listByBookId(bookId: string): Item[] {
     const rows = dbAll<ItemRow>(this.database, 'SELECT * FROM items WHERE book_id = ? ORDER BY created_at ASC', bookId)
+
+    return rows.map(mapItem)
+  }
+
+  async listByBookIdAsync(bookId: string): Promise<Item[]> {
+    const rows = await dbAllAsync<ItemRow>(
+      this.database,
+      'SELECT * FROM items WHERE book_id = ? ORDER BY created_at ASC',
+      bookId,
+    )
 
     return rows.map(mapItem)
   }

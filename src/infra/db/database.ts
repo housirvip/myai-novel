@@ -14,10 +14,24 @@ export type DatabaseWriteApi = {
   transaction<TArgs extends unknown[], TResult>(action: (...args: TArgs) => TResult): (...args: TArgs) => TResult
 }
 
+export type AsyncDatabaseReadApi = {
+  get<T>(sql: string, ...params: unknown[]): Promise<T | undefined>
+  all<T>(sql: string, ...params: unknown[]): Promise<T[]>
+}
+
+export type AsyncDatabaseWriteApi = {
+  run(sql: string, ...params: unknown[]): Promise<DatabaseRunResult>
+  exec(sql: string): Promise<void>
+  transaction<TArgs extends unknown[], TResult>(
+    action: (...args: TArgs) => Promise<TResult> | TResult,
+  ): (...args: TArgs) => Promise<TResult>
+}
+
 export type SqliteDatabaseHandle = {
   client: 'sqlite'
   sqlite: Database.Database
   db: DatabaseReadApi & DatabaseWriteApi
+  dbAsync: AsyncDatabaseReadApi & AsyncDatabaseWriteApi
   close(): void
 }
 
@@ -25,6 +39,7 @@ export type MySqlDatabaseHandle = {
   client: 'mysql'
   mysql: MySqlAdapter
   db: DatabaseReadApi & DatabaseWriteApi
+  dbAsync: AsyncDatabaseReadApi & AsyncDatabaseWriteApi
   close(): void
 }
 
@@ -48,8 +63,15 @@ export function openDatabase(input: string | DatabaseConfig): NovelDatabase {
         exec: mysql.exec,
         transaction: mysql.transaction,
       },
+      dbAsync: {
+        get: mysql.getAsync,
+        all: mysql.allAsync,
+        run: mysql.runAsync,
+        exec: mysql.execAsync,
+        transaction: mysql.transactionAsync,
+      },
       close(): void {
-        mysql.close()
+        void mysql.close()
       },
     }
   }
@@ -77,6 +99,36 @@ export function openDatabase(input: string | DatabaseConfig): NovelDatabase {
       },
       transaction<TArgs extends unknown[], TResult>(action: (...args: TArgs) => TResult): (...args: TArgs) => TResult {
         return sqlite.transaction(action)
+      },
+    },
+    dbAsync: {
+      async get<T>(sql: string, ...params: unknown[]): Promise<T | undefined> {
+        return sqlite.prepare(sql).get(...params) as T | undefined
+      },
+      async all<T>(sql: string, ...params: unknown[]): Promise<T[]> {
+        return sqlite.prepare(sql).all(...params) as T[]
+      },
+      async run(sql: string, ...params: unknown[]): Promise<DatabaseRunResult> {
+        return sqlite.prepare(sql).run(...params)
+      },
+      async exec(sql: string): Promise<void> {
+        sqlite.exec(sql)
+      },
+      transaction<TArgs extends unknown[], TResult>(
+        action: (...args: TArgs) => Promise<TResult> | TResult,
+      ): (...args: TArgs) => Promise<TResult> {
+        return async (...args: TArgs): Promise<TResult> => {
+          sqlite.exec('BEGIN')
+
+          try {
+            const result = await action(...args)
+            sqlite.exec('COMMIT')
+            return result
+          } catch (error) {
+            sqlite.exec('ROLLBACK')
+            throw error
+          }
+        }
       },
     },
     close(): void {
