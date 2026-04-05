@@ -1,8 +1,12 @@
 import type { NovelDatabase } from './database.js'
 import { migrations } from './schema.js'
-import { assertSqliteDatabase } from './sqlite-support.js'
+import { assertSqliteDatabase, isSqliteDatabase } from './sqlite-support.js'
 
 export function runMigrations(database: NovelDatabase): void {
+  if (!isSqliteDatabase(database)) {
+    throw new Error('MySQL backend is configured, but migration execution is not wired yet in v5.')
+  }
+
   const sqlite = assertSqliteDatabase(database)
 
   sqlite.exec(`

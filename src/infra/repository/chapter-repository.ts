@@ -93,25 +93,30 @@ export class ChapterRepository {
   }
 
   getPreviousChapter(bookId: string, index: number): Chapter | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapters
-          WHERE book_id = ? AND chapter_index < ?
-          ORDER BY chapter_index DESC
-          LIMIT 1
-        `,
-      )
-      .get(bookId, index) as ChapterRow | undefined
+    const row = sqliteGet<ChapterRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapters
+        WHERE book_id = ? AND chapter_index < ?
+        ORDER BY chapter_index DESC
+        LIMIT 1
+      `,
+      bookId,
+      index,
+    )
 
     return row ? mapChapter(row) : null
   }
 
   updateCurrentPlanVersion(chapterId: string, versionId: string, updatedAt: string): void {
-    this.database
-      .prepare('UPDATE chapters SET current_plan_version_id = ?, updated_at = ? WHERE id = ?')
-      .run(versionId, updatedAt, chapterId)
+    sqliteRun(
+      this.database,
+      'UPDATE chapters SET current_plan_version_id = ?, updated_at = ? WHERE id = ?',
+      versionId,
+      updatedAt,
+      chapterId,
+    )
   }
 
   listByBookId(bookId: string): Chapter[] {
@@ -125,44 +130,50 @@ export class ChapterRepository {
   }
 
   markDrafted(chapterId: string, currentVersionId: string, draftPath: string | undefined, updatedAt: string): void {
-    this.database
-      .prepare(
-        `
-          UPDATE chapters
-          SET status = 'drafted',
-              current_version_id = ?,
-              draft_path = ?,
-              updated_at = ?
-          WHERE id = ?
-        `,
-      )
-      .run(currentVersionId, draftPath ?? null, updatedAt, chapterId)
+    sqliteRun(
+      this.database,
+      `
+        UPDATE chapters
+        SET status = 'drafted',
+            current_version_id = ?,
+            draft_path = ?,
+            updated_at = ?
+        WHERE id = ?
+      `,
+      currentVersionId,
+      draftPath ?? null,
+      updatedAt,
+      chapterId,
+    )
   }
 
   markReviewed(chapterId: string, updatedAt: string): void {
-    this.database
-      .prepare(
-        `
-          UPDATE chapters
-          SET status = 'reviewed',
-              updated_at = ?
-          WHERE id = ?
-        `,
-      )
-      .run(updatedAt, chapterId)
+    sqliteRun(
+      this.database,
+      `
+        UPDATE chapters
+        SET status = 'reviewed',
+            updated_at = ?
+        WHERE id = ?
+      `,
+      updatedAt,
+      chapterId,
+    )
   }
 
   updateCurrentVersion(chapterId: string, currentVersionId: string, updatedAt: string): void {
-    this.database
-      .prepare(
-        `
-          UPDATE chapters
-          SET current_version_id = ?,
-              updated_at = ?
-          WHERE id = ?
-        `,
-      )
-      .run(currentVersionId, updatedAt, chapterId)
+    sqliteRun(
+      this.database,
+      `
+        UPDATE chapters
+        SET current_version_id = ?,
+            updated_at = ?
+        WHERE id = ?
+      `,
+      currentVersionId,
+      updatedAt,
+      chapterId,
+    )
   }
 
   finalizeChapter(
@@ -172,49 +183,52 @@ export class ChapterRepository {
     summary: string,
     approvedAt: string,
   ): void {
-    this.database
-      .prepare(
-        `
-          UPDATE chapters
-          SET status = 'finalized',
-              current_version_id = ?,
-              final_path = ?,
-              summary = ?,
-              approved_at = ?,
-              updated_at = ?
-          WHERE id = ?
-        `,
-      )
-      .run(currentVersionId, finalPath, summary, approvedAt, approvedAt, chapterId)
+    sqliteRun(
+      this.database,
+      `
+        UPDATE chapters
+        SET status = 'finalized',
+            current_version_id = ?,
+            final_path = ?,
+            summary = ?,
+            approved_at = ?,
+            updated_at = ?
+        WHERE id = ?
+      `,
+      currentVersionId,
+      finalPath,
+      summary,
+      approvedAt,
+      approvedAt,
+      chapterId,
+    )
   }
 
   updateWorkflowState(chapterId: string, input: UpdateChapterWorkflowStateInput, updatedAt: string): void {
-    this.database
-      .prepare(
-        `
-          UPDATE chapters
-          SET status = ?,
-              current_plan_version_id = ?,
-              current_version_id = ?,
-              draft_path = ?,
-              final_path = ?,
-              summary = ?,
-              approved_at = ?,
-              updated_at = ?
-          WHERE id = ?
-        `,
-      )
-      .run(
-        input.status,
-        input.currentPlanVersionId ?? null,
-        input.currentVersionId ?? null,
-        input.draftPath ?? null,
-        input.finalPath ?? null,
-        input.summary ?? null,
-        input.approvedAt ?? null,
-        updatedAt,
-        chapterId,
-      )
+    sqliteRun(
+      this.database,
+      `
+        UPDATE chapters
+        SET status = ?,
+            current_plan_version_id = ?,
+            current_version_id = ?,
+            draft_path = ?,
+            final_path = ?,
+            summary = ?,
+            approved_at = ?,
+            updated_at = ?
+        WHERE id = ?
+      `,
+      input.status,
+      input.currentPlanVersionId ?? null,
+      input.currentVersionId ?? null,
+      input.draftPath ?? null,
+      input.finalPath ?? null,
+      input.summary ?? null,
+      input.approvedAt ?? null,
+      updatedAt,
+      chapterId,
+    )
   }
 }
 

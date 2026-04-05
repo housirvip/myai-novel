@@ -1,5 +1,6 @@
 import type { Item } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type ItemRow = {
   id: string
@@ -18,47 +19,43 @@ export class ItemRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(item: Item): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO items (
-            id,
-            book_id,
-            name,
-            unit,
-            type,
-            is_unique_worldwide,
-            is_important,
-            description,
-            created_at,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        item.id,
-        item.bookId,
-        item.name,
-        item.unit,
-        item.type,
-        item.isUniqueWorldwide ? 1 : 0,
-        item.isImportant ? 1 : 0,
-        item.description,
-        item.createdAt,
-        item.updatedAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO items (
+          id,
+          book_id,
+          name,
+          unit,
+          type,
+          is_unique_worldwide,
+          is_important,
+          description,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      item.id,
+      item.bookId,
+      item.name,
+      item.unit,
+      item.type,
+      item.isUniqueWorldwide ? 1 : 0,
+      item.isImportant ? 1 : 0,
+      item.description,
+      item.createdAt,
+      item.updatedAt,
+    )
   }
 
   getById(itemId: string): Item | null {
-    const row = this.database.prepare('SELECT * FROM items WHERE id = ?').get(itemId) as ItemRow | undefined
+    const row = sqliteGet<ItemRow>(this.database, 'SELECT * FROM items WHERE id = ?', itemId)
 
     return row ? mapItem(row) : null
   }
 
   listByBookId(bookId: string): Item[] {
-    const rows = this.database
-      .prepare('SELECT * FROM items WHERE book_id = ? ORDER BY created_at ASC')
-      .all(bookId) as ItemRow[]
+    const rows = sqliteAll<ItemRow>(this.database, 'SELECT * FROM items WHERE book_id = ? ORDER BY created_at ASC', bookId)
 
     return rows.map(mapItem)
   }

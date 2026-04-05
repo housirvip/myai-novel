@@ -1,5 +1,6 @@
 import type { Hook } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
 
 type HookRow = {
   id: string
@@ -18,30 +19,28 @@ export class HookRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(hook: Hook): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO hooks (
-            id, book_id, title, source_chapter_id, description, payoff_expectation, priority, status, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        hook.id,
-        hook.bookId,
-        hook.title,
-        hook.sourceChapterId ?? null,
-        hook.description,
-        hook.payoffExpectation,
-        hook.priority,
-        hook.status,
-        hook.createdAt,
-        hook.updatedAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO hooks (
+          id, book_id, title, source_chapter_id, description, payoff_expectation, priority, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      hook.id,
+      hook.bookId,
+      hook.title,
+      hook.sourceChapterId ?? null,
+      hook.description,
+      hook.payoffExpectation,
+      hook.priority,
+      hook.status,
+      hook.createdAt,
+      hook.updatedAt,
+    )
   }
 
   listByBookId(bookId: string): Hook[] {
-    const rows = this.database.prepare('SELECT * FROM hooks WHERE book_id = ? ORDER BY created_at ASC').all(bookId) as HookRow[]
+    const rows = sqliteAll<HookRow>(this.database, 'SELECT * FROM hooks WHERE book_id = ? ORDER BY created_at ASC', bookId)
 
     return rows.map((row) => ({
       id: row.id,

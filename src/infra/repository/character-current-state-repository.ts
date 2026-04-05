@@ -1,5 +1,6 @@
 import type { CharacterCurrentState } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type CharacterCurrentStateRow = {
   book_id: string
@@ -13,43 +14,46 @@ export class CharacterCurrentStateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   upsert(state: CharacterCurrentState): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO character_current_state (
-            book_id,
-            character_id,
-            current_location_id,
-            status_notes_json,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(book_id, character_id) DO UPDATE SET
-            current_location_id = excluded.current_location_id,
-            status_notes_json = excluded.status_notes_json,
-            updated_at = excluded.updated_at
-        `,
-      )
-      .run(
-        state.bookId,
-        state.characterId,
-        state.currentLocationId ?? null,
-        JSON.stringify(state.statusNotes),
-        state.updatedAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO character_current_state (
+          book_id,
+          character_id,
+          current_location_id,
+          status_notes_json,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(book_id, character_id) DO UPDATE SET
+          current_location_id = excluded.current_location_id,
+          status_notes_json = excluded.status_notes_json,
+          updated_at = excluded.updated_at
+      `,
+      state.bookId,
+      state.characterId,
+      state.currentLocationId ?? null,
+      JSON.stringify(state.statusNotes),
+      state.updatedAt,
+    )
   }
 
   listByBookId(bookId: string): CharacterCurrentState[] {
-    const rows = this.database
-      .prepare('SELECT * FROM character_current_state WHERE book_id = ? ORDER BY updated_at DESC')
-      .all(bookId) as CharacterCurrentStateRow[]
+    const rows = sqliteAll<CharacterCurrentStateRow>(
+      this.database,
+      'SELECT * FROM character_current_state WHERE book_id = ? ORDER BY updated_at DESC',
+      bookId,
+    )
 
     return rows.map(mapCharacterCurrentState)
   }
 
   getByCharacterId(bookId: string, characterId: string): CharacterCurrentState | null {
-    const row = this.database
-      .prepare('SELECT * FROM character_current_state WHERE book_id = ? AND character_id = ?')
-      .get(bookId, characterId) as CharacterCurrentStateRow | undefined
+    const row = sqliteGet<CharacterCurrentStateRow>(
+      this.database,
+      'SELECT * FROM character_current_state WHERE book_id = ? AND character_id = ?',
+      bookId,
+      characterId,
+    )
 
     return row ? mapCharacterCurrentState(row) : null
   }
