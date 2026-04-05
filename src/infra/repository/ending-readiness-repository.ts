@@ -1,6 +1,6 @@
 import type { EndingReadiness } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbGet, dbRun } from '../db/db-client.js'
 
 type EndingReadinessRow = {
   book_id: string
@@ -17,7 +17,7 @@ export class EndingReadinessRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   getByBookId(bookId: string): EndingReadiness | null {
-    const row = sqliteGet<EndingReadinessRow>(
+    const row = dbGet<EndingReadinessRow>(
       this.database,
       `
         SELECT *
@@ -32,7 +32,7 @@ export class EndingReadinessRepository {
   }
 
   upsert(readiness: EndingReadiness): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO ending_readiness_current (

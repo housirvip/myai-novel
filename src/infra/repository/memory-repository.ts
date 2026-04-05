@@ -1,6 +1,6 @@
 import type { LongTermMemory, ObservationMemory, ShortTermMemory } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbGet, dbRun } from '../db/db-client.js'
 
 type ShortTermMemoryRow = {
   book_id: string
@@ -28,7 +28,7 @@ export class MemoryRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   upsertShortTerm(memory: ShortTermMemory): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO short_term_memory_current (
@@ -49,7 +49,7 @@ export class MemoryRepository {
   }
 
   upsertObservation(memory: ObservationMemory): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO observation_memory_current (
@@ -68,7 +68,7 @@ export class MemoryRepository {
   }
 
   upsertLongTerm(memory: LongTermMemory): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO long_term_memory_current (
@@ -87,7 +87,7 @@ export class MemoryRepository {
   }
 
   getShortTermByBookId(bookId: string): ShortTermMemory | null {
-    const row = sqliteGet<ShortTermMemoryRow>(
+    const row = dbGet<ShortTermMemoryRow>(
       this.database,
       'SELECT * FROM short_term_memory_current WHERE book_id = ?',
       bookId,
@@ -105,7 +105,7 @@ export class MemoryRepository {
   }
 
   getObservationByBookId(bookId: string): ObservationMemory | null {
-    const row = sqliteGet<ObservationMemoryRow>(
+    const row = dbGet<ObservationMemoryRow>(
       this.database,
       'SELECT * FROM observation_memory_current WHERE book_id = ?',
       bookId,
@@ -122,7 +122,7 @@ export class MemoryRepository {
   }
 
   getLongTermByBookId(bookId: string): LongTermMemory | null {
-    const row = sqliteGet<LongTermMemoryRow>(
+    const row = dbGet<LongTermMemoryRow>(
       this.database,
       'SELECT * FROM long_term_memory_current WHERE book_id = ?',
       bookId,

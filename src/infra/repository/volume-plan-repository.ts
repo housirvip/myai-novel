@@ -1,6 +1,6 @@
 import type { VolumePlan } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type VolumePlanRow = {
   id: string
@@ -20,7 +20,7 @@ export class VolumePlanRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(plan: VolumePlan): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO volume_plans (
@@ -52,7 +52,7 @@ export class VolumePlanRepository {
   }
 
   getLatestByVolumeId(volumeId: string): VolumePlan | null {
-    const row = sqliteGet<VolumePlanRow>(
+    const row = dbGet<VolumePlanRow>(
       this.database,
       `
         SELECT *
@@ -68,7 +68,7 @@ export class VolumePlanRepository {
   }
 
   listByVolumeId(volumeId: string): VolumePlan[] {
-    const rows = sqliteAll<VolumePlanRow>(
+    const rows = dbAll<VolumePlanRow>(
       this.database,
       `
         SELECT *

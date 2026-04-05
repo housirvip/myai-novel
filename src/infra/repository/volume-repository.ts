@@ -1,6 +1,6 @@
 import type { NovelDatabase } from '../db/database.js'
 import type { Volume } from '../../shared/types/domain.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type VolumeRow = {
   id: string
@@ -17,7 +17,7 @@ export class VolumeRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(volume: Volume): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO volumes (
@@ -43,13 +43,13 @@ export class VolumeRepository {
   }
 
   getById(id: string): Volume | null {
-    const row = sqliteGet<VolumeRow>(this.database, 'SELECT * FROM volumes WHERE id = ?', id)
+    const row = dbGet<VolumeRow>(this.database, 'SELECT * FROM volumes WHERE id = ?', id)
 
     return row ? mapVolume(row) : null
   }
 
   getByChapterId(chapterId: string): Volume | null {
-    const row = sqliteGet<VolumeRow>(
+    const row = dbGet<VolumeRow>(
       this.database,
       `
         SELECT v.*
@@ -64,7 +64,7 @@ export class VolumeRepository {
   }
 
   updateChapterIds(id: string, chapterIds: string[], updatedAt: string): void {
-    sqliteRun(
+    dbRun(
       this.database,
       'UPDATE volumes SET chapter_ids_json = ?, updated_at = ? WHERE id = ?',
       JSON.stringify(chapterIds),
@@ -74,7 +74,7 @@ export class VolumeRepository {
   }
 
   listByBookId(bookId: string): Volume[] {
-    const rows = sqliteAll<VolumeRow>(
+    const rows = dbAll<VolumeRow>(
       this.database,
       'SELECT * FROM volumes WHERE book_id = ? ORDER BY created_at ASC',
       bookId,
