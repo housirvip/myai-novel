@@ -457,6 +457,13 @@ export type EnsembleBalanceReport = {
 
 /**
  * ChapterPlan 仍然是单章执行计划，但在 `v4` 中会逐步与卷级 mission 对齐。
+ *
+ * 这里保留的卷级字段承担的是“把单章写作绑回多章导演语义”的职责：
+ * - `missionId` 标记当前章承接的是哪一个窗口任务
+ * - `threadFocus` 声明本章必须优先推进的线程
+ * - `carryInTasks` / `carryOutTasks` 约束本章前后半段的承接与交棒
+ * - `ensembleFocusCharacterIds` / `subplotCarryThreadIds` 用于控制群像与支线不要长期失联
+ * - `endingDrive` 表示这一章结尾必须制造的下一章牵引方向
  */
 export type ChapterPlan = {
   id: string
@@ -514,9 +521,16 @@ export type EmotionalCurve = {
   targetIntensity: 'low' | 'medium' | 'high'
 }
 
+/**
+ * WritingQualityContract 是 generation 阶段的硬约束集合。
+ *
+ * 相比 `v3`，这里新增了 `volumeExecutionRules`，用于把 mission、carry、群像、结尾牵引
+ * 从“可参考提示”提升为“必须兑现的执行规则”。
+ */
 export type WritingQualityContract = {
   sceneExecutionRules: string[]
   stateConsistencyRules: string[]
+  volumeExecutionRules: string[]
   endingDriveRule: string
   proseQualityRules: string[]
 }
@@ -664,6 +678,15 @@ export type ReviewLayers = {
   rewriteStrategySuggestion: RewriteStrategySuggestion
 }
 
+/**
+ * ReviewReport 不只是质量报告，也是后续 rewrite / approve 的卷级诊断输入。
+ *
+ * 在 `v4` / `v4.1` 中，以下字段会直接驱动后续链路：
+ * - `threadIssues`：哪些高优线程没有被有效推进
+ * - `endingReadinessIssues`：哪些收束缺口正在累积
+ * - `missionProgress`：当前章是否完成了它的卷级 mission
+ * - `reviewLayers`：为 rewrite 策略切换提供结构化依据
+ */
 export type ReviewReport = {
   id: string
   bookId: string
@@ -788,6 +811,9 @@ export type RewriteStrategyKind =
   | 'consistency-first'
   | 'pacing-first'
   | 'ending-drive-first'
+  | 'thread-focus'
+  | 'closure-focus'
+  | 'ensemble-balance'
   | 'dialogue-enhance'
   | 'emotion-enhance'
   | 'length-correction'
@@ -851,6 +877,12 @@ export type StoryState = {
   updatedAt: IsoTimestamp
 }
 
+/**
+ * ApproveResult 表示“章节批准后，卷级状态闭环是否已完成提交”。
+ *
+ * 其中 `threadProgressUpdated` 与 `endingReadinessUpdated` 是 `v4` 之后新增的关键回执，
+ * 用来确认 approve 不只是生成终稿，也同步推动了长期线程与终局准备状态。
+ */
 export type ApproveResult = {
   chapterId: string
   chapterStatus: 'finalized'

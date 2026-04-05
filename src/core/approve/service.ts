@@ -667,6 +667,15 @@ export class ApproveService {
     }
   }
 
+  /**
+   * ending readiness 更新负责把“这一章是否让终局更可收束”沉淀成长期真源。
+   *
+   * 这里不会追求完整终局建模，而是优先提交两类可持续信号：
+   * - 哪些 subplot carry 仍未回收，会继续形成 pending payoffs
+   * - 当前 review 暴露了哪些 ending readiness 缺口，会进入 closure gaps
+   *
+   * 这样后续 `doctor volume`、`regression volume` 与下一次 planning 都能继续消费同一份终局压力快照。
+   */
   private updateEndingReadiness(
     bookId: string,
     targetVolumeId: string,

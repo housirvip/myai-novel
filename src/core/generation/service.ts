@@ -76,6 +76,9 @@ function buildGenerationPromptPayload(context: WritingContext): Record<string, u
         '推进至少一条核心冲突',
         '自然体现角色当前状态、关键物品、活跃 Hook 与记忆约束',
         '结尾形成新的局势变化或悬念牵引',
+        '如果存在当前章 mission，必须在正文中形成可识别的 mission 执行与结果',
+        '如果存在 carryIn / carryOut 任务，必须写出承接与交棒，而不是只在说明里提到',
+        '如果存在 ending drive，结尾必须兑现该牵引，不能停留在中性收束',
       ],
       qualityBar: [
         '像小说，不像提纲',
@@ -114,6 +117,8 @@ function buildGenerationPromptPayload(context: WritingContext): Record<string, u
       ensembleBalanceReport: context.ensembleBalanceReport,
       chapterPlanDirectives: {
         missionId: context.chapterPlan.missionId,
+        missionSummary: context.currentChapterMission?.summary,
+        missionSuccessSignal: context.currentChapterMission?.successSignal,
         threadFocus: context.chapterPlan.threadFocus,
         windowRole: context.chapterPlan.windowRole,
         carryInTasks: context.chapterPlan.carryInTasks,
@@ -121,6 +126,7 @@ function buildGenerationPromptPayload(context: WritingContext): Record<string, u
         ensembleFocusCharacterIds: context.chapterPlan.ensembleFocusCharacterIds,
         subplotCarryThreadIds: context.chapterPlan.subplotCarryThreadIds,
         endingDrive: context.chapterPlan.endingDrive,
+        hardExecutionRules: context.writingQualityContract.volumeExecutionRules,
       },
     },
     stateConstraints: {
@@ -226,6 +232,7 @@ function buildDraftContent(context: WritingContext): string {
           `- 后续任务=${context.chapterPlan.carryOutTasks.join(' / ') || '无'}`,
           `- 群像聚焦=${context.chapterPlan.ensembleFocusCharacterIds.join(' / ') || '无'}`,
           `- 支线承接=${context.chapterPlan.subplotCarryThreadIds.join(' / ') || '无'}`,
+          ...context.writingQualityContract.volumeExecutionRules.map((item) => `- 执行规则=${item}`),
           '',
         ]
       : []
@@ -279,6 +286,7 @@ function buildDraftContent(context: WritingContext): string {
     ...context.chapterPlan.mustPreserveFacts.map((item) => `- 必须保护事实：${item}`),
     ...context.writingQualityContract.sceneExecutionRules.map((item) => `- 场景执行规则：${item}`),
     ...context.writingQualityContract.stateConsistencyRules.map((item) => `- 一致性规则：${item}`),
+    ...context.writingQualityContract.volumeExecutionRules.map((item) => `- 卷级执行规则：${item}`),
     ...context.writingQualityContract.proseQualityRules.map((item) => `- 正文质量规则：${item}`),
     ...context.toneConstraints.map((item) => `- 风格约束[${item.label}]：${item.requirement}`),
     `- 叙事视角：${context.narrativeVoiceConstraint.pointOfView} / ${context.narrativeVoiceConstraint.tense} / ${context.narrativeVoiceConstraint.distance}`,

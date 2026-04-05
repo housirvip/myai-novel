@@ -67,6 +67,14 @@ export class PlanningService {
       .slice(0, 3)
     const focusThreads = context.activeStoryThreads.slice(0, 3)
     const fallbackThreadId = focusThreads[0]?.id ?? `${context.volume.id}_window_thread`
+    /**
+     * 这里的 mission 分配规则不是“平均分配任务”，而是为未来 3 章建立一个最小可连续的导演窗口：
+     * - 第 1 章优先承担当前章的主推进责任，避免窗口起点失焦
+     * - 中间章默认负责 complicate，确保线程不是只推进不加压
+     * - 窗口尾章优先承担 payoff / 交棒职责，为下一次滚动规划留接口
+     *
+     * 这也是 `currentChapterMission` 与“未来窗口任务”的连接点：当前章不是孤立的，而是整个窗口的起笔。
+     */
     const chapterMissions: VolumePlan['chapterMissions'] = chaptersInWindow.map((chapter, index) => ({
       id: createId('mission'),
       bookId: context.book.id,

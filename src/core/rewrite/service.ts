@@ -114,8 +114,8 @@ export class RewriteService {
       relevantLongTermEntries: longTermMemory?.entries.slice(0, 8) ?? [],
     }
 
-    const strategyProfile = resolveRewriteStrategyProfile(review, request.goals)
-    const qualityTarget = buildRewriteQualityTarget(request, review, strategyProfile)
+    const strategyProfile = resolveRewriteStrategyProfile(review, request.goals, rewriteContext)
+    const qualityTarget = buildRewriteQualityTarget(request, review, strategyProfile, rewriteContext)
     const timestamp = nowIso()
     const content = this.llmAdapter
       ? await createLlmRewrite(
@@ -374,7 +374,7 @@ function buildRewriteContent(
   return `${header}${content}\n\n## 重写后补充\n\n本版本已根据审查意见进行了定向调整，重点执行 ${strategyProfile.primary}，同时保持 chapter plan、当前状态与 review 已确认的结构化事实边界一致。`
 }
 
-function summarizeRewriteContext(rewriteContext: {
+type RewriteContextSnapshot = {
   sceneCards: Array<{ title: string; purpose: string; beats: string[] }>
   eventOutline: string[]
   statePredictions: string[]
@@ -394,16 +394,18 @@ function summarizeRewriteContext(rewriteContext: {
   recentEvents: string[]
   observationEntries: Array<{ summary: string; sourceChapterId?: string }>
   relevantLongTermEntries: Array<{ summary: string; importance: number }>
-}): string[] {
+}
+
+function summarizeRewriteContext(rewriteContext: RewriteContextSnapshot): string[] {
   const items = [
-    ...(rewriteContext.missionId ? [`mission=${rewriteContext.missionId}`] : []),
-    ...(rewriteContext.windowRole ? [`窗口职责=${rewriteContext.windowRole}`] : []),
-    ...rewriteContext.threadFocus.slice(0, 3).map((item) => `线程焦点：${item}`),
-    ...rewriteContext.carryInTasks.slice(0, 2).map((item) => `承接任务：${item}`),
-    ...rewriteContext.carryOutTasks.slice(0, 2).map((item) => `后续任务：${item}`),
-    ...rewriteContext.ensembleFocusCharacterIds.slice(0, 2).map((item) => `群像聚焦：${item}`),
-    ...rewriteContext.subplotCarryThreadIds.slice(0, 2).map((item) => `支线承接：${item}`),
-    ...(rewriteContext.endingDrive.trim() ? [`结尾牵引：${rewriteContext.endingDrive}`] : []),
+    ...(rewriteContext.missionId ? [`卷级 mission：${rewriteContext.missionId}`] : []),
+    ...(rewriteContext.windowRole ? [`卷级窗口职责：${rewriteContext.windowRole}`] : []),
+    ...(rewriteContext.threadFocus.length > 0 ? [`卷级线程焦点：${rewriteContext.threadFocus.slice(0, 3).join(' / ')}`] : []),
+    ...(rewriteContext.carryInTasks.length > 0 ? [`卷级承接输入：${rewriteContext.carryInTasks.slice(0, 2).join(' / ')}`] : []),
+    ...(rewriteContext.carryOutTasks.length > 0 ? [`卷级承接输出：${rewriteContext.carryOutTasks.slice(0, 2).join(' / ')}`] : []),
+    ...(rewriteContext.ensembleFocusCharacterIds.length > 0 ? [`卷级群像聚焦：${rewriteContext.ensembleFocusCharacterIds.slice(0, 3).join(' / ')}`] : []),
+    ...(rewriteContext.subplotCarryThreadIds.length > 0 ? [`卷级支线承接：${rewriteContext.subplotCarryThreadIds.slice(0, 3).join(' / ')}`] : []),
+    ...(rewriteContext.endingDrive.trim() ? [`卷级结尾牵引：${rewriteContext.endingDrive}`] : []),
     ...rewriteContext.sceneCards.slice(0, 2).map((item) => `场景 ${item.title}：${item.purpose}`),
     ...rewriteContext.eventOutline.slice(0, 2).map((item) => `事件：${item}`),
     ...rewriteContext.statePredictions.slice(0, 2).map((item) => `预计状态变化：${item}`),
@@ -413,7 +415,7 @@ function summarizeRewriteContext(rewriteContext: {
     ...rewriteContext.relevantLongTermEntries.slice(0, 1).map((item) => `长期记忆：${item.summary}`),
   ]
 
-  return items.length > 0 ? items : ['保持 chapter plan 与当前状态约束一致']
+  return items.length > 0 ? items : ['保持 chapter plan、卷级 mission 与当前状态约束一致']
 }
 
 function summarizeProtectedFacts(closureSuggestions: ClosureSuggestions): string[] {
@@ -427,10 +429,15 @@ function summarizeProtectedFacts(closureSuggestions: ClosureSuggestions): string
   return items.length > 0 ? items : ['保持既有结构化事实边界']
 }
 
-function resolveRewriteStrategyProfile(review: ReviewReport, goals: string[]): RewriteStrategyProfile {
+function resolveRewriteStrategyProfile(
+  review: ReviewReport,
+  goals: string[],
+  rewriteContext: RewriteContextSnapshot,
+): RewriteStrategyProfile {
   const manualGoals = goals.join('；')
   const primary = review.reviewLayers.rewriteStrategySuggestion.primary
   const secondary = review.reviewLayers.rewriteStrategySuggestion.secondary
+  const volumeSignals = deriveVolumeStrategySignals(rewriteContext)
 
   if (manualGoals.includes('对话')) {
     return {
@@ -450,6 +457,45 @@ function resolveRewriteStrategyProfile(review: ReviewReport, goals: string[]): R
     }
   }
 
+  if (volumeSignals.needsClosureFocus) {
+    return {
+      primary: 'closure-focus',
+      secondary: uniqueStrategyKinds(['ending-drive-first', primary, ...secondary]),
+      source: 'review-layers',
+      rationale: uniqueMessages([
+        '卷级结尾牵引或承接任务较强，重写优先服务收束与回收。',
+        ...volumeSignals.rationale,
+        ...review.reviewLayers.rewriteStrategySuggestion.rationale,
+      ]),
+    }
+  }
+
+  if (volumeSignals.needsEnsembleBalance) {
+    return {
+      primary: 'ensemble-balance',
+      secondary: uniqueStrategyKinds(['emotion-enhance', primary, ...secondary]),
+      source: 'review-layers',
+      rationale: uniqueMessages([
+        '卷级群像聚焦或支线承接信号明显，重写优先修正群像失衡。',
+        ...volumeSignals.rationale,
+        ...review.reviewLayers.rewriteStrategySuggestion.rationale,
+      ]),
+    }
+  }
+
+  if (volumeSignals.needsThreadFocus) {
+    return {
+      primary: 'thread-focus',
+      secondary: uniqueStrategyKinds(['consistency-first', primary, ...secondary]),
+      source: 'review-layers',
+      rationale: uniqueMessages([
+        '当前章承担明确 mission / thread focus，重写优先保证主线推进聚焦。',
+        ...volumeSignals.rationale,
+        ...review.reviewLayers.rewriteStrategySuggestion.rationale,
+      ]),
+    }
+  }
+
   return {
     primary,
     secondary,
@@ -462,22 +508,94 @@ function buildRewriteQualityTarget(
   request: RewriteRequest,
   review: ReviewReport,
   strategyProfile: RewriteStrategyProfile,
+  rewriteContext: RewriteContextSnapshot,
 ): RewriteQualityTarget {
   const mustFixCount = review.reviewLayers.mustFix.length
   const narrativeCount = review.reviewLayers.narrativeQuality.length
+  const volumeFocusAreas = buildVolumeFocusAreas(strategyProfile, rewriteContext)
 
   return {
     preserveFacts: request.preserveFacts,
     preserveHooks: request.preserveHooks,
     preserveEndingBeat: request.preserveEndingBeat,
-    targetIssueReduction: mustFixCount > 0 ? 70 : (narrativeCount > 0 ? 50 : 30),
+    targetIssueReduction:
+      strategyProfile.primary === 'closure-focus'
+        ? 75
+        : strategyProfile.primary === 'thread-focus' || strategyProfile.primary === 'ensemble-balance'
+          ? 65
+          : mustFixCount > 0
+            ? 70
+            : narrativeCount > 0
+              ? 50
+              : 30,
     focusAreas: uniqueMessages([
       ...review.reviewLayers.mustFix.slice(0, 3).map((item) => item.summary),
       ...review.reviewLayers.narrativeQuality.slice(0, 3).map((item) => item.summary),
       ...review.reviewLayers.languageQuality.slice(0, 2).map((item) => item.summary),
+      ...volumeFocusAreas,
       strategyProfile.primary,
     ]),
   }
+}
+
+function deriveVolumeStrategySignals(rewriteContext: RewriteContextSnapshot): {
+  needsThreadFocus: boolean
+  needsClosureFocus: boolean
+  needsEnsembleBalance: boolean
+  rationale: string[]
+} {
+  const rationale: string[] = []
+  const needsThreadFocus = Boolean(rewriteContext.missionId) || rewriteContext.threadFocus.length > 0
+  const needsClosureFocus = rewriteContext.endingDrive.trim().length > 0 || rewriteContext.carryOutTasks.length > 0
+  const needsEnsembleBalance =
+    rewriteContext.ensembleFocusCharacterIds.length > 0 || rewriteContext.subplotCarryThreadIds.length > 0
+
+  if (rewriteContext.missionId) {
+    rationale.push(`当前章存在 mission=${rewriteContext.missionId}`)
+  }
+  if (rewriteContext.threadFocus.length > 0) {
+    rationale.push(`thread focus=${rewriteContext.threadFocus.slice(0, 3).join(' / ')}`)
+  }
+  if (rewriteContext.carryOutTasks.length > 0) {
+    rationale.push(`carry out=${rewriteContext.carryOutTasks.slice(0, 2).join(' / ')}`)
+  }
+  if (rewriteContext.endingDrive.trim()) {
+    rationale.push(`ending drive=${rewriteContext.endingDrive}`)
+  }
+  if (rewriteContext.ensembleFocusCharacterIds.length > 0) {
+    rationale.push(`ensemble focus=${rewriteContext.ensembleFocusCharacterIds.slice(0, 3).join(' / ')}`)
+  }
+  if (rewriteContext.subplotCarryThreadIds.length > 0) {
+    rationale.push(`subplot carry=${rewriteContext.subplotCarryThreadIds.slice(0, 3).join(' / ')}`)
+  }
+
+  return {
+    needsThreadFocus,
+    needsClosureFocus,
+    needsEnsembleBalance,
+    rationale,
+  }
+}
+
+function buildVolumeFocusAreas(
+  strategyProfile: RewriteStrategyProfile,
+  rewriteContext: RewriteContextSnapshot,
+): string[] {
+  const focusAreas = [
+    ...(rewriteContext.missionId ? [`mission:${rewriteContext.missionId}`] : []),
+    ...(rewriteContext.threadFocus.length > 0 ? [`thread-focus:${rewriteContext.threadFocus.slice(0, 3).join(' / ')}`] : []),
+    ...(rewriteContext.carryInTasks.length > 0 ? [`carry-in:${rewriteContext.carryInTasks.slice(0, 2).join(' / ')}`] : []),
+    ...(rewriteContext.carryOutTasks.length > 0 ? [`carry-out:${rewriteContext.carryOutTasks.slice(0, 2).join(' / ')}`] : []),
+    ...(rewriteContext.ensembleFocusCharacterIds.length > 0
+      ? [`ensemble:${rewriteContext.ensembleFocusCharacterIds.slice(0, 3).join(' / ')}`]
+      : []),
+    ...(rewriteContext.subplotCarryThreadIds.length > 0
+      ? [`subplot-carry:${rewriteContext.subplotCarryThreadIds.slice(0, 3).join(' / ')}`]
+      : []),
+    ...(rewriteContext.endingDrive.trim() ? [`ending-drive:${rewriteContext.endingDrive}`] : []),
+  ]
+
+  return uniqueMessages([strategyProfile.primary, ...focusAreas])
 }
 
 function collectTargetedIssueTypes(review: {

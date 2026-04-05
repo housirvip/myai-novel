@@ -76,22 +76,33 @@ novel <command>
 - 工作流命令
   - `plan chapter <chapterId>`
   - `plan show <chapterId>`
+  - `plan volume-window <chapterId>`
+  - `plan volume-show <volumeId>`
+  - `plan mission-show <chapterId>`
   - `write next <chapterId>`
   - `draft show <chapterId>`
   - `review chapter <chapterId>`
   - `review show <chapterId>`
+  - `review volume <volumeId>`
   - `rewrite show <chapterId>`
 - 状态追踪
   - `story show`
   - `state show`
+  - `state threads [volumeId]`
+  - `state ending`
+  - `state volume-plan <volumeId>`
+  - `state volume <volumeId>`
   - `state-updates show <chapterId>`
 - 运维与回归
   - `doctor`
   - `doctor chapter <chapterId>`
+  - `doctor volume <volumeId>`
   - `regression list`
-  - `regression run <case>`
+  - `regression run <caseName> [targetId]`
+  - `regression volume <volumeId>`
   - `snapshot state`
   - `snapshot chapter <chapterId>`
+  - `snapshot volume <volumeId>`
 
 ---
 
@@ -109,14 +120,19 @@ novel <command>
 8. `item add`
 9. `chapter add`
 10. `plan chapter`
-11. `write next`
-12. `review chapter`
-13. `chapter rewrite`（按需）
-14. `chapter approve`
-15. `state show`
-16. `doctor chapter <chapterId>`（排障时）
-17. `snapshot chapter <chapterId>`（留存快照时）
-18. `chapter drop <chapterId>`（需要安全回退当前链路时）
+11. `plan volume-window <chapterId>`
+12. `plan mission-show <chapterId>` / `plan volume-show <volumeId>`
+13. `write next`
+14. `review chapter`
+15. `review volume <volumeId>`
+16. `chapter rewrite`（按需）
+17. `chapter approve`
+18. `state show`
+19. `state threads [volumeId]` / `state ending` / `state volume <volumeId>`
+20. `doctor chapter <chapterId>` / `doctor volume <volumeId>`（排障时）
+21. `snapshot chapter <chapterId>` / `snapshot volume <volumeId>`（留存快照时）
+22. `regression run <caseName> [targetId]` / `regression volume <volumeId>`（回归验证时）
+23. `chapter drop <chapterId>`（需要安全回退当前链路时）
 
 这个顺序对应了项目中“规划 → 写作 → 审查 → 重写 → 批准 → 状态沉淀”的主链路，核心实现分布在：
 
@@ -856,49 +872,73 @@ novel doctor chapter <chapterId>
 
 #### `doctor`
 
-用于快速排查项目级或章节级工作流断链。
+用于快速排查项目级、章节级和卷级工作流断链。
 
 ```bash
 novel doctor
 novel doctor chapter <chapterId>
+novel doctor volume <volumeId>
 ```
 
-当前第一版会输出：
+当前推荐把 [`doctor volume <volumeId>`](src/cli/commands/doctor/volume.ts:7) 当作卷级诊断入口，它会分层输出：
 
-- 章节是否存在 `plan / draft / review / rewrite / output`
-- 当前章节指针是否存在
-- 操作日志目录位置
+- 总体风险摘要
+- mission 风险
+- thread 风险
+- ending 风险
+- chapter 风险
+
+如果需要自动化验收，还可以使用：
+
+```bash
+novel doctor volume <volumeId> --json
+novel doctor volume <volumeId> --strict
+```
 
 #### `regression`
 
-用于管理标准回归样本名称和后续执行入口。
+用于管理回归样本名称、单 case 执行和卷级 case 套件执行。
 
 ```bash
 novel regression list
-novel regression run hook-pressure-smoke
+novel regression run volume-plan-smoke <volumeId>
+novel regression volume <volumeId>
 ```
 
-当前第一版先提供：
+当前 `v4.1-A` 后已经提供：
 
 - 样本列表输出
-- 统一的回归执行结果格式占位
+- 单 case 结构化执行结果
+- 卷级内建 case 套件执行结果
+- steps / artifacts / summary 的统一输出结构
+
+推荐优先使用的卷级样本：
+
+- `volume-plan-smoke`
+- `mission-carry-smoke`
+- `thread-progression-smoke`
+- `ending-readiness-smoke`
+- `volume-doctor-smoke`
 
 #### `snapshot`
 
-用于冻结当前项目或单章链路快照，便于排障与回归比对。
+用于冻结当前项目、单章链路或卷级视图快照，便于排障与回归比对。
 
 ```bash
 novel snapshot state
 novel snapshot chapter <chapterId>
+novel snapshot volume <volumeId>
 ```
 
-推荐标准回归路径：
+推荐卷级回归路径：
 
-1. `novel snapshot chapter <chapterId>`
-2. `novel review chapter <chapterId>` / `novel chapter rewrite <chapterId>`
-3. `novel doctor chapter <chapterId>`
-4. `novel snapshot chapter <chapterId>`
-5. 对比前后快照、状态和日志输出
+1. `novel plan volume-window <chapterId>`
+2. `novel plan volume-show <volumeId>` / `novel plan mission-show <chapterId>`
+3. `novel review volume <volumeId>`
+4. `novel state volume <volumeId>` / `novel state volume-plan <volumeId>` / `novel state ending`
+5. `novel doctor volume <volumeId>`
+6. `novel snapshot volume <volumeId>`
+7. `novel regression volume <volumeId>`
 
 ---
 

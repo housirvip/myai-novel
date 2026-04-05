@@ -43,6 +43,20 @@ export class WritingContextBuilder {
           '不得破坏既有角色状态、物品状态、Hook 状态与长期事实。',
           '必须承接高压力 Hook 与未解决债务。',
         ],
+        volumeExecutionRules: [
+          ...(planningContext.currentChapterMission
+            ? [
+                `必须让当前章 mission 可被读者感知：${planningContext.currentChapterMission.summary}`,
+                `必须形成可验证的 mission 成功信号：${planningContext.currentChapterMission.successSignal}`,
+              ]
+            : []),
+          ...chapterPlan.threadFocus.slice(0, 3).map((item) => `必须推动卷级线程焦点：${item}`),
+          ...chapterPlan.carryInTasks.slice(0, 2).map((item) => `必须在正文前半段承接输入任务：${item}`),
+          ...chapterPlan.carryOutTasks.slice(0, 2).map((item) => `必须在正文后半段形成输出任务：${item}`),
+          ...chapterPlan.ensembleFocusCharacterIds.slice(0, 2).map((item) => `必须给群像焦点角色留下有效戏份：${item}`),
+          ...chapterPlan.subplotCarryThreadIds.slice(0, 2).map((item) => `必须重新挂回支线线程：${item}`),
+          ...(chapterPlan.endingDrive.trim() ? [`必须让结尾兑现卷级牵引：${chapterPlan.endingDrive}`] : []),
+        ],
         endingDriveRule: chapterPlan.endingDrive,
         proseQualityRules: [
           '优先使用动作、对话、心理和感官细节推进。',

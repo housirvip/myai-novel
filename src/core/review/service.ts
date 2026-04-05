@@ -410,6 +410,14 @@ function mergeNewFactCandidates(baseCandidates: string[], objective: string, mem
   return merged
 }
 
+/**
+ * mission progress 判定是 `v4` review 的关键桥梁：
+ *
+ * 它不要求正文逐字复述 plan，而是检查正文是否留下了足够证据，证明：
+ * - 当前章确实承接了 thread focus
+ * - 计划中的关键事件不是停留在提纲层
+ * - carry in / carry out 任务已经进入正文事实
+ */
 function evaluateMissionProgress(
   plan: { missionId?: string; threadFocus: string[]; eventOutline: string[]; carryInTasks: string[]; carryOutTasks: string[] },
   content: string,
@@ -440,6 +448,11 @@ function evaluateMissionProgress(
   }
 }
 
+/**
+ * mission issue 不是普通文风意见，而是“当前章偏离卷级职责”的硬警告。
+ *
+ * 一旦这里报错，后续 rewrite / doctor 都会把它视为优先修复对象。
+ */
 function mergeMissionIssues(
   plan: { missionId?: string; carryInTasks: string[]; carryOutTasks: string[] },
   missionProgress: ReviewReport['missionProgress'],
@@ -460,6 +473,12 @@ function mergeMissionIssues(
   ]
 }
 
+/**
+ * thread focus issue 用于识别“主线没有真正进正文”的情况。
+ *
+ * 这里保持规则简单直接：只要高优线程标识完全未被正文承接，就先给出明确警报，
+ * 后续再由 rewrite / doctor 进一步细化处理。
+ */
 function mergeThreadFocusIssues(threadFocus: string[], content: string): string[] {
   return threadFocus
     .filter((threadId) => !content.includes(threadId))
