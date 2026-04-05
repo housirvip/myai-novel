@@ -1,5 +1,6 @@
 import type { NovelDatabase } from '../db/database.js'
 import type { Outline } from '../../shared/types/domain.js'
+import { sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type OutlineRow = {
   book_id: string
@@ -15,42 +16,38 @@ export class OutlineRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   upsert(outline: Outline): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO outlines (
-            book_id,
-            premise,
-            theme,
-            worldview,
-            core_conflicts_json,
-            ending_vision,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(book_id) DO UPDATE SET
-            premise = excluded.premise,
-            theme = excluded.theme,
-            worldview = excluded.worldview,
-            core_conflicts_json = excluded.core_conflicts_json,
-            ending_vision = excluded.ending_vision,
-            updated_at = excluded.updated_at
-        `,
-      )
-      .run(
-        outline.bookId,
-        outline.premise,
-        outline.theme,
-        outline.worldview,
-        JSON.stringify(outline.coreConflicts),
-        outline.endingVision,
-        outline.updatedAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO outlines (
+          book_id,
+          premise,
+          theme,
+          worldview,
+          core_conflicts_json,
+          ending_vision,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(book_id) DO UPDATE SET
+          premise = excluded.premise,
+          theme = excluded.theme,
+          worldview = excluded.worldview,
+          core_conflicts_json = excluded.core_conflicts_json,
+          ending_vision = excluded.ending_vision,
+          updated_at = excluded.updated_at
+      `,
+      outline.bookId,
+      outline.premise,
+      outline.theme,
+      outline.worldview,
+      JSON.stringify(outline.coreConflicts),
+      outline.endingVision,
+      outline.updatedAt,
+    )
   }
 
   getByBookId(bookId: string): Outline | null {
-    const row = this.database.prepare('SELECT * FROM outlines WHERE book_id = ?').get(bookId) as
-      | OutlineRow
-      | undefined
+    const row = sqliteGet<OutlineRow>(this.database, 'SELECT * FROM outlines WHERE book_id = ?', bookId)
 
     if (!row) {
       return null

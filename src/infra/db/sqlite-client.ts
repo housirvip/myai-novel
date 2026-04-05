@@ -21,10 +21,10 @@ export function sqliteRun(database: NovelDatabase, sql: string, ...params: unkno
   return sqlitePrepare(database, sql).run(...params)
 }
 
-export function sqliteTransaction<TArgs extends unknown[]>(
+export function sqliteTransaction<TArgs extends unknown[], TResult>(
   database: NovelDatabase,
-  action: (...args: TArgs) => void,
-): (...args: TArgs) => void {
+  action: (...args: TArgs) => TResult,
+): (...args: TArgs) => TResult {
   return assertSqliteDatabase(database).transaction(action)
 }
 

@@ -1,5 +1,6 @@
 import type { ChapterOutput } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type ChapterOutputRow = {
   id: string
@@ -16,45 +17,43 @@ export class ChapterOutputRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(output: ChapterOutput): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO chapter_outputs (
-            id,
-            book_id,
-            chapter_id,
-            source_type,
-            source_id,
-            final_path,
-            content,
-            created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        output.id,
-        output.bookId,
-        output.chapterId,
-        output.sourceType,
-        output.sourceId,
-        output.finalPath,
-        output.content,
-        output.createdAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO chapter_outputs (
+          id,
+          book_id,
+          chapter_id,
+          source_type,
+          source_id,
+          final_path,
+          content,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      output.id,
+      output.bookId,
+      output.chapterId,
+      output.sourceType,
+      output.sourceId,
+      output.finalPath,
+      output.content,
+      output.createdAt,
+    )
   }
 
   getLatestByChapterId(chapterId: string): ChapterOutput | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapter_outputs
-          WHERE chapter_id = ?
-          ORDER BY created_at DESC
-          LIMIT 1
-        `,
-      )
-      .get(chapterId) as ChapterOutputRow | undefined
+    const row = sqliteGet<ChapterOutputRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_outputs
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      chapterId,
+    )
 
     if (!row) {
       return null

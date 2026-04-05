@@ -1,5 +1,6 @@
 import type { ChapterRewrite } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type RewriteRow = {
   id: string
@@ -22,72 +23,70 @@ export class ChapterRewriteRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(rewrite: ChapterRewrite): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO chapter_rewrites (
-            id,
-            book_id,
-            chapter_id,
-            source_draft_id,
-            source_review_id,
-            version_id,
-            strategy,
-            strategy_profile_json,
-            quality_target_json,
-            goals_json,
-            content,
-            actual_word_count,
-            validation_json,
-            created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        rewrite.id,
-        rewrite.bookId,
-        rewrite.chapterId,
-        rewrite.sourceDraftId,
-        rewrite.sourceReviewId,
-        rewrite.versionId,
-        rewrite.strategy,
-        JSON.stringify(rewrite.strategyProfile),
-        JSON.stringify(rewrite.qualityTarget),
-        JSON.stringify(rewrite.goals),
-        rewrite.content,
-        rewrite.actualWordCount,
-        JSON.stringify(rewrite.validation),
-        rewrite.createdAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO chapter_rewrites (
+          id,
+          book_id,
+          chapter_id,
+          source_draft_id,
+          source_review_id,
+          version_id,
+          strategy,
+          strategy_profile_json,
+          quality_target_json,
+          goals_json,
+          content,
+          actual_word_count,
+          validation_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      rewrite.id,
+      rewrite.bookId,
+      rewrite.chapterId,
+      rewrite.sourceDraftId,
+      rewrite.sourceReviewId,
+      rewrite.versionId,
+      rewrite.strategy,
+      JSON.stringify(rewrite.strategyProfile),
+      JSON.stringify(rewrite.qualityTarget),
+      JSON.stringify(rewrite.goals),
+      rewrite.content,
+      rewrite.actualWordCount,
+      JSON.stringify(rewrite.validation),
+      rewrite.createdAt,
+    )
   }
 
   getLatestByChapterId(chapterId: string): ChapterRewrite | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapter_rewrites
-          WHERE chapter_id = ?
-          ORDER BY created_at DESC
-          LIMIT 1
-        `,
-      )
-      .get(chapterId) as RewriteRow | undefined
+    const row = sqliteGet<RewriteRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_rewrites
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      chapterId,
+    )
 
     return row ? mapRewrite(row) : null
   }
 
   listByChapterId(chapterId: string): ChapterRewrite[] {
-    const rows = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapter_rewrites
-          WHERE chapter_id = ?
-          ORDER BY created_at DESC
-        `,
-      )
-      .all(chapterId) as RewriteRow[]
+    const rows = sqliteAll<RewriteRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_rewrites
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+      `,
+      chapterId,
+    )
 
     return rows.map(mapRewrite)
   }

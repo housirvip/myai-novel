@@ -1,5 +1,6 @@
 import type { HookCurrentState } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteRun, sqliteTransaction } from '../db/sqlite-client.js'
 
 type HookCurrentStateRow = {
   book_id: string
@@ -13,45 +14,51 @@ export class HookStateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   upsert(state: HookCurrentState): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO hook_current_state (book_id, hook_id, status, updated_by_chapter_id, updated_at)
-          VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(book_id, hook_id) DO UPDATE SET
-            status = excluded.status,
-            updated_by_chapter_id = excluded.updated_by_chapter_id,
-            updated_at = excluded.updated_at
-        `,
-      )
-      .run(state.bookId, state.hookId, state.status, state.updatedByChapterId ?? null, state.updatedAt)
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO hook_current_state (book_id, hook_id, status, updated_by_chapter_id, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(book_id, hook_id) DO UPDATE SET
+          status = excluded.status,
+          updated_by_chapter_id = excluded.updated_by_chapter_id,
+          updated_at = excluded.updated_at
+      `,
+      state.bookId,
+      state.hookId,
+      state.status,
+      state.updatedByChapterId ?? null,
+      state.updatedAt,
+    )
   }
 
   listByBookId(bookId: string): HookCurrentState[] {
-    const rows = this.database
-      .prepare('SELECT * FROM hook_current_state WHERE book_id = ? ORDER BY updated_at DESC')
-      .all(bookId) as HookCurrentStateRow[]
+    const rows = sqliteAll<HookCurrentStateRow>(
+      this.database,
+      'SELECT * FROM hook_current_state WHERE book_id = ? ORDER BY updated_at DESC',
+      bookId,
+    )
 
     return rows.map(mapHookCurrentState)
   }
 
   listActiveByBookId(bookId: string): HookCurrentState[] {
-    const rows = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM hook_current_state
-          WHERE book_id = ? AND status != 'resolved'
-          ORDER BY updated_at DESC
-        `,
-      )
-      .all(bookId) as HookCurrentStateRow[]
+    const rows = sqliteAll<HookCurrentStateRow>(
+      this.database,
+      `
+        SELECT *
+        FROM hook_current_state
+        WHERE book_id = ? AND status != 'resolved'
+        ORDER BY updated_at DESC
+      `,
+      bookId,
+    )
 
     return rows.map(mapHookCurrentState)
   }
 
   upsertBatch(states: HookCurrentState[]): void {
-    const transaction = this.database.transaction((items: HookCurrentState[]) => {
+    const transaction = sqliteTransaction(this.database, (items: HookCurrentState[]) => {
       for (const item of items) {
         this.upsert(item)
       }
