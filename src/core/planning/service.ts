@@ -11,6 +11,7 @@ import type {
   SceneOutcomeChecklist,
   VolumePlan,
 } from '../../shared/types/domain.js'
+import { readLlmStageConfig } from '../../shared/utils/env.js'
 import { createId } from '../../shared/utils/id.js'
 import { extractJsonObject } from '../../shared/utils/json.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -128,6 +129,7 @@ async function createLlmPlan(
   activeHooks: ActiveHookView[],
 ): Promise<ChapterPlan> {
   const fallbackPlan = createRuleBasedPlan(context, activeHooks)
+  const llmStage = readLlmStageConfig('planning')
   const response = await llmAdapter.generateText({
     system: [
       '你是长篇小说章节规划助手，不负责写正文，只负责制定可执行的章节计划。',
@@ -141,6 +143,11 @@ async function createLlmPlan(
       'JSON 至少包含 objective, sceneCards, sceneGoals, sceneConstraints, sceneEmotionalTargets, sceneOutcomeChecklist, endingDrive, mustResolveDebts, mustAdvanceHooks, mustPreserveFacts, requiredCharacterIds, requiredLocationIds, requiredItemIds, eventOutline, hookPlan, statePredictions, memoryCandidates。',
     ].join(' '),
     user: JSON.stringify(buildPlanningPromptPayload(context, activeHooks), null, 2),
+    metadata: {
+      stage: 'planning',
+      providerHint: llmStage.provider,
+      modelHint: llmStage.model,
+    },
   })
 
   const parsed = JSON.parse(extractJsonObject(response.text)) as Partial<ChapterPlan>

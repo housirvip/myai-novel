@@ -8,6 +8,7 @@ import type {
   RewriteQualityTarget,
   ReviewReport,
 } from '../../shared/types/domain.js'
+import { readLlmStageConfig } from '../../shared/utils/env.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { createId } from '../../shared/utils/id.js'
 import { nowIso } from '../../shared/utils/time.js'
@@ -215,6 +216,7 @@ async function createLlmRewrite(
   qualityTarget: RewriteQualityTarget,
 ): Promise<string> {
   try {
+    const llmStage = readLlmStageConfig('rewrite')
     const response = await llmAdapter.generateText({
       system: [
         '你是长篇小说章节重写助手。你的任务不是自由改写，而是在不破坏既有事实与状态连续性的前提下，定向修复问题。',
@@ -256,6 +258,11 @@ async function createLlmRewrite(
         null,
         2,
       ),
+      metadata: {
+        stage: 'rewrite',
+        providerHint: llmStage.provider,
+        modelHint: llmStage.model,
+      },
     })
 
     return response.text.trim()

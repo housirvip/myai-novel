@@ -20,6 +20,7 @@ import type { HookStateRepository } from '../../infra/repository/hook-state-repo
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
 import type { NarrativeDebtRepository } from '../../infra/repository/narrative-debt-repository.js'
+import { readLlmStageConfig } from '../../shared/utils/env.js'
 import { createId } from '../../shared/utils/id.js'
 import { extractJsonObject } from '../../shared/utils/json.js'
 import { NovelError } from '../../shared/utils/errors.js'
@@ -557,6 +558,7 @@ async function createLlmReview(
   activeHookStates: Array<{ hookId: string; status: string }>,
 ): Promise<Omit<ReviewReport, 'id' | 'bookId' | 'chapterId' | 'draftId' | 'wordCountCheck' | 'createdAt'> | null> {
   try {
+    const llmStage = readLlmStageConfig('review')
     const response = await llmAdapter.generateText({
       system: [
         '你是长篇小说章节审查助手。你要同时审查文本质量、结构执行度与状态一致性，而不是只做泛泛评价。',
@@ -624,6 +626,11 @@ async function createLlmReview(
         null,
         2,
       ),
+      metadata: {
+        stage: 'review',
+        providerHint: llmStage.provider,
+        modelHint: llmStage.model,
+      },
     })
 
     const parsed = JSON.parse(extractJsonObject(response.text)) as Partial<ReviewReport>

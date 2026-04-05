@@ -1,4 +1,5 @@
 import type { ChapterDraft, LlmAdapter, WriteNextResult, WritingContext } from '../../shared/types/domain.js'
+import { readLlmStageConfig } from '../../shared/utils/env.js'
 import { createId } from '../../shared/utils/id.js'
 import { nowIso } from '../../shared/utils/time.js'
 import type { ChapterDraftRepository } from '../../infra/repository/chapter-draft-repository.js'
@@ -38,6 +39,7 @@ async function createLlmDraft(
   context: WritingContext,
   timestamp: string,
 ): Promise<ChapterDraft> {
+  const llmStage = readLlmStageConfig('generation')
   const response = await llmAdapter.generateText({
     system: [
       '你是长篇小说正文写作助手。你要写的是可直接阅读的章节正文，而不是提纲、摘要、设定说明或分析报告。',
@@ -51,6 +53,11 @@ async function createLlmDraft(
       '请直接输出章节正文。',
     ].join(' '),
     user: JSON.stringify(buildGenerationPromptPayload(context), null, 2),
+    metadata: {
+      stage: 'generation',
+      providerHint: llmStage.provider,
+      modelHint: llmStage.model,
+    },
   })
 
   return {

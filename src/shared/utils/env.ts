@@ -2,7 +2,7 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-import type { LlmProvider } from '../types/domain.js'
+import type { LlmProvider, LlmTaskStage } from '../types/domain.js'
 
 export type LlmProviderConfig = {
   provider: LlmProvider
@@ -16,6 +16,12 @@ export type LlmEnvConfig = {
   defaultModel: string
   openAi: LlmProviderConfig
   openAiCompatible: LlmProviderConfig
+}
+
+export type LlmStageConfig = {
+  stage: LlmTaskStage
+  provider: LlmProvider
+  model: string
 }
 
 export function readLlmEnv(): LlmEnvConfig {
@@ -39,6 +45,31 @@ export function readLlmEnv(): LlmEnvConfig {
       model: openAiCompatibleModel,
     },
   }
+}
+
+export function readLlmStageConfig(stage: LlmTaskStage, env: LlmEnvConfig = readLlmEnv()): LlmStageConfig {
+  const provider = normalizeProvider(resolveStageProvider(stage) ?? env.provider)
+  const model = resolveStageModel(stage, provider, env)
+
+  return {
+    stage,
+    provider,
+    model,
+  }
+}
+
+function resolveStageProvider(stage: LlmTaskStage): string | undefined {
+  return process.env[`LLM_${stage.toUpperCase()}_PROVIDER`]
+}
+
+function resolveStageModel(stage: LlmTaskStage, provider: LlmProvider, env: LlmEnvConfig): string {
+  const override = process.env[`LLM_${stage.toUpperCase()}_MODEL`]
+
+  if (override && override.trim().length > 0) {
+    return override.trim()
+  }
+
+  return provider === 'openai-compatible' ? env.openAiCompatible.model : env.openAi.model
 }
 
 function normalizeProvider(value: string | undefined): LlmProvider {
