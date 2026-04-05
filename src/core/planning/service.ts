@@ -942,3 +942,14 @@ function describeHookAction(action: HookPlan['action']): string {
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)]
 }
+
+export const __planningServiceTestables = {
+  normalizeStringArray,
+  normalizeSceneCards,
+  normalizeHookPlan,
+  normalizeStatePredictions,
+  buildActiveHookViews,
+  suggestHookAction,
+  describeHookAction,
+  createRuleBasedPlan,
+}
