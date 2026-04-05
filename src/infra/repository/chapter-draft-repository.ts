@@ -10,6 +10,7 @@ type ChapterDraftRow = {
   chapter_plan_id: string
   content: string
   actual_word_count: number
+  llm_metadata_json: string | null
   created_at: string
 }
 
@@ -28,8 +29,9 @@ export class ChapterDraftRepository {
           chapter_plan_id,
           content,
           actual_word_count,
+          llm_metadata_json,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       draft.id,
       draft.bookId,
@@ -38,6 +40,7 @@ export class ChapterDraftRepository {
       draft.chapterPlanId,
       draft.content,
       draft.actualWordCount,
+      draft.llmMetadata ? JSON.stringify(draft.llmMetadata) : null,
       draft.createdAt,
     )
   }
@@ -54,8 +57,9 @@ export class ChapterDraftRepository {
           chapter_plan_id,
           content,
           actual_word_count,
+          llm_metadata_json,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       draft.id,
       draft.bookId,
@@ -64,6 +68,7 @@ export class ChapterDraftRepository {
       draft.chapterPlanId,
       draft.content,
       draft.actualWordCount,
+      draft.llmMetadata ? JSON.stringify(draft.llmMetadata) : null,
       draft.createdAt,
     )
   }
@@ -152,6 +157,9 @@ function mapDraft(row: ChapterDraftRow): ChapterDraft {
     chapterPlanId: row.chapter_plan_id,
     content: row.content,
     actualWordCount: row.actual_word_count,
+    llmMetadata: row.llm_metadata_json
+      ? JSON.parse(row.llm_metadata_json) as NonNullable<ChapterDraft['llmMetadata']>
+      : undefined,
     createdAt: row.created_at,
   }
 }

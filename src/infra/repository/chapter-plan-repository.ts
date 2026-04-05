@@ -35,6 +35,7 @@ type ChapterPlanRow = {
   must_resolve_debts_json: string
   must_advance_hooks_json: string
   must_preserve_facts_json: string
+  llm_metadata_json: string | null
   created_at: string
   approved_by_user: number
 }
@@ -79,9 +80,10 @@ export class ChapterPlanRepository {
           must_resolve_debts_json,
           must_advance_hooks_json,
           must_preserve_facts_json,
+          llm_metadata_json,
           created_at,
           approved_by_user
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       plan.id,
       plan.bookId,
@@ -115,6 +117,7 @@ export class ChapterPlanRepository {
       JSON.stringify(plan.mustResolveDebts),
       JSON.stringify(plan.mustAdvanceHooks),
       JSON.stringify(plan.mustPreserveFacts),
+      plan.llmMetadata ? JSON.stringify(plan.llmMetadata) : null,
       plan.createdAt,
       plan.approvedByUser ? 1 : 0,
     )
@@ -157,9 +160,10 @@ export class ChapterPlanRepository {
           must_resolve_debts_json,
           must_advance_hooks_json,
           must_preserve_facts_json,
+          llm_metadata_json,
           created_at,
           approved_by_user
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       plan.id,
       plan.bookId,
@@ -193,6 +197,7 @@ export class ChapterPlanRepository {
       JSON.stringify(plan.mustResolveDebts),
       JSON.stringify(plan.mustAdvanceHooks),
       JSON.stringify(plan.mustPreserveFacts),
+      plan.llmMetadata ? JSON.stringify(plan.llmMetadata) : null,
       plan.createdAt,
       plan.approvedByUser ? 1 : 0,
     )
@@ -327,6 +332,9 @@ function mapChapterPlan(row: ChapterPlanRow): ChapterPlan {
     mustResolveDebts: JSON.parse(row.must_resolve_debts_json) as string[],
     mustAdvanceHooks: JSON.parse(row.must_advance_hooks_json) as string[],
     mustPreserveFacts: JSON.parse(row.must_preserve_facts_json) as string[],
+    llmMetadata: row.llm_metadata_json
+      ? JSON.parse(row.llm_metadata_json) as NonNullable<ChapterPlan['llmMetadata']>
+      : undefined,
     createdAt: row.created_at,
     approvedByUser: row.approved_by_user === 1,
   }

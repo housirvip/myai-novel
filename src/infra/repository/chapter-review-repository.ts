@@ -21,6 +21,7 @@ type ReviewRow = {
   review_layers_json: string
   outcome_candidate_json: string
   revision_advice_json: string
+  llm_metadata_json: string | null
   created_at: string
 }
 
@@ -50,8 +51,9 @@ export class ChapterReviewRepository {
           review_layers_json,
           outcome_candidate_json,
           revision_advice_json,
+          llm_metadata_json,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       review.id,
       review.bookId,
@@ -71,6 +73,7 @@ export class ChapterReviewRepository {
       JSON.stringify(review.reviewLayers),
       JSON.stringify(review.outcomeCandidate),
       JSON.stringify(review.revisionAdvice),
+      review.llmMetadata ? JSON.stringify(review.llmMetadata) : null,
       review.createdAt,
     )
   }
@@ -98,8 +101,9 @@ export class ChapterReviewRepository {
           review_layers_json,
           outcome_candidate_json,
           revision_advice_json,
+          llm_metadata_json,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       review.id,
       review.bookId,
@@ -119,6 +123,7 @@ export class ChapterReviewRepository {
       JSON.stringify(review.reviewLayers),
       JSON.stringify(review.outcomeCandidate),
       JSON.stringify(review.revisionAdvice),
+      review.llmMetadata ? JSON.stringify(review.llmMetadata) : null,
       review.createdAt,
     )
   }
@@ -224,6 +229,9 @@ function mapReview(row: ReviewRow): ReviewReport {
     reviewLayers: JSON.parse(row.review_layers_json) as ReviewReport['reviewLayers'],
     outcomeCandidate: JSON.parse(row.outcome_candidate_json) as ReviewReport['outcomeCandidate'],
     revisionAdvice: JSON.parse(row.revision_advice_json) as string[],
+    llmMetadata: row.llm_metadata_json
+      ? JSON.parse(row.llm_metadata_json) as NonNullable<ReviewReport['llmMetadata']>
+      : undefined,
     createdAt: row.created_at,
   }
 }

@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { ChapterDraftRepository } from '../../../infra/repository/chapter-draft-repository.js'
 import { NovelError } from '../../../shared/utils/errors.js'
-import { formatSection } from '../../../shared/utils/format.js'
+import { formatJson, formatSection } from '../../../shared/utils/format.js'
 import { openProjectDatabase } from '../../context.js'
 
 export function registerWorkflowDraftShowCommand(draftCommand: Command): void {
@@ -23,6 +23,10 @@ export function registerWorkflowDraftShowCommand(draftCommand: Command): void {
         console.log(`Version: ${draft.versionId}`)
         console.log(`Word count: ${draft.actualWordCount}`)
         console.log(formatSection('Content preview:', draft.content))
+
+        if (draft.llmMetadata) {
+          console.log(formatSection('LLM metadata:', formatJson(draft.llmMetadata)))
+        }
       } finally {
         database.close()
       }

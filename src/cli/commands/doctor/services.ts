@@ -18,11 +18,20 @@ type DoctorInfrastructureView = {
     activeBackend: NovelDatabase['client'] | 'unconfigured'
     configPath: string
     configPresent: boolean
+    readiness: {
+      status: 'ready' | 'warning'
+      issues: string[]
+    }
   }
   llm: {
     defaultProvider: string
     defaultModel: string
     availableProviders: string[]
+    readiness: {
+      defaultProviderConfigured: boolean
+      configuredProviderCount: number
+      stageRoutingIssues: string[]
+    }
     configuredProviders: Array<{
       provider: string
       configured: boolean
@@ -35,6 +44,7 @@ type DoctorInfrastructureView = {
       stage: string
       provider: string
       model: string
+      providerConfigured: boolean
     }>
   }
 }
@@ -250,21 +260,60 @@ function buildDoctorInfrastructureView(
 ): DoctorInfrastructureView {
   const env = readLlmEnv()
   const configPath = resolveProjectPaths(process.cwd()).databaseConfigPath
+  const configuredProviders = [
+    {
+      provider: env.openAi.provider,
+      configured: Boolean(env.openAi.apiKey),
+      baseUrl: env.openAi.baseUrl,
+      defaultModel: env.openAi.model,
+      isDefault: env.provider === env.openAi.provider,
+      usedByStages: [] as string[],
+    },
+    {
+      provider: env.openAiCompatible.provider,
+      configured: Boolean(env.openAiCompatible.apiKey),
+      baseUrl: env.openAiCompatible.baseUrl,
+      defaultModel: env.openAiCompatible.model,
+      isDefault: env.provider === env.openAiCompatible.provider,
+      usedByStages: [] as string[],
+    },
+  ]
+  const configuredProviderMap = new Map(configuredProviders.map((item) => [item.provider, item.configured]))
   const stageRouting = llmStages.map((stage) => {
     const config = readLlmStageConfig(stage)
+
+    const providerConfigured = configuredProviderMap.get(config.provider) ?? false
+
+    const matchedProvider = configuredProviders.find((item) => item.provider === config.provider)
+    if (matchedProvider) {
+      matchedProvider.usedByStages.push(stage)
+    }
 
     return {
       stage,
       provider: config.provider,
       model: config.model,
+      providerConfigured,
     }
   })
+  const databaseIssues = [
+    ...(!existsSync(configPath) ? ['缺少项目数据库配置文件 config/database.json'] : []),
+    ...(activeBackend === 'unconfigured' ? ['当前未识别到有效数据库 backend'] : []),
+  ]
+  const stageRoutingIssues = stageRouting
+    .filter((item) => !item.providerConfigured)
+    .map((item) => `阶段 ${item.stage} 当前路由到 provider=${item.provider}，但该 provider 未完成配置。`)
+  const defaultProviderConfigured = configuredProviderMap.get(env.provider) ?? false
 
   return {
     database: {
       activeBackend,
       configPath,
       configPresent: existsSync(configPath),
+      readiness: {
+        status: databaseIssues.length === 0 ? 'ready' : 'warning',
+        issues: databaseIssues,
+      },
     },
     llm: {
       defaultProvider: env.provider,
@@ -273,24 +322,12 @@ function buildDoctorInfrastructureView(
         ...(env.openAi.apiKey ? ['openai'] : []),
         ...(env.openAiCompatible.apiKey ? ['openai-compatible'] : []),
       ],
-      configuredProviders: [
-        {
-          provider: env.openAi.provider,
-          configured: Boolean(env.openAi.apiKey),
-          baseUrl: env.openAi.baseUrl,
-          defaultModel: env.openAi.model,
-          isDefault: env.provider === env.openAi.provider,
-          usedByStages: stageRouting.filter((item) => item.provider === env.openAi.provider).map((item) => item.stage),
-        },
-        {
-          provider: env.openAiCompatible.provider,
-          configured: Boolean(env.openAiCompatible.apiKey),
-          baseUrl: env.openAiCompatible.baseUrl,
-          defaultModel: env.openAiCompatible.model,
-          isDefault: env.provider === env.openAiCompatible.provider,
-          usedByStages: stageRouting.filter((item) => item.provider === env.openAiCompatible.provider).map((item) => item.stage),
-        },
-      ],
+      readiness: {
+        defaultProviderConfigured,
+        configuredProviderCount: configuredProviders.filter((item) => item.configured).length,
+        stageRoutingIssues,
+      },
+      configuredProviders,
       stageRouting,
     },
   }

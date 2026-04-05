@@ -16,6 +16,7 @@ type RewriteRow = {
   content: string
   actual_word_count: number
   validation_json: string
+  llm_metadata_json: string | null
   created_at: string
 }
 
@@ -40,8 +41,9 @@ export class ChapterRewriteRepository {
           content,
           actual_word_count,
           validation_json,
+          llm_metadata_json,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       rewrite.id,
       rewrite.bookId,
@@ -56,6 +58,7 @@ export class ChapterRewriteRepository {
       rewrite.content,
       rewrite.actualWordCount,
       JSON.stringify(rewrite.validation),
+      rewrite.llmMetadata ? JSON.stringify(rewrite.llmMetadata) : null,
       rewrite.createdAt,
     )
   }
@@ -78,8 +81,9 @@ export class ChapterRewriteRepository {
           content,
           actual_word_count,
           validation_json,
+          llm_metadata_json,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       rewrite.id,
       rewrite.bookId,
@@ -94,6 +98,7 @@ export class ChapterRewriteRepository {
       rewrite.content,
       rewrite.actualWordCount,
       JSON.stringify(rewrite.validation),
+      rewrite.llmMetadata ? JSON.stringify(rewrite.llmMetadata) : null,
       rewrite.createdAt,
     )
   }
@@ -181,6 +186,9 @@ function mapRewrite(row: RewriteRow): ChapterRewrite {
       ...validation,
       reviewDecision: normalizeReviewDecision(validation.reviewDecision),
     },
+    llmMetadata: row.llm_metadata_json
+      ? JSON.parse(row.llm_metadata_json) as NonNullable<ChapterRewrite['llmMetadata']>
+      : undefined,
     createdAt: row.created_at,
   }
 }

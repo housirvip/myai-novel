@@ -598,4 +598,13 @@ export const migrations = [
       );
     `,
   },
+  {
+    id: '018_llm_execution_metadata',
+    sql: `
+      ALTER TABLE chapter_plans ADD COLUMN llm_metadata_json TEXT;
+      ALTER TABLE chapter_drafts ADD COLUMN llm_metadata_json TEXT;
+      ALTER TABLE chapter_reviews ADD COLUMN llm_metadata_json TEXT;
+      ALTER TABLE chapter_rewrites ADD COLUMN llm_metadata_json TEXT;
+    `,
+  },
 ] as const
