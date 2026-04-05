@@ -75,6 +75,10 @@ export async function executeRegressionCase(
       return executeSecondaryProviderSmoke(targetId)
     case 'database-backend-smoke':
       return executeDatabaseBackendSmoke(database, targetId)
+    case 'sqlite-backend-smoke':
+      return executeDatabaseBackendSmoke(database, 'sqlite')
+    case 'mysql-backend-smoke':
+      return executeDatabaseBackendSmoke(database, 'mysql')
     case 'mixed-config-validation':
       return executeMixedConfigValidation()
     case 'volume-plan-smoke':

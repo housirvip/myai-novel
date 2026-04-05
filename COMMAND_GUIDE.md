@@ -1101,6 +1101,113 @@ novel state show
 
 ---
 
+### 11.5 如何切换默认 provider 与阶段模型？
+
+最小 OpenAI 配置：
+
+```bash
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-5
+```
+
+如果你希望某个阶段单独走不同 provider / model，可以继续增加：
+
+```bash
+LLM_PLANNING_PROVIDER=openai
+LLM_PLANNING_MODEL=gpt-5
+LLM_GENERATION_PROVIDER=openai-compatible
+LLM_GENERATION_MODEL=your-compatible-model
+LLM_REVIEW_TIMEOUT_MS=60000
+LLM_REWRITE_MAX_RETRIES=1
+```
+
+`v5.1` 之后，阶段路由除了 provider / model，还支持 `TIMEOUT_MS` 与 `MAX_RETRIES`。最终命中的默认 provider、阶段路由、超时与重试配置，可通过：
+
+```bash
+novel doctor
+```
+
+直接查看。
+
+---
+
+### 11.6 如何初始化 SQLite / MySQL 项目？
+
+SQLite：
+
+```bash
+novel init \
+  --title "测试之书" \
+  --genre "奇幻" \
+  --db-client sqlite \
+  --db-filename data/novel.sqlite
+```
+
+MySQL：
+
+```bash
+novel init \
+  --title "测试之书" \
+  --genre "奇幻" \
+  --db-client mysql \
+  --db-host 127.0.0.1 \
+  --db-port 3306 \
+  --db-user root \
+  --db-password secret \
+  --db-name myai_novel
+```
+
+如果初始化失败，`v5.1` 之后 CLI 会明确提示是哪个 backend 打开/迁移失败。此时建议依次检查：
+
+- `config/database.json` 是否存在且字段完整
+- MySQL 主机、端口、用户名、数据库名是否可连通
+- 当前目录是否就是小说项目根目录
+- 是否先执行了 `novel init`
+
+---
+
+### 11.7 如何用 doctor / regression 验收基础设施？
+
+先看当前到底跑在哪个 provider/backend 上：
+
+```bash
+novel doctor
+```
+
+然后看有哪些基础设施回归项：
+
+```bash
+novel regression list
+```
+
+推荐最小验收顺序：
+
+```bash
+novel regression run llm-provider-smoke
+novel regression run secondary-provider-smoke
+novel regression run mixed-config-validation
+novel regression run sqlite-backend-smoke
+novel regression run mysql-backend-smoke
+novel regression run database-backend-smoke
+```
+
+如果项目已经初始化并存在具体卷，还可以继续：
+
+```bash
+novel doctor volume <volumeId>
+novel regression volume <volumeId>
+```
+
+这套组合对应 `v5.1` 的核心目标：
+
+- 看得见当前 provider / backend / stage routing
+- 能尽早发现 provider 凭据缺失、阶段路由错配、数据库配置不完整
+- 对卷级 planning / thread / ending / doctor 能建立最小保护面
+
+---
+
 ## 12. 建议配套阅读
 
 - [`README.md`](README.md)

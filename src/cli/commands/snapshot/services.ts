@@ -43,6 +43,37 @@ export function loadSnapshotStateView(database: NovelDatabase): {
   }
 }
 
+export async function loadSnapshotStateViewAsync(database: NovelDatabase): Promise<{
+  storyState: unknown
+  chapters: Array<{
+    chapterId: string
+    title: string
+    status: string
+    currentPlanVersionId: string | null
+    currentVersionId: string | null
+  }>
+}> {
+  const book = await new BookRepository(database).getFirstAsync()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const chapterRepository = new ChapterRepository(database)
+  const chapters = await chapterRepository.listByBookIdAsync(book.id)
+
+  return {
+    storyState: await new StoryStateRepository(database).getByBookIdAsync(book.id) ?? null,
+    chapters: chapters.map((chapter) => ({
+      chapterId: chapter.id,
+      title: chapter.title,
+      status: chapter.status,
+      currentPlanVersionId: chapter.currentPlanVersionId ?? null,
+      currentVersionId: chapter.currentVersionId ?? null,
+    })),
+  }
+}
+
 export function loadSnapshotChapterView(database: NovelDatabase, chapterId: string): {
   chapter: unknown
   latestPlan: unknown
@@ -65,5 +96,38 @@ export function loadSnapshotChapterView(database: NovelDatabase, chapterId: stri
     latestReview: new ChapterReviewRepository(database).getLatestByChapterId(chapterId),
     latestRewrite: new ChapterRewriteRepository(database).getLatestByChapterId(chapterId),
     latestOutput: new ChapterOutputRepository(database).getLatestByChapterId(chapterId),
+  }
+}
+
+export async function loadSnapshotChapterViewAsync(database: NovelDatabase, chapterId: string): Promise<{
+  chapter: unknown
+  latestPlan: unknown
+  latestDraft: unknown
+  latestReview: unknown
+  latestRewrite: unknown
+  latestOutput: unknown
+}> {
+  const chapterRepository = new ChapterRepository(database)
+  const chapter = await chapterRepository.getByIdAsync(chapterId)
+
+  if (!chapter) {
+    throw new NovelError(`Chapter not found: ${chapterId}`)
+  }
+
+  const [latestPlan, latestDraft, latestReview, latestRewrite, latestOutput] = await Promise.all([
+    new ChapterPlanRepository(database).getLatestByChapterIdAsync(chapterId),
+    new ChapterDraftRepository(database).getLatestByChapterIdAsync(chapterId),
+    new ChapterReviewRepository(database).getLatestByChapterIdAsync(chapterId),
+    new ChapterRewriteRepository(database).getLatestByChapterIdAsync(chapterId),
+    new ChapterOutputRepository(database).getLatestByChapterIdAsync(chapterId),
+  ])
+
+  return {
+    chapter,
+    latestPlan,
+    latestDraft,
+    latestReview,
+    latestRewrite,
+    latestOutput,
   }
 }

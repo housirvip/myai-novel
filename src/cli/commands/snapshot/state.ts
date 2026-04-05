@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { openProjectDatabase } from '../../context.js'
 import { printStateSnapshot } from './printers.js'
-import { loadSnapshotStateView } from './services.js'
+import { loadSnapshotStateViewAsync } from './services.js'
 
 export function registerSnapshotStateCommand(snapshotCommand: Command): void {
   snapshotCommand
@@ -12,7 +12,7 @@ export function registerSnapshotStateCommand(snapshotCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        printStateSnapshot(loadSnapshotStateView(database))
+        printStateSnapshot(await loadSnapshotStateViewAsync(database))
       } finally {
         database.close()
       }

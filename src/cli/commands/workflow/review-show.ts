@@ -13,7 +13,7 @@ export function registerWorkflowReviewShowCommand(reviewCommand: Command): void 
       const database = await openProjectDatabase()
 
       try {
-        const review = new ChapterReviewRepository(database).getLatestByChapterId(chapterId)
+        const review = await new ChapterReviewRepository(database).getLatestByChapterIdAsync(chapterId)
 
         if (!review) {
           throw new NovelError(`No chapter review found for chapter: ${chapterId}`)

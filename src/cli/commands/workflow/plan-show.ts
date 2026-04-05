@@ -13,7 +13,7 @@ export function registerWorkflowPlanShowCommand(planCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        const plan = new ChapterPlanRepository(database).getLatestByChapterId(chapterId)
+        const plan = await new ChapterPlanRepository(database).getLatestByChapterIdAsync(chapterId)
 
         if (!plan) {
           throw new NovelError(`No chapter plan found for chapter: ${chapterId}`)

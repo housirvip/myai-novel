@@ -36,23 +36,37 @@ export function registerChapterShowCommand(chapterCommand: Command): void {
         const stateUpdateRepository = new ChapterStateUpdateRepository(database)
         const memoryUpdateRepository = new ChapterMemoryUpdateRepository(database)
         const hookUpdateRepository = new ChapterHookUpdateRepository(database)
-        const chapter = chapterRepository.getById(chapterId)
+        const chapter = await chapterRepository.getByIdAsync(chapterId)
 
         if (!chapter) {
           throw new NovelError(`Chapter not found: ${chapterId}`)
         }
 
-        const latestPlan = planRepository.getLatestByChapterId(chapterId)
-        const latestDraft = draftRepository.getLatestByChapterId(chapterId)
-        const latestReview = reviewRepository.getLatestByChapterId(chapterId)
-        const latestRewrite = rewriteRepository.getLatestByChapterId(chapterId)
-        const latestOutput = outputRepository.getLatestByChapterId(chapterId)
-        const latestOutcome = outcomeRepository.getLatestByChapterId(chapterId)
-        const chapterDebts = narrativeDebtRepository.listByChapterId(chapterId)
-        const chapterContradictions = contradictionRepository.listByChapterId(chapterId)
-        const latestStateUpdates = stateUpdateRepository.listByChapterId(chapterId)
-        const latestMemoryUpdates = memoryUpdateRepository.listByChapterId(chapterId)
-        const latestHookUpdates = hookUpdateRepository.listByChapterId(chapterId)
+        const [
+          latestPlan,
+          latestDraft,
+          latestReview,
+          latestRewrite,
+          latestOutput,
+          latestOutcome,
+          chapterDebts,
+          chapterContradictions,
+          latestStateUpdates,
+          latestMemoryUpdates,
+          latestHookUpdates,
+        ] = await Promise.all([
+          planRepository.getLatestByChapterIdAsync(chapterId),
+          draftRepository.getLatestByChapterIdAsync(chapterId),
+          reviewRepository.getLatestByChapterIdAsync(chapterId),
+          rewriteRepository.getLatestByChapterIdAsync(chapterId),
+          outputRepository.getLatestByChapterIdAsync(chapterId),
+          outcomeRepository.getLatestByChapterIdAsync(chapterId),
+          narrativeDebtRepository.listByChapterIdAsync(chapterId),
+          contradictionRepository.listByChapterIdAsync(chapterId),
+          stateUpdateRepository.listByChapterIdAsync(chapterId),
+          memoryUpdateRepository.listByChapterIdAsync(chapterId),
+          hookUpdateRepository.listByChapterIdAsync(chapterId),
+        ])
 
         printChapterShowSummary({
           chapter,

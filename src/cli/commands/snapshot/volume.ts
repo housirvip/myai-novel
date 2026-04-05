@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { openProjectDatabase } from '../../context.js'
 import { printVolumeSnapshot } from './volume-printers.js'
-import { loadSnapshotVolumeView } from './volume-services.js'
+import { loadSnapshotVolumeViewAsync } from './volume-services.js'
 
 export function registerSnapshotVolumeCommand(snapshotCommand: Command): void {
   snapshotCommand
@@ -12,7 +12,7 @@ export function registerSnapshotVolumeCommand(snapshotCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        printVolumeSnapshot(loadSnapshotVolumeView(database, volumeId))
+        printVolumeSnapshot(await loadSnapshotVolumeViewAsync(database, volumeId))
       } finally {
         database.close()
       }

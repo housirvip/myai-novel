@@ -265,6 +265,9 @@ async function createLlmRewrite(
         stage: 'rewrite',
         providerHint: llmStage.provider,
         modelHint: llmStage.model,
+        timeoutMs: llmStage.timeoutMs,
+        maxRetries: llmStage.maxRetries,
+        traceId: `rewrite:${chapterTitle}`,
       },
     })
 

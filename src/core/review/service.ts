@@ -631,6 +631,9 @@ async function createLlmReview(
         stage: 'review',
         providerHint: llmStage.provider,
         modelHint: llmStage.model,
+        timeoutMs: llmStage.timeoutMs,
+        maxRetries: llmStage.maxRetries,
+        traceId: `review:${chapterTitle}`,
       },
     })
 

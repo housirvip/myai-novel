@@ -201,6 +201,9 @@ async function createLlmPlan(
       stage: 'planning',
       providerHint: llmStage.provider,
       modelHint: llmStage.model,
+      timeoutMs: llmStage.timeoutMs,
+      maxRetries: llmStage.maxRetries,
+      traceId: `planning:${context.chapter.id}`,
     },
   })
 

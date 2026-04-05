@@ -58,6 +58,9 @@ async function createLlmDraft(
       stage: 'generation',
       providerHint: llmStage.provider,
       modelHint: llmStage.model,
+      timeoutMs: llmStage.timeoutMs,
+      maxRetries: llmStage.maxRetries,
+      traceId: `generation:${context.chapter.id}`,
     },
   })
 

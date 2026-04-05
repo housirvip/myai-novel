@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { openProjectDatabase } from '../../context.js'
 import { printChapterSnapshot } from './printers.js'
-import { loadSnapshotChapterView } from './services.js'
+import { loadSnapshotChapterViewAsync } from './services.js'
 
 export function registerSnapshotChapterCommand(snapshotCommand: Command): void {
   snapshotCommand
@@ -12,7 +12,7 @@ export function registerSnapshotChapterCommand(snapshotCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        printChapterSnapshot(loadSnapshotChapterView(database, chapterId))
+        printChapterSnapshot(await loadSnapshotChapterViewAsync(database, chapterId))
       } finally {
         database.close()
       }

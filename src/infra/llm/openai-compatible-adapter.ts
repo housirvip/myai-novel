@@ -1,4 +1,6 @@
 import type { GenerateResult, LlmAdapter, PromptInput } from '../../shared/types/domain.js'
+import { LlmRequestError } from '../../shared/utils/errors.js'
+import { executeResponsesRequest } from './request-runtime.js'
 
 type OpenAiCompatibleAdapterOptions = {
   apiKey: string
@@ -24,14 +26,15 @@ export class OpenAiCompatibleLlmAdapter implements LlmAdapter {
   constructor(private readonly options: OpenAiCompatibleAdapterOptions) {}
 
   async generateText(input: PromptInput): Promise<GenerateResult> {
-    const startedAt = Date.now()
-    const response = await fetch(`${this.options.baseUrl}/responses`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.options.apiKey}`,
-      },
-      body: JSON.stringify({
+    const timeoutMs = input.metadata?.timeoutMs ?? 60000
+    const maxRetries = input.metadata?.maxRetries ?? 1
+    const request = await executeResponsesRequest<CompatibleResponsesApiResponse>({
+      provider: this.provider,
+      url: `${this.options.baseUrl}/responses`,
+      apiKey: this.options.apiKey,
+      timeoutMs,
+      maxRetries,
+      body: {
         model: input.metadata?.modelHint ?? this.options.model,
         input: [
           ...(input.system
@@ -47,15 +50,9 @@ export class OpenAiCompatibleLlmAdapter implements LlmAdapter {
             content: input.user,
           },
         ],
-      }),
+      },
     })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`OpenAI-compatible request failed: ${response.status} ${errorText}`)
-    }
-
-    const payload = (await response.json()) as CompatibleResponsesApiResponse
+    const payload = request.payload
     const text = payload.output
       ?.flatMap((item) => item.content ?? [])
       .filter((item) => item.type === 'output_text' && typeof item.text === 'string')
@@ -64,7 +61,10 @@ export class OpenAiCompatibleLlmAdapter implements LlmAdapter {
       .trim()
 
     if (!text) {
-      throw new Error('OpenAI-compatible response did not include text output')
+      throw new LlmRequestError('OpenAI-compatible response did not include text output', 'invalid-response', {
+        provider: this.provider,
+        retryable: false,
+      })
     }
 
     return {
@@ -72,17 +72,22 @@ export class OpenAiCompatibleLlmAdapter implements LlmAdapter {
       provider: this.provider,
       model: input.metadata?.modelHint ?? this.options.model,
       responseId: payload.id,
-      latencyMs: Date.now() - startedAt,
+      latencyMs: request.latencyMs,
       metadata: {
+        stage: input.metadata?.stage,
         selectedProvider: this.provider,
         providerSource: 'default-provider',
         selectedModel: input.metadata?.modelHint ?? this.options.model,
         modelSource: input.metadata?.modelHint ? 'input-hint' : 'provider-default',
         fallbackUsed: false,
-        requestId: response.headers.get('x-request-id') ?? response.headers.get('openai-request-id') ?? undefined,
+        requestId: request.requestId,
         finishReason: payload.status,
         rawUsage: payload.usage,
-        latencyMs: Date.now() - startedAt,
+        latencyMs: request.latencyMs,
+        retryCount: request.retryCount,
+        timeoutMs,
+        maxRetries,
+        traceId: input.metadata?.traceId,
       },
     }
   }

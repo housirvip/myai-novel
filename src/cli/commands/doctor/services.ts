@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 
 import type { NovelDatabase } from '../../../infra/db/database.js'
 import type { LlmTaskStage } from '../../../shared/types/domain.js'
+import { summarizeLlmMetadata } from '../../context.js'
 import { BookRepository } from '../../../infra/repository/book-repository.js'
 import { ChapterDraftRepository } from '../../../infra/repository/chapter-draft-repository.js'
 import { ChapterOutputRepository } from '../../../infra/repository/chapter-output-repository.js'
@@ -37,6 +38,8 @@ type DoctorInfrastructureView = {
       configured: boolean
       baseUrl: string
       defaultModel: string
+      timeoutMs: number
+      maxRetries: number
       isDefault: boolean
       usedByStages: string[]
     }>
@@ -44,6 +47,8 @@ type DoctorInfrastructureView = {
       stage: string
       provider: string
       model: string
+      timeoutMs: number
+      maxRetries: number
       providerConfigured: boolean
     }>
   }
@@ -171,6 +176,13 @@ export function loadDoctorChapterView(database: NovelDatabase, chapterId: string
     latestReviewId: string | null
     latestRewriteId: string | null
     latestOutputId: string | null
+    currentPlanMatchesLatestPlan: boolean | null
+    currentVersionMatchesLatestDraft: boolean | null
+    currentVersionMatchesLatestRewrite: boolean | null
+    latestPlanLlm: Record<string, unknown> | undefined
+    latestDraftLlm: Record<string, unknown> | undefined
+    latestReviewLlm: Record<string, unknown> | undefined
+    latestRewriteLlm: Record<string, unknown> | undefined
     operationLogDir: string
   }
 } {
@@ -186,6 +198,12 @@ export function loadDoctorChapterView(database: NovelDatabase, chapterId: string
     throw new NovelError(`Chapter not found: ${chapterId}`)
   }
 
+  const latestPlan = planRepository.getLatestByChapterId(chapterId)
+  const latestDraft = draftRepository.getLatestByChapterId(chapterId)
+  const latestReview = reviewRepository.getLatestByChapterId(chapterId)
+  const latestRewrite = rewriteRepository.getLatestByChapterId(chapterId)
+  const latestOutput = outputRepository.getLatestByChapterId(chapterId)
+
   return {
     chapter,
     workflowChain: {
@@ -193,11 +211,18 @@ export function loadDoctorChapterView(database: NovelDatabase, chapterId: string
       status: chapter.status,
       currentPlanVersionId: chapter.currentPlanVersionId ?? null,
       currentVersionId: chapter.currentVersionId ?? null,
-      latestPlanId: planRepository.getLatestByChapterId(chapterId)?.versionId ?? null,
-      latestDraftId: draftRepository.getLatestByChapterId(chapterId)?.id ?? null,
-      latestReviewId: reviewRepository.getLatestByChapterId(chapterId)?.id ?? null,
-      latestRewriteId: rewriteRepository.getLatestByChapterId(chapterId)?.id ?? null,
-      latestOutputId: outputRepository.getLatestByChapterId(chapterId)?.id ?? null,
+      latestPlanId: latestPlan?.versionId ?? null,
+      latestDraftId: latestDraft?.id ?? null,
+      latestReviewId: latestReview?.id ?? null,
+      latestRewriteId: latestRewrite?.id ?? null,
+      latestOutputId: latestOutput?.id ?? null,
+      currentPlanMatchesLatestPlan: latestPlan ? chapter.currentPlanVersionId === latestPlan.versionId : null,
+      currentVersionMatchesLatestDraft: latestDraft ? chapter.currentVersionId === latestDraft.versionId : null,
+      currentVersionMatchesLatestRewrite: latestRewrite ? chapter.currentVersionId === latestRewrite.versionId : null,
+      latestPlanLlm: summarizeLlmMetadata(latestPlan?.llmMetadata),
+      latestDraftLlm: summarizeLlmMetadata(latestDraft?.llmMetadata),
+      latestReviewLlm: summarizeLlmMetadata(latestReview?.llmMetadata),
+      latestRewriteLlm: summarizeLlmMetadata(latestRewrite?.llmMetadata),
       operationLogDir: resolveOperationLogDir(process.cwd()),
     },
   }
@@ -222,6 +247,13 @@ export async function loadDoctorChapterViewAsync(database: NovelDatabase, chapte
     latestReviewId: string | null
     latestRewriteId: string | null
     latestOutputId: string | null
+    currentPlanMatchesLatestPlan: boolean | null
+    currentVersionMatchesLatestDraft: boolean | null
+    currentVersionMatchesLatestRewrite: boolean | null
+    latestPlanLlm: Record<string, unknown> | undefined
+    latestDraftLlm: Record<string, unknown> | undefined
+    latestReviewLlm: Record<string, unknown> | undefined
+    latestRewriteLlm: Record<string, unknown> | undefined
     operationLogDir: string
   }
 }> {
@@ -237,6 +269,14 @@ export async function loadDoctorChapterViewAsync(database: NovelDatabase, chapte
     throw new NovelError(`Chapter not found: ${chapterId}`)
   }
 
+  const [latestPlan, latestDraft, latestReview, latestRewrite, latestOutput] = await Promise.all([
+    planRepository.getLatestByChapterIdAsync(chapterId),
+    draftRepository.getLatestByChapterIdAsync(chapterId),
+    reviewRepository.getLatestByChapterIdAsync(chapterId),
+    rewriteRepository.getLatestByChapterIdAsync(chapterId),
+    outputRepository.getLatestByChapterIdAsync(chapterId),
+  ])
+
   return {
     chapter,
     workflowChain: {
@@ -244,11 +284,18 @@ export async function loadDoctorChapterViewAsync(database: NovelDatabase, chapte
       status: chapter.status,
       currentPlanVersionId: chapter.currentPlanVersionId ?? null,
       currentVersionId: chapter.currentVersionId ?? null,
-      latestPlanId: (await planRepository.getLatestByChapterIdAsync(chapterId))?.versionId ?? null,
-      latestDraftId: (await draftRepository.getLatestByChapterIdAsync(chapterId))?.id ?? null,
-      latestReviewId: (await reviewRepository.getLatestByChapterIdAsync(chapterId))?.id ?? null,
-      latestRewriteId: (await rewriteRepository.getLatestByChapterIdAsync(chapterId))?.id ?? null,
-      latestOutputId: (await outputRepository.getLatestByChapterIdAsync(chapterId))?.id ?? null,
+      latestPlanId: latestPlan?.versionId ?? null,
+      latestDraftId: latestDraft?.id ?? null,
+      latestReviewId: latestReview?.id ?? null,
+      latestRewriteId: latestRewrite?.id ?? null,
+      latestOutputId: latestOutput?.id ?? null,
+      currentPlanMatchesLatestPlan: latestPlan ? chapter.currentPlanVersionId === latestPlan.versionId : null,
+      currentVersionMatchesLatestDraft: latestDraft ? chapter.currentVersionId === latestDraft.versionId : null,
+      currentVersionMatchesLatestRewrite: latestRewrite ? chapter.currentVersionId === latestRewrite.versionId : null,
+      latestPlanLlm: summarizeLlmMetadata(latestPlan?.llmMetadata),
+      latestDraftLlm: summarizeLlmMetadata(latestDraft?.llmMetadata),
+      latestReviewLlm: summarizeLlmMetadata(latestReview?.llmMetadata),
+      latestRewriteLlm: summarizeLlmMetadata(latestRewrite?.llmMetadata),
       operationLogDir: resolveOperationLogDir(process.cwd()),
     },
   }
@@ -266,6 +313,8 @@ function buildDoctorInfrastructureView(
       configured: Boolean(env.openAi.apiKey),
       baseUrl: env.openAi.baseUrl,
       defaultModel: env.openAi.model,
+      timeoutMs: env.openAi.timeoutMs,
+      maxRetries: env.openAi.maxRetries,
       isDefault: env.provider === env.openAi.provider,
       usedByStages: [] as string[],
     },
@@ -274,6 +323,8 @@ function buildDoctorInfrastructureView(
       configured: Boolean(env.openAiCompatible.apiKey),
       baseUrl: env.openAiCompatible.baseUrl,
       defaultModel: env.openAiCompatible.model,
+      timeoutMs: env.openAiCompatible.timeoutMs,
+      maxRetries: env.openAiCompatible.maxRetries,
       isDefault: env.provider === env.openAiCompatible.provider,
       usedByStages: [] as string[],
     },
@@ -293,6 +344,8 @@ function buildDoctorInfrastructureView(
       stage,
       provider: config.provider,
       model: config.model,
+      timeoutMs: config.timeoutMs,
+      maxRetries: config.maxRetries,
       providerConfigured,
     }
   })

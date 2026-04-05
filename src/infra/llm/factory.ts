@@ -1,6 +1,7 @@
 import type {
   GenerateResult,
   LlmAdapter,
+  LlmExecutionMetadata,
   LlmModelSource,
   LlmProvider,
   LlmResolutionSource,
@@ -34,67 +35,119 @@ class RoutedLlmAdapter implements LlmAdapter {
 
   async generateText(input: PromptInput): Promise<GenerateResult> {
     const providerResolution = resolveRequestedProvider(input, this.env)
-    const adapterResolution = this.pickAdapter(providerResolution.provider)
-    const adapter = adapterResolution.adapter
+    const adapterAttempts = this.pickAdapterAttempts(providerResolution.provider)
 
-    if (!adapter) {
+    if (adapterAttempts.length === 0) {
       throw new Error('No configured LLM provider is available for this request.')
     }
 
-    const selectedProvider = adapter.provider
-    const modelResolution = resolveSelectedModel(input, selectedProvider, this.env, providerResolution.provider)
-    const selectedModel = modelResolution.model
+    let lastError: unknown
 
-    const result = await adapter.generateText({
-      ...input,
-      metadata: {
-        ...input.metadata,
-        providerHint: selectedProvider,
-        modelHint: selectedModel,
-      },
-    })
+    for (let index = 0; index < adapterAttempts.length; index += 1) {
+      const attempt = adapterAttempts[index]
+      const selectedProvider = attempt.provider
+      const stageConfig = resolveStageExecutionConfig(input.metadata?.stage, selectedProvider, this.env)
+      const modelResolution = resolveSelectedModel(input, selectedProvider, this.env, providerResolution.provider)
+      const selectedModel = modelResolution.model
 
-    return {
-      ...result,
-      provider: selectedProvider,
-      model: selectedModel,
-      metadata: {
-        ...result.metadata,
-        stage: input.metadata?.stage,
-        requestedProvider: providerResolution.provider,
-        selectedProvider,
-        providerSource: adapterResolution.fallbackFromProvider ? 'fallback' : providerResolution.source,
-        requestedModel: input.metadata?.modelHint,
-        selectedModel,
-        modelSource: modelResolution.source,
-        fallbackUsed: Boolean(adapterResolution.fallbackFromProvider),
-        fallbackFromProvider: adapterResolution.fallbackFromProvider,
-        responseId: result.responseId,
-        latencyMs: result.latencyMs,
-        retryCount: result.metadata?.retryCount ?? 0,
-      },
+      try {
+        const result = await attempt.adapter.generateText({
+          ...input,
+          metadata: {
+            ...input.metadata,
+            providerHint: selectedProvider,
+            modelHint: selectedModel,
+            timeoutMs: input.metadata?.timeoutMs ?? stageConfig.timeoutMs,
+            maxRetries: input.metadata?.maxRetries ?? stageConfig.maxRetries,
+            traceId: input.metadata?.traceId ?? `${input.metadata?.stage ?? 'general'}:${Date.now()}`,
+          },
+        })
+
+        return buildUnifiedResult({
+          input,
+          result,
+          providerResolution,
+          selectedProvider,
+          selectedModel,
+          modelResolution,
+          fallbackFromProvider: attempt.fallbackFromProvider,
+          providerAttemptCount: index + 1,
+        })
+      } catch (error) {
+        lastError = error
+      }
     }
+
+    throw lastError instanceof Error ? lastError : new Error('No configured LLM provider is available for this request.')
   }
 
-  private pickAdapter(requestedProvider: LlmProvider): {
-    adapter: LlmAdapter | null
+  private pickAdapterAttempts(requestedProvider: LlmProvider): Array<{
+    provider: LlmProvider
+    adapter: LlmAdapter
     fallbackFromProvider?: LlmProvider
-  } {
+  }> {
+    const attempts: Array<{
+      provider: LlmProvider
+      adapter: LlmAdapter
+      fallbackFromProvider?: LlmProvider
+    }> = []
     const direct = this.registry[requestedProvider] ?? null
 
     if (direct) {
-      return { adapter: direct }
+      attempts.push({ provider: requestedProvider, adapter: direct })
     }
 
-    const fallback = this.registry[this.env.provider]
-      ?? this.registry.openai
-      ?? this.registry['openai-compatible']
-      ?? null
+    for (const fallbackProvider of [this.env.provider, 'openai', 'openai-compatible'] as const) {
+      const fallback = this.registry[fallbackProvider]
 
-    return {
-      adapter: fallback,
-      fallbackFromProvider: fallback ? requestedProvider : undefined,
+      if (!fallback || attempts.some((item) => item.provider === fallbackProvider)) {
+        continue
+      }
+
+      attempts.push({
+        provider: fallbackProvider,
+        adapter: fallback,
+        fallbackFromProvider: requestedProvider,
+      })
     }
+
+    return attempts
+  }
+}
+
+function buildUnifiedResult(input: {
+  input: PromptInput
+  result: GenerateResult
+  providerResolution: { provider: LlmProvider; source: Exclude<LlmResolutionSource, 'fallback'> }
+  selectedProvider: LlmProvider
+  selectedModel: string
+  modelResolution: { model: string; source: LlmModelSource }
+  fallbackFromProvider?: LlmProvider
+  providerAttemptCount: number
+}): GenerateResult {
+  return {
+    ...input.result,
+    provider: input.selectedProvider,
+    model: input.selectedModel,
+    metadata: {
+      ...(input.result.metadata as LlmExecutionMetadata | undefined),
+      stage: input.input.metadata?.stage,
+      requestedProvider: input.providerResolution.provider,
+      selectedProvider: input.selectedProvider,
+      providerSource: input.fallbackFromProvider ? 'fallback' : input.providerResolution.source,
+      requestedModel: input.input.metadata?.modelHint,
+      selectedModel: input.selectedModel,
+      modelSource: input.modelResolution.source,
+      fallbackUsed: Boolean(input.fallbackFromProvider),
+      fallbackFromProvider: input.fallbackFromProvider,
+      responseId: input.result.responseId,
+      latencyMs: input.result.latencyMs,
+      retryCount: input.result.metadata?.retryCount ?? 0,
+      timeoutMs: input.input.metadata?.timeoutMs ?? input.result.metadata?.timeoutMs,
+      maxRetries: input.input.metadata?.maxRetries ?? input.result.metadata?.maxRetries,
+      traceId: input.input.metadata?.traceId ?? input.result.metadata?.traceId,
+      providerAttemptCount: input.providerAttemptCount,
+    },
   }
 }
 
@@ -181,5 +234,28 @@ function resolveProviderModel(
   return {
     model: provider === 'openai-compatible' ? env.openAiCompatible.model : env.openAi.model,
     source: 'provider-default',
+  }
+}
+
+function resolveStageExecutionConfig(
+  stage: LlmTaskStage | undefined,
+  provider: LlmProvider,
+  env: LlmEnvConfig,
+): { timeoutMs: number; maxRetries: number } {
+  if (stage && stage !== 'general') {
+    const stageConfig = readLlmStageConfig(stage, env)
+
+    if (stageConfig.provider === provider) {
+      return {
+        timeoutMs: stageConfig.timeoutMs,
+        maxRetries: stageConfig.maxRetries,
+      }
+    }
+  }
+
+  const providerConfig = provider === 'openai-compatible' ? env.openAiCompatible : env.openAi
+  return {
+    timeoutMs: providerConfig.timeoutMs,
+    maxRetries: providerConfig.maxRetries,
   }
 }

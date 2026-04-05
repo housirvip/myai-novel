@@ -28,5 +28,7 @@ function isProjectlessRegressionCase(caseName: string): boolean {
   return caseName === 'llm-provider-smoke'
     || caseName === 'secondary-provider-smoke'
     || caseName === 'database-backend-smoke'
+    || caseName === 'sqlite-backend-smoke'
+    || caseName === 'mysql-backend-smoke'
     || caseName === 'mixed-config-validation'
 }

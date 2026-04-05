@@ -126,6 +126,10 @@ function registerInitCommand(program: Command): void {
       )
 
       try {
+        if (database.client === 'mysql') {
+          await database.mysql.connect()
+        }
+
         await runMigrations(database)
 
         const bookService = new BookService(
@@ -144,6 +148,8 @@ function registerInitCommand(program: Command): void {
         console.log(
           `Database: ${databaseConfig.client === 'sqlite' ? paths.databaseFilePath : `${databaseConfig.host}:${databaseConfig.port}/${databaseConfig.database}`}`,
         )
+      } catch (error) {
+        throw new NovelError(`Project init failed for ${databaseConfig.client} backend: ${error instanceof Error ? error.message : 'Unknown error'}`)
       } finally {
         database.close()
       }

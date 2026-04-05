@@ -59,3 +59,53 @@ export function loadSnapshotVolumeView(database: NovelDatabase, volumeId: string
     chapters,
   }
 }
+
+export async function loadSnapshotVolumeViewAsync(database: NovelDatabase, volumeId: string): Promise<{
+  volume: unknown
+  latestVolumePlan: unknown | null
+  storyThreads: unknown[]
+  endingReadiness: unknown | null
+  chapters: Array<{
+    chapter: unknown
+    latestPlan: unknown
+    latestDraft: unknown
+    latestReview: unknown
+    latestRewrite: unknown
+    latestOutput: unknown
+  }>
+}> {
+  const book = await new BookRepository(database).getFirstAsync()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const volume = await new VolumeRepository(database).getByIdAsync(volumeId)
+
+  if (!volume) {
+    throw new NovelError(`Volume not found: ${volumeId}`)
+  }
+
+  const chapterRepository = new ChapterRepository(database)
+  const chapterRows = await chapterRepository.listByBookIdAsync(book.id)
+  const chapters = await Promise.all(
+    chapterRows
+      .filter((chapter) => chapter.volumeId === volumeId)
+      .map(async (chapter) => ({
+        chapter,
+        latestPlan: await new ChapterPlanRepository(database).getLatestByChapterIdAsync(chapter.id),
+        latestDraft: await new ChapterDraftRepository(database).getLatestByChapterIdAsync(chapter.id),
+        latestReview: await new ChapterReviewRepository(database).getLatestByChapterIdAsync(chapter.id),
+        latestRewrite: await new ChapterRewriteRepository(database).getLatestByChapterIdAsync(chapter.id),
+        latestOutput: await new ChapterOutputRepository(database).getLatestByChapterIdAsync(chapter.id),
+      })),
+  )
+
+  return {
+    volume,
+    latestVolumePlan: await new VolumePlanRepository(database).getLatestByVolumeIdAsync(volumeId),
+    storyThreads: await new StoryThreadRepository(database).listByVolumeIdAsync(volumeId),
+    endingReadiness: await new EndingReadinessRepository(database).getByBookIdAsync(book.id),
+    chapters,
+  }
+}

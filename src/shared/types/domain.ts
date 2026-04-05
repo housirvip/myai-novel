@@ -1075,6 +1075,11 @@ export type LlmExecutionMetadata = {
   latencyMs?: number
   finishReason?: string
   retryCount?: number
+  timeoutMs?: number
+  maxRetries?: number
+  traceId?: string
+  errorCategory?: 'timeout' | 'rate-limit' | 'auth' | 'network' | 'server' | 'client' | 'invalid-response' | 'unknown'
+  providerAttemptCount?: number
   rawUsage?: Record<string, unknown>
 }
 

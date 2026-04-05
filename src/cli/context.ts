@@ -3,24 +3,38 @@ import path from 'node:path'
 import { openDatabase, type NovelDatabase } from '../infra/db/database.js'
 import { runMigrations } from '../infra/db/migrate.js'
 import type { LlmExecutionMetadata } from '../shared/types/domain.js'
+import { NovelError, toErrorMessage } from '../shared/utils/errors.js'
 import { createCommandLogger } from '../shared/utils/logging.js'
 import { readProjectConfig } from '../shared/utils/project-paths.js'
 
 export async function openProjectDatabase(): Promise<NovelDatabase> {
   const rootDir = process.cwd()
-  const config = await readProjectConfig(rootDir)
-  const database = openDatabase(
-    config.database.client === 'sqlite'
-      ? {
-          ...config.database,
-          filename: path.resolve(rootDir, config.database.filename),
-        }
-      : config.database,
-  )
 
-  await runMigrations(database)
+  try {
+    const config = await readProjectConfig(rootDir)
+    const database = openDatabase(
+      config.database.client === 'sqlite'
+        ? {
+            ...config.database,
+            filename: path.resolve(rootDir, config.database.filename),
+          }
+        : config.database,
+    )
 
-  return database
+    try {
+      if (database.client === 'mysql') {
+        await database.mysql.connect()
+      }
+
+      await runMigrations(database)
+      return database
+    } catch (error) {
+      database.close()
+      throw error
+    }
+  } catch (error) {
+    throw new NovelError(`Failed to open project database: ${toErrorMessage(error)}`)
+  }
 }
 
 export async function runLoggedCommand<T>(input: {

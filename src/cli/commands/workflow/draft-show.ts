@@ -13,7 +13,7 @@ export function registerWorkflowDraftShowCommand(draftCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        const draft = new ChapterDraftRepository(database).getLatestByChapterId(chapterId)
+        const draft = await new ChapterDraftRepository(database).getLatestByChapterIdAsync(chapterId)
 
         if (!draft) {
           throw new NovelError(`No chapter draft found for chapter: ${chapterId}`)

@@ -13,7 +13,7 @@ export function registerWorkflowRewriteShowCommand(rewriteCommand: Command): voi
       const database = await openProjectDatabase()
 
       try {
-        const rewrite = new ChapterRewriteRepository(database).getLatestByChapterId(chapterId)
+        const rewrite = await new ChapterRewriteRepository(database).getLatestByChapterIdAsync(chapterId)
 
         if (!rewrite) {
           throw new NovelError(`No chapter rewrite found for chapter: ${chapterId}`)

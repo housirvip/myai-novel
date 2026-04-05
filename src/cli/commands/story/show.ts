@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { openProjectDatabase } from '../../context.js'
 import { printStoryState } from '../state/printers.js'
-import { loadStoryStateView } from '../state/services.js'
+import { loadStoryStateViewAsync } from '../state/services.js'
 
 export function registerStoryShowCommand(program: Command): void {
   program
@@ -14,7 +14,7 @@ export function registerStoryShowCommand(program: Command): void {
       const database = await openProjectDatabase()
 
       try {
-        printStoryState(loadStoryStateView(database).state)
+        printStoryState((await loadStoryStateViewAsync(database)).state)
       } finally {
         database.close()
       }

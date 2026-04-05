@@ -13,7 +13,7 @@ export function registerWorkflowPlanVolumeShowCommand(planCommand: Command): voi
       const database = await openProjectDatabase()
 
       try {
-        const plan = new VolumePlanRepository(database).getLatestByVolumeId(volumeId)
+        const plan = await new VolumePlanRepository(database).getLatestByVolumeIdAsync(volumeId)
 
         if (!plan) {
           throw new NovelError(`No volume window plan found for volume: ${volumeId}`)

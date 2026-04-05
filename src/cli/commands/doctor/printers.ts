@@ -29,6 +29,8 @@ export function printDoctorProjectSummary(input: {
         configured: boolean
         baseUrl: string
         defaultModel: string
+        timeoutMs: number
+        maxRetries: number
         isDefault: boolean
         usedByStages: string[]
       }>
@@ -36,6 +38,8 @@ export function printDoctorProjectSummary(input: {
         stage: string
         provider: string
         model: string
+        timeoutMs: number
+        maxRetries: number
         providerConfigured: boolean
       }>
     }
