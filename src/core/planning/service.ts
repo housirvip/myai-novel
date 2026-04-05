@@ -257,6 +257,7 @@ async function createLlmPlan(
     mustResolveDebts: normalizedMustResolveDebts,
     mustAdvanceHooks: normalizedMustAdvanceHooks,
     mustPreserveFacts: normalizedMustPreserveFacts,
+    llmMetadata: response.metadata,
   }
 }
 

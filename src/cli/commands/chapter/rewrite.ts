@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { createChapterRewriteService } from '../chapter-services.js'
 import { printChapterRewriteCreated } from '../chapter-printers.js'
-import { runLoggedCommand } from '../../context.js'
+import { runLoggedCommand, summarizeLlmMetadata } from '../../context.js'
 
 export function registerChapterRewriteCommand(chapterCommand: Command): void {
   chapterCommand
@@ -42,6 +42,7 @@ export function registerChapterRewriteCommand(chapterCommand: Command): void {
               goals: result.goals,
               wordCount: result.actualWordCount,
               validation: result.validation,
+              llm: summarizeLlmMetadata(result.llmMetadata),
             },
           }
         },

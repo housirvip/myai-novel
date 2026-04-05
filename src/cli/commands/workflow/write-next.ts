@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { createWorkflowGenerationService } from '../workflow-services.js'
 import { printWorkflowDraftCreated } from '../workflow-printers.js'
-import { runLoggedCommand } from '../../context.js'
+import { runLoggedCommand, summarizeLlmMetadata } from '../../context.js'
 
 export function registerWorkflowWriteNextCommand(writeCommand: Command): void {
   writeCommand
@@ -26,6 +26,7 @@ export function registerWorkflowWriteNextCommand(writeCommand: Command): void {
               chapterStatus: writeResult.chapterStatus,
               wordCount: writeResult.actualWordCount,
               nextAction: writeResult.nextAction,
+              llm: summarizeLlmMetadata(writeResult.llmMetadata),
             },
           }
         },

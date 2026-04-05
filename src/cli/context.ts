@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { openDatabase, type NovelDatabase } from '../infra/db/database.js'
 import { runMigrations } from '../infra/db/migrate.js'
+import type { LlmExecutionMetadata } from '../shared/types/domain.js'
 import { createCommandLogger } from '../shared/utils/logging.js'
 import { readProjectConfig } from '../shared/utils/project-paths.js'
 
@@ -85,4 +86,26 @@ export function parseFloatNumber(value: string): number {
   }
 
   return parsed
+}
+
+export function summarizeLlmMetadata(metadata?: LlmExecutionMetadata): Record<string, unknown> | undefined {
+  if (!metadata) {
+    return undefined
+  }
+
+  return {
+    stage: metadata.stage,
+    selectedProvider: metadata.selectedProvider,
+    selectedModel: metadata.selectedModel,
+    requestedProvider: metadata.requestedProvider,
+    requestedModel: metadata.requestedModel,
+    providerSource: metadata.providerSource,
+    modelSource: metadata.modelSource,
+    fallbackUsed: metadata.fallbackUsed,
+    fallbackFromProvider: metadata.fallbackFromProvider,
+    latencyMs: metadata.latencyMs,
+    retryCount: metadata.retryCount,
+    responseId: metadata.responseId,
+    requestId: metadata.requestId,
+  }
 }

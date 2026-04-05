@@ -29,6 +29,7 @@ export class GenerationService {
       chapterStatus: 'drafted',
       draftId: draft.id,
       actualWordCount: draft.actualWordCount,
+      llmMetadata: draft.llmMetadata,
       nextAction: 'review',
     }
   }
@@ -68,6 +69,7 @@ async function createLlmDraft(
     chapterPlanId: context.chapterPlan.id,
     content: response.text.trim(),
     actualWordCount: estimateWordCount(response.text),
+    llmMetadata: response.metadata,
     createdAt: timestamp,
   }
 }

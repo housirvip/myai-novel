@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { createWorkflowPlanningService } from '../workflow-services.js'
 import { printWorkflowPlanCreated } from '../workflow-printers.js'
-import { runLoggedCommand } from '../../context.js'
+import { runLoggedCommand, summarizeLlmMetadata } from '../../context.js'
 
 export function registerWorkflowPlanChapterCommand(planCommand: Command): void {
   planCommand
@@ -28,6 +28,7 @@ export function registerWorkflowPlanChapterCommand(planCommand: Command): void {
               sceneCount: result.sceneCards.length,
               hookPlanCount: result.hookPlan.length,
               statePredictionCount: result.statePredictions.length,
+              llm: summarizeLlmMetadata(result.llmMetadata),
             },
           }
         },

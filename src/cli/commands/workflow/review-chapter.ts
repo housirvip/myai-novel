@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { createWorkflowReviewService } from '../workflow-services.js'
 import { printWorkflowReviewCreated } from '../workflow-printers.js'
-import { runLoggedCommand } from '../../context.js'
+import { runLoggedCommand, summarizeLlmMetadata } from '../../context.js'
 
 export function registerWorkflowReviewChapterCommand(reviewCommand: Command): void {
   reviewCommand
@@ -39,6 +39,7 @@ export function registerWorkflowReviewChapterCommand(reviewCommand: Command): vo
                 hooks: result.closureSuggestions.hooks.length,
                 memory: result.closureSuggestions.memory.length,
               },
+              llm: summarizeLlmMetadata(result.llmMetadata),
             },
           }
         },

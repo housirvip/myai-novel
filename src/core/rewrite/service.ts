@@ -118,7 +118,7 @@ export class RewriteService {
     const strategyProfile = resolveRewriteStrategyProfile(review, request.goals, rewriteContext)
     const qualityTarget = buildRewriteQualityTarget(request, review, strategyProfile, rewriteContext)
     const timestamp = nowIso()
-    const content = this.llmAdapter
+    const rewriteContent = this.llmAdapter
       ? await createLlmRewrite(
           this.llmAdapter,
           book.title,
@@ -140,16 +140,18 @@ export class RewriteService {
           strategyProfile,
           qualityTarget,
         )
-      : buildRewriteContent(
-          draft.content,
-          review.revisionAdvice,
-          review.closureSuggestions,
-          rewriteContext,
-          request.goals,
-          strategyProfile,
-          qualityTarget,
-        )
-    const validation = validateRewrite(review, content, strategyProfile)
+      : {
+          content: buildRewriteContent(
+            draft.content,
+            review.revisionAdvice,
+            review.closureSuggestions,
+            rewriteContext,
+            request.goals,
+            strategyProfile,
+            qualityTarget,
+          ),
+        }
+    const validation = validateRewrite(review, rewriteContent.content, strategyProfile)
     const rewrite: ChapterRewrite = {
       id: createId('rewrite'),
       bookId: book.id,
@@ -161,9 +163,10 @@ export class RewriteService {
       strategyProfile,
       qualityTarget,
       goals: request.goals,
-      content,
-      actualWordCount: estimateWordCount(content),
+      content: rewriteContent.content,
+      actualWordCount: estimateWordCount(rewriteContent.content),
       validation,
+      llmMetadata: rewriteContent.llmMetadata,
       createdAt: timestamp,
     }
 
@@ -214,7 +217,7 @@ async function createLlmRewrite(
   goals: string[],
   strategyProfile: RewriteStrategyProfile,
   qualityTarget: RewriteQualityTarget,
-): Promise<string> {
+): Promise<{ content: string; llmMetadata?: import('../../shared/types/domain.js').LlmExecutionMetadata }> {
   try {
     const llmStage = readLlmStageConfig('rewrite')
     const response = await llmAdapter.generateText({
@@ -265,17 +268,22 @@ async function createLlmRewrite(
       },
     })
 
-    return response.text.trim()
+    return {
+      content: response.text.trim(),
+      llmMetadata: response.metadata,
+    }
   } catch {
-    return buildRewriteContent(
-      content,
-      revisionAdvice,
-      closureSuggestions,
-      rewriteContext,
-      goals,
-      strategyProfile,
-      qualityTarget,
-    )
+    return {
+      content: buildRewriteContent(
+        content,
+        revisionAdvice,
+        closureSuggestions,
+        rewriteContext,
+        goals,
+        strategyProfile,
+        qualityTarget,
+      ),
+    }
   }
 }
 

@@ -1,15 +1,33 @@
 import { formatJson, formatSection } from '../../shared/utils/format.js'
 
+type LlmMetadataView = {
+  stage?: string
+  selectedProvider: string
+  selectedModel: string
+  requestedProvider?: string
+  requestedModel?: string
+  providerSource: string
+  modelSource: string
+  fallbackUsed: boolean
+  fallbackFromProvider?: string
+  latencyMs?: number
+  retryCount?: number
+  responseId?: string
+  requestId?: string
+}
+
 export function printWorkflowPlanCreated(plan: {
   versionId: string
   objective: string
   sceneCards: unknown[]
   eventOutline: unknown[]
+  llmMetadata?: LlmMetadataView
 }): void {
   console.log(`Chapter plan created: ${plan.versionId}`)
   console.log(`Objective: ${plan.objective}`)
   console.log(`Scenes: ${plan.sceneCards.length}`)
   console.log(`Events: ${plan.eventOutline.length}`)
+  printLlmMetadata(plan.llmMetadata)
 }
 
 export function printWorkflowMissionDetail(input: {
@@ -84,6 +102,7 @@ export function printWorkflowPlanDetail(plan: {
   mustAdvanceHooks: unknown
   mustPreserveFacts: unknown
   memoryCandidates: unknown
+  llmMetadata?: LlmMetadataView
 }): void {
   console.log(`Plan version: ${plan.versionId}`)
   console.log(`Objective: ${plan.objective}`)
@@ -107,6 +126,7 @@ export function printWorkflowPlanDetail(plan: {
   console.log(formatSection('Must advance hooks:', formatJson(plan.mustAdvanceHooks)))
   console.log(formatSection('Must preserve facts:', formatJson(plan.mustPreserveFacts)))
   console.log(formatSection('Memory candidates:', formatJson(plan.memoryCandidates)))
+  printLlmMetadata(plan.llmMetadata)
 }
 
 export function printWorkflowDraftCreated(result: {
@@ -114,11 +134,13 @@ export function printWorkflowDraftCreated(result: {
   chapterStatus: string
   actualWordCount: number
   nextAction: string
+  llmMetadata?: LlmMetadataView
 }): void {
   console.log(`Chapter draft created: ${result.draftId}`)
   console.log(`Status: ${result.chapterStatus}`)
   console.log(`Word count: ${result.actualWordCount}`)
   console.log(`Next action: ${result.nextAction}`)
+  printLlmMetadata(result.llmMetadata)
 }
 
 export function printWorkflowReviewCreated(review: {
@@ -135,6 +157,7 @@ export function printWorkflowReviewCreated(review: {
     memory: unknown[]
   }
   revisionAdvice: string[]
+  llmMetadata?: LlmMetadataView
 }): void {
   console.log(`Chapter review created: ${review.id}`)
   console.log(`Decision: ${review.decision}`)
@@ -146,6 +169,7 @@ export function printWorkflowReviewCreated(review: {
     `Closure suggestions: ${review.closureSuggestions.characters.length + review.closureSuggestions.items.length + review.closureSuggestions.hooks.length + review.closureSuggestions.memory.length}`,
   )
   console.log(`Revision advice: ${review.revisionAdvice.join('；')}`)
+  printLlmMetadata(review.llmMetadata)
 }
 
 export function printWorkflowVolumeReviewDetail(input: {
@@ -202,6 +226,7 @@ export function printWorkflowReviewDetail(review: {
   closureSuggestions: unknown
   wordCountCheck: unknown
   revisionAdvice: unknown
+  llmMetadata?: LlmMetadataView
 }): void {
   console.log(`Review id: ${review.id}`)
   console.log(`Decision: ${review.decision}`)
@@ -223,6 +248,7 @@ export function printWorkflowReviewDetail(review: {
   console.log(formatSection('Closure suggestions:', formatJson(review.closureSuggestions)))
   console.log(formatSection('Word count check:', formatJson(review.wordCountCheck)))
   console.log(formatSection('Revision advice:', formatJson(review.revisionAdvice)))
+  printLlmMetadata(review.llmMetadata)
 }
 
 export function printWorkflowRewriteDetail(rewrite: {
@@ -235,6 +261,7 @@ export function printWorkflowRewriteDetail(rewrite: {
   validation: unknown
   goals: unknown
   content: string
+  llmMetadata?: LlmMetadataView
 }): void {
   console.log(`Rewrite id: ${rewrite.id}`)
   console.log(`Version: ${rewrite.versionId}`)
@@ -246,4 +273,13 @@ export function printWorkflowRewriteDetail(rewrite: {
   console.log(formatSection('Validation:', formatJson(rewrite.validation)))
   console.log(formatSection('Goals:', formatJson(rewrite.goals)))
   console.log(formatSection('Content preview:', rewrite.content))
+  printLlmMetadata(rewrite.llmMetadata)
+}
+
+function printLlmMetadata(metadata?: LlmMetadataView): void {
+  if (!metadata) {
+    return
+  }
+
+  console.log(formatSection('LLM metadata:', formatJson(metadata)))
 }

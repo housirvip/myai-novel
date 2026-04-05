@@ -498,6 +498,7 @@ export type ChapterPlan = {
   mustResolveDebts: string[]
   mustAdvanceHooks: string[]
   mustPreserveFacts: string[]
+  llmMetadata?: LlmExecutionMetadata
   createdAt: IsoTimestamp
   approvedByUser: boolean
 }
@@ -579,6 +580,7 @@ export type ChapterDraft = {
   chapterPlanId: string
   content: string
   actualWordCount: number
+  llmMetadata?: LlmExecutionMetadata
   createdAt: IsoTimestamp
 }
 
@@ -588,6 +590,7 @@ export type WriteNextResult = {
   draftId: string
   draftPath?: string
   actualWordCount: number
+  llmMetadata?: LlmExecutionMetadata
   nextAction: 'review'
 }
 
@@ -740,6 +743,7 @@ export type ReviewReport = {
   newFactCandidates: string[]
   closureSuggestions: ClosureSuggestions
   outcomeCandidate: ChapterOutcomeCandidate
+  llmMetadata?: LlmExecutionMetadata
   revisionAdvice: string[]
   createdAt: IsoTimestamp
 }
@@ -883,6 +887,7 @@ export type ChapterRewrite = {
   content: string
   actualWordCount: number
   validation: ChapterRewriteValidation
+  llmMetadata?: LlmExecutionMetadata
   createdAt: IsoTimestamp
 }
 

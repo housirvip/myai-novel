@@ -226,6 +226,7 @@ export class ReviewService {
       newFactCandidates,
       closureSuggestions,
       outcomeCandidate,
+      llmMetadata: mergedReview.llmMetadata,
       revisionAdvice: mergedReview.revisionAdvice,
       createdAt: nowIso(),
     }
@@ -672,6 +673,7 @@ async function createLlmReview(
         characterArcProgress: [],
         hookDebtUpdates: [],
       },
+      llmMetadata: response.metadata,
       revisionAdvice: revisionAdvice.length > 0 ? revisionAdvice : ['建议人工复核本章审查结果。'],
     }
   } catch {

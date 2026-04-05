@@ -1,5 +1,21 @@
 import { formatJson, formatSection } from '../../shared/utils/format.js'
 
+type LlmMetadataView = {
+  stage?: string
+  selectedProvider: string
+  selectedModel: string
+  requestedProvider?: string
+  requestedModel?: string
+  providerSource: string
+  modelSource: string
+  fallbackUsed: boolean
+  fallbackFromProvider?: string
+  latencyMs?: number
+  retryCount?: number
+  responseId?: string
+  requestId?: string
+}
+
 export function printChapterCreated(chapter: {
   index: number
   title: string
@@ -119,11 +135,13 @@ export function printChapterRewriteCreated(rewrite: {
   versionId: string
   actualWordCount: number
   goals: string[]
+  llmMetadata?: LlmMetadataView
 }): void {
   console.log(`Chapter rewrite created: ${rewrite.id}`)
   console.log(`Version: ${rewrite.versionId}`)
   console.log(`Word count: ${rewrite.actualWordCount}`)
   console.log(`Goals: ${rewrite.goals.join('；')}`)
+  printLlmMetadata(rewrite.llmMetadata)
 }
 
 export function printChapterApproved(result: {
@@ -177,6 +195,7 @@ export function printChapterReviewPreview(review: {
     memory: unknown[]
   }
   revisionAdvice: string[]
+  llmMetadata?: LlmMetadataView
 }): void {
   console.log(`Chapter review created: ${review.id}`)
   console.log(`Decision: ${review.decision}`)
@@ -188,6 +207,7 @@ export function printChapterReviewPreview(review: {
     `Closure suggestions: ${review.closureSuggestions.characters.length + review.closureSuggestions.items.length + review.closureSuggestions.hooks.length + review.closureSuggestions.memory.length}`,
   )
   console.log(`Revision advice: ${review.revisionAdvice.join('；')}`)
+  printLlmMetadata(review.llmMetadata)
 }
 
 export function printWorkflowReviewDetail(review: {
@@ -213,6 +233,7 @@ export function printWorkflowReviewDetail(review: {
   closureSuggestions: unknown
   wordCountCheck: unknown
   revisionAdvice: unknown
+  llmMetadata?: LlmMetadataView
 }): void {
   console.log(`Review id: ${review.id}`)
   console.log(`Decision: ${review.decision}`)
@@ -234,4 +255,13 @@ export function printWorkflowReviewDetail(review: {
   console.log(formatSection('Closure suggestions:', formatJson(review.closureSuggestions)))
   console.log(formatSection('Word count check:', formatJson(review.wordCountCheck)))
   console.log(formatSection('Revision advice:', formatJson(review.revisionAdvice)))
+  printLlmMetadata(review.llmMetadata)
+}
+
+function printLlmMetadata(metadata?: LlmMetadataView): void {
+  if (!metadata) {
+    return
+  }
+
+  console.log(formatSection('LLM metadata:', formatJson(metadata)))
 }
