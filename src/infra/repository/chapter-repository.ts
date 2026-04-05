@@ -1,6 +1,6 @@
 import type { Chapter, ChapterStatus } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type ChapterRow = {
   id: string
@@ -35,7 +35,7 @@ export class ChapterRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(chapter: Chapter): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO chapters (
@@ -77,7 +77,7 @@ export class ChapterRepository {
   }
 
   getNextIndex(bookId: string): number {
-    const row = sqliteGet<{ maxIndex: number }>(
+    const row = dbGet<{ maxIndex: number }>(
       this.database,
       'SELECT COALESCE(MAX(chapter_index), 0) AS maxIndex FROM chapters WHERE book_id = ?',
       bookId,
@@ -87,13 +87,13 @@ export class ChapterRepository {
   }
 
   getById(id: string): Chapter | null {
-    const row = sqliteGet<ChapterRow>(this.database, 'SELECT * FROM chapters WHERE id = ?', id)
+    const row = dbGet<ChapterRow>(this.database, 'SELECT * FROM chapters WHERE id = ?', id)
 
     return row ? mapChapter(row) : null
   }
 
   getPreviousChapter(bookId: string, index: number): Chapter | null {
-    const row = sqliteGet<ChapterRow>(
+    const row = dbGet<ChapterRow>(
       this.database,
       `
         SELECT *
@@ -110,7 +110,7 @@ export class ChapterRepository {
   }
 
   updateCurrentPlanVersion(chapterId: string, versionId: string, updatedAt: string): void {
-    sqliteRun(
+    dbRun(
       this.database,
       'UPDATE chapters SET current_plan_version_id = ?, updated_at = ? WHERE id = ?',
       versionId,
@@ -120,7 +120,7 @@ export class ChapterRepository {
   }
 
   listByBookId(bookId: string): Chapter[] {
-    const rows = sqliteAll<ChapterRow>(
+    const rows = dbAll<ChapterRow>(
       this.database,
       'SELECT * FROM chapters WHERE book_id = ? ORDER BY chapter_index ASC',
       bookId,
@@ -130,7 +130,7 @@ export class ChapterRepository {
   }
 
   markDrafted(chapterId: string, currentVersionId: string, draftPath: string | undefined, updatedAt: string): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         UPDATE chapters
@@ -148,7 +148,7 @@ export class ChapterRepository {
   }
 
   markReviewed(chapterId: string, updatedAt: string): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         UPDATE chapters
@@ -162,7 +162,7 @@ export class ChapterRepository {
   }
 
   updateCurrentVersion(chapterId: string, currentVersionId: string, updatedAt: string): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         UPDATE chapters
@@ -183,7 +183,7 @@ export class ChapterRepository {
     summary: string,
     approvedAt: string,
   ): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         UPDATE chapters
@@ -205,7 +205,7 @@ export class ChapterRepository {
   }
 
   updateWorkflowState(chapterId: string, input: UpdateChapterWorkflowStateInput, updatedAt: string): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         UPDATE chapters

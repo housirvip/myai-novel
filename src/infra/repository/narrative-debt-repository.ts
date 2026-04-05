@@ -1,6 +1,6 @@
 import type { NarrativeDebt } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqlitePrepare } from '../db/sqlite-client.js'
+import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
 
 type NarrativeDebtRow = {
   id: string
@@ -21,28 +21,27 @@ export class NarrativeDebtRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   createBatch(debts: NarrativeDebt[]): void {
-    const statement = sqlitePrepare(
-      this.database,
-      `
-        INSERT INTO chapter_narrative_debts (
-          id,
-          book_id,
-          chapter_id,
-          outcome_id,
-          source_review_id,
-          source_rewrite_id,
-          debt_type,
-          summary,
-          priority,
-          status,
-          created_at,
-          resolved_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-    )
+    const insertSql = `
+      INSERT INTO chapter_narrative_debts (
+        id,
+        book_id,
+        chapter_id,
+        outcome_id,
+        source_review_id,
+        source_rewrite_id,
+        debt_type,
+        summary,
+        priority,
+        status,
+        created_at,
+        resolved_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
 
     for (const debt of debts) {
-      statement.run(
+      sqliteRun(
+        this.database,
+        insertSql,
         debt.id,
         debt.bookId,
         debt.chapterId,
@@ -80,18 +79,15 @@ export class NarrativeDebtRepository {
   }
 
   resolveByIds(ids: string[], resolvedAt: string): void {
-    const statement = sqlitePrepare(
-      this.database,
-      `
-        UPDATE chapter_narrative_debts
-        SET status = 'resolved',
-            resolved_at = ?
-        WHERE id = ?
-      `,
-    )
+    const updateSql = `
+      UPDATE chapter_narrative_debts
+      SET status = 'resolved',
+          resolved_at = ?
+      WHERE id = ?
+    `
 
     for (const id of ids) {
-      statement.run(resolvedAt, id)
+      sqliteRun(this.database, updateSql, resolvedAt, id)
     }
   }
 }

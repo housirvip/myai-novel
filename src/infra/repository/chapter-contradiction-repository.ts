@@ -1,6 +1,6 @@
 import type { NarrativeContradiction } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqlitePrepare } from '../db/sqlite-client.js'
+import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
 
 type NarrativeContradictionRow = {
   id: string
@@ -21,28 +21,27 @@ export class ChapterContradictionRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   createBatch(contradictions: NarrativeContradiction[]): void {
-    const statement = sqlitePrepare(
-      this.database,
-      `
-        INSERT INTO chapter_contradictions (
-          id,
-          book_id,
-          chapter_id,
-          outcome_id,
-          source_review_id,
-          source_rewrite_id,
-          contradiction_type,
-          summary,
-          severity,
-          status,
-          created_at,
-          resolved_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-    )
+    const sql = `
+      INSERT INTO chapter_contradictions (
+        id,
+        book_id,
+        chapter_id,
+        outcome_id,
+        source_review_id,
+        source_rewrite_id,
+        contradiction_type,
+        summary,
+        severity,
+        status,
+        created_at,
+        resolved_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
 
     for (const contradiction of contradictions) {
-      statement.run(
+      sqliteRun(
+        this.database,
+        sql,
         contradiction.id,
         contradiction.bookId,
         contradiction.chapterId,

@@ -1,7 +1,7 @@
 import type { Book } from '../../shared/types/domain.js'
 import { readLlmEnv } from '../../shared/utils/env.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbGet, dbRun } from '../db/db-client.js'
 
 type BookRow = {
   id: string
@@ -22,13 +22,13 @@ export class BookRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   getFirst(): Book | null {
-    const row = sqliteGet<BookRow>(this.database, 'SELECT * FROM books ORDER BY created_at ASC LIMIT 1')
+    const row = dbGet<BookRow>(this.database, 'SELECT * FROM books ORDER BY created_at ASC LIMIT 1')
 
     return row ? mapBook(row) : null
   }
 
   getById(id: string): Book | null {
-    const row = sqliteGet<BookRow>(this.database, 'SELECT * FROM books WHERE id = ?', id)
+    const row = dbGet<BookRow>(this.database, 'SELECT * FROM books WHERE id = ?', id)
 
     return row ? mapBook(row) : null
   }
@@ -36,7 +36,7 @@ export class BookRepository {
   create(book: Book): void {
     const env = readLlmEnv()
 
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO books (

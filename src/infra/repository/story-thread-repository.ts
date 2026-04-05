@@ -1,6 +1,6 @@
 import type { StoryThread } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqlitePrepare, sqliteRun } from '../db/sqlite-client.js'
+import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
 
 type StoryThreadRow = {
   id: string
@@ -23,30 +23,29 @@ export class StoryThreadRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   createBatch(threads: StoryThread[]): void {
-    const statement = sqlitePrepare(
-      this.database,
-      `
-        INSERT INTO story_threads (
-          id,
-          book_id,
-          volume_id,
-          title,
-          thread_type,
-          summary,
-          priority,
-          stage,
-          linked_character_ids_json,
-          linked_hook_ids_json,
-          target_outcome,
-          status,
-          updated_by_chapter_id,
-          updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-    )
+    const insertSql = `
+      INSERT INTO story_threads (
+        id,
+        book_id,
+        volume_id,
+        title,
+        thread_type,
+        summary,
+        priority,
+        stage,
+        linked_character_ids_json,
+        linked_hook_ids_json,
+        target_outcome,
+        status,
+        updated_by_chapter_id,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
 
     for (const thread of threads) {
-      statement.run(
+      sqliteRun(
+        this.database,
+        insertSql,
         thread.id,
         thread.bookId,
         thread.volumeId,

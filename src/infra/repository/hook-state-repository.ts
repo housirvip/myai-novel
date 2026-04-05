@@ -1,6 +1,6 @@
 import type { HookCurrentState } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteRun, sqliteTransaction } from '../db/sqlite-client.js'
+import { dbAll, dbRun, dbTransaction } from '../db/db-client.js'
 
 type HookCurrentStateRow = {
   book_id: string
@@ -14,7 +14,7 @@ export class HookStateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   upsert(state: HookCurrentState): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO hook_current_state (book_id, hook_id, status, updated_by_chapter_id, updated_at)
@@ -33,7 +33,7 @@ export class HookStateRepository {
   }
 
   listByBookId(bookId: string): HookCurrentState[] {
-    const rows = sqliteAll<HookCurrentStateRow>(
+    const rows = dbAll<HookCurrentStateRow>(
       this.database,
       'SELECT * FROM hook_current_state WHERE book_id = ? ORDER BY updated_at DESC',
       bookId,
@@ -43,7 +43,7 @@ export class HookStateRepository {
   }
 
   listActiveByBookId(bookId: string): HookCurrentState[] {
-    const rows = sqliteAll<HookCurrentStateRow>(
+    const rows = dbAll<HookCurrentStateRow>(
       this.database,
       `
         SELECT *
@@ -58,7 +58,7 @@ export class HookStateRepository {
   }
 
   upsertBatch(states: HookCurrentState[]): void {
-    const transaction = sqliteTransaction(this.database, (items: HookCurrentState[]) => {
+    const transaction = dbTransaction(this.database, (items: HookCurrentState[]) => {
       for (const item of items) {
         this.upsert(item)
       }
