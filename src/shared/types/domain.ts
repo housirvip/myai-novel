@@ -1023,15 +1023,31 @@ export type ProjectConfig = {
   database: DatabaseConfig
 }
 
+export type LlmProvider = 'openai' | 'openai-compatible'
+
+export type LlmTaskStage = 'planning' | 'generation' | 'review' | 'rewrite' | 'general'
+
 export type PromptInput = {
   system?: string
   user: string
+  metadata?: {
+    stage?: LlmTaskStage
+    providerHint?: LlmProvider
+    modelHint?: string
+    timeoutMs?: number
+    maxRetries?: number
+  }
 }
 
 export type GenerateResult = {
   text: string
+  provider: LlmProvider
+  model: string
+  responseId?: string
+  latencyMs?: number
 }
 
 export interface LlmAdapter {
+  readonly provider: LlmProvider
   generateText(input: PromptInput): Promise<GenerateResult>
 }

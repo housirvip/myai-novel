@@ -1,12 +1,12 @@
 import type { GenerateResult, LlmAdapter, PromptInput } from '../../shared/types/domain.js'
 
-type OpenAiAdapterOptions = {
+type OpenAiCompatibleAdapterOptions = {
   apiKey: string
   baseUrl: string
   model: string
 }
 
-type ResponsesApiResponse = {
+type CompatibleResponsesApiResponse = {
   id?: string
   output?: Array<{
     content?: Array<{
@@ -16,10 +16,10 @@ type ResponsesApiResponse = {
   }>
 }
 
-export class OpenAiLlmAdapter implements LlmAdapter {
-  readonly provider = 'openai' as const
+export class OpenAiCompatibleLlmAdapter implements LlmAdapter {
+  readonly provider = 'openai-compatible' as const
 
-  constructor(private readonly options: OpenAiAdapterOptions) {}
+  constructor(private readonly options: OpenAiCompatibleAdapterOptions) {}
 
   async generateText(input: PromptInput): Promise<GenerateResult> {
     const startedAt = Date.now()
@@ -50,10 +50,10 @@ export class OpenAiLlmAdapter implements LlmAdapter {
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`OpenAI request failed: ${response.status} ${errorText}`)
+      throw new Error(`OpenAI-compatible request failed: ${response.status} ${errorText}`)
     }
 
-    const payload = (await response.json()) as ResponsesApiResponse
+    const payload = (await response.json()) as CompatibleResponsesApiResponse
     const text = payload.output
       ?.flatMap((item) => item.content ?? [])
       .filter((item) => item.type === 'output_text' && typeof item.text === 'string')
@@ -62,7 +62,7 @@ export class OpenAiLlmAdapter implements LlmAdapter {
       .trim()
 
     if (!text) {
-      throw new Error('OpenAI response did not include text output')
+      throw new Error('OpenAI-compatible response did not include text output')
     }
 
     return {
