@@ -1,6 +1,6 @@
 import type { ChapterDraft } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type ChapterDraftRow = {
   id: string
@@ -17,7 +17,7 @@ export class ChapterDraftRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(draft: ChapterDraft): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO chapter_drafts (
@@ -43,7 +43,7 @@ export class ChapterDraftRepository {
   }
 
   getLatestByChapterId(chapterId: string): ChapterDraft | null {
-    const row = sqliteGet<ChapterDraftRow>(
+    const row = dbGet<ChapterDraftRow>(
       this.database,
       `
         SELECT *
@@ -59,13 +59,13 @@ export class ChapterDraftRepository {
   }
 
   getById(id: string): ChapterDraft | null {
-    const row = sqliteGet<ChapterDraftRow>(this.database, 'SELECT * FROM chapter_drafts WHERE id = ?', id)
+    const row = dbGet<ChapterDraftRow>(this.database, 'SELECT * FROM chapter_drafts WHERE id = ?', id)
 
     return row ? mapDraft(row) : null
   }
 
   listByChapterId(chapterId: string): ChapterDraft[] {
-    const rows = sqliteAll<ChapterDraftRow>(
+    const rows = dbAll<ChapterDraftRow>(
       this.database,
       `
         SELECT *
