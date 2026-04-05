@@ -1,6 +1,6 @@
 import type { NovelDatabase } from '../db/database.js'
 import type { StoryState } from '../../shared/types/domain.js'
-import { sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbGet, dbRun } from '../db/db-client.js'
 
 type StoryStateRow = {
   book_id: string
@@ -13,7 +13,7 @@ export class StoryStateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   upsert(state: StoryState): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO story_current_state (
@@ -35,7 +35,7 @@ export class StoryStateRepository {
   }
 
   getByBookId(bookId: string): StoryState | null {
-    const row = sqliteGet<StoryStateRow>(
+    const row = dbGet<StoryStateRow>(
       this.database,
       'SELECT * FROM story_current_state WHERE book_id = ?',
       bookId,

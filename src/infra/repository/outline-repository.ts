@@ -1,6 +1,6 @@
 import type { NovelDatabase } from '../db/database.js'
 import type { Outline } from '../../shared/types/domain.js'
-import { sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbGet, dbRun } from '../db/db-client.js'
 
 type OutlineRow = {
   book_id: string
@@ -16,7 +16,7 @@ export class OutlineRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   upsert(outline: Outline): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO outlines (
@@ -47,7 +47,7 @@ export class OutlineRepository {
   }
 
   getByBookId(bookId: string): Outline | null {
-    const row = sqliteGet<OutlineRow>(this.database, 'SELECT * FROM outlines WHERE book_id = ?', bookId)
+    const row = dbGet<OutlineRow>(this.database, 'SELECT * FROM outlines WHERE book_id = ?', bookId)
 
     if (!row) {
       return null

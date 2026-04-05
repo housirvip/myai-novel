@@ -1,6 +1,6 @@
 import type { ChapterOutcome } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type ChapterOutcomeRow = {
   id: string
@@ -20,7 +20,7 @@ export class ChapterOutcomeRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(outcome: ChapterOutcome): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO chapter_outcomes (
@@ -52,7 +52,7 @@ export class ChapterOutcomeRepository {
   }
 
   getLatestByChapterId(chapterId: string): ChapterOutcome | null {
-    const row = sqliteGet<ChapterOutcomeRow>(
+    const row = dbGet<ChapterOutcomeRow>(
       this.database,
       `
         SELECT *
@@ -68,7 +68,7 @@ export class ChapterOutcomeRepository {
   }
 
   listByChapterId(chapterId: string): ChapterOutcome[] {
-    const rows = sqliteAll<ChapterOutcomeRow>(
+    const rows = dbAll<ChapterOutcomeRow>(
       this.database,
       `
         SELECT *

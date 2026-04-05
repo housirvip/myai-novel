@@ -1,6 +1,6 @@
 import type { ChapterRewrite } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type RewriteRow = {
   id: string
@@ -23,7 +23,7 @@ export class ChapterRewriteRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(rewrite: ChapterRewrite): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO chapter_rewrites (
@@ -61,7 +61,7 @@ export class ChapterRewriteRepository {
   }
 
   getLatestByChapterId(chapterId: string): ChapterRewrite | null {
-    const row = sqliteGet<RewriteRow>(
+    const row = dbGet<RewriteRow>(
       this.database,
       `
         SELECT *
@@ -77,7 +77,7 @@ export class ChapterRewriteRepository {
   }
 
   listByChapterId(chapterId: string): ChapterRewrite[] {
-    const rows = sqliteAll<RewriteRow>(
+    const rows = dbAll<RewriteRow>(
       this.database,
       `
         SELECT *

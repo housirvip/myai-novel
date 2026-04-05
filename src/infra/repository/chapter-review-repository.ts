@@ -1,6 +1,6 @@
 import type { ReviewReport } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type ReviewRow = {
   id: string
@@ -28,7 +28,7 @@ export class ChapterReviewRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(review: ReviewReport): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO chapter_reviews (
@@ -76,7 +76,7 @@ export class ChapterReviewRepository {
   }
 
   getLatestByChapterId(chapterId: string): ReviewReport | null {
-    const row = sqliteGet<ReviewRow>(
+    const row = dbGet<ReviewRow>(
       this.database,
       `
         SELECT *
@@ -92,13 +92,13 @@ export class ChapterReviewRepository {
   }
 
   getById(id: string): ReviewReport | null {
-    const row = sqliteGet<ReviewRow>(this.database, 'SELECT * FROM chapter_reviews WHERE id = ?', id)
+    const row = dbGet<ReviewRow>(this.database, 'SELECT * FROM chapter_reviews WHERE id = ?', id)
 
     return row ? mapReview(row) : null
   }
 
   listByChapterId(chapterId: string): ReviewReport[] {
-    const rows = sqliteAll<ReviewRow>(
+    const rows = dbAll<ReviewRow>(
       this.database,
       `
         SELECT *
