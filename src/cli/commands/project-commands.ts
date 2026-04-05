@@ -100,18 +100,30 @@ function registerInitCommand(program: Command): void {
     .requiredOption('--genre <genre>', 'Book genre')
     .option('--word-count <number>', 'Default chapter word count', parseInteger, 3000)
     .option('--tolerance <number>', 'Chapter word count tolerance ratio', parseFloatNumber, 0.15)
+    .option('--db-client <client>', 'Database client: sqlite or mysql', 'sqlite')
+    .option('--db-filename <filename>', 'SQLite database filename', 'data/novel.sqlite')
+    .option('--db-host <host>', 'MySQL host', '127.0.0.1')
+    .option('--db-port <port>', 'MySQL port', parseInteger, 3306)
+    .option('--db-user <user>', 'MySQL user', 'root')
+    .option('--db-password <password>', 'MySQL password')
+    .option('--db-name <name>', 'MySQL database name', 'myai_novel')
     .action(async (options) => {
       const paths = resolveProjectPaths(process.cwd())
+      const databaseConfig = buildInitDatabaseConfig(options)
 
       await ensureProjectDirectories(paths)
       await writeProjectConfig(paths, {
-        database: {
-          client: 'sqlite',
-          filename: 'data/novel.sqlite',
-        },
+        database: databaseConfig,
       })
 
-      const database = openDatabase(paths.databaseFilePath)
+      const database = openDatabase(
+        databaseConfig.client === 'sqlite'
+          ? {
+              ...databaseConfig,
+              filename: paths.databaseFilePath,
+            }
+          : databaseConfig,
+      )
 
       try {
         runMigrations(database)
@@ -129,9 +141,47 @@ function registerInitCommand(program: Command): void {
         })
 
         console.log(`Initialized novel project: ${book.title} (${book.id})`)
-        console.log(`Database: ${paths.databaseFilePath}`)
+        console.log(
+          `Database: ${databaseConfig.client === 'sqlite' ? paths.databaseFilePath : `${databaseConfig.host}:${databaseConfig.port}/${databaseConfig.database}`}`,
+        )
       } finally {
         database.close()
       }
     })
+}
+
+function buildInitDatabaseConfig(options: {
+  dbClient: string
+  dbFilename: string
+  dbHost: string
+  dbPort: number
+  dbUser: string
+  dbPassword?: string
+  dbName: string
+}): {
+  client: 'sqlite'
+  filename: string
+} | {
+  client: 'mysql'
+  host: string
+  port: number
+  user: string
+  password?: string
+  database: string
+} {
+  if (options.dbClient === 'mysql') {
+    return {
+      client: 'mysql',
+      host: options.dbHost,
+      port: options.dbPort,
+      user: options.dbUser,
+      password: options.dbPassword,
+      database: options.dbName,
+    }
+  }
+
+  return {
+    client: 'sqlite',
+    filename: options.dbFilename,
+  }
 }

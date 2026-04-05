@@ -1,16 +1,19 @@
 import type { NovelDatabase } from './database.js'
 import { migrations } from './schema.js'
+import { assertSqliteDatabase } from './sqlite-support.js'
 
 export function runMigrations(database: NovelDatabase): void {
-  database.exec(`
+  const sqlite = assertSqliteDatabase(database)
+
+  sqlite.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       id TEXT PRIMARY KEY,
       applied_at TEXT NOT NULL
     );
   `)
 
-  const hasMigration = database.prepare('SELECT 1 FROM schema_migrations WHERE id = ?').pluck()
-  const insertMigration = database.prepare(
+  const hasMigration = sqlite.prepare('SELECT 1 FROM schema_migrations WHERE id = ?').pluck()
+  const insertMigration = sqlite.prepare(
     'INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)',
   )
 
@@ -21,8 +24,8 @@ export function runMigrations(database: NovelDatabase): void {
       continue
     }
 
-    const transaction = database.transaction(() => {
-      database.exec(migration.sql)
+    const transaction = sqlite.transaction(() => {
+      sqlite.exec(migration.sql)
       insertMigration.run(migration.id, new Date().toISOString())
     })
 

@@ -1014,10 +1014,21 @@ export type OperationLog = {
   }
 }
 
-export type DatabaseConfig = {
+export type SqliteDatabaseConfig = {
   client: 'sqlite'
   filename: string
 }
+
+export type MySqlDatabaseConfig = {
+  client: 'mysql'
+  host: string
+  port: number
+  user: string
+  password?: string
+  database: string
+}
+
+export type DatabaseConfig = SqliteDatabaseConfig | MySqlDatabaseConfig
 
 export type ProjectConfig = {
   database: DatabaseConfig

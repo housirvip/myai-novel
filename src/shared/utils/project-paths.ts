@@ -6,10 +6,20 @@ import { z } from 'zod'
 import type { ProjectConfig } from '../types/domain.js'
 
 const projectConfigSchema = z.object({
-  database: z.object({
-    client: z.literal('sqlite'),
-    filename: z.string().min(1),
-  }),
+  database: z.discriminatedUnion('client', [
+    z.object({
+      client: z.literal('sqlite'),
+      filename: z.string().min(1),
+    }),
+    z.object({
+      client: z.literal('mysql'),
+      host: z.string().min(1),
+      port: z.number().int().positive(),
+      user: z.string().min(1),
+      password: z.string().min(1).optional(),
+      database: z.string().min(1),
+    }),
+  ]),
 })
 
 export type ProjectPaths = {

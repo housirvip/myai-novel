@@ -8,8 +8,14 @@ import { readProjectConfig } from '../shared/utils/project-paths.js'
 export async function openProjectDatabase(): Promise<NovelDatabase> {
   const rootDir = process.cwd()
   const config = await readProjectConfig(rootDir)
-  const databasePath = path.resolve(rootDir, config.database.filename)
-  const database = openDatabase(databasePath)
+  const database = openDatabase(
+    config.database.client === 'sqlite'
+      ? {
+          ...config.database,
+          filename: path.resolve(rootDir, config.database.filename),
+        }
+      : config.database,
+  )
 
   runMigrations(database)
 
