@@ -25,5 +25,8 @@ export function registerRegressionRunCommand(regressionCommand: Command): void {
 }
 
 function isProjectlessRegressionCase(caseName: string): boolean {
-  return caseName === 'llm-provider-smoke' || caseName === 'database-backend-smoke'
+  return caseName === 'llm-provider-smoke'
+    || caseName === 'secondary-provider-smoke'
+    || caseName === 'database-backend-smoke'
+    || caseName === 'mixed-config-validation'
 }

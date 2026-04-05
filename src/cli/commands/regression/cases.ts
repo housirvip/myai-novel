@@ -1,6 +1,8 @@
 export const BUILTIN_CASES = [
   'llm-provider-smoke',
+  'secondary-provider-smoke',
   'database-backend-smoke',
+  'mixed-config-validation',
   'hook-pressure-smoke',
   'chapter-drop-safety',
   'review-layering-smoke',

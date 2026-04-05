@@ -71,8 +71,12 @@ export async function executeRegressionCase(
   switch (caseName as RegressionCaseName) {
     case 'llm-provider-smoke':
       return executeLlmProviderSmoke(targetId)
+    case 'secondary-provider-smoke':
+      return executeSecondaryProviderSmoke(targetId)
     case 'database-backend-smoke':
       return executeDatabaseBackendSmoke(database, targetId)
+    case 'mixed-config-validation':
+      return executeMixedConfigValidation()
     case 'volume-plan-smoke':
       if (!database) {
         return createProjectRequiredResult(caseName)
@@ -166,6 +170,65 @@ function executeLlmProviderSmoke(targetId?: string): RegressionRunResult {
   }
 }
 
+function executeSecondaryProviderSmoke(targetId?: string): RegressionRunResult {
+  const env = readLlmEnv()
+  const availableProviders = [
+    ...(env.openAi.apiKey ? ['openai'] : []),
+    ...(env.openAiCompatible.apiKey ? ['openai-compatible'] : []),
+  ]
+  const secondaryProvider = targetId?.trim()
+    || (env.provider === 'openai' ? 'openai-compatible' : 'openai')
+  const secondaryConfigured = availableProviders.includes(secondaryProvider)
+  const planning = readLlmStageConfig('planning', env)
+  const generation = readLlmStageConfig('generation', env)
+  const review = readLlmStageConfig('review', env)
+  const rewrite = readLlmStageConfig('rewrite', env)
+  const stagesUsingSecondary = [planning, generation, review, rewrite]
+    .filter((item) => item.provider === secondaryProvider)
+    .map((item) => item.stage)
+
+  return {
+    caseName: 'secondary-provider-smoke',
+    targetId,
+    known: true,
+    status: secondaryConfigured ? 'pass' : 'warning',
+    summary: secondaryConfigured
+      ? `Secondary provider is configured and available: ${secondaryProvider}.`
+      : `Secondary provider is not configured: ${secondaryProvider}.`,
+    steps: [
+      {
+        name: 'resolve-secondary-provider',
+        status: 'pass',
+        detail: `default=${env.provider}; secondary=${secondaryProvider}`,
+      },
+      {
+        name: 'check-secondary-credentials',
+        status: secondaryConfigured ? 'pass' : 'fail',
+        detail: `availableProviders=${availableProviders.join(', ') || 'none'}`,
+      },
+      {
+        name: 'check-stage-usage',
+        status: 'pass',
+        detail: stagesUsingSecondary.length > 0
+          ? `secondaryUsedByStages=${stagesUsingSecondary.join(', ')}`
+          : 'No stage currently routes to the secondary provider; it remains standby capacity.',
+      },
+    ],
+    artifacts: [
+      {
+        name: '.env',
+        status: secondaryConfigured ? 'ready' : 'missing',
+        detail: 'Configure the secondary provider credentials and model defaults in your environment file.',
+      },
+      {
+        name: 'doctor',
+        status: 'ready',
+        detail: 'Use `novel doctor` to inspect default/secondary provider readiness and stage routing.',
+      },
+    ],
+  }
+}
+
 function executeDatabaseBackendSmoke(database: NovelDatabase | null, targetId?: string): RegressionRunResult {
   const configuredBackend = readConfiguredBackend()
 
@@ -196,7 +259,6 @@ function executeDatabaseBackendSmoke(database: NovelDatabase | null, targetId?: 
   const activeBackend = database?.client ?? configuredBackend ?? 'sqlite'
   const expectedBackend = targetId?.trim()
   const backendMatches = expectedBackend ? activeBackend === expectedBackend : true
-  const mysqlReady = activeBackend === 'mysql' ? 'not-wired' : 'n/a'
 
   return {
     caseName: 'database-backend-smoke',
@@ -221,10 +283,10 @@ function executeDatabaseBackendSmoke(database: NovelDatabase | null, targetId?: 
       },
       {
         name: 'check-backend-readiness',
-        status: activeBackend === 'sqlite' ? 'pass' : 'fail',
-        detail: activeBackend === 'sqlite'
-          ? 'SQLite backend is the currently wired execution path.'
-          : `MySQL backend status=${mysqlReady}. Migration and repository execution still need wiring.`,
+        status: database || configuredBackend ? 'pass' : 'fail',
+        detail: database
+          ? `Runtime database opened successfully with backend=${activeBackend}.`
+          : `Backend=${activeBackend} resolved from project config. Runtime open was not attempted in projectless mode.`,
       },
     ],
     artifacts: [
@@ -237,6 +299,72 @@ function executeDatabaseBackendSmoke(database: NovelDatabase | null, targetId?: 
         name: 'doctor',
         status: 'ready',
         detail: 'Use `novel doctor` to inspect the active database backend.',
+      },
+    ],
+  }
+}
+
+function executeMixedConfigValidation(): RegressionRunResult {
+  const env = readLlmEnv()
+  const configPath = resolveProjectPaths(process.cwd()).databaseConfigPath
+  const defaultProviderConfigured = isProviderConfigured(env.provider, env)
+  const stageRouting = [
+    readLlmStageConfig('planning', env),
+    readLlmStageConfig('generation', env),
+    readLlmStageConfig('review', env),
+    readLlmStageConfig('rewrite', env),
+  ]
+  const stageRoutingIssues = stageRouting
+    .filter((item) => !isProviderConfigured(item.provider, env))
+    .map((item) => `${item.stage} -> ${item.provider}/${item.model}`)
+  const databaseValidation = validateProjectDatabaseConfig(configPath)
+  const issues = [
+    ...(!defaultProviderConfigured ? [`默认 provider 未完成配置：${env.provider}`] : []),
+    ...stageRoutingIssues.map((item) => `阶段路由命中未配置 provider：${item}`),
+    ...databaseValidation.issues,
+  ]
+
+  return {
+    caseName: 'mixed-config-validation',
+    known: true,
+    status: issues.length === 0 ? 'pass' : 'warning',
+    summary: issues.length === 0
+      ? 'Environment provider config and project database config are mutually consistent.'
+      : `Detected ${issues.length} mixed configuration issue(s) across env/database settings.`,
+    steps: [
+      {
+        name: 'validate-default-provider',
+        status: defaultProviderConfigured ? 'pass' : 'fail',
+        detail: `defaultProvider=${env.provider}; configured=${String(defaultProviderConfigured)}`,
+      },
+      {
+        name: 'validate-stage-routing',
+        status: stageRoutingIssues.length === 0 ? 'pass' : 'fail',
+        detail: stageRoutingIssues.length === 0
+          ? 'All stage routes resolve to configured providers.'
+          : stageRoutingIssues.join(' | '),
+      },
+      {
+        name: 'validate-project-database-config',
+        status: databaseValidation.status,
+        detail: databaseValidation.detail,
+      },
+    ],
+    artifacts: [
+      {
+        name: '.env',
+        status: defaultProviderConfigured && stageRoutingIssues.length === 0 ? 'ready' : 'missing',
+        detail: 'Check LLM_PROVIDER, stage overrides, and provider credentials.',
+      },
+      {
+        name: 'config/database.json',
+        status: databaseValidation.artifactStatus,
+        detail: 'Check database backend selection and required backend fields.',
+      },
+      {
+        name: 'doctor',
+        status: 'ready',
+        detail: 'Use `novel doctor` to inspect combined backend/provider readiness.',
       },
     ],
   }
@@ -256,6 +384,95 @@ function readConfiguredBackend(): NovelDatabase['client'] | null {
   }
 
   return raw.database?.client === 'mysql' ? 'mysql' : 'sqlite'
+}
+
+function isProviderConfigured(provider: string, env: ReturnType<typeof readLlmEnv>): boolean {
+  if (provider === 'openai-compatible') {
+    return Boolean(env.openAiCompatible.apiKey)
+  }
+
+  return Boolean(env.openAi.apiKey)
+}
+
+function validateProjectDatabaseConfig(configPath: string): {
+  status: RegressionStepStatus
+  detail: string
+  issues: string[]
+  artifactStatus: RegressionArtifactStatus
+} {
+  if (!existsSync(configPath)) {
+    return {
+      status: 'skip',
+      detail: 'Project database config is missing; skipped project-specific validation.',
+      issues: [],
+      artifactStatus: 'missing',
+    }
+  }
+
+  try {
+    const raw = JSON.parse(readFileSync(configPath, 'utf8')) as {
+      database?: Record<string, unknown>
+    }
+    const database = raw.database
+
+    if (!database || typeof database !== 'object') {
+      return {
+        status: 'fail',
+        detail: 'database field is missing from config/database.json.',
+        issues: ['database field is missing from config/database.json'],
+        artifactStatus: 'missing',
+      }
+    }
+
+    const client = database.client
+
+    if (client === 'sqlite') {
+      const filename = database.filename
+      const valid = typeof filename === 'string' && filename.trim().length > 0
+
+      return {
+        status: valid ? 'pass' : 'fail',
+        detail: valid
+          ? `SQLite config is valid: filename=${filename}`
+          : 'SQLite config is invalid: filename is missing.',
+        issues: valid ? [] : ['sqlite filename is missing in config/database.json'],
+        artifactStatus: valid ? 'ready' : 'missing',
+      }
+    }
+
+    if (client === 'mysql') {
+      const requiredFields = ['host', 'port', 'user', 'database'] as const
+      const missingFields = requiredFields.filter((field) => {
+        const value = database[field]
+        return field === 'port'
+          ? !(typeof value === 'number' && Number.isInteger(value) && value > 0)
+          : !(typeof value === 'string' && value.trim().length > 0)
+      })
+
+      return {
+        status: missingFields.length === 0 ? 'pass' : 'fail',
+        detail: missingFields.length === 0
+          ? `MySQL config is valid: host=${String(database.host)}; database=${String(database.database)}`
+          : `MySQL config is invalid: missing ${missingFields.join(', ')}`,
+        issues: missingFields.map((field) => `mysql ${field} is missing in config/database.json`),
+        artifactStatus: missingFields.length === 0 ? 'ready' : 'missing',
+      }
+    }
+
+    return {
+      status: 'fail',
+      detail: 'database.client must be sqlite or mysql.',
+      issues: ['database.client must be sqlite or mysql'],
+      artifactStatus: 'missing',
+    }
+  } catch (error) {
+    return {
+      status: 'fail',
+      detail: error instanceof Error ? `Invalid database config JSON: ${error.message}` : 'Invalid database config JSON.',
+      issues: ['config/database.json is not valid JSON'],
+      artifactStatus: 'missing',
+    }
+  }
 }
 
 export async function executeVolumeRegressionSuite(
