@@ -1,4 +1,17 @@
-import type { Book, ChapterDraft, ChapterPlan, ChapterRewrite, Outline, ReviewReport, StoryThreadProgress, Volume, VolumePlan } from '../../src/shared/types/domain.js'
+import type {
+  Book,
+  Chapter,
+  ChapterDraft,
+  ChapterPlan,
+  ChapterRewrite,
+  EndingReadiness,
+  Outline,
+  ReviewReport,
+  StoryThread,
+  StoryThreadProgress,
+  Volume,
+  VolumePlan,
+} from '../../src/shared/types/domain.js'
 
 export function createBookFixture(overrides?: Partial<Book>): Book {
   return {
@@ -290,6 +303,81 @@ export function createStoryThreadProgressFixture(overrides?: Partial<StoryThread
       },
     ],
     createdAt: '2026-04-06T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function createChapterFixture(overrides?: Partial<Chapter>): Chapter {
+  return {
+    id: 'chapter-1',
+    bookId: 'book-1',
+    volumeId: 'volume-1',
+    index: 1,
+    title: '暗潮',
+    objective: '查明敌营动向',
+    summary: undefined,
+    plannedBeats: ['潜入据点', '发现密信'],
+    status: 'planned',
+    currentPlanVersionId: undefined,
+    currentVersionId: undefined,
+    draftPath: undefined,
+    finalPath: undefined,
+    approvedAt: undefined,
+    createdAt: '2026-04-06T00:00:00.000Z',
+    updatedAt: '2026-04-06T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function createStoryThreadFixture(overrides?: Partial<StoryThread>): StoryThread {
+  return {
+    id: 'thread-1',
+    bookId: 'book-1',
+    volumeId: 'volume-1',
+    title: '王城线',
+    threadType: 'main',
+    summary: '围绕王城阴谋持续推进',
+    priority: 'high',
+    stage: 'developing',
+    linkedCharacterIds: [],
+    linkedHookIds: [],
+    targetOutcome: '逼近真相',
+    status: 'active',
+    updatedByChapterId: 'chapter-1',
+    updatedAt: '2026-04-06T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function createEndingReadinessFixture(overrides?: Partial<EndingReadiness>): EndingReadiness {
+  return {
+    bookId: 'book-1',
+    targetVolumeId: 'volume-1',
+    readinessScore: 65,
+    closureScore: 55,
+    pendingPayoffs: [
+      {
+        summary: '回收王城线伏笔',
+        relatedThreadId: 'thread-1',
+        targetChapterIndex: 3,
+        status: 'pending',
+      },
+    ],
+    closureGaps: [
+      {
+        summary: '终局伏笔不足',
+        severity: 'high',
+        relatedThreadId: 'thread-1',
+      },
+    ],
+    finalConflictPrerequisites: [
+      {
+        summary: '主角必须掌握关键真相',
+        status: 'partial',
+        relatedThreadId: 'thread-1',
+      },
+    ],
+    updatedAt: '2026-04-06T00:00:00.000Z',
     ...overrides,
   }
 }
