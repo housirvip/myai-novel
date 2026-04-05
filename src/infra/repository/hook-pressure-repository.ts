@@ -1,6 +1,6 @@
 import type { HookPressure } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type HookPressureRow = {
   book_id: string
@@ -16,7 +16,7 @@ export class HookPressureRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   getByHookId(bookId: string, hookId: string): HookPressure | null {
-    const row = sqliteGet<HookPressureRow>(
+    const row = dbGet<HookPressureRow>(
       this.database,
       `
         SELECT *
@@ -32,7 +32,7 @@ export class HookPressureRepository {
   }
 
   listActiveByBookId(bookId: string): HookPressure[] {
-    const rows = sqliteAll<HookPressureRow>(
+    const rows = dbAll<HookPressureRow>(
       this.database,
       `
         SELECT *
@@ -47,7 +47,7 @@ export class HookPressureRepository {
   }
 
   upsert(pressure: HookPressure): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO hook_pressure_current (

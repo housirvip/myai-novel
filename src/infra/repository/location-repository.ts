@@ -1,12 +1,12 @@
 import type { Location } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 export class LocationRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(location: Location): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO locations (
@@ -24,7 +24,7 @@ export class LocationRepository {
   }
 
   getById(locationId: string): Location | null {
-    const row = sqliteGet<{
+    const row = dbGet<{
       id: string
       book_id: string
       name: string
@@ -48,7 +48,7 @@ export class LocationRepository {
   }
 
   listByBookId(bookId: string): Location[] {
-    const rows = sqliteAll<{
+    const rows = dbAll<{
       id: string
       book_id: string
       name: string

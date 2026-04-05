@@ -1,6 +1,6 @@
 import type { ChapterMemoryUpdate } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbRun } from '../db/db-client.js'
 
 type ChapterMemoryUpdateRow = {
   id: string
@@ -16,7 +16,7 @@ export class ChapterMemoryUpdateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(update: ChapterMemoryUpdate): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO chapter_memory_updates (
@@ -34,7 +34,7 @@ export class ChapterMemoryUpdateRepository {
   }
 
   listByChapterId(chapterId: string): ChapterMemoryUpdate[] {
-    const rows = sqliteAll<ChapterMemoryUpdateRow>(
+    const rows = dbAll<ChapterMemoryUpdateRow>(
       this.database,
       'SELECT * FROM chapter_memory_updates WHERE chapter_id = ? ORDER BY created_at ASC',
       chapterId,
@@ -44,7 +44,7 @@ export class ChapterMemoryUpdateRepository {
   }
 
   listByBookId(bookId: string): ChapterMemoryUpdate[] {
-    const rows = sqliteAll<ChapterMemoryUpdateRow>(
+    const rows = dbAll<ChapterMemoryUpdateRow>(
       this.database,
       'SELECT * FROM chapter_memory_updates WHERE book_id = ? ORDER BY created_at DESC',
       bookId,

@@ -1,6 +1,6 @@
 import type { StoryThread } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbRun } from '../db/db-client.js'
 
 type StoryThreadRow = {
   id: string
@@ -43,7 +43,7 @@ export class StoryThreadRepository {
     `
 
     for (const thread of threads) {
-      sqliteRun(
+      dbRun(
         this.database,
         insertSql,
         thread.id,
@@ -65,7 +65,7 @@ export class StoryThreadRepository {
   }
 
   listActiveByBookId(bookId: string): StoryThread[] {
-    const rows = sqliteAll<StoryThreadRow>(
+    const rows = dbAll<StoryThreadRow>(
       this.database,
       `
         SELECT *
@@ -80,7 +80,7 @@ export class StoryThreadRepository {
   }
 
   listByVolumeId(volumeId: string): StoryThread[] {
-    const rows = sqliteAll<StoryThreadRow>(
+    const rows = dbAll<StoryThreadRow>(
       this.database,
       `
         SELECT *
@@ -95,7 +95,7 @@ export class StoryThreadRepository {
   }
 
   upsert(thread: StoryThread): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO story_threads (

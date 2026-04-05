@@ -1,6 +1,6 @@
 import type { Hook } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbRun } from '../db/db-client.js'
 
 type HookRow = {
   id: string
@@ -19,7 +19,7 @@ export class HookRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(hook: Hook): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO hooks (
@@ -40,7 +40,7 @@ export class HookRepository {
   }
 
   listByBookId(bookId: string): Hook[] {
-    const rows = sqliteAll<HookRow>(this.database, 'SELECT * FROM hooks WHERE book_id = ? ORDER BY created_at ASC', bookId)
+    const rows = dbAll<HookRow>(this.database, 'SELECT * FROM hooks WHERE book_id = ? ORDER BY created_at ASC', bookId)
 
     return rows.map((row) => ({
       id: row.id,

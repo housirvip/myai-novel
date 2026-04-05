@@ -1,6 +1,6 @@
 import type { CharacterArc } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbRun } from '../db/db-client.js'
 
 type CharacterArcRow = {
   book_id: string
@@ -16,7 +16,7 @@ export class CharacterArcRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   getByCharacterId(bookId: string, characterId: string): CharacterArc[] {
-    const rows = sqliteAll<CharacterArcRow>(
+    const rows = dbAll<CharacterArcRow>(
       this.database,
       `
         SELECT *
@@ -32,7 +32,7 @@ export class CharacterArcRepository {
   }
 
   listByBookId(bookId: string): CharacterArc[] {
-    const rows = sqliteAll<CharacterArcRow>(
+    const rows = dbAll<CharacterArcRow>(
       this.database,
       `
         SELECT *
@@ -47,7 +47,7 @@ export class CharacterArcRepository {
   }
 
   upsert(arc: CharacterArc): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO character_arc_current_state (

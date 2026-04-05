@@ -1,6 +1,6 @@
 import type { StoryThreadProgress } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type StoryThreadProgressRow = {
   id: string
@@ -17,7 +17,7 @@ export class StoryThreadProgressRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(progress: StoryThreadProgress): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO story_thread_progress (
@@ -43,7 +43,7 @@ export class StoryThreadProgressRepository {
   }
 
   getLatestByThreadId(threadId: string): StoryThreadProgress | null {
-    const row = sqliteGet<StoryThreadProgressRow>(
+    const row = dbGet<StoryThreadProgressRow>(
       this.database,
       `
         SELECT *
@@ -59,7 +59,7 @@ export class StoryThreadProgressRepository {
   }
 
   listByBookId(bookId: string): StoryThreadProgress[] {
-    const rows = sqliteAll<StoryThreadProgressRow>(
+    const rows = dbAll<StoryThreadProgressRow>(
       this.database,
       `
         SELECT *
@@ -74,7 +74,7 @@ export class StoryThreadProgressRepository {
   }
 
   listRecentByChapterWindow(bookId: string, startChapterId: string, endChapterId: string): StoryThreadProgress[] {
-    const rows = sqliteAll<StoryThreadProgressRow>(
+    const rows = dbAll<StoryThreadProgressRow>(
       this.database,
       `
         SELECT *

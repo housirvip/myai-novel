@@ -1,6 +1,6 @@
 import type { Item } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type ItemRow = {
   id: string
@@ -19,7 +19,7 @@ export class ItemRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(item: Item): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO items (
@@ -49,13 +49,13 @@ export class ItemRepository {
   }
 
   getById(itemId: string): Item | null {
-    const row = sqliteGet<ItemRow>(this.database, 'SELECT * FROM items WHERE id = ?', itemId)
+    const row = dbGet<ItemRow>(this.database, 'SELECT * FROM items WHERE id = ?', itemId)
 
     return row ? mapItem(row) : null
   }
 
   listByBookId(bookId: string): Item[] {
-    const rows = sqliteAll<ItemRow>(this.database, 'SELECT * FROM items WHERE book_id = ? ORDER BY created_at ASC', bookId)
+    const rows = dbAll<ItemRow>(this.database, 'SELECT * FROM items WHERE book_id = ? ORDER BY created_at ASC', bookId)
 
     return rows.map(mapItem)
   }

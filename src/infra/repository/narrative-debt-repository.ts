@@ -1,6 +1,6 @@
 import type { NarrativeDebt } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbRun } from '../db/db-client.js'
 
 type NarrativeDebtRow = {
   id: string
@@ -39,7 +39,7 @@ export class NarrativeDebtRepository {
     `
 
     for (const debt of debts) {
-      sqliteRun(
+      dbRun(
         this.database,
         insertSql,
         debt.id,
@@ -59,7 +59,7 @@ export class NarrativeDebtRepository {
   }
 
   listOpenByBookId(bookId: string): NarrativeDebt[] {
-    const rows = sqliteAll<NarrativeDebtRow>(
+    const rows = dbAll<NarrativeDebtRow>(
       this.database,
       "SELECT * FROM chapter_narrative_debts WHERE book_id = ? AND status = 'open' ORDER BY created_at DESC",
       bookId,
@@ -69,7 +69,7 @@ export class NarrativeDebtRepository {
   }
 
   listByChapterId(chapterId: string): NarrativeDebt[] {
-    const rows = sqliteAll<NarrativeDebtRow>(
+    const rows = dbAll<NarrativeDebtRow>(
       this.database,
       'SELECT * FROM chapter_narrative_debts WHERE chapter_id = ? ORDER BY created_at ASC',
       chapterId,
@@ -87,7 +87,7 @@ export class NarrativeDebtRepository {
     `
 
     for (const id of ids) {
-      sqliteRun(this.database, updateSql, resolvedAt, id)
+      dbRun(this.database, updateSql, resolvedAt, id)
     }
   }
 }

@@ -1,12 +1,12 @@
 import type { Faction } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteRun } from '../db/sqlite-client.js'
+import { dbRun } from '../db/db-client.js'
 
 export class FactionRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(faction: Faction): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO factions (

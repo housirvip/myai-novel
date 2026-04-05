@@ -1,6 +1,6 @@
 import type { ContextItemView, ItemCurrentState } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type ItemCurrentStateRow = {
   book_id: string
@@ -32,7 +32,7 @@ export class ItemCurrentStateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   upsert(state: ItemCurrentState): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO item_current_state (
@@ -62,7 +62,7 @@ export class ItemCurrentStateRepository {
   }
 
   getByItemId(bookId: string, itemId: string): ItemCurrentState | null {
-    const row = sqliteGet<ItemCurrentStateRow>(
+    const row = dbGet<ItemCurrentStateRow>(
       this.database,
       'SELECT * FROM item_current_state WHERE book_id = ? AND item_id = ?',
       bookId,
@@ -73,7 +73,7 @@ export class ItemCurrentStateRepository {
   }
 
   listImportantByBookId(bookId: string): ContextItemView[] {
-    const rows = sqliteAll<ImportantItemRow>(
+    const rows = dbAll<ImportantItemRow>(
       this.database,
       `
         SELECT

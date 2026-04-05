@@ -1,6 +1,6 @@
 import type { ChapterHookUpdate } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbRun } from '../db/db-client.js'
 
 type ChapterHookUpdateRow = {
   id: string
@@ -17,7 +17,7 @@ export class ChapterHookUpdateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(update: ChapterHookUpdate): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO chapter_hook_updates (
@@ -36,7 +36,7 @@ export class ChapterHookUpdateRepository {
   }
 
   listByChapterId(chapterId: string): ChapterHookUpdate[] {
-    const rows = sqliteAll<ChapterHookUpdateRow>(
+    const rows = dbAll<ChapterHookUpdateRow>(
       this.database,
       'SELECT * FROM chapter_hook_updates WHERE chapter_id = ? ORDER BY created_at ASC',
       chapterId,
@@ -46,7 +46,7 @@ export class ChapterHookUpdateRepository {
   }
 
   listByBookId(bookId: string): ChapterHookUpdate[] {
-    const rows = sqliteAll<ChapterHookUpdateRow>(
+    const rows = dbAll<ChapterHookUpdateRow>(
       this.database,
       'SELECT * FROM chapter_hook_updates WHERE book_id = ? ORDER BY created_at DESC',
       bookId,

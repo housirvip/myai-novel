@@ -1,6 +1,6 @@
 import type { Character } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type CharacterRow = {
   id: string
@@ -17,7 +17,7 @@ export class CharacterRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(character: Character): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO characters (
@@ -36,13 +36,13 @@ export class CharacterRepository {
   }
 
   getById(characterId: string): Character | null {
-    const row = sqliteGet<CharacterRow>(this.database, 'SELECT * FROM characters WHERE id = ?', characterId)
+    const row = dbGet<CharacterRow>(this.database, 'SELECT * FROM characters WHERE id = ?', characterId)
 
     return row ? mapCharacter(row) : null
   }
 
   listByBookId(bookId: string): Character[] {
-    const rows = sqliteAll<CharacterRow>(
+    const rows = dbAll<CharacterRow>(
       this.database,
       'SELECT * FROM characters WHERE book_id = ? ORDER BY created_at ASC',
       bookId,
@@ -52,7 +52,7 @@ export class CharacterRepository {
   }
 
   getPrimaryByBookId(bookId: string): Character | null {
-    const row = sqliteGet<CharacterRow>(
+    const row = dbGet<CharacterRow>(
       this.database,
       `
         SELECT *

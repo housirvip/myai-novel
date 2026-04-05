@@ -1,6 +1,6 @@
 import type { NarrativeContradiction } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbRun } from '../db/db-client.js'
 
 type NarrativeContradictionRow = {
   id: string
@@ -39,7 +39,7 @@ export class ChapterContradictionRepository {
     `
 
     for (const contradiction of contradictions) {
-      sqliteRun(
+      dbRun(
         this.database,
         sql,
         contradiction.id,
@@ -59,7 +59,7 @@ export class ChapterContradictionRepository {
   }
 
   listByChapterId(chapterId: string): NarrativeContradiction[] {
-    const rows = sqliteAll<NarrativeContradictionRow>(
+    const rows = dbAll<NarrativeContradictionRow>(
       this.database,
       'SELECT * FROM chapter_contradictions WHERE chapter_id = ? ORDER BY created_at ASC',
       chapterId,
@@ -69,7 +69,7 @@ export class ChapterContradictionRepository {
   }
 
   listOpenByBookId(bookId: string): NarrativeContradiction[] {
-    const rows = sqliteAll<NarrativeContradictionRow>(
+    const rows = dbAll<NarrativeContradictionRow>(
       this.database,
       "SELECT * FROM chapter_contradictions WHERE book_id = ? AND status = 'open' ORDER BY created_at DESC",
       bookId,

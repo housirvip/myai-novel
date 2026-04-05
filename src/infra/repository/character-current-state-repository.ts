@@ -1,6 +1,6 @@
 import type { CharacterCurrentState } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
-import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
+import { dbAll, dbGet, dbRun } from '../db/db-client.js'
 
 type CharacterCurrentStateRow = {
   book_id: string
@@ -14,7 +14,7 @@ export class CharacterCurrentStateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   upsert(state: CharacterCurrentState): void {
-    sqliteRun(
+    dbRun(
       this.database,
       `
         INSERT INTO character_current_state (
@@ -38,7 +38,7 @@ export class CharacterCurrentStateRepository {
   }
 
   listByBookId(bookId: string): CharacterCurrentState[] {
-    const rows = sqliteAll<CharacterCurrentStateRow>(
+    const rows = dbAll<CharacterCurrentStateRow>(
       this.database,
       'SELECT * FROM character_current_state WHERE book_id = ? ORDER BY updated_at DESC',
       bookId,
@@ -48,7 +48,7 @@ export class CharacterCurrentStateRepository {
   }
 
   getByCharacterId(bookId: string, characterId: string): CharacterCurrentState | null {
-    const row = sqliteGet<CharacterCurrentStateRow>(
+    const row = dbGet<CharacterCurrentStateRow>(
       this.database,
       'SELECT * FROM character_current_state WHERE book_id = ? AND character_id = ?',
       bookId,
