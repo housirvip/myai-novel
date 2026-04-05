@@ -956,6 +956,12 @@ novel doctor chapter <chapterId>
 novel doctor volume <volumeId>
 ```
 
+如果当前目录还没有初始化项目，`novel doctor` 现在也会输出一份基础设施摘要，至少展示：
+
+- 当前是否存在 `config/database.json`
+- 当前数据库后端配置状态
+- 当前 LLM provider 与阶段路由结果
+
 当前推荐把 [`doctor volume <volumeId>`](src/cli/commands/doctor/volume.ts:7) 当作卷级诊断入口，它会分层输出：
 
 - 总体风险摘要

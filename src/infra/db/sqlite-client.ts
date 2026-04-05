@@ -10,24 +10,24 @@ export function sqlitePrepare(database: NovelDatabase, sql: string): SqliteState
 }
 
 export function sqliteGet<T>(database: NovelDatabase, sql: string, ...params: unknown[]): T | undefined {
-  return sqlitePrepare(database, sql).get(...params) as T | undefined
+  return database.db.get<T>(sql, ...params)
 }
 
 export function sqliteAll<T>(database: NovelDatabase, sql: string, ...params: unknown[]): T[] {
-  return sqlitePrepare(database, sql).all(...params) as T[]
+  return database.db.all<T>(sql, ...params)
 }
 
-export function sqliteRun(database: NovelDatabase, sql: string, ...params: unknown[]): Database.RunResult {
-  return sqlitePrepare(database, sql).run(...params)
+export function sqliteRun(database: NovelDatabase, sql: string, ...params: unknown[]) {
+  return database.db.run(sql, ...params)
 }
 
 export function sqliteTransaction<TArgs extends unknown[], TResult>(
   database: NovelDatabase,
   action: (...args: TArgs) => TResult,
 ): (...args: TArgs) => TResult {
-  return assertSqliteDatabase(database).transaction(action)
+  return database.db.transaction(action)
 }
 
 export function sqliteExec(database: NovelDatabase, sql: string): void {
-  assertSqliteDatabase(database).exec(sql)
+  database.db.exec(sql)
 }

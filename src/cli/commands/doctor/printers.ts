@@ -1,12 +1,15 @@
 import { formatJson, formatSection } from '../../../shared/utils/format.js'
 
 export function printDoctorProjectSummary(input: {
-  bookId: string
+  projectInitialized: boolean
+  bookId?: string
   chapterCount: number
   operationLogDir: string
   infrastructure: {
     database: {
       activeBackend: string
+      configPath: string
+      configPresent: boolean
     }
     llm: {
       defaultProvider: string

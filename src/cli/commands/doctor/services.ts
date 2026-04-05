@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs'
+
 import type { NovelDatabase } from '../../../infra/db/database.js'
 import type { LlmTaskStage } from '../../../shared/types/domain.js'
 import { BookRepository } from '../../../infra/repository/book-repository.js'
@@ -9,30 +11,32 @@ import { ChapterReviewRepository } from '../../../infra/repository/chapter-revie
 import { ChapterRewriteRepository } from '../../../infra/repository/chapter-rewrite-repository.js'
 import { NovelError } from '../../../shared/utils/errors.js'
 import { readLlmEnv, readLlmStageConfig } from '../../../shared/utils/env.js'
-import { resolveOperationLogDir } from '../../../shared/utils/project-paths.js'
+import { resolveOperationLogDir, resolveProjectPaths } from '../../../shared/utils/project-paths.js'
 
-/**
- * `doctor` 命令域的查询装配层。
- */
-export function loadDoctorProjectView(database: NovelDatabase): {
-  bookId: string
+type DoctorInfrastructureView = {
+  database: {
+    activeBackend: NovelDatabase['client'] | 'unconfigured'
+    configPath: string
+    configPresent: boolean
+  }
+  llm: {
+    defaultProvider: string
+    defaultModel: string
+    availableProviders: string[]
+    stageRouting: Array<{
+      stage: string
+      provider: string
+      model: string
+    }>
+  }
+}
+
+type DoctorProjectSummary = {
+  projectInitialized: boolean
+  bookId?: string
   chapterCount: number
   operationLogDir: string
-  infrastructure: {
-    database: {
-      activeBackend: NovelDatabase['client']
-    }
-    llm: {
-      defaultProvider: string
-      defaultModel: string
-      availableProviders: string[]
-      stageRouting: Array<{
-        stage: string
-        provider: string
-        model: string
-      }>
-    }
-  }
+  infrastructure: DoctorInfrastructureView
   chapters: Array<{
     chapterId: string
     title: string
@@ -43,9 +47,13 @@ export function loadDoctorProjectView(database: NovelDatabase): {
     hasRewrite: boolean
     hasOutput: boolean
   }>
-} {
+}
+
+/**
+ * `doctor` 命令域的查询装配层。
+ */
+export function loadDoctorProjectView(database: NovelDatabase): DoctorProjectSummary {
   const book = new BookRepository(database).getFirst()
-  const env = readLlmEnv()
 
   if (!book) {
     throw new NovelError('Project is not initialized. Run `novel init` first.')
@@ -61,31 +69,11 @@ export function loadDoctorProjectView(database: NovelDatabase): {
   const llmStages: readonly LlmTaskStage[] = ['planning', 'generation', 'review', 'rewrite']
 
   return {
+    projectInitialized: true,
     bookId: book.id,
     chapterCount: chapters.length,
     operationLogDir: resolveOperationLogDir(process.cwd()),
-    infrastructure: {
-      database: {
-        activeBackend: database.client,
-      },
-      llm: {
-        defaultProvider: env.provider,
-        defaultModel: env.defaultModel,
-        availableProviders: [
-          ...(env.openAi.apiKey ? ['openai'] : []),
-          ...(env.openAiCompatible.apiKey ? ['openai-compatible'] : []),
-        ],
-        stageRouting: llmStages.map((stage) => {
-          const config = readLlmStageConfig(stage)
-
-          return {
-            stage,
-            provider: config.provider,
-            model: config.model,
-          }
-        }),
-      },
-    },
+    infrastructure: buildDoctorInfrastructureView(database.client, llmStages),
     chapters: chapters.map((chapter) => ({
       chapterId: chapter.id,
       title: chapter.title,
@@ -96,6 +84,18 @@ export function loadDoctorProjectView(database: NovelDatabase): {
       hasRewrite: Boolean(rewriteRepository.getLatestByChapterId(chapter.id)),
       hasOutput: Boolean(outputRepository.getLatestByChapterId(chapter.id)),
     })),
+  }
+}
+
+export function loadDoctorBootstrapView(): DoctorProjectSummary {
+  const llmStages: readonly LlmTaskStage[] = ['planning', 'generation', 'review', 'rewrite']
+
+  return {
+    projectInitialized: false,
+    chapterCount: 0,
+    operationLogDir: resolveOperationLogDir(process.cwd()),
+    infrastructure: buildDoctorInfrastructureView(readConfiguredBackend(), llmStages),
+    chapters: [],
   }
 }
 
@@ -148,4 +148,53 @@ export function loadDoctorChapterView(database: NovelDatabase, chapterId: string
       operationLogDir: resolveOperationLogDir(process.cwd()),
     },
   }
+}
+
+function buildDoctorInfrastructureView(
+  activeBackend: NovelDatabase['client'] | 'unconfigured',
+  llmStages: readonly LlmTaskStage[],
+): DoctorInfrastructureView {
+  const env = readLlmEnv()
+  const configPath = resolveProjectPaths(process.cwd()).databaseConfigPath
+
+  return {
+    database: {
+      activeBackend,
+      configPath,
+      configPresent: existsSync(configPath),
+    },
+    llm: {
+      defaultProvider: env.provider,
+      defaultModel: env.defaultModel,
+      availableProviders: [
+        ...(env.openAi.apiKey ? ['openai'] : []),
+        ...(env.openAiCompatible.apiKey ? ['openai-compatible'] : []),
+      ],
+      stageRouting: llmStages.map((stage) => {
+        const config = readLlmStageConfig(stage)
+
+        return {
+          stage,
+          provider: config.provider,
+          model: config.model,
+        }
+      }),
+    },
+  }
+}
+
+function readConfiguredBackend(): NovelDatabase['client'] | 'unconfigured' {
+  const configPath = resolveProjectPaths(process.cwd()).databaseConfigPath
+
+  if (!existsSync(configPath)) {
+    return 'unconfigured'
+  }
+
+  const raw = JSON.parse(readFileSync(configPath, 'utf8')) as {
+    database?: {
+      client?: unknown
+    }
+  }
+
+  return raw.database?.client === 'mysql' ? 'mysql' : 'sqlite'
 }
