@@ -1,4 +1,4 @@
-import type { Book, ChapterDraft, ChapterPlan, ChapterRewrite, ReviewReport } from '../../src/shared/types/domain.js'
+import type { Book, ChapterDraft, ChapterPlan, ChapterRewrite, Outline, ReviewReport, StoryThreadProgress, Volume, VolumePlan } from '../../src/shared/types/domain.js'
 
 export function createBookFixture(overrides?: Partial<Book>): Book {
   return {
@@ -199,6 +199,97 @@ export function createChapterRewriteFixture(overrides?: Partial<ChapterRewrite>)
       fallbackUsed: false,
     },
     createdAt: '2026-04-06T00:15:00.000Z',
+    ...overrides,
+  }
+}
+
+export function createVolumePlanFixture(overrides?: Partial<VolumePlan>): VolumePlan {
+  return {
+    id: 'volume-plan-1',
+    bookId: 'book-1',
+    volumeId: 'volume-1',
+    title: '第一卷滚动窗口计划',
+    focusSummary: '围绕卷目标持续推进',
+    rollingWindow: {
+      windowStartChapterIndex: 1,
+      windowEndChapterIndex: 3,
+      focusThreadIds: ['thread-1'],
+      goal: '在三章窗口内持续推进王城线',
+    },
+    threadIds: ['thread-1'],
+    chapterMissions: [
+      {
+        id: 'mission-1',
+        bookId: 'book-1',
+        volumeId: 'volume-1',
+        chapterId: 'chapter-1',
+        threadId: 'thread-1',
+        missionType: 'advance',
+        summary: '推进王城线',
+        successSignal: '至少推进一条卷级线程',
+        priority: 'high',
+        createdAt: '2026-04-06T00:00:00.000Z',
+        updatedAt: '2026-04-06T00:00:00.000Z',
+      },
+    ],
+    endingSetupRequirements: [
+      {
+        id: 'ending-req-1',
+        summary: '补足终局伏笔',
+        relatedThreadId: 'thread-1',
+        targetChapterIndex: 3,
+        status: 'pending',
+      },
+    ],
+    createdAt: '2026-04-06T00:00:00.000Z',
+    updatedAt: '2026-04-06T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function createVolumeFixture(overrides?: Partial<Volume>): Volume {
+  return {
+    id: 'volume-1',
+    bookId: 'book-1',
+    title: '第一卷',
+    goal: '逼近真相',
+    summary: '卷摘要',
+    chapterIds: ['chapter-1'],
+    createdAt: '2026-04-06T00:00:00.000Z',
+    updatedAt: '2026-04-06T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function createOutlineFixture(overrides?: Partial<Outline>): Outline {
+  return {
+    bookId: 'book-1',
+    premise: '少年卷入阴谋',
+    theme: '命运',
+    worldview: '王城与边境对峙的高压世界',
+    coreConflicts: ['王城阴谋', '身份危机'],
+    endingVision: '主角逼近真相并做出代价选择',
+    updatedAt: '2026-04-06T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function createStoryThreadProgressFixture(overrides?: Partial<StoryThreadProgress>): StoryThreadProgress {
+  return {
+    id: 'thread-progress-1',
+    bookId: 'book-1',
+    threadId: 'thread-1',
+    chapterId: 'chapter-1',
+    progressStatus: 'advanced',
+    summary: '王城线获得新证据',
+    impacts: [
+      {
+        threadId: 'thread-1',
+        impactType: 'advance',
+        summary: '主线向前推进',
+      },
+    ],
+    createdAt: '2026-04-06T00:00:00.000Z',
     ...overrides,
   }
 }
