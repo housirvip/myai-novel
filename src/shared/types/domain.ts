@@ -665,9 +665,36 @@ export type LanguageQualityIssue = {
   summary: string
 }
 
+/**
+ * RewriteStrategySuggestion 是 review 对 rewrite 阶段给出的结构化策略建议。
+ *
+ * 在 `v4.1` 中，它已经不只覆盖通用文本修订，也会显式给出卷级修订焦点：
+ * - `thread-focus`：优先修正 mission / 主线推进偏航
+ * - `closure-focus`：优先修正 ending drive / payoff / 收束缺口
+ * - `ensemble-balance`：优先修正人物线、关系线与支线失衡
+ */
 export type RewriteStrategySuggestion = {
-  primary: 'consistency-first' | 'pacing-first' | 'ending-drive-first' | 'dialogue-enhance' | 'emotion-enhance' | 'length-correction'
-  secondary: Array<'consistency-first' | 'pacing-first' | 'ending-drive-first' | 'dialogue-enhance' | 'emotion-enhance' | 'length-correction'>
+  primary:
+    | 'consistency-first'
+    | 'pacing-first'
+    | 'ending-drive-first'
+    | 'thread-focus'
+    | 'closure-focus'
+    | 'ensemble-balance'
+    | 'dialogue-enhance'
+    | 'emotion-enhance'
+    | 'length-correction'
+  secondary: Array<
+    | 'consistency-first'
+    | 'pacing-first'
+    | 'ending-drive-first'
+    | 'thread-focus'
+    | 'closure-focus'
+    | 'ensemble-balance'
+    | 'dialogue-enhance'
+    | 'emotion-enhance'
+    | 'length-correction'
+  >
   rationale: string[]
 }
 

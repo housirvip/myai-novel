@@ -191,6 +191,9 @@ export class ReviewService {
       memoryIssues,
       pacingIssues,
       hookIssues: uniqueMessages([...hookIssues, ...threadIssues, ...endingReadinessIssues]),
+      threadIssues,
+      endingReadinessIssues,
+      missionProgress,
       revisionAdvice: mergedReview.revisionAdvice,
     })
 
@@ -1130,6 +1133,9 @@ function buildReviewLayers(input: {
   memoryIssues: string[]
   pacingIssues: string[]
   hookIssues: string[]
+  threadIssues: string[]
+  endingReadinessIssues: string[]
+  missionProgress: ReviewReport['missionProgress']
   revisionAdvice: string[]
 }): ReviewReport['reviewLayers'] {
   const mustFix = [
@@ -1145,6 +1151,7 @@ function buildReviewLayers(input: {
     ...input.hookIssues
       .filter((summary) => summary.includes('结尾') || summary.includes('牵引'))
       .map((summary) => ({ category: 'ending-drive' as const, severity: 'high' as const, summary })),
+    ...input.endingReadinessIssues.map((summary) => ({ category: 'ending-drive' as const, severity: 'high' as const, summary })),
     ...input.pacingIssues
       .filter((summary) => summary.includes('情绪'))
       .map((summary) => ({ category: 'emotion' as const, severity: 'medium' as const, summary })),
@@ -1154,6 +1161,9 @@ function buildReviewLayers(input: {
     ...input.pacingIssues
       .filter((summary) => summary.includes('债务'))
       .map((summary) => ({ category: 'debt' as const, severity: 'medium' as const, summary })),
+    ...input.threadIssues
+      .filter((summary) => summary.includes('群像') || summary.includes('支线'))
+      .map((summary) => ({ category: 'arc' as const, severity: 'medium' as const, summary })),
   ]
 
   const languageQuality = [
@@ -1165,17 +1175,35 @@ function buildReviewLayers(input: {
       .map((summary) => ({ category: 'style' as const, severity: 'low' as const, summary })),
   ]
 
+  const needsThreadFocus =
+    input.missionProgress.status === 'missing' ||
+    input.missionProgress.status === 'partial' ||
+    input.threadIssues.some((summary) => summary.includes('mission') || summary.includes('高优先级线程'))
+  const needsClosureFocus =
+    input.endingReadinessIssues.length > 0 ||
+    input.hookIssues.some((summary) => summary.includes('结尾') || summary.includes('牵引'))
+  const needsEnsembleBalance = input.threadIssues.some((summary) => summary.includes('群像') || summary.includes('支线'))
+
   const primary = input.consistencyIssues.length > 0 || input.characterIssues.length > 0 || input.itemIssues.length > 0 || input.memoryIssues.length > 0
     ? 'consistency-first'
-    : (!input.wordCountCheck.passed
-        ? 'length-correction'
-        : (input.hookIssues.some((summary) => summary.includes('结尾') || summary.includes('牵引'))
-            ? 'ending-drive-first'
-            : (input.pacingIssues.some((summary) => summary.includes('情绪')) ? 'emotion-enhance' : 'pacing-first')))
+    : needsThreadFocus
+      ? 'thread-focus'
+      : needsClosureFocus
+        ? 'closure-focus'
+        : needsEnsembleBalance
+          ? 'ensemble-balance'
+          : !input.wordCountCheck.passed
+            ? 'length-correction'
+            : input.pacingIssues.some((summary) => summary.includes('情绪'))
+              ? 'emotion-enhance'
+              : 'pacing-first'
 
   const secondary = [
     ...(primary !== 'consistency-first' && mustFix.length > 0 ? ['consistency-first' as const] : []),
-    ...(primary !== 'ending-drive-first' && narrativeQuality.some((item) => item.category === 'ending-drive') ? ['ending-drive-first' as const] : []),
+    ...(primary !== 'thread-focus' && needsThreadFocus ? ['thread-focus' as const] : []),
+    ...(primary !== 'closure-focus' && needsClosureFocus ? ['closure-focus' as const] : []),
+    ...(primary !== 'ensemble-balance' && needsEnsembleBalance ? ['ensemble-balance' as const] : []),
+    ...(narrativeQuality.some((item) => item.category === 'ending-drive') ? ['ending-drive-first' as const] : []),
     ...(primary !== 'emotion-enhance' && narrativeQuality.some((item) => item.category === 'emotion') ? ['emotion-enhance' as const] : []),
     ...(primary !== 'length-correction' && !input.wordCountCheck.passed ? ['length-correction' as const] : []),
   ]
@@ -1188,6 +1216,17 @@ function buildReviewLayers(input: {
       primary,
       secondary,
       rationale: uniqueMessages([
+        ...(needsThreadFocus
+          ? [
+              input.missionProgress.status === 'missing'
+                ? '当前章 mission 缺少有效正文证据，需要优先修正主线推进焦点。'
+                : input.missionProgress.status === 'partial'
+                  ? '当前章 mission 只被部分兑现，需要优先补强线程推进。'
+                  : '当前章存在高优线程承接不足，需要优先修正 thread focus。',
+            ]
+          : []),
+        ...(needsClosureFocus ? ['当前章存在 ending drive / 收束缺口，需要优先修正 closure。'] : []),
+        ...(needsEnsembleBalance ? ['当前章暴露群像或支线失衡，需要优先修正 ensemble balance。'] : []),
         ...mustFix.slice(0, 3).map((item) => item.summary),
         ...narrativeQuality.slice(0, 3).map((item) => item.summary),
         ...languageQuality.slice(0, 2).map((item) => item.summary),
