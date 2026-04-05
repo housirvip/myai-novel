@@ -654,3 +654,11 @@ function uniqueStrategyKinds(values: RewriteStrategyKind[]): RewriteStrategyKind
 function estimateWordCount(content: string): number {
   return content.replace(/\s+/g, '').length
 }
+
+export const __rewriteServiceTestables = {
+  validateRewrite,
+  summarizeRewriteContext,
+  summarizeProtectedFacts,
+  resolveRewriteStrategyProfile,
+  buildRewriteQualityTarget,
+}

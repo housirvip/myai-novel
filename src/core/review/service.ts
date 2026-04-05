@@ -1678,3 +1678,11 @@ function uniqueMessages(messages: string[]): string[] {
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
+
+export const __reviewServiceTestables = {
+  createWordCountCheck,
+  evaluateMissionProgress,
+  mergeMissionIssues,
+  normalizeClosureSuggestions,
+  buildReviewLayers,
+}
