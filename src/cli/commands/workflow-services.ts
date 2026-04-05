@@ -23,6 +23,7 @@ import { OutlineRepository } from '../../infra/repository/outline-repository.js'
 import { StoryThreadRepository } from '../../infra/repository/story-thread-repository.js'
 import { VolumePlanRepository } from '../../infra/repository/volume-plan-repository.js'
 import { VolumeRepository } from '../../infra/repository/volume-repository.js'
+import { NovelError } from '../../shared/utils/errors.js'
 
 /**
  * `workflow` 命令域的装配层。
@@ -61,6 +62,63 @@ export function createWorkflowPlanningService(database: NovelDatabase): Planning
 
 export function createWorkflowVolumePlanRepository(database: NovelDatabase): VolumePlanRepository {
   return new VolumePlanRepository(database)
+}
+
+export function loadWorkflowVolumeReviewView(database: NovelDatabase, volumeId: string): {
+  volume: {
+    id: string
+    title: string
+    goal: string
+    summary: string
+    chapterIds: string[]
+  }
+  latestVolumePlan: unknown | null
+  storyThreads: unknown[]
+  endingReadiness: unknown | null
+  chapterReviews: Array<{
+    chapter: {
+      id: string
+      index: number
+      title: string
+      status: string
+    }
+    latestReview: unknown | null
+  }>
+} {
+  const book = new BookRepository(database).getFirst()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const volume = new VolumeRepository(database).getById(volumeId)
+
+  if (!volume) {
+    throw new NovelError(`Volume not found: ${volumeId}`)
+  }
+
+  const chapterRepository = new ChapterRepository(database)
+  const reviewRepository = new ChapterReviewRepository(database)
+  const chapters = chapterRepository
+    .listByBookId(book.id)
+    .filter((chapter) => chapter.volumeId === volumeId)
+    .map((chapter) => ({
+      chapter: {
+        id: chapter.id,
+        index: chapter.index,
+        title: chapter.title,
+        status: chapter.status,
+      },
+      latestReview: reviewRepository.getLatestByChapterId(chapter.id),
+    }))
+
+  return {
+    volume,
+    latestVolumePlan: new VolumePlanRepository(database).getLatestByVolumeId(volumeId),
+    storyThreads: new StoryThreadRepository(database).listByVolumeId(volumeId),
+    endingReadiness: new EndingReadinessRepository(database).getByBookId(book.id),
+    chapterReviews: chapters,
+  }
 }
 
 export function createWorkflowWritingContextBuilder(database: NovelDatabase): WritingContextBuilder {

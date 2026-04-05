@@ -131,6 +131,37 @@ export function printWorkflowReviewCreated(review: {
   console.log(`Revision advice: ${review.revisionAdvice.join('；')}`)
 }
 
+export function printWorkflowVolumeReviewDetail(input: {
+  volume: {
+    id: string
+    title: string
+    goal: string
+    summary: string
+    chapterIds: string[]
+  }
+  latestVolumePlan: unknown | null
+  storyThreads: unknown[]
+  endingReadiness: unknown | null
+  chapterReviews: Array<{
+    chapter: {
+      id: string
+      index: number
+      title: string
+      status: string
+    }
+    latestReview: unknown | null
+  }>
+}): void {
+  console.log(`Volume review: ${input.volume.title} (${input.volume.id})`)
+  console.log(`Goal: ${input.volume.goal}`)
+  console.log(`Summary: ${input.volume.summary}`)
+  console.log(`Chapter count: ${input.chapterReviews.length}`)
+  console.log(formatSection('Latest volume plan:', formatJson(input.latestVolumePlan)))
+  console.log(formatSection('Story threads:', formatJson(input.storyThreads)))
+  console.log(formatSection('Ending readiness current:', formatJson(input.endingReadiness)))
+  console.log(formatSection('Chapter reviews:', formatJson(input.chapterReviews)))
+}
+
 export function printWorkflowReviewDetail(review: {
   id: string
   decision: string

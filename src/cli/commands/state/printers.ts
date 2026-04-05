@@ -189,7 +189,7 @@ export function printStateShowSummary(input: {
 }
 
 export function printStateUpdatesSummary(input: {
-  chapter: { index: number; title: string; id: string; status: string } | null
+  chapter: { index: number; title: string; id: string; status: string; bookId?: string } | null
   review: {
     id: string
     decision: string
@@ -279,4 +279,45 @@ export function printStateUpdatesSummary(input: {
       trace: formatTrace(update.detail),
     }))),
   ))
+}
+
+export function printStateThreadsSummary(input: {
+  book: { id: string; title: string }
+  volume: { id: string; title: string } | null
+  activeThreads: unknown[]
+  recentProgress: unknown[]
+}): void {
+  console.log(`Book: ${input.book.title}`)
+
+  if (input.volume) {
+    console.log(`Volume: ${input.volume.title} (${input.volume.id})`)
+  }
+
+  console.log(formatSection('Active story threads:', formatJson(input.activeThreads)))
+  console.log(formatSection('Recent thread progress:', formatJson(input.recentProgress)))
+}
+
+export function printStateEndingSummary(input: {
+  book: { id: string; title: string }
+  endingReadiness: unknown | null
+}): void {
+  console.log(`Book: ${input.book.title}`)
+  console.log(formatSection('Ending readiness current:', formatJson(input.endingReadiness)))
+}
+
+export function printStateVolumePlanSummary(input: {
+  book: { id: string; title: string }
+  volume: {
+    id: string
+    title: string
+    goal: string
+    summary: string
+  }
+  latestVolumePlan: unknown | null
+}): void {
+  console.log(`Book: ${input.book.title}`)
+  console.log(`Volume: ${input.volume.title} (${input.volume.id})`)
+  console.log(`Goal: ${input.volume.goal}`)
+  console.log(`Summary: ${input.volume.summary}`)
+  console.log(formatSection('Latest volume plan:', formatJson(input.latestVolumePlan)))
 }

@@ -21,7 +21,37 @@ import { StoryStateRepository } from '../../../infra/repository/story-state-repo
 import { StoryThreadProgressRepository } from '../../../infra/repository/story-thread-progress-repository.js'
 import { StoryThreadRepository } from '../../../infra/repository/story-thread-repository.js'
 import { VolumePlanRepository } from '../../../infra/repository/volume-plan-repository.js'
+import { VolumeRepository } from '../../../infra/repository/volume-repository.js'
 import { NovelError } from '../../../shared/utils/errors.js'
+
+type TraceDetail = {
+  source: string
+  reason: string
+  evidence: string[]
+  evidenceSummary?: string
+  before?: string
+  after?: string
+  previousValueSummary?: string
+  nextValueSummary?: string
+}
+
+type StateUpdateView = {
+  entityType: string
+  entityId: string
+  detail: TraceDetail
+  [key: string]: unknown
+}
+
+type MemoryUpdateView = {
+  detail: TraceDetail
+  [key: string]: unknown
+}
+
+type HookUpdateView = {
+  hookId: string
+  detail: TraceDetail
+  [key: string]: unknown
+}
 
 /**
  * `state` 命令域的装配与查询层。
@@ -87,49 +117,10 @@ export function loadStateShowView(database: NovelDatabase): {
   shortTermMemory: unknown
   observationMemory: unknown
   longTermMemory: unknown
-  recentStateUpdates: Array<{
-    entityType: string
-    entityId: string
-    detail: {
-      source: string
-      reason: string
-      evidence: string[]
-      evidenceSummary?: string
-      before?: string
-      after?: string
-      previousValueSummary?: string
-      nextValueSummary?: string
-    }
-    [key: string]: unknown
-  }>
+  recentStateUpdates: StateUpdateView[]
   itemNameById: Map<string, string>
-  recentMemoryUpdates: Array<{
-    detail: {
-      source: string
-      reason: string
-      evidence: string[]
-      evidenceSummary?: string
-      before?: string
-      after?: string
-      previousValueSummary?: string
-      nextValueSummary?: string
-    }
-    [key: string]: unknown
-  }>
-  recentHookUpdates: Array<{
-    hookId: string
-    detail: {
-      source: string
-      reason: string
-      evidence: string[]
-      evidenceSummary?: string
-      before?: string
-      after?: string
-      previousValueSummary?: string
-      nextValueSummary?: string
-    }
-    [key: string]: unknown
-  }>
+  recentMemoryUpdates: MemoryUpdateView[]
+  recentHookUpdates: HookUpdateView[]
 } {
   const book = new BookRepository(database).getFirst()
 
@@ -164,9 +155,9 @@ export function loadStateShowView(database: NovelDatabase): {
   const locations = locationRepository.listByBookId(book.id)
   const items = itemRepository.listByBookId(book.id)
   const hooks = hookRepository.listByBookId(book.id)
-  const recentStateUpdates = new ChapterStateUpdateRepository(database).listByBookId(book.id).slice(0, 10)
-  const recentMemoryUpdates = new ChapterMemoryUpdateRepository(database).listByBookId(book.id).slice(0, 10)
-  const recentHookUpdates = new ChapterHookUpdateRepository(database).listByBookId(book.id).slice(0, 10)
+  const recentStateUpdates = new ChapterStateUpdateRepository(database).listByBookId(book.id).slice(0, 10) as StateUpdateView[]
+  const recentMemoryUpdates = new ChapterMemoryUpdateRepository(database).listByBookId(book.id).slice(0, 10) as MemoryUpdateView[]
+  const recentHookUpdates = new ChapterHookUpdateRepository(database).listByBookId(book.id).slice(0, 10) as HookUpdateView[]
 
   const characterNameById = new Map(characters.map((character) => [character.id, character.name]))
   const locationNameById = new Map(locations.map((location) => [location.id, location.name]))
@@ -222,48 +213,9 @@ export function loadStateUpdatesView(database: NovelDatabase, chapterId: string)
     hookIssues: string[]
     revisionAdvice: string[]
   } | null
-  stateUpdates: Array<{
-    entityType: string
-    entityId: string
-    detail: {
-      source: string
-      reason: string
-      evidence: string[]
-      evidenceSummary?: string
-      before?: string
-      after?: string
-      previousValueSummary?: string
-      nextValueSummary?: string
-    }
-    [key: string]: unknown
-  }>
-  memoryUpdates: Array<{
-    detail: {
-      source: string
-      reason: string
-      evidence: string[]
-      evidenceSummary?: string
-      before?: string
-      after?: string
-      previousValueSummary?: string
-      nextValueSummary?: string
-    }
-    [key: string]: unknown
-  }>
-  hookUpdates: Array<{
-    hookId: string
-    detail: {
-      source: string
-      reason: string
-      evidence: string[]
-      evidenceSummary?: string
-      before?: string
-      after?: string
-      previousValueSummary?: string
-      nextValueSummary?: string
-    }
-    [key: string]: unknown
-  }>
+  stateUpdates: StateUpdateView[]
+  memoryUpdates: MemoryUpdateView[]
+  hookUpdates: HookUpdateView[]
   characterNameById: Map<string, string>
   itemNameById: Map<string, string>
   hookTitleById: Map<string, string>
@@ -274,9 +226,9 @@ export function loadStateUpdatesView(database: NovelDatabase, chapterId: string)
   const hookRepository = new HookRepository(database)
   const chapter = chapterRepository.getById(chapterId)
   const review = new ChapterReviewRepository(database).getLatestByChapterId(chapterId)
-  const stateUpdates = new ChapterStateUpdateRepository(database).listByChapterId(chapterId)
-  const memoryUpdates = new ChapterMemoryUpdateRepository(database).listByChapterId(chapterId)
-  const hookUpdates = new ChapterHookUpdateRepository(database).listByChapterId(chapterId)
+  const stateUpdates = new ChapterStateUpdateRepository(database).listByChapterId(chapterId) as StateUpdateView[]
+  const memoryUpdates = new ChapterMemoryUpdateRepository(database).listByChapterId(chapterId) as MemoryUpdateView[]
+  const hookUpdates = new ChapterHookUpdateRepository(database).listByChapterId(chapterId) as HookUpdateView[]
   const characterNameById = new Map(
     characterRepository.listByBookId(chapter?.bookId ?? '').map((item) => [item.id, item.name]),
   )
@@ -292,5 +244,84 @@ export function loadStateUpdatesView(database: NovelDatabase, chapterId: string)
     characterNameById,
     itemNameById,
     hookTitleById,
+  }
+}
+
+export function loadStateThreadsView(database: NovelDatabase, volumeId?: string): {
+  book: { id: string; title: string }
+  volume: { id: string; title: string } | null
+  activeThreads: unknown[]
+  recentProgress: unknown[]
+} {
+  const book = new BookRepository(database).getFirst()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const volume = volumeId ? new VolumeRepository(database).getById(volumeId) : null
+
+  if (volumeId && !volume) {
+    throw new NovelError(`Volume not found: ${volumeId}`)
+  }
+
+  const activeThreads = volumeId
+    ? new StoryThreadRepository(database).listByVolumeId(volumeId)
+    : new StoryThreadRepository(database).listActiveByBookId(book.id)
+  const recentProgress = new StoryThreadProgressRepository(database)
+    .listByBookId(book.id)
+    .filter((progress) => !volumeId || activeThreads.some((thread) => (thread as { id: string }).id === progress.threadId))
+    .slice(0, 10)
+
+  return {
+    book,
+    volume: volume ? { id: volume.id, title: volume.title } : null,
+    activeThreads,
+    recentProgress,
+  }
+}
+
+export function loadStateEndingView(database: NovelDatabase): {
+  book: { id: string; title: string }
+  endingReadiness: unknown | null
+} {
+  const book = new BookRepository(database).getFirst()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  return {
+    book,
+    endingReadiness: new EndingReadinessRepository(database).getByBookId(book.id),
+  }
+}
+
+export function loadStateVolumePlanView(database: NovelDatabase, volumeId: string): {
+  book: { id: string; title: string }
+  volume: {
+    id: string
+    title: string
+    goal: string
+    summary: string
+  }
+  latestVolumePlan: unknown | null
+} {
+  const book = new BookRepository(database).getFirst()
+
+  if (!book) {
+    throw new NovelError('Project is not initialized. Run `novel init` first.')
+  }
+
+  const volume = new VolumeRepository(database).getById(volumeId)
+
+  if (!volume) {
+    throw new NovelError(`Volume not found: ${volumeId}`)
+  }
+
+  return {
+    book,
+    volume,
+    latestVolumePlan: new VolumePlanRepository(database).getLatestByVolumeId(volumeId),
   }
 }
