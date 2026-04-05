@@ -697,19 +697,19 @@
 
 ## 6. v4 执行清单
 
-- [ ] 定义卷级计划、线程、终局准备度核心类型
-- [ ] 从 `M0-M1` 同步补 `domain` 与规划核心逻辑注释
-- [ ] 增加卷级数据库表与 repository
-- [ ] 为 planning 注入卷级上下文
-- [ ] 实现多章滚动规划入口
-- [ ] 为单章计划增加 mission 语义
-- [ ] 为 review 增加主线推进与偏航检查
-- [ ] 为 approve 增加线程进度与终局准备度提交
-- [ ] 为角色群像与支线平衡建立结构化检测
-- [ ] 先按 [`plans/v4-command-refactor-plan.md`](plans/v4-command-refactor-plan.md:1) 拆分重构 command 相关文件
-- [ ] 为 generation / rewrite 接入卷级导演约束
-- [ ] 增加卷级 state / doctor / snapshot / regression 命令
-- [ ] 固化 `v4` 回归样本与计划文档
+- [x] 定义卷级计划、线程、终局准备度核心类型
+- [x] 从 `M0-M1` 同步补 `domain` 与规划核心逻辑注释
+- [x] 增加卷级数据库表与 repository
+- [x] 为 planning 注入卷级上下文
+- [x] 实现多章滚动规划入口
+- [x] 为单章计划增加 mission 语义
+- [x] 为 review 增加主线推进与偏航检查
+- [x] 为 approve 增加线程进度与终局准备度提交
+- [x] 为角色群像与支线平衡建立结构化检测
+- [x] 先按 [`plans/v4-command-refactor-plan.md`](plans/v4-command-refactor-plan.md:1) 拆分重构 command 相关文件
+- [x] 为 generation / rewrite 接入卷级导演约束
+- [x] 增加卷级 state / doctor / snapshot / regression 命令
+- [x] 固化 `v4` 回归样本与计划文档
 
 ---
 
