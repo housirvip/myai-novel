@@ -1,5 +1,6 @@
 import type { ChapterDraft } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqliteGet, sqliteRun } from '../db/sqlite-client.js'
 
 type ChapterDraftRow = {
   id: string
@@ -16,68 +17,64 @@ export class ChapterDraftRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   create(draft: ChapterDraft): void {
-    this.database
-      .prepare(
-        `
-          INSERT INTO chapter_drafts (
-            id,
-            book_id,
-            chapter_id,
-            version_id,
-            chapter_plan_id,
-            content,
-            actual_word_count,
-            created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .run(
-        draft.id,
-        draft.bookId,
-        draft.chapterId,
-        draft.versionId,
-        draft.chapterPlanId,
-        draft.content,
-        draft.actualWordCount,
-        draft.createdAt,
-      )
+    sqliteRun(
+      this.database,
+      `
+        INSERT INTO chapter_drafts (
+          id,
+          book_id,
+          chapter_id,
+          version_id,
+          chapter_plan_id,
+          content,
+          actual_word_count,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      draft.id,
+      draft.bookId,
+      draft.chapterId,
+      draft.versionId,
+      draft.chapterPlanId,
+      draft.content,
+      draft.actualWordCount,
+      draft.createdAt,
+    )
   }
 
   getLatestByChapterId(chapterId: string): ChapterDraft | null {
-    const row = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapter_drafts
-          WHERE chapter_id = ?
-          ORDER BY created_at DESC
-          LIMIT 1
-        `,
-      )
-      .get(chapterId) as ChapterDraftRow | undefined
+    const row = sqliteGet<ChapterDraftRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_drafts
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      chapterId,
+    )
 
     return row ? mapDraft(row) : null
   }
 
   getById(id: string): ChapterDraft | null {
-    const row = this.database.prepare('SELECT * FROM chapter_drafts WHERE id = ?').get(id) as
-      | ChapterDraftRow
-      | undefined
+    const row = sqliteGet<ChapterDraftRow>(this.database, 'SELECT * FROM chapter_drafts WHERE id = ?', id)
 
     return row ? mapDraft(row) : null
   }
 
   listByChapterId(chapterId: string): ChapterDraft[] {
-    const rows = this.database
-      .prepare(
-        `
-          SELECT *
-          FROM chapter_drafts
-          WHERE chapter_id = ?
-          ORDER BY created_at DESC
-        `,
-      )
-      .all(chapterId) as ChapterDraftRow[]
+    const rows = sqliteAll<ChapterDraftRow>(
+      this.database,
+      `
+        SELECT *
+        FROM chapter_drafts
+        WHERE chapter_id = ?
+        ORDER BY created_at DESC
+      `,
+      chapterId,
+    )
 
     return rows.map(mapDraft)
   }
