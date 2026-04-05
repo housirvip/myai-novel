@@ -7,7 +7,7 @@
 它只聚焦两条主线：
 
 1. `LLM` 通用抽象与多提供商接入
-2. `SQLite / MySQL` 并行可选后端
+2. 通过配置在 `SQLite / MySQL` 之间二选一的数据库后端
 
 ---
 
@@ -24,7 +24,7 @@
 原因：
 
 - 先抽象，后接实现，返工更少
-- 先保住现有 SQLite / OpenAI 可用性，再扩并行后端
+- 先保住现有 SQLite / OpenAI 可用性，再扩数据库后端选择能力
 - `v4.1` 的 regression / doctor 体系可以为后续重构兜底
 
 ---
@@ -132,7 +132,7 @@
 
 ### M3 目标
 
-增加 `MySQL` 并行后端支持，但不强制旧项目迁移。
+增加 `MySQL` 可选后端支持，但不强制旧项目迁移。
 
 #### A. [`package.json`](package.json:14)
 
@@ -151,7 +151,7 @@
 
 #### D. [`src/cli/context.ts`](src/cli/context.ts:8)
 
-- 让打开项目数据库时按配置选择 SQLite 或 MySQL
+- 让打开项目数据库时按配置在 SQLite / MySQL 中二选一
 
 #### E. [`src/cli/commands/project-commands.ts`](src/cli/commands/project-commands.ts:19)
 
@@ -160,7 +160,7 @@
 
 ### M3 验收
 
-- 新项目可选 SQLite / MySQL
+- 项目可按配置二选一使用 SQLite / MySQL
 - 旧 SQLite 项目无需修改仍可运行
 - MySQL 至少能跑初始化、主链与核心状态命令
 
@@ -238,5 +238,5 @@
 当前只聚焦：
 
 - LLM 抽象与多 provider
-- SQLite / MySQL 并行后端
+- 通过配置在 SQLite / MySQL 间二选一的后端
 - 配置、回归、文档与验收收口

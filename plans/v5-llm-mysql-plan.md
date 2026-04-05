@@ -5,8 +5,8 @@
 `v5` 的目标不是再扩张新的创作链路，而是把当前系统的两块基础设施短板补成长期可扩展基线：
 
 1. 把当前单一的 [`OpenAI`](src/infra/llm/openai-adapter.ts:18) 接入，升级成通用 LLM 抽象与多提供商接入层。
-2. 把当前强绑定 [`SQLite`](src/infra/db/database.ts:5) 的存储层，升级成 `SQLite / MySQL` 并行可选后端。
-3. 在不强制迁移旧项目的前提下，让现有项目继续可运行，新项目可以按配置选择后端。
+2. 把当前强绑定 [`SQLite`](src/infra/db/database.ts:5) 的存储层，升级成可通过配置选择 `SQLite` 或 `MySQL` 的单后端模式。
+3. 在不强制迁移旧项目的前提下，让现有项目继续可运行，新项目可以按配置明确选择一种数据库后端。
 
 ---
 
@@ -58,14 +58,14 @@
 
 ### 3.2 新能力必须“配置可选”，不是“强制迁移”
 
-`SQLite` 仍然是默认、本地、零配置的起步方案；`MySQL` 是并行可选能力，不要求旧项目立即迁移。
+`SQLite` 仍然是默认、本地、零配置的起步方案；`MySQL` 是可选能力，项目在两者之间按配置二选一，不要求旧项目立即迁移。
 
 ### 3.3 不在 v5 一次性做分布式系统
 
 `v5` 做的是：
 
 - 多提供商 LLM 网关
-- 双后端存储抽象
+- 可通过配置在 SQLite / MySQL 间二选一的存储抽象
 - 配置、迁移、验收与回归补强
 
 `v5` 不做：
@@ -101,9 +101,9 @@
 
 目标：把当前直接依赖 SQLite 驱动的底座，重构成可同时支持 `SQLite / MySQL` 的数据库访问抽象。
 
-### P3：MySQL 并行支持
+### P3：MySQL 可选支持
 
-目标：让 `init / migrate / open database / repositories` 在不破坏 SQLite 的前提下支持 MySQL 项目。
+目标：让 `init / migrate / open database / repositories` 在不破坏 SQLite 的前提下支持通过配置切换到 MySQL 项目。
 
 ### P4：配置、命令与文档收口
 
@@ -173,11 +173,11 @@
 - SQLite 仍可完整运行
 - MySQL driver 能在接口层挂接
 
-### M3：MySQL 并行支持
+### M3：MySQL 可选支持
 
 #### 目标
 
-让新项目可以选择 MySQL 作为后端，而旧项目仍可继续使用 SQLite。
+让项目可以通过配置在 `SQLite` 与 `MySQL` 之间二选一，而旧项目仍可继续使用 SQLite。
 
 #### 模块任务
 
@@ -186,11 +186,11 @@
 - 扩展 [`src/infra/db/migrate.ts`](src/infra/db/migrate.ts:4) 与 schema 组织方式，使迁移可按方言执行
 - 补 MySQL 的 database adapter 与连接管理
 - 校验 repository SQL 是否存在 SQLite / MySQL 方言不兼容点，并逐步修正
-- 让 `init` 能按配置创建 SQLite 项目或 MySQL 项目
+- 让 `init` 与运行时数据库打开流程都能按配置选择 SQLite 或 MySQL
 
 #### 完成定义
 
-- 新项目可选 SQLite 或 MySQL
+- 项目可按配置二选一使用 SQLite 或 MySQL
 - 旧 SQLite 项目无需迁移仍可运行
 - MySQL 项目能跑完整主链路与核心命令
 
@@ -215,7 +215,7 @@
 
 #### 完成定义
 
-- 用户能明确知道如何启用 provider 与数据库后端
+- 用户能明确知道如何启用 provider 与数据库后端选择
 - 基础设施切换具备最小可用回归面
 - 文档、代码、回归三者一致
 
