@@ -8,6 +8,8 @@ type OpenAiAdapterOptions = {
 
 type ResponsesApiResponse = {
   id?: string
+  status?: string
+  usage?: Record<string, unknown>
   output?: Array<{
     content?: Array<{
       type?: string
@@ -71,6 +73,17 @@ export class OpenAiLlmAdapter implements LlmAdapter {
       model: input.metadata?.modelHint ?? this.options.model,
       responseId: payload.id,
       latencyMs: Date.now() - startedAt,
+      metadata: {
+        selectedProvider: this.provider,
+        providerSource: 'default-provider',
+        selectedModel: input.metadata?.modelHint ?? this.options.model,
+        modelSource: input.metadata?.modelHint ? 'input-hint' : 'provider-default',
+        fallbackUsed: false,
+        requestId: response.headers.get('x-request-id') ?? response.headers.get('openai-request-id') ?? undefined,
+        finishReason: payload.status,
+        rawUsage: payload.usage,
+        latencyMs: Date.now() - startedAt,
+      },
     }
   }
 }

@@ -23,6 +23,14 @@ type DoctorInfrastructureView = {
     defaultProvider: string
     defaultModel: string
     availableProviders: string[]
+    configuredProviders: Array<{
+      provider: string
+      configured: boolean
+      baseUrl: string
+      defaultModel: string
+      isDefault: boolean
+      usedByStages: string[]
+    }>
     stageRouting: Array<{
       stage: string
       provider: string
@@ -242,6 +250,15 @@ function buildDoctorInfrastructureView(
 ): DoctorInfrastructureView {
   const env = readLlmEnv()
   const configPath = resolveProjectPaths(process.cwd()).databaseConfigPath
+  const stageRouting = llmStages.map((stage) => {
+    const config = readLlmStageConfig(stage)
+
+    return {
+      stage,
+      provider: config.provider,
+      model: config.model,
+    }
+  })
 
   return {
     database: {
@@ -256,15 +273,25 @@ function buildDoctorInfrastructureView(
         ...(env.openAi.apiKey ? ['openai'] : []),
         ...(env.openAiCompatible.apiKey ? ['openai-compatible'] : []),
       ],
-      stageRouting: llmStages.map((stage) => {
-        const config = readLlmStageConfig(stage)
-
-        return {
-          stage,
-          provider: config.provider,
-          model: config.model,
-        }
-      }),
+      configuredProviders: [
+        {
+          provider: env.openAi.provider,
+          configured: Boolean(env.openAi.apiKey),
+          baseUrl: env.openAi.baseUrl,
+          defaultModel: env.openAi.model,
+          isDefault: env.provider === env.openAi.provider,
+          usedByStages: stageRouting.filter((item) => item.provider === env.openAi.provider).map((item) => item.stage),
+        },
+        {
+          provider: env.openAiCompatible.provider,
+          configured: Boolean(env.openAiCompatible.apiKey),
+          baseUrl: env.openAiCompatible.baseUrl,
+          defaultModel: env.openAiCompatible.model,
+          isDefault: env.provider === env.openAiCompatible.provider,
+          usedByStages: stageRouting.filter((item) => item.provider === env.openAiCompatible.provider).map((item) => item.stage),
+        },
+      ],
+      stageRouting,
     },
   }
 }

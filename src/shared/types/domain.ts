@@ -1047,7 +1047,30 @@ export type PromptInput = {
     modelHint?: string
     timeoutMs?: number
     maxRetries?: number
+    traceId?: string
   }
+}
+
+export type LlmResolutionSource = 'input-hint' | 'stage-routing' | 'default-provider' | 'fallback'
+
+export type LlmModelSource = 'input-hint' | 'stage-routing' | 'provider-default'
+
+export type LlmExecutionMetadata = {
+  stage?: LlmTaskStage
+  requestedProvider?: LlmProvider
+  selectedProvider: LlmProvider
+  providerSource: LlmResolutionSource
+  requestedModel?: string
+  selectedModel: string
+  modelSource: LlmModelSource
+  fallbackUsed: boolean
+  fallbackFromProvider?: LlmProvider
+  responseId?: string
+  requestId?: string
+  latencyMs?: number
+  finishReason?: string
+  retryCount?: number
+  rawUsage?: Record<string, unknown>
 }
 
 export type GenerateResult = {
@@ -1056,6 +1079,7 @@ export type GenerateResult = {
   model: string
   responseId?: string
   latencyMs?: number
+  metadata?: LlmExecutionMetadata
 }
 
 export interface LlmAdapter {

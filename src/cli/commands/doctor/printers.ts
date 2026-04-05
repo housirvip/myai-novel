@@ -15,6 +15,14 @@ export function printDoctorProjectSummary(input: {
       defaultProvider: string
       defaultModel: string
       availableProviders: string[]
+      configuredProviders: Array<{
+        provider: string
+        configured: boolean
+        baseUrl: string
+        defaultModel: string
+        isDefault: boolean
+        usedByStages: string[]
+      }>
       stageRouting: Array<{
         stage: string
         provider: string
