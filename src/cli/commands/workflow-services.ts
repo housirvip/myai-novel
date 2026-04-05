@@ -59,6 +59,10 @@ export function createWorkflowPlanningService(database: NovelDatabase): Planning
   )
 }
 
+export function createWorkflowVolumePlanRepository(database: NovelDatabase): VolumePlanRepository {
+  return new VolumePlanRepository(database)
+}
+
 export function createWorkflowWritingContextBuilder(database: NovelDatabase): WritingContextBuilder {
   return new WritingContextBuilder(
     createWorkflowPlanningContextBuilder(database),

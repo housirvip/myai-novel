@@ -12,6 +12,38 @@ export function printWorkflowPlanCreated(plan: {
   console.log(`Events: ${plan.eventOutline.length}`)
 }
 
+export function printWorkflowVolumePlanCreated(plan: {
+  id: string
+  title: string
+  volumeId: string
+  threadIds: string[]
+  chapterMissions: unknown[]
+}): void {
+  console.log(`Volume window plan created: ${plan.id}`)
+  console.log(`Volume: ${plan.volumeId}`)
+  console.log(`Title: ${plan.title}`)
+  console.log(`Thread count: ${plan.threadIds.length}`)
+  console.log(`Mission count: ${plan.chapterMissions.length}`)
+}
+
+export function printWorkflowVolumePlanDetail(plan: {
+  id: string
+  title: string
+  focusSummary: string
+  rollingWindow: unknown
+  threadIds: unknown
+  chapterMissions: unknown
+  endingSetupRequirements: unknown
+}): void {
+  console.log(`Volume plan id: ${plan.id}`)
+  console.log(`Title: ${plan.title}`)
+  console.log(`Focus summary: ${plan.focusSummary}`)
+  console.log(formatSection('Rolling window:', formatJson(plan.rollingWindow)))
+  console.log(formatSection('Thread ids:', formatJson(plan.threadIds)))
+  console.log(formatSection('Chapter missions:', formatJson(plan.chapterMissions)))
+  console.log(formatSection('Ending setup requirements:', formatJson(plan.endingSetupRequirements)))
+}
+
 export function printWorkflowPlanDetail(plan: {
   versionId: string
   objective: string
