@@ -9,6 +9,11 @@ export function registerRegressionRunCommand(regressionCommand: Command): void {
     .command('run <caseName> [targetId]')
     .description('Execute a regression case with an optional chapter or volume target')
     .action(async (caseName: string, targetId?: string) => {
+      if (isProjectlessRegressionCase(caseName)) {
+        printRegressionRun(executeRegressionCase(null, caseName, targetId))
+        return
+      }
+
       const database = await openProjectDatabase()
 
       try {
@@ -17,4 +22,8 @@ export function registerRegressionRunCommand(regressionCommand: Command): void {
         database.close()
       }
     })
+}
+
+function isProjectlessRegressionCase(caseName: string): boolean {
+  return caseName === 'llm-provider-smoke' || caseName === 'database-backend-smoke'
 }

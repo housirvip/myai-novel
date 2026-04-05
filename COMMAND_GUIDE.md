@@ -988,6 +988,16 @@ novel regression volume <volumeId>
 - 卷级内建 case 套件执行结果
 - steps / artifacts / summary 的统一输出结构
 
+`v5` 当前还补充了两个基础设施 smoke case：
+
+- `llm-provider-smoke`：检查当前 provider 凭据与阶段路由是否可解析
+- `database-backend-smoke`：检查当前项目启用的是哪个数据库后端，以及该后端是否处于已接线状态
+
+其中：
+
+- `llm-provider-smoke` 可以在未初始化项目时直接执行
+- `database-backend-smoke` 会优先读取运行时数据库，若当前目录还没项目，也会尝试读取 `config/database.json`
+
 推荐优先使用的卷级样本：
 
 - `volume-plan-smoke`
@@ -1043,6 +1053,19 @@ novel chapter rewrite <chapterId>
 - `OPENAI_API_KEY`
 - `OPENAI_BASE_URL`
 - `OPENAI_MODEL`
+
+如果你在 `v5` 配置了阶段级 provider / model，也请一起检查：
+
+- `LLM_PROVIDER`
+- `LLM_PLANNING_PROVIDER` / `LLM_PLANNING_MODEL`
+- `LLM_GENERATION_PROVIDER` / `LLM_GENERATION_MODEL`
+- `LLM_REVIEW_PROVIDER` / `LLM_REVIEW_MODEL`
+- `LLM_REWRITE_PROVIDER` / `LLM_REWRITE_MODEL`
+- `OPENAI_COMPATIBLE_API_KEY`
+- `OPENAI_COMPATIBLE_BASE_URL`
+- `OPENAI_COMPATIBLE_MODEL`
+
+当前实现会优先按请求阶段读取 provider / model 配置；如果目标 provider 没有可用凭据，则会回退到当前已配置的可用 provider。
 
 环境变量读取逻辑见 [`src/shared/utils/env.ts`](src/shared/utils/env.ts:11)。
 

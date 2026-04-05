@@ -1,4 +1,8 @@
+import { existsSync, readFileSync } from 'node:fs'
+
 import type { NovelDatabase } from '../../../infra/db/database.js'
+import { readLlmEnv, readLlmStageConfig } from '../../../shared/utils/env.js'
+import { resolveProjectPaths } from '../../../shared/utils/project-paths.js'
 
 import { loadDoctorVolumeView } from '../doctor/volume-services.js'
 import { loadStateEndingView, loadStateThreadsView, loadStateVolumePlanView } from '../state/services.js'
@@ -42,7 +46,7 @@ export type RegressionVolumeSuiteResult = {
 }
 
 export function executeRegressionCase(
-  database: NovelDatabase,
+  database: NovelDatabase | null,
   caseName: string,
   targetId?: string,
 ): RegressionRunResult {
@@ -65,21 +69,193 @@ export function executeRegressionCase(
   }
 
   switch (caseName as RegressionCaseName) {
+    case 'llm-provider-smoke':
+      return executeLlmProviderSmoke(targetId)
+    case 'database-backend-smoke':
+      return executeDatabaseBackendSmoke(database, targetId)
     case 'volume-plan-smoke':
+      if (!database) {
+        return createProjectRequiredResult(caseName)
+      }
+
       return executeVolumePlanSmoke(database, targetId)
     case 'mission-carry-smoke':
+      if (!database) {
+        return createProjectRequiredResult(caseName)
+      }
+
       return executeMissionCarrySmoke(database, targetId)
     case 'thread-progression-smoke':
+      if (!database) {
+        return createProjectRequiredResult(caseName)
+      }
+
       return executeThreadProgressionSmoke(database, targetId)
     case 'ending-readiness-smoke':
+      if (!database) {
+        return createProjectRequiredResult(caseName)
+      }
+
       return executeEndingReadinessSmoke(database, targetId)
     case 'volume-doctor-smoke':
+      if (!database) {
+        return createProjectRequiredResult(caseName)
+      }
+
       return executeVolumeDoctorSmoke(database, targetId)
     case 'hook-pressure-smoke':
     case 'chapter-drop-safety':
     case 'review-layering-smoke':
       return createLegacySkeletonResult(caseName, targetId)
   }
+}
+
+function executeLlmProviderSmoke(targetId?: string): RegressionRunResult {
+  const env = readLlmEnv()
+  const availableProviders = [
+    ...(env.openAi.apiKey ? ['openai'] : []),
+    ...(env.openAiCompatible.apiKey ? ['openai-compatible'] : []),
+  ]
+  const targetProvider = targetId?.trim()
+  const providerResolved = targetProvider ?? env.provider
+  const providerAvailable = availableProviders.includes(providerResolved)
+  const planning = readLlmStageConfig('planning', env)
+  const generation = readLlmStageConfig('generation', env)
+  const review = readLlmStageConfig('review', env)
+  const rewrite = readLlmStageConfig('rewrite', env)
+
+  return {
+    caseName: 'llm-provider-smoke',
+    targetId,
+    known: true,
+    status: providerAvailable ? 'pass' : 'warning',
+    summary: providerAvailable
+      ? `LLM provider is configured and available: ${providerResolved}.`
+      : `LLM provider is not fully configured: ${providerResolved}.`,
+    steps: [
+      {
+        name: 'resolve-default-provider',
+        status: 'pass',
+        detail: `default=${env.provider}; target=${providerResolved}`,
+      },
+      {
+        name: 'check-provider-credentials',
+        status: providerAvailable ? 'pass' : 'fail',
+        detail: `availableProviders=${availableProviders.join(', ') || 'none'}`,
+      },
+      {
+        name: 'resolve-stage-routing',
+        status: 'pass',
+        detail:
+          `planning=${planning.provider}/${planning.model}; generation=${generation.provider}/${generation.model}; `
+          + `review=${review.provider}/${review.model}; rewrite=${rewrite.provider}/${rewrite.model}`,
+      },
+    ],
+    artifacts: [
+      {
+        name: '.env',
+        status: providerAvailable ? 'ready' : 'missing',
+        detail: 'Check `LLM_PROVIDER`, stage overrides, and provider credentials in your environment file.',
+      },
+      {
+        name: 'doctor',
+        status: 'ready',
+        detail: 'Use `novel doctor` to inspect current provider and stage routing.',
+      },
+    ],
+  }
+}
+
+function executeDatabaseBackendSmoke(database: NovelDatabase | null, targetId?: string): RegressionRunResult {
+  const configuredBackend = readConfiguredBackend()
+
+  if (!database && !configuredBackend) {
+    return {
+      caseName: 'database-backend-smoke',
+      targetId,
+      known: true,
+      status: 'missing-prerequisite',
+      summary: 'Project database config is missing. Initialize a project or create config/database.json first.',
+      steps: [
+        {
+          name: 'resolve-project-config',
+          status: 'fail',
+          detail: `Missing database config: ${resolveProjectPaths(process.cwd()).databaseConfigPath}`,
+        },
+      ],
+      artifacts: [
+        {
+          name: 'config/database.json',
+          status: 'missing',
+          detail: 'Run `novel init` or create the project database config before checking backend routing.',
+        },
+      ],
+    }
+  }
+
+  const activeBackend = database?.client ?? configuredBackend ?? 'sqlite'
+  const expectedBackend = targetId?.trim()
+  const backendMatches = expectedBackend ? activeBackend === expectedBackend : true
+  const mysqlReady = activeBackend === 'mysql' ? 'not-wired' : 'n/a'
+
+  return {
+    caseName: 'database-backend-smoke',
+    targetId,
+    known: true,
+    status: backendMatches ? 'pass' : 'warning',
+    summary: backendMatches
+      ? `Database backend is active: ${activeBackend}.`
+      : `Database backend mismatch: active=${activeBackend}, expected=${expectedBackend}.`,
+    steps: [
+      {
+        name: 'detect-active-backend',
+        status: 'pass',
+        detail: database
+          ? `activeBackend=${activeBackend}; source=runtime`
+          : `activeBackend=${activeBackend}; source=config`,
+      },
+      {
+        name: 'check-expected-backend',
+        status: backendMatches ? 'pass' : 'fail',
+        detail: expectedBackend ? `expectedBackend=${expectedBackend}` : 'No explicit backend target requested.',
+      },
+      {
+        name: 'check-backend-readiness',
+        status: activeBackend === 'sqlite' ? 'pass' : 'fail',
+        detail: activeBackend === 'sqlite'
+          ? 'SQLite backend is the currently wired execution path.'
+          : `MySQL backend status=${mysqlReady}. Migration and repository execution still need wiring.`,
+      },
+    ],
+    artifacts: [
+      {
+        name: 'config/database.json',
+        status: 'ready',
+        detail: 'Check the project database backend configuration.',
+      },
+      {
+        name: 'doctor',
+        status: 'ready',
+        detail: 'Use `novel doctor` to inspect the active database backend.',
+      },
+    ],
+  }
+}
+
+function readConfiguredBackend(): NovelDatabase['client'] | null {
+  const configPath = resolveProjectPaths(process.cwd()).databaseConfigPath
+
+  if (!existsSync(configPath)) {
+    return null
+  }
+
+  const raw = JSON.parse(readFileSync(configPath, 'utf8')) as {
+    database?: {
+      client?: unknown
+    }
+  }
+
+  return raw.database?.client === 'mysql' ? 'mysql' : 'sqlite'
 }
 
 export function executeVolumeRegressionSuite(
@@ -359,5 +535,28 @@ function createMissingPrerequisiteResult(
       },
     ],
     artifacts: [],
+  }
+}
+
+function createProjectRequiredResult(caseName: string): RegressionRunResult {
+  return {
+    caseName,
+    known: true,
+    status: 'missing-prerequisite',
+    summary: 'This regression case requires an initialized project database.',
+    steps: [
+      {
+        name: 'open-project-database',
+        status: 'fail',
+        detail: 'Run `novel init` in the target directory before executing this case.',
+      },
+    ],
+    artifacts: [
+      {
+        name: 'config/database.json',
+        status: 'missing',
+        detail: 'Project database config is required for workflow/state regression cases.',
+      },
+    ],
   }
 }

@@ -4,6 +4,21 @@ export function printDoctorProjectSummary(input: {
   bookId: string
   chapterCount: number
   operationLogDir: string
+  infrastructure: {
+    database: {
+      activeBackend: string
+    }
+    llm: {
+      defaultProvider: string
+      defaultModel: string
+      availableProviders: string[]
+      stageRouting: Array<{
+        stage: string
+        provider: string
+        model: string
+      }>
+    }
+  }
   chapters: unknown
 }): void {
   console.log(formatSection('Doctor summary:', formatJson(input)))
