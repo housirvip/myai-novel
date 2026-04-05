@@ -22,6 +22,10 @@ export function loadDoctorVolumeView(database: NovelDatabase, volumeId: string):
     hasVolumePlan: boolean
     threadCount: number
     endingTargetMatches: boolean
+    stalledThreadCount: number
+    closureGapCount: number
+    neglectedThreadCount: number
+    unfinishedChapterCount: number
   }
   chapters: Array<{
     id: string
@@ -57,15 +61,27 @@ export function loadDoctorVolumeView(database: NovelDatabase, volumeId: string):
     }))
 
   const endingReadiness = new EndingReadinessRepository(database).getByBookId(book.id)
+  const volumePlan = new VolumePlanRepository(database).getLatestByVolumeId(volumeId)
+  const storyThreads = new StoryThreadRepository(database).listByVolumeId(volumeId)
+  const neglectedThreadIds = (endingReadiness?.closureGaps ?? [])
+    .map((gap) => gap.relatedThreadId)
+    .filter((threadId): threadId is string => Boolean(threadId))
+    .filter((threadId, index, values) => values.indexOf(threadId) === index)
+  const stalledThreadCount = storyThreads.filter((thread) => thread.status === 'active' && thread.stage === 'setup').length
+  const unfinishedChapterCount = chapters.filter((chapter) => chapter.status !== 'finalized').length
 
   return {
     volume,
     diagnostics: {
       chapterCount: chapters.length,
       finalizedOutputCount: chapters.filter((chapter) => chapter.hasOutput).length,
-      hasVolumePlan: Boolean(new VolumePlanRepository(database).getLatestByVolumeId(volumeId)),
-      threadCount: new StoryThreadRepository(database).listByVolumeId(volumeId).length,
+      hasVolumePlan: Boolean(volumePlan),
+      threadCount: storyThreads.length,
       endingTargetMatches: endingReadiness?.targetVolumeId === volumeId,
+      stalledThreadCount,
+      closureGapCount: endingReadiness?.closureGaps.length ?? 0,
+      neglectedThreadCount: neglectedThreadIds.length,
+      unfinishedChapterCount,
     },
     chapters,
   }

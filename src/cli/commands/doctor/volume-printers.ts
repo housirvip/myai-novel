@@ -13,6 +13,10 @@ export function printDoctorVolumeSummary(input: {
     hasVolumePlan: boolean
     threadCount: number
     endingTargetMatches: boolean
+    stalledThreadCount: number
+    closureGapCount: number
+    neglectedThreadCount: number
+    unfinishedChapterCount: number
   }
   chapters: unknown
 }): void {
