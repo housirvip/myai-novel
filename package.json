@@ -9,7 +9,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
-    "check": "tsc --noEmit -p tsconfig.json"
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node --import tsx --test $(find tests -type f -name '*.test.ts')",
+    "test:watch": "node --import tsx --test --watch $(find tests -type f -name '*.test.ts')",
+    "test:coverage": "node --import tsx --test --experimental-test-coverage $(find tests -type f -name '*.test.ts')",
+    "check:test": "tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
