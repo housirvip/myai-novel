@@ -1,5 +1,6 @@
 import type { NarrativeDebt } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqlitePrepare } from '../db/sqlite-client.js'
 
 type NarrativeDebtRow = {
   id: string
@@ -20,7 +21,8 @@ export class NarrativeDebtRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   createBatch(debts: NarrativeDebt[]): void {
-    const statement = this.database.prepare(
+    const statement = sqlitePrepare(
+      this.database,
       `
         INSERT INTO chapter_narrative_debts (
           id,
@@ -58,23 +60,28 @@ export class NarrativeDebtRepository {
   }
 
   listOpenByBookId(bookId: string): NarrativeDebt[] {
-    const rows = this.database
-      .prepare('SELECT * FROM chapter_narrative_debts WHERE book_id = ? AND status = \'open\' ORDER BY created_at DESC')
-      .all(bookId) as NarrativeDebtRow[]
+    const rows = sqliteAll<NarrativeDebtRow>(
+      this.database,
+      "SELECT * FROM chapter_narrative_debts WHERE book_id = ? AND status = 'open' ORDER BY created_at DESC",
+      bookId,
+    )
 
     return rows.map(mapNarrativeDebt)
   }
 
   listByChapterId(chapterId: string): NarrativeDebt[] {
-    const rows = this.database
-      .prepare('SELECT * FROM chapter_narrative_debts WHERE chapter_id = ? ORDER BY created_at ASC')
-      .all(chapterId) as NarrativeDebtRow[]
+    const rows = sqliteAll<NarrativeDebtRow>(
+      this.database,
+      'SELECT * FROM chapter_narrative_debts WHERE chapter_id = ? ORDER BY created_at ASC',
+      chapterId,
+    )
 
     return rows.map(mapNarrativeDebt)
   }
 
   resolveByIds(ids: string[], resolvedAt: string): void {
-    const statement = this.database.prepare(
+    const statement = sqlitePrepare(
+      this.database,
       `
         UPDATE chapter_narrative_debts
         SET status = 'resolved',

@@ -1,5 +1,6 @@
 import type { NarrativeContradiction } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
+import { sqliteAll, sqlitePrepare } from '../db/sqlite-client.js'
 
 type NarrativeContradictionRow = {
   id: string
@@ -20,7 +21,8 @@ export class ChapterContradictionRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   createBatch(contradictions: NarrativeContradiction[]): void {
-    const statement = this.database.prepare(
+    const statement = sqlitePrepare(
+      this.database,
       `
         INSERT INTO chapter_contradictions (
           id,
@@ -58,17 +60,21 @@ export class ChapterContradictionRepository {
   }
 
   listByChapterId(chapterId: string): NarrativeContradiction[] {
-    const rows = this.database
-      .prepare('SELECT * FROM chapter_contradictions WHERE chapter_id = ? ORDER BY created_at ASC')
-      .all(chapterId) as NarrativeContradictionRow[]
+    const rows = sqliteAll<NarrativeContradictionRow>(
+      this.database,
+      'SELECT * FROM chapter_contradictions WHERE chapter_id = ? ORDER BY created_at ASC',
+      chapterId,
+    )
 
     return rows.map(mapNarrativeContradiction)
   }
 
   listOpenByBookId(bookId: string): NarrativeContradiction[] {
-    const rows = this.database
-      .prepare('SELECT * FROM chapter_contradictions WHERE book_id = ? AND status = \'open\' ORDER BY created_at DESC')
-      .all(bookId) as NarrativeContradictionRow[]
+    const rows = sqliteAll<NarrativeContradictionRow>(
+      this.database,
+      "SELECT * FROM chapter_contradictions WHERE book_id = ? AND status = 'open' ORDER BY created_at DESC",
+      bookId,
+    )
 
     return rows.map(mapNarrativeContradiction)
   }
