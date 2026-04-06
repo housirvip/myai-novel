@@ -13,6 +13,13 @@ type ChapterOutputRow = {
   created_at: string
 }
 
+/**
+ * `ChapterOutputRepository` 保存 approve 后确认下来的最终输出版本。
+ *
+ * 它和 chapter.final_path 的关系是：
+ * - chapter 表只保留“当前终稿路径”
+ * - output 表保留一次正式输出的完整来源信息和正文内容
+ */
 export class ChapterOutputRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -69,6 +76,7 @@ export class ChapterOutputRepository {
   }
 
   getLatestByChapterId(chapterId: string): ChapterOutput | null {
+    // output 也是按创建时间取最新，便于支持未来重复导出或重新批准的场景。
     const row = dbGet<ChapterOutputRow>(
       this.database,
       `

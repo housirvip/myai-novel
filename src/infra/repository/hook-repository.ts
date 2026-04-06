@@ -15,6 +15,7 @@ type HookRow = {
   updated_at: string
 }
 
+// `hooks` 记录伏笔定义本身；后续状态推进由 `hook_current_state` 和章节更新表补充。
 export class HookRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -61,6 +62,7 @@ export class HookRepository {
   }
 
   listByBookId(bookId: string): Hook[] {
+    // 伏笔列表按首次埋设顺序返回，更符合读者视角下的时间线。
     const rows = dbAll<HookRow>(this.database, 'SELECT * FROM hooks WHERE book_id = ? ORDER BY created_at ASC', bookId)
 
     return rows.map((row) => ({
@@ -80,6 +82,7 @@ export class HookRepository {
   async listByBookIdAsync(bookId: string): Promise<Hook[]> {
     const rows = await dbAllAsync<HookRow>(
       this.database,
+      // async 接口保留同样排序，避免计划与状态输出出现顺序抖动。
       'SELECT * FROM hooks WHERE book_id = ? ORDER BY created_at ASC',
       bookId,
     )

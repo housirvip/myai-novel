@@ -12,6 +12,7 @@ type CharacterArcRow = {
   updated_at: string
 }
 
+// 角色弧线同样采用 current-state 投影：同一角色在同一 arc 下只保留当前阶段。
 export class CharacterArcRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -22,6 +23,7 @@ export class CharacterArcRepository {
         SELECT *
         FROM character_arc_current_state
         WHERE book_id = ? AND character_id = ?
+        -- 按更新时间倒序返回，便于上层优先看到最近推进过的角色弧线。
         ORDER BY updated_at DESC
       `,
       bookId,
@@ -38,6 +40,7 @@ export class CharacterArcRepository {
         SELECT *
         FROM character_arc_current_state
         WHERE book_id = ? AND character_id = ?
+        -- async 版本维持相同排序，确保上下文拼接稳定。
         ORDER BY updated_at DESC
       `,
       bookId,
@@ -54,6 +57,7 @@ export class CharacterArcRepository {
         SELECT *
         FROM character_arc_current_state
         WHERE book_id = ?
+        -- 全书扫描时也优先返回最近变动的弧线，方便 review/plan 聚焦热点角色。
         ORDER BY updated_at DESC
       `,
       bookId,
@@ -69,6 +73,7 @@ export class CharacterArcRepository {
         SELECT *
         FROM character_arc_current_state
         WHERE book_id = ?
+        -- 与同步接口对齐。
         ORDER BY updated_at DESC
       `,
       bookId,
@@ -90,6 +95,7 @@ export class CharacterArcRepository {
           summary,
           updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        -- 复合键 (book, character, arc) 表示“一条弧线一个当前阶段”，不是阶段历史流水。
         ON CONFLICT(book_id, character_id, arc)
         DO UPDATE SET
           current_stage = excluded.current_stage,
@@ -120,6 +126,7 @@ export class CharacterArcRepository {
           summary,
           updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        -- async 场景沿用相同的覆盖式更新约定。
         ON CONFLICT(book_id, character_id, arc)
         DO UPDATE SET
           current_stage = excluded.current_stage,

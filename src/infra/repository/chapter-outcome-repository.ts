@@ -16,6 +16,15 @@ type ChapterOutcomeRow = {
   created_at: string
 }
 
+/**
+ * `ChapterOutcomeRepository` 保存 approve 阶段确认下来的“章节后果摘要”。
+ *
+ * 它更像一份章节级投影：
+ * - 从 review / rewrite 中收敛出本章最终确认的 resolved facts
+ * - 为 character arc / hook debt 等后续状态更新提供稳定来源
+ *
+ * 更细粒度的矛盾与叙事债务会拆到各自的 repository，而不会全部塞在 outcome 一张表里。
+ */
 export class ChapterOutcomeRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -147,6 +156,8 @@ export class ChapterOutcomeRepository {
 }
 
 function mapChapterOutcome(row: ChapterOutcomeRow): ChapterOutcome {
+  // contradictions / narrativeDebts 不在本表直接读取，
+  // 因为它们有自己的生命周期与查询方式，需要由专门仓储负责。
   return {
     id: row.id,
     bookId: row.book_id,

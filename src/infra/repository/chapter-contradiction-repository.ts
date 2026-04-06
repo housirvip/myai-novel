@@ -17,6 +17,12 @@ type NarrativeContradictionRow = {
   resolved_at: string | null
 }
 
+/**
+ * `ChapterContradictionRepository` 记录章节确认后识别出的矛盾项。
+ *
+ * 它和 narrative debt 类似，都是会跨章节存续直到 resolve 的问题清单；
+ * 区别在于矛盾更偏向“已知冲突事实”，而 debt 更偏向“尚待回收或兑现的叙事负担”。
+ */
 export class ChapterContradictionRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -38,6 +44,7 @@ export class ChapterContradictionRepository {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
 
+    // 章节矛盾通常是少量离散项，逐条写入更利于保持跨后端实现一致。
     for (const contradiction of contradictions) {
       dbRun(
         this.database,
@@ -117,6 +124,7 @@ export class ChapterContradictionRepository {
   }
 
   listOpenByBookId(bookId: string): NarrativeContradiction[] {
+    // open contradictions 是 doctor / state 最常消费的“待处理问题”视图。
     const rows = dbAll<NarrativeContradictionRow>(
       this.database,
       "SELECT * FROM chapter_contradictions WHERE book_id = ? AND status = 'open' ORDER BY created_at DESC",

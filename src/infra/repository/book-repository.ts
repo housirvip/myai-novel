@@ -18,6 +18,12 @@ type BookRow = {
   updated_at: string
 }
 
+/**
+ * `BookRepository` 保存项目级基础真源。
+ *
+ * 当前项目约定单库只维护一本书，
+ * 所以最常用入口是 `getFirst()`，而不是复杂的列表查询。
+ */
 export class BookRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -48,6 +54,8 @@ export class BookRepository {
   create(book: Book): void {
     const env = readLlmEnv()
 
+    // book 初始化时会把当下默认 provider / model 一并落库，
+    // 作为项目创建时的模型基线记录，而不是完全依赖运行时 env 回放。
     dbRun(
       this.database,
       `

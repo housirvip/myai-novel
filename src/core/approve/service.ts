@@ -167,6 +167,11 @@ export class ApproveService {
       updatedAt: approvedAt,
     }
 
+    // approve 的状态更新顺序是刻意分层的：
+    // 1. 先解析正文与 closure suggestions，得到 hook / character / item 的 next state
+    // 2. 再基于这些结果刷新 memory / outcome / thread / ending readiness
+    // 3. 最后统一写 update logs 和 finalize chapter
+    // 这样可以让后续状态都建立在同一版已确认终稿之上。
     const hookUpdates = await this.updateHookStatesAsync(
       book.id,
       chapterId,
@@ -232,6 +237,8 @@ export class ApproveService {
       updatedAt: approvedAt,
     })
 
+    // memory updates 记录的是“这次 approve 让记忆窗口如何变化”，
+    // 因此它同时保留 before / after，而不只是落最终 current 表。
     const memoryUpdates = this.buildMemoryUpdates(
       book.id,
       chapterId,
@@ -298,6 +305,8 @@ export class ApproveService {
     ])]
     const updates: ChapterHookUpdate[] = []
 
+    // hook 的 next state 采用“建议 > 正文显式动作 > 计划动作推断 > 保持现状”的优先级，
+    // 这样既能尊重 review 明确给出的 closure suggestion，也能在 suggestion 缺位时继续闭环。
     for (const hookId of targetHookIds) {
       const hook = hookById.get(hookId)
       const currentStatus = currentStateByHookId.get(hookId)?.status ?? hook?.status ?? 'open'
@@ -364,6 +373,8 @@ export class ApproveService {
     ])
     const updates: ChapterStateUpdate[] = []
 
+    // 这里至少会强制把主角纳入目标集合，
+    // 避免章节确认后主角状态长期无人维护，导致后续上下文漂移。
     for (const characterId of targetCharacterIds) {
       const previousState = stateByCharacterId.get(characterId)
       const suggestion = characterSuggestionById.get(characterId)
@@ -426,6 +437,8 @@ export class ApproveService {
     const targetItemIds = new Set([...requiredItemIds, ...closureSuggestions.items.map((item) => item.itemId)])
     const itemSuggestionById = new Map(closureSuggestions.items.map((item) => [item.itemId, item]))
 
+    // 物品状态默认只追踪重要物品、计划要求物品和明确被建议更新的物品，
+    // 这样可以控制闭环噪音，不把所有普通道具都升格成真源维护负担。
     for (const item of items) {
       const line = findStructuredLine(content, `${item.name}（${item.id}）`)
       const isMentioned = Boolean(line) || content.includes(item.name) || content.includes(item.id)
@@ -574,6 +587,18 @@ export class ApproveService {
     ]
   }
 
+  /**
+   * `ChapterOutcome` 是 approve 阶段生成的“章节后果真源”。
+   *
+   * 它把 review 阶段的 outcome candidate 固化为：
+   * - 已确认事实
+   * - 新增叙事债务
+   * - 已识别矛盾
+   * - 角色弧线 / hook 债务等后续闭环输入
+   *
+   * 后面的 narrative debt、contradiction、thread progress 与 ending readiness
+   * 基本都会围绕这份 outcome 工作，而不是重新回头解析整篇正文。
+   */
   private buildChapterOutcome(
     bookId: string,
     chapterId: string,

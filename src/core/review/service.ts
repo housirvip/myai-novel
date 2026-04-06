@@ -159,6 +159,10 @@ export class ReviewService {
       plan.requiredLocationIds,
       draft.content,
     )
+    // 这里的 issue 合并顺序是刻意设计的：
+    // - 先保留 LLM 给出的高层判断
+    // - 再补规则式连续性 / mission / ending / thread 检查
+    // 这样可以避免“只相信模型”或“只相信硬规则”带来的单边偏差。
     const itemIssues = mergeItemIssues(mergedReview.itemIssues, importantItems, draft.content, plan.requiredItemIds)
     const memoryIssues = mergeMemoryIssues(mergedReview.memoryIssues, longTermMemory?.entries ?? [], draft.content)
     const endingReadinessIssues = mergeEndingReadinessIssues(plan, draft.content)
@@ -192,6 +196,8 @@ export class ReviewService {
       chapter.objective,
       plan.memoryCandidates,
     )
+    // outcome candidate 是 review 给 approve 阶段准备的“结构化提交草案”，
+    // 它比 revisionAdvice 更接近后续状态闭环会消费的语言。
     const outcomeCandidate = buildOutcomeCandidate({
       decision: mergedReview.decision,
       chapterObjective: chapter.objective,
@@ -220,6 +226,8 @@ export class ReviewService {
       revisionAdvice: mergedReview.revisionAdvice,
     })
 
+    // hook/thread/ending issues 会分别存入多个字段，便于 CLI / doctor 分视角展示；
+    // approvalRisk 则刻意只吃最核心的一组硬问题，避免风险等级被重复叠加放大。
     const review: ReviewReport = {
       id: createId('review'),
       bookId: book.id,
@@ -272,6 +280,8 @@ function mergeCharacterIssues(
     (state) => requiredCharacterIds.length === 0 || requiredCharacterIds.includes(state.characterId),
   )
 
+  // 当前 review 仍要求草稿保留结构化状态段，
+  // 因为 approve 阶段会优先从这类显式行里提取角色位置 / 状态线索。
   if (relevantStates.length > 0 && !content.includes('## 角色当前状态')) {
     issues.push('草稿未显式列出关键角色当前状态。')
   }
@@ -312,6 +322,7 @@ function mergeHookIssues(
 ): string[] {
   const issues = [...baseIssues]
 
+  // 这里检查的不是“正文是否写得精彩”，而是 hook plan 有没有真正进正文。
   if (activeHookStates.length > 0 && hookPlan.length === 0) {
     issues.push('存在活跃钩子，但本章计划未给出对应推进安排。')
   }
@@ -350,6 +361,8 @@ function mergeItemIssues(
     return issues
   }
 
+  // 物品连续性优先保护重要物品；
+  // 普通物品即使偶有遗漏，也不应该把 review 变成低价值噪音源。
   const mentionedImportantItems = importantItems.filter((item) => content.includes(item.name) || content.includes(item.id))
 
   if (mentionedImportantItems.length === 0) {
@@ -407,6 +420,8 @@ function mergeMemoryIssues(
   const issues = [...baseIssues]
   const criticalEntries = longTermEntries.filter((entry) => entry.importance >= 4)
 
+  // 高重要长期记忆在当前项目里近似于“已成立事实”，
+  // 因此这里只做冲突探测，不要求正文逐字复述全部记忆内容。
   if (criticalEntries.length > 0 && !content.includes('## 记忆约束')) {
     issues.push('草稿未显式承接高重要长期记忆。')
   }

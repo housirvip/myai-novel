@@ -16,6 +16,7 @@ type LlmMetadataView = {
   requestId?: string
 }
 
+// workflow 命令更偏“过程细节”，因此这里会把计划、审阅、改写的结构化结果完整展开。
 export function printWorkflowPlanCreated(plan: {
   versionId: string
   objective: string
@@ -106,6 +107,7 @@ export function printWorkflowPlanDetail(plan: {
 }): void {
   console.log(`Plan version: ${plan.versionId}`)
   console.log(`Objective: ${plan.objective}`)
+  // mission/window role 单独输出，帮助确认这一版计划是承接卷窗口还是普通章节推进。
   console.log(formatSection('Mission id:', plan.missionId ?? '(none)'))
   console.log(formatSection('Thread focus:', formatJson(plan.threadFocus)))
   console.log(formatSection('Window role:', plan.windowRole ?? '(none)'))
@@ -197,6 +199,7 @@ export function printWorkflowVolumeReviewDetail(input: {
   console.log(`Goal: ${input.volume.goal}`)
   console.log(`Summary: ${input.volume.summary}`)
   console.log(`Chapter count: ${input.chapterReviews.length}`)
+  // 卷级审阅的重点是跨章汇总，所以直接并排打印 volume plan、threads、ending readiness 与 chapter reviews。
   console.log(formatSection('Latest volume plan:', formatJson(input.latestVolumePlan)))
   console.log(formatSection('Story threads:', formatJson(input.storyThreads)))
   console.log(formatSection('Ending readiness current:', formatJson(input.endingReadiness)))
@@ -268,6 +271,7 @@ export function printWorkflowRewriteDetail(rewrite: {
   console.log(`Strategy: ${rewrite.strategy}`)
   console.log(`Primary rewrite strategy: ${(rewrite.strategyProfile as { primary: string }).primary}`)
   console.log(`Word count: ${rewrite.actualWordCount}`)
+  // 这里既保留结构化策略，也保留内容预览，方便确认“为什么改”与“改成了什么”。
   console.log(formatSection('Rewrite strategy profile:', formatJson(rewrite.strategyProfile)))
   console.log(formatSection('Rewrite quality target:', formatJson(rewrite.qualityTarget)))
   console.log(formatSection('Validation:', formatJson(rewrite.validation)))
@@ -281,5 +285,6 @@ function printLlmMetadata(metadata?: LlmMetadataView): void {
     return
   }
 
+  // 单独收口成 section，避免每个 workflow 子命令都重复挑字段打印。
   console.log(formatSection('LLM metadata:', formatJson(metadata)))
 }

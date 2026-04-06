@@ -144,6 +144,8 @@ export function loadStateShowView(database: NovelDatabase): {
     throw new NovelError('Project is not initialized. Run `novel init` first.')
   }
 
+  // `state show` 的职责不是单查某一张真源表，而是给出“当前 canonical state”的横截面。
+  // 因此这里会把 story / character / item / hook / thread / memory / ending 相关快照一次性聚合。
   const chapterRepository = new ChapterRepository(database)
   const chapters = chapterRepository.listByBookId(book.id)
   const storyState = new StoryStateRepository(database).getByBookId(book.id)
@@ -179,6 +181,7 @@ export function loadStateShowView(database: NovelDatabase): {
   const locationNameById = new Map(locations.map((location) => [location.id, location.name]))
   const itemNameById = new Map(items.map((item) => [item.id, item.name]))
   const hookTitleById = new Map(hooks.map((hook) => [hook.id, hook.title]))
+  // story state 里只存 currentChapterId，标题在展示层再补齐，避免把可推导字段写回真源。
   const currentChapterTitle = storyState?.currentChapterId
     ? chapterRepository.getById(storyState.currentChapterId)?.title ?? null
     : null
@@ -263,6 +266,7 @@ export async function loadStateShowViewAsync(database: NovelDatabase): Promise<{
     throw new NovelError('Project is not initialized. Run `novel init` first.')
   }
 
+  // 异步版本保持与同步版同一口径，避免 sqlite / mysql 下 `state show` 视图含义发生漂移。
   const chapterRepository = new ChapterRepository(database)
   const chapters = await chapterRepository.listByBookIdAsync(book.id)
   const storyState = await new StoryStateRepository(database).getByBookIdAsync(book.id)

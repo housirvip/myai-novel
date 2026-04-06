@@ -42,6 +42,7 @@ export function registerChapterShowCommand(chapterCommand: Command): void {
           throw new NovelError(`Chapter not found: ${chapterId}`)
         }
 
+        // `chapter show` 本质上是聚合查询：用一条命令把章节主记录和各流程产物的最新指针拼在一起。
         const [
           latestPlan,
           latestDraft,
@@ -68,6 +69,7 @@ export function registerChapterShowCommand(chapterCommand: Command): void {
           hookUpdateRepository.listByChapterIdAsync(chapterId),
         ])
 
+        // 打印层只做摘要展示，详细 JSON/正文内容仍通过各自 show/detail 命令查看。
         printChapterShowSummary({
           chapter,
           latestPlan,

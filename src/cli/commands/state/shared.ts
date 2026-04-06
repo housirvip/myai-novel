@@ -8,6 +8,7 @@ export function formatTrace(detail: {
   previousValueSummary?: string
   nextValueSummary?: string
 }): string {
+  // trace 在 CLI 中统一压成单行，方便 summary 视图直接扫读 before/after 和证据来源。
   return [
     `source=${detail.source}`,
     `reason=${detail.reason}`,
@@ -23,6 +24,7 @@ export function summarizeClosureSuggestions(closureSuggestions: {
   hooks: unknown[]
   memory: unknown[]
 }): { total: number; characters: number; items: number; hooks: number; memory: number } {
+  // review 里的 closure suggestions 会在多个命令复用，这里先做轻量聚合，避免各处重复计数逻辑。
   return {
     total:
       closureSuggestions.characters.length +

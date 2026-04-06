@@ -209,6 +209,7 @@ async function createLlmPlan(
   context: PlanningContext,
   activeHooks: ActiveHookView[],
 ): Promise<ChapterPlan> {
+  // fallback plan 既是无 LLM 时的兜底结果，也是有 LLM 时 normalize 的安全基线。
   const fallbackPlan = createRuleBasedPlan(context, activeHooks)
   const llmStage = readLlmStageConfig('planning')
   const response = await llmAdapter.generateText({
@@ -264,6 +265,8 @@ async function createLlmPlan(
   const normalizedMustAdvanceHooks = normalizeStringArray(parsed.mustAdvanceHooks, fallbackPlan.mustAdvanceHooks)
   const normalizedMustPreserveFacts = normalizeStringArray(parsed.mustPreserveFacts, fallbackPlan.mustPreserveFacts)
 
+  // normalize 的目标不是“尽量保留模型原样输出”，
+  // 而是把结果收口成当前主链可安全消费的 ChapterPlan 结构。
   return {
     ...fallbackPlan,
     objective: parsed.objective ?? fallbackPlan.objective,
@@ -370,6 +373,8 @@ function normalizeStringArray(value: unknown, fallback: string[]): string[] {
     return fallback
   }
 
+  // 对 planning 来说，空数组往往意味着模型没有真正给出可执行内容，
+  // 所以这里宁可回退到 fallback，也不接受“结构正确但语义空心”的输出。
   const normalized = value
     .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter((item) => item.length > 0)
@@ -382,6 +387,8 @@ function normalizeSceneCards(value: unknown, fallback: ChapterPlan['sceneCards']
     return fallback
   }
 
+  // scene card 是后续 generation 的主要场景任务来源，
+  // 因此这里会尽量填齐 title / purpose / beats 的最小可执行结构。
   const normalized: SceneCard[] = value
     .map((item, index) => {
       if (!item || typeof item !== 'object') {
@@ -430,6 +437,7 @@ function normalizeHookPlan(value: unknown, fallback: ChapterPlan['hookPlan']): C
     return fallback
   }
 
+  // hook plan 必须保证 hookId 和 action 可读可执行，否则后续 review / approve 很难闭环。
   const normalized = value
     .map((item) => {
       if (!item || typeof item !== 'object') {
@@ -466,6 +474,7 @@ function normalizeHookAction(value: unknown): HookPlan['action'] {
 
 function normalizeStatePredictions(value: unknown, fallback: string[]): string[] {
   if (Array.isArray(value)) {
+    // state predictions 允许模型返回对象数组或字符串数组，最终统一压平为可展示、可存储的文本线。
     const normalized = value
       .map((item) => {
         if (typeof item === 'string') {
@@ -521,6 +530,7 @@ function normalizeMemoryCandidates(value: unknown, fallback: string[]): string[]
     return fallback
   }
 
+  // memory candidate 只保留未来值得沉淀的内容，空对象或无内容项直接丢弃。
   const normalized = value
     .map((item) => {
       if (typeof item === 'string') {
@@ -544,6 +554,8 @@ function normalizeSceneGoals(value: unknown, fallback: SceneGoal[]): SceneGoal[]
     return fallback
   }
 
+  // scene goal 直接影响 review 对“场景是否落地”的判断，
+  // 因此即使模型漏字段，也要补到一个最小可检查结构。
   const normalized = value
     .map((item, index) => {
       if (!item || typeof item !== 'object') {
@@ -576,6 +588,7 @@ function normalizeSceneConstraints(value: unknown, fallback: SceneConstraint[]):
     return fallback
   }
 
+  // constraint 更偏“不能写坏什么”，所以允许数组为空，但要求 sceneTitle 稳定存在。
   const normalized = value
     .map((item, index) => {
       if (!item || typeof item !== 'object') {
@@ -604,6 +617,7 @@ function normalizeSceneEmotionalTargets(value: unknown, fallback: SceneEmotional
     return fallback
   }
 
+  // emotional target 主要服务于 review / rewrite 的情绪推进检查，不追求极细颗粒，只求可校验。
   const normalized = value
     .map((item, index) => {
       if (!item || typeof item !== 'object') {
@@ -636,6 +650,8 @@ function normalizeSceneOutcomeChecklist(value: unknown, fallback: SceneOutcomeCh
     return fallback
   }
 
+  // outcome checklist 是 generation 和 review 之间的重要桥：
+  // 前者把它当成“场景必须兑现什么”，后者再检查正文有没有真正落地。
   const normalized = value
     .map((item, index) => {
       if (!item || typeof item !== 'object') {
@@ -661,6 +677,8 @@ function normalizeSceneOutcomeChecklist(value: unknown, fallback: SceneOutcomeCh
 
 function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookView[]): ChapterPlan {
   const timestamp = nowIso()
+  // rule-based plan 的目标不是写出“最聪明”的计划，
+  // 而是在没有 LLM 时仍给 generation / review 一份结构完整、可执行、可审查的计划基线。
   const previousChapterSummary = context.previousChapter
     ? `承接上一章《${context.previousChapter.title}》的推进结果。`
     : '作为开篇章节建立世界与主角当前局势。'
@@ -741,6 +759,8 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
   const mustResolveDebts = debtCarryTargets.slice(0, 3)
   const mustAdvanceHooks = hookPlan.slice(0, 3).map((item) => item.hookId)
   const mustPreserveFacts = context.protectedFactConstraints.slice(0, 5)
+  // 这三组 must-* 约束会被 review / rewrite / approve 继续消费，
+  // 是 rule-based plan 里最重要的跨阶段结构化输出之一。
   const endingDrive = hookPlan[0]
     ? `在章末制造与 Hook ${hookPlan[0].hookId} 相关的新悬念或兑现前置动作。`
     : '在章末制造明确的局势变化与下一章牵引。'
@@ -918,6 +938,8 @@ function createRuleBasedPlan(context: PlanningContext, activeHooks: ActiveHookVi
 }
 
 function buildActiveHookViews(context: PlanningContext, hooks: Hook[]): ActiveHookView[] {
+  // 这里把 hook 定义与 current state 合成 planning 友好的视图，
+  // 避免 prompt payload 和 rule-based plan 反复自己 join 两份真源。
   const hookById = new Map(hooks.map((hook) => [hook.id, hook]))
 
   return context.activeHookStates.map((state) => {

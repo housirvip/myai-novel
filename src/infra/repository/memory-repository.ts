@@ -24,6 +24,15 @@ type LongTermMemoryRow = {
   updated_at: string
 }
 
+/**
+ * `MemoryRepository` 维护三类“当前记忆快照”：
+ * - short-term：近期摘要与事件窗口
+ * - observation：暂时保留、尚未升级为长期事实的观察项
+ * - long-term：高价值稳定事实
+ *
+ * 这些表都是 `*_current` 语义，不保留完整历史版本；
+ * 若要追溯某次章节确认带来的变化，应查看 chapter memory updates。
+ */
 export class MemoryRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -258,6 +267,7 @@ export class MemoryRepository {
 
     const normalizedTerms = normalizeQueryTerms(queryTerms)
 
+    // 这里的召回目标不是全文检索，而是给 planning / rewrite 提供少量高相关长期事实提示。
     return [...memory.entries]
       .map((entry) => ({
         entry,
@@ -281,6 +291,7 @@ export class MemoryRepository {
 
     const normalizedTerms = normalizeQueryTerms(queryTerms)
 
+    // async 路径保持与同步路径相同的粗粒度相关性规则，避免后端切换后召回口径漂移。
     return [...memory.entries]
       .map((entry) => ({
         entry,
@@ -293,6 +304,8 @@ export class MemoryRepository {
 }
 
 function normalizeQueryTerms(queryTerms: string[]): string[] {
+  // 召回词会被压平成一组去重后的低噪声 term，
+  // 这样章节标题、目标、planned beats 和物品名才能共用同一套匹配逻辑。
   return [...new Set(
     queryTerms
       .flatMap((term) => splitSearchTerms(term))
@@ -320,6 +333,7 @@ function splitSearchTerms(term: string): string[] {
 function scoreLongTermEntry(entry: LongTermMemory['entries'][number], queryTerms: string[]): number {
   const summary = entry.summary.toLowerCase()
 
+  // importance 是长期记忆排序的基础分，term overlap 只是在同重要度下做相关性重排。
   return queryTerms.reduce((score, term) => {
     if (!term) {
       return score

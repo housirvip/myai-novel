@@ -5,6 +5,12 @@ import { assertSqliteDatabase } from './sqlite-support.js'
 
 type SqliteStatement = Database.Statement
 
+/**
+ * sqlite helper 只应在确实需要依赖 SQLite Statement 能力时使用。
+ *
+ * 大多数 repository 应优先走 `db-client.ts` 的跨后端包装；
+ * 这里保留是为了少数需要直接 prepare 的 sqlite-only 场景。
+ */
 export function sqlitePrepare(database: NovelDatabase, sql: string): SqliteStatement {
   return assertSqliteDatabase(database).prepare(sql)
 }

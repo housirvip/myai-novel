@@ -2,6 +2,7 @@ import type { Location } from '../../shared/types/domain.js'
 import type { NovelDatabase } from '../db/database.js'
 import { dbAll, dbAllAsync, dbGet, dbGetAsync, dbRun, dbRunAsync } from '../db/db-client.js'
 
+// 地点仓储只负责静态地点设定；人物当前位置等运行态信息放在其他 current-state 表里。
 export class LocationRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -98,7 +99,12 @@ export class LocationRepository {
       description: string
       created_at: string
       updated_at: string
-    }>(this.database, 'SELECT * FROM locations WHERE book_id = ? ORDER BY created_at ASC', bookId)
+    }>(
+      this.database,
+      // 地点列表按录入顺序返回，方便保持世界观展示的稳定性。
+      'SELECT * FROM locations WHERE book_id = ? ORDER BY created_at ASC',
+      bookId,
+    )
 
     return rows.map((row) => ({
       id: row.id,
@@ -120,7 +126,12 @@ export class LocationRepository {
       description: string
       created_at: string
       updated_at: string
-    }>(this.database, 'SELECT * FROM locations WHERE book_id = ? ORDER BY created_at ASC', bookId)
+    }>(
+      this.database,
+      // 与同步版本保持一致，便于上下文构建时直接复用排序假设。
+      'SELECT * FROM locations WHERE book_id = ? ORDER BY created_at ASC',
+      bookId,
+    )
 
     return rows.map((row) => ({
       id: row.id,

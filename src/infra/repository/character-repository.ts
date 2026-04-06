@@ -13,6 +13,7 @@ type CharacterRow = {
   updated_at: string
 }
 
+// `characters` 保存角色定义本身，属于相对稳定的设定层，不承担章节推进中的实时状态记录。
 export class CharacterRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -69,6 +70,7 @@ export class CharacterRepository {
   listByBookId(bookId: string): Character[] {
     const rows = dbAll<CharacterRow>(
       this.database,
+      // 角色列表按首次登记顺序返回，便于上下文构建和 CLI 展示保持稳定。
       'SELECT * FROM characters WHERE book_id = ? ORDER BY created_at ASC',
       bookId,
     )
@@ -79,6 +81,7 @@ export class CharacterRepository {
   async listByBookIdAsync(bookId: string): Promise<Character[]> {
     const rows = await dbAllAsync<CharacterRow>(
       this.database,
+      // 与同步接口保持同样的稳定排序，避免 async/sync 调用看到不同角色顺序。
       'SELECT * FROM characters WHERE book_id = ? ORDER BY created_at ASC',
       bookId,
     )
@@ -93,6 +96,7 @@ export class CharacterRepository {
         SELECT *
         FROM characters
         WHERE book_id = ?
+        -- 没有单独的 primary 标记时，用角色字段兜底优先主角，再回退到最早创建的角色。
         ORDER BY CASE WHEN role = '主角' THEN 0 ELSE 1 END, created_at ASC
         LIMIT 1
       `,
@@ -109,6 +113,7 @@ export class CharacterRepository {
         SELECT *
         FROM characters
         WHERE book_id = ?
+        -- async 版本复用同一套主角判定规则，避免流程层出现分叉。
         ORDER BY CASE WHEN role = '主角' THEN 0 ELSE 1 END, created_at ASC
         LIMIT 1
       `,

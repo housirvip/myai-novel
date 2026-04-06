@@ -19,6 +19,13 @@ type StoryThreadRow = {
   updated_at: string
 }
 
+/**
+ * `StoryThreadRepository` 保存故事线程的当前定义与当前状态。
+ *
+ * 它和 `StoryThreadProgressRepository` 的区别是：
+ * - 这里表示“线程现在是什么、处于哪个阶段、是否仍 active”
+ * - progress repository 表示“线程在某一章里发生了什么推进”
+ */
 export class StoryThreadRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -42,6 +49,7 @@ export class StoryThreadRepository {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
 
+    // 初始化 volume / outcome 派生线程时通常是小批量写入，这里优先保持逻辑直白。
     for (const thread of threads) {
       dbRun(
         this.database,
@@ -107,6 +115,7 @@ export class StoryThreadRepository {
   }
 
   listActiveByBookId(bookId: string): StoryThread[] {
+    // active 线程会直接进入 planning / doctor / state 视图，因此单独提供高频查询。
     const rows = dbAll<StoryThreadRow>(
       this.database,
       `
@@ -167,6 +176,7 @@ export class StoryThreadRepository {
   }
 
   upsert(thread: StoryThread): void {
+    // thread 以 id 为身份锚点持续演化，而不是按章节不断新增新行。
     dbRun(
       this.database,
       `
@@ -270,6 +280,7 @@ export class StoryThreadRepository {
 }
 
 function mapStoryThread(row: StoryThreadRow): StoryThread {
+  // linked characters / hooks 是线程与其他真源的轻绑定关系，因此统一以 JSON 形式存取。
   return {
     id: row.id,
     bookId: row.book_id,

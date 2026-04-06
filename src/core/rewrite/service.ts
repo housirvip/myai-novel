@@ -103,6 +103,8 @@ export class RewriteService {
     const shortTermMemory = await this.memoryRepository.getShortTermByBookIdAsync(book.id)
     const observationMemory = await this.memoryRepository.getObservationByBookIdAsync(book.id)
     const longTermMemory = await this.memoryRepository.getLongTermByBookIdAsync(book.id)
+    // rewrite context 不是另起一套真源，而是把当前允许重写时参考的结构化约束压成一个快照。
+    // 后续 strategy / quality target / fallback rewrite 都围绕这份快照工作。
     const rewriteContext = {
       sceneCards: plan?.sceneCards ?? [],
       eventOutline: plan?.eventOutline ?? [],
@@ -176,6 +178,7 @@ export class RewriteService {
           ),
         }
     const validation = validateRewrite(review, rewriteContent.content, strategyProfile)
+    // validation 的目标不是再次审查全文质量，而是给 chapter/show、doctor 和测试一个稳定的重写后核对视角。
     const rewrite: ChapterRewrite = {
       id: createId('rewrite'),
       bookId: book.id,
@@ -336,6 +339,8 @@ function validateRewrite(
   strategyAligned: boolean
   targetedIssueTypes: string[]
 } {
+  // 这里验证的是“这版 rewrite 是否大体守住了 review 指向的修复方向”，
+  // 而不是试图在 rewrite 阶段复制完整 review 逻辑。
   const issueCount =
     review.consistencyIssues.length +
     review.characterIssues.length +
@@ -396,6 +401,8 @@ function buildRewriteContent(
   strategyProfile: RewriteStrategyProfile,
   qualityTarget: RewriteQualityTarget,
 ): string {
+  // rule-based rewrite 并不伪装成真正重写后的正文，
+  // 它的目标是把 review 策略、保护事实和规划约束显式写出来，保证链路可继续、信息不丢。
   const protectedFacts = summarizeProtectedFacts(closureSuggestions)
   const contextualConstraints = summarizeRewriteContext(rewriteContext)
   const header = [
@@ -439,6 +446,7 @@ type RewriteContextSnapshot = {
 }
 
 function summarizeRewriteContext(rewriteContext: RewriteContextSnapshot): string[] {
+  // 这里故意只截取少量高价值上下文，避免 fallback rewrite 头部被大量历史状态淹没。
   const items = [
     ...(rewriteContext.missionId ? [`卷级 mission：${rewriteContext.missionId}`] : []),
     ...(rewriteContext.windowRole ? [`卷级窗口职责：${rewriteContext.windowRole}`] : []),
@@ -476,6 +484,8 @@ function resolveRewriteStrategyProfile(
   goals: string[],
   rewriteContext: RewriteContextSnapshot,
 ): RewriteStrategyProfile {
+  // strategy profile 的优先级是：
+  // 人工目标 > 卷级导演强信号 > review layers 默认建议。
   const manualGoals = goals.join('；')
   const primary = review.reviewLayers.rewriteStrategySuggestion.primary
   const secondary = review.reviewLayers.rewriteStrategySuggestion.secondary
@@ -552,6 +562,7 @@ function buildRewriteQualityTarget(
   strategyProfile: RewriteStrategyProfile,
   rewriteContext: RewriteContextSnapshot,
 ): RewriteQualityTarget {
+  // quality target 不是评分器，而是给 rewrite 一个“这次至少要压降到什么程度”的执行口径。
   const mustFixCount = review.reviewLayers.mustFix.length
   const narrativeCount = review.reviewLayers.narrativeQuality.length
   const volumeFocusAreas = buildVolumeFocusAreas(strategyProfile, rewriteContext)
@@ -586,6 +597,7 @@ function deriveVolumeStrategySignals(rewriteContext: RewriteContextSnapshot): {
   needsEnsembleBalance: boolean
   rationale: string[]
 } {
+  // 卷级信号会影响 rewrite 的重心，但不会直接替代 review 给出的 primary strategy。
   const rationale: string[] = []
   const needsThreadFocus = Boolean(rewriteContext.missionId) || rewriteContext.threadFocus.length > 0
   const needsClosureFocus = rewriteContext.endingDrive.trim().length > 0 || rewriteContext.carryOutTasks.length > 0
@@ -623,6 +635,7 @@ function buildVolumeFocusAreas(
   strategyProfile: RewriteStrategyProfile,
   rewriteContext: RewriteContextSnapshot,
 ): string[] {
+  // focus area 更偏向“提示重写应当盯住哪些导演约束”，而不是重复列举所有 issue。
   const focusAreas = [
     ...(rewriteContext.missionId ? [`mission:${rewriteContext.missionId}`] : []),
     ...(rewriteContext.threadFocus.length > 0 ? [`thread-focus:${rewriteContext.threadFocus.slice(0, 3).join(' / ')}`] : []),

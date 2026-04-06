@@ -25,6 +25,12 @@ type ReviewRow = {
   created_at: string
 }
 
+/**
+ * `ChapterReviewRepository` 保存 review 阶段产出的诊断真源。
+ *
+ * review 不只是一个 decision 字段，
+ * 它还承载了 closure suggestions、review layers、outcome candidate 等后续 rewrite / approve 会消费的结构化结果。
+ */
 export class ChapterReviewRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -204,6 +210,7 @@ export class ChapterReviewRepository {
 }
 
 function mapReview(row: ReviewRow): ReviewReport {
+  // 这里保留对旧 decision 值的归一化，避免历史数据把当前 review 链路冲断。
   return {
     id: row.id,
     bookId: row.book_id,

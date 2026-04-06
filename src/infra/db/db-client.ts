@@ -11,6 +11,12 @@ export function dbGet<T>(database: NovelDatabase, sql: string, ...params: unknow
   return database.db.get<T>(sql, ...params)
 }
 
+/**
+ * async 包装主要服务于 MySQL / async repository 链路。
+ *
+ * 即使在 sqlite 下它看起来只是“再包一层 Promise”，
+ * 保留这组稳定入口也能让 repository 不必知道当前后端是不是 sync-first。
+ */
 export function dbGetAsync<T>(database: NovelDatabase, sql: string, ...params: unknown[]): Promise<T | undefined> {
   return database.dbAsync.get<T>(sql, ...params)
 }

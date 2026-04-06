@@ -20,6 +20,13 @@ type RewriteRow = {
   created_at: string
 }
 
+/**
+ * `ChapterRewriteRepository` 保存 rewrite 阶段产出的正文重写版本。
+ *
+ * rewrite 与 draft 一样是 append-only 版本流，
+ * 但它额外保留 strategy profile、quality target 和 validation，
+ * 方便后续追溯“为什么这版重写会长成这样”。
+ */
 export class ChapterRewriteRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -104,6 +111,7 @@ export class ChapterRewriteRepository {
   }
 
   getLatestByChapterId(chapterId: string): ChapterRewrite | null {
+    // latest rewrite 以创建时间判定，便于按实际重写发生顺序回看。
     const row = dbGet<RewriteRow>(
       this.database,
       `
@@ -169,6 +177,7 @@ export class ChapterRewriteRepository {
 function mapRewrite(row: RewriteRow): ChapterRewrite {
   const validation = JSON.parse(row.validation_json) as ChapterRewrite['validation']
 
+  // validation.reviewDecision 保留了旧值兼容归一化，避免历史 rewrite 记录影响当前视图逻辑。
   return {
     id: row.id,
     bookId: row.book_id,

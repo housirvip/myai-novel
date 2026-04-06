@@ -16,6 +16,7 @@ type LlmMetadataView = {
   requestId?: string
 }
 
+// chapter 命令偏向“链路总览”，这里的打印函数主要输出当前章节在 plan/draft/review/rewrite/approve 各节点的最新指针。
 export function printChapterCreated(chapter: {
   index: number
   title: string
@@ -94,6 +95,7 @@ export function printChapterShowSummary(input: {
   if (latestReview) {
     console.log(`Latest review: ${latestReview.id} [${latestReview.decision}]`)
     console.log(`Latest review risk: ${latestReview.approvalRisk}`)
+    // closures 汇总只给数量，详细内容留给 review detail，避免 show 输出过长。
     console.log(
       `Latest review closures: ${latestReview.closureSuggestions.characters.length + latestReview.closureSuggestions.items.length + latestReview.closureSuggestions.hooks.length + latestReview.closureSuggestions.memory.length}`,
     )
@@ -110,6 +112,7 @@ export function printChapterShowSummary(input: {
 
   if (latestOutcome) {
     console.log(`Latest outcome: ${latestOutcome.id} [${latestOutcome.decision}]`)
+    // outcome 相关统计放在一起，方便快速判断这一章是否真正完成了状态落地。
     console.log(`Outcome facts: ${latestOutcome.resolvedFacts.length}`)
     console.log(`Outcome debts: ${chapterDebts.length}`)
     console.log(`Outcome contradictions: ${chapterContradictions.length}`)
@@ -263,5 +266,6 @@ function printLlmMetadata(metadata?: LlmMetadataView): void {
     return
   }
 
+  // LLM 元数据统一压成一个 JSON section，便于排查 provider/model fallback，而不干扰主信息阅读。
   console.log(formatSection('LLM metadata:', formatJson(metadata)))
 }

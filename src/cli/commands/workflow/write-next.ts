@@ -20,6 +20,7 @@ export function registerWorkflowWriteNextCommand(writeCommand: Command): void {
           return {
             result: writeResult,
             chapterId,
+            // runLoggedCommand 里的 summary/detail 会进入命令日志，因此这里只保留排障和审计真正需要的信息。
             summary: `Chapter draft created: ${writeResult.draftId}`,
             detail: {
               draftId: writeResult.draftId,

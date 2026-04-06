@@ -81,6 +81,8 @@ export class PlanningContextBuilder {
     const activeHookStates = this.hookStateRepository.listActiveByBookId(book.id)
     const hookPressures = this.hookPressureRepository.listActiveByBookId(book.id)
     const openNarrativeDebts = this.narrativeDebtRepository.listOpenByBookId(book.id)
+    // protected facts 是 planning 阶段最硬的“不能随手写坏”的事实约束，
+    // 这里故意只保留高重要度长期记忆，避免把所有历史信息都抬升成硬限制。
     const protectedFactConstraints = [...new Set(
       this.memoryRepository
         .recallRelevantLongTermEntries(book.id, [chapter.title, chapter.objective, volume.goal])
@@ -99,6 +101,7 @@ export class PlanningContextBuilder {
     const relevantLongTermEntries = this.memoryRepository.recallRelevantLongTermEntries(book.id, recallTerms)
     const volumePlan = this.volumePlanRepository.getLatestByVolumeId(volume.id)
     const activeStoryThreads = this.storyThreadRepository.listActiveByBookId(book.id)
+    // current mission 是卷级导演信号与当前章节 planning 之间的直接桥。
     const currentChapterMission = volumePlan?.chapterMissions.find((mission) => mission.chapterId === chapter.id) ?? null
     const endingReadiness = this.endingReadinessRepository.getByBookId(book.id)
     const characterPresenceWindows = buildCharacterPresenceWindows(chapters, characterStates, activeStoryThreads, chapter.index)
@@ -178,6 +181,7 @@ export class PlanningContextBuilder {
     const activeHookStates = await this.hookStateRepository.listActiveByBookIdAsync(book.id)
     const hookPressures = await this.hookPressureRepository.listActiveByBookIdAsync(book.id)
     const openNarrativeDebts = await this.narrativeDebtRepository.listOpenByBookIdAsync(book.id)
+    // async 路径与同步路径保持同一筛选语义，避免后端切换后 planning 约束面变化。
     const protectedFactConstraints = [...new Set(
       (await this.memoryRepository.recallRelevantLongTermEntriesAsync(book.id, [chapter.title, chapter.objective, volume.goal]))
         .filter((entry) => entry.importance >= 70)
@@ -195,6 +199,7 @@ export class PlanningContextBuilder {
     const relevantLongTermEntries = await this.memoryRepository.recallRelevantLongTermEntriesAsync(book.id, recallTerms)
     const volumePlan = await this.volumePlanRepository.getLatestByVolumeIdAsync(volume.id)
     const activeStoryThreads = await this.storyThreadRepository.listActiveByBookIdAsync(book.id)
+    // current mission 是卷计划里“本章应该承担什么窗口职责”的最直接表达。
     const currentChapterMission = volumePlan?.chapterMissions.find((mission) => mission.chapterId === chapter.id) ?? null
     const endingReadiness = await this.endingReadinessRepository.getByBookIdAsync(book.id)
     const characterPresenceWindows = buildCharacterPresenceWindows(chapters, characterStates, activeStoryThreads, chapter.index)
@@ -242,6 +247,7 @@ function buildMemoryRecallQueryTerms(
   activeHooks: string[],
   importantItems: string[],
 ): string[] {
+  // recall terms 只保留对当前章 planning 真有帮助的查询词，避免长期记忆召回被无关噪声稀释。
   return [...new Set([
     chapterTitle,
     chapterObjective,

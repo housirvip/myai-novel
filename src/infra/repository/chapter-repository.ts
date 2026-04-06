@@ -30,7 +30,13 @@ type UpdateChapterWorkflowStateInput = {
   approvedAt?: string | null
   summary?: string | null
 }
- 
+
+/**
+ * `ChapterRepository` 管理章节主真源。
+ *
+ * 和 plan / draft / review / rewrite 这些过程产物 repository 不同，
+ * chapter 表保存的是“当前这一章在主链里走到哪一步”以及“当前指向哪版计划 / 正文”的事实。
+ */
 export class ChapterRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -185,6 +191,8 @@ export class ChapterRepository {
   }
 
   updateCurrentPlanVersion(chapterId: string, versionId: string, updatedAt: string): void {
+    // 章节只保存“当前采用哪版 plan”的指针；
+    // 历史 plan 版本本身仍然由 ChapterPlanRepository 负责保存。
     dbRun(
       this.database,
       'UPDATE chapters SET current_plan_version_id = ?, updated_at = ? WHERE id = ?',
@@ -225,6 +233,8 @@ export class ChapterRepository {
   }
 
   markDrafted(chapterId: string, currentVersionId: string, draftPath: string | undefined, updatedAt: string): void {
+    // 进入 drafted 时会同步更新 current_version_id，
+    // 因为后续 review / rewrite 都默认围绕当前正文版本工作。
     dbRun(
       this.database,
       `
@@ -266,6 +276,8 @@ export class ChapterRepository {
   }
 
   markReviewed(chapterId: string, updatedAt: string): void {
+    // review 阶段本身不会切换 current_version_id，
+    // 它只是确认“当前正文版本已完成一次审查”。
     dbRun(
       this.database,
       `
@@ -294,6 +306,7 @@ export class ChapterRepository {
   }
 
   updateCurrentVersion(chapterId: string, currentVersionId: string, updatedAt: string): void {
+    // current_version_id 可能指向 draft，也可能在 rewrite 后改指向 rewrite 版本。
     dbRun(
       this.database,
       `
@@ -330,6 +343,7 @@ export class ChapterRepository {
     summary: string,
     approvedAt: string,
   ): void {
+    // finalized 会把当前版本、最终文件路径、章节摘要和 approvedAt 一次性收口到 chapter 主真源。
     dbRun(
       this.database,
       `
@@ -439,6 +453,7 @@ export class ChapterRepository {
 }
 
 function mapChapter(row: ChapterRow): Chapter {
+  // repository 层负责把 planned beats 的 JSON 细节屏蔽掉，上层只看 Chapter 领域对象。
   return {
     id: row.id,
     bookId: row.book_id,

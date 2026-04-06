@@ -16,6 +16,13 @@ type VolumePlanRow = {
   updated_at: string
 }
 
+/**
+ * `VolumePlanRepository` 保存卷级导演真源。
+ *
+ * 它与 `ChapterPlanRepository` 的差别在于：
+ * - 这里更关注滚动窗口、thread 和 chapter mission 的连续规划
+ * - chapter planning 会把这里的最新版本当作导演信号，而不是逐章重复定义卷级职责
+ */
 export class VolumePlanRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -84,6 +91,7 @@ export class VolumePlanRepository {
   }
 
   getLatestByVolumeId(volumeId: string): VolumePlan | null {
+    // 这里优先按 updated_at 取最新，因为卷计划允许在同一条规划线上被持续修订。
     const row = dbGet<VolumePlanRow>(
       this.database,
       `
@@ -147,6 +155,7 @@ export class VolumePlanRepository {
 }
 
 function mapVolumePlan(row: VolumePlanRow): VolumePlan {
+  // 卷计划里的 mission / rolling window 都以 JSON 形式持久化，读取时统一在这里还原。
   return {
     id: row.id,
     bookId: row.book_id,

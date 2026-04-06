@@ -12,6 +12,14 @@ type HookPressureRow = {
   updated_at: string
 }
 
+/**
+ * `HookPressureRepository` 保存 hook 当前的推进压力快照。
+ *
+ * 这张表回答的是：
+ * - 哪些 hook 现在最该推进
+ * - 风险等级如何
+ * - 如果继续拖延，大致应该在第几章前处理
+ */
 export class HookPressureRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -48,6 +56,7 @@ export class HookPressureRepository {
   }
 
   listActiveByBookId(bookId: string): HookPressure[] {
+    // 这里不额外按 status 过滤，因为 hook pressure 本身就是 current 快照，默认只保留当前有效项。
     const rows = dbAll<HookPressureRow>(
       this.database,
       `
@@ -78,6 +87,7 @@ export class HookPressureRepository {
   }
 
   upsert(pressure: HookPressure): void {
+    // pressure 是按 (book_id, hook_id) 覆盖更新的 current-state 数据，而不是历史日志。
     dbRun(
       this.database,
       `

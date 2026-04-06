@@ -21,6 +21,7 @@ export function registerWorkflowPlanChapterCommand(planCommand: Command): void {
             result,
             chapterId,
             bookId: result.bookId,
+            // 计划命令日志偏向“这次生成覆盖了多少结构”，便于快速判断是否产出了完整计划。
             summary: `Chapter plan created: ${result.versionId}`,
             detail: {
               planVersionId: result.versionId,

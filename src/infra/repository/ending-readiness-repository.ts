@@ -13,6 +13,13 @@ type EndingReadinessRow = {
   updated_at: string
 }
 
+/**
+ * `EndingReadinessRepository` 保存作品当前的终局准备快照。
+ *
+ * 这是一张 current-state 表：
+ * 它表达“到目前为止，作品距离终局收束还有多少缺口”，
+ * 而不是记录每章如何变化的完整历史。
+ */
 export class EndingReadinessRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -47,6 +54,8 @@ export class EndingReadinessRepository {
   }
 
   upsert(readiness: EndingReadiness): void {
+    // ending readiness 始终按 book 维度覆盖更新，
+    // 因为同一时刻只需要一份“当前终局准备真相”。
     dbRun(
       this.database,
       `
@@ -118,6 +127,7 @@ export class EndingReadinessRepository {
 }
 
 function mapEndingReadiness(row: EndingReadinessRow): EndingReadiness {
+  // pending payoffs / closure gaps / prerequisites 都是结构化导演信号，因此统一以 JSON 存取。
   return {
     bookId: row.book_id,
     targetVolumeId: row.target_volume_id,

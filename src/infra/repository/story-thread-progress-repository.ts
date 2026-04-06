@@ -13,6 +13,12 @@ type StoryThreadProgressRow = {
   created_at: string
 }
 
+/**
+ * `StoryThreadProgressRepository` 保存线程推进的章节级轨迹。
+ *
+ * 它不是 current-state 表，而是 append-only 的 progress log：
+ * 每次章节确认后新增一条或多条记录，供 doctor / state / volume review 回看“线程是怎么被推进或搁置的”。
+ */
 export class StoryThreadProgressRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -131,6 +137,7 @@ export class StoryThreadProgressRepository {
   }
 
   listRecentByChapterWindow(bookId: string, startChapterId: string, endChapterId: string): StoryThreadProgress[] {
+    // 当前窗口查询只做最小 chapter 范围抽样，主要给 volume / thread 视图快速展示最近推进痕迹。
     const rows = dbAll<StoryThreadProgressRow>(
       this.database,
       `
@@ -172,6 +179,7 @@ export class StoryThreadProgressRepository {
 }
 
 function mapStoryThreadProgress(row: StoryThreadProgressRow): StoryThreadProgress {
+  // impacts 以 JSON 落盘，是因为线程推进影响通常是结构化数组，单列文本不够表达。
   return {
     id: row.id,
     bookId: row.book_id,

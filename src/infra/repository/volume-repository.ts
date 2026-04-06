@@ -13,6 +13,13 @@ type VolumeRow = {
   updated_at: string
 }
 
+/**
+ * `VolumeRepository` 保存卷级基础真源。
+ *
+ * 它和 `VolumePlanRepository` 的区别是：
+ * - 这里记录卷的静态定义与章节归属
+ * - volume plan 记录卷的动态导演与滚动窗口规划
+ */
 export class VolumeRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -111,6 +118,7 @@ export class VolumeRepository {
   }
 
   updateChapterIds(id: string, chapterIds: string[], updatedAt: string): void {
+    // chapterIds 是卷与章节排序关系的持久化来源之一，新增/删除章节后需要同步维护。
     dbRun(
       this.database,
       'UPDATE volumes SET chapter_ids_json = ?, updated_at = ? WHERE id = ?',
@@ -152,6 +160,7 @@ export class VolumeRepository {
 }
 
 function mapVolume(row: VolumeRow): Volume {
+  // repository 层负责还原卷内章节顺序，避免上层重复关心 JSON 细节。
   return {
     id: row.id,
     bookId: row.book_id,

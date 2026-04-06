@@ -40,6 +40,12 @@ type ChapterPlanRow = {
   approved_by_user: number
 }
 
+/**
+ * `ChapterPlanRepository` 负责保存 planning 阶段的完整结构化真源。
+ *
+ * 相比 chapter 表上的当前版本指针，这里保存的是可回溯的历史 plan 版本；
+ * 因此 scene goals、ending drive、mission/thread 等导演字段都会整包落盘。
+ */
 export class ChapterPlanRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -204,6 +210,8 @@ export class ChapterPlanRepository {
   }
 
   getLatestByChapterId(chapterId: string): ChapterPlan | null {
+    // latest 语义以 created_at 为准，而不是 version_id，
+    // 因为 version_id 只是身份标识，不承诺天然有序。
     const row = dbGet<ChapterPlanRow>(
       this.database,
       `
@@ -299,6 +307,7 @@ export class ChapterPlanRepository {
 }
 
 function mapChapterPlan(row: ChapterPlanRow): ChapterPlan {
+  // repository 层负责把 JSON 列还原成领域对象，避免上层 service 直接感知存储细节。
   return {
     id: row.id,
     bookId: row.book_id,

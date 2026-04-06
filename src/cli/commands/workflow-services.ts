@@ -123,6 +123,7 @@ export async function loadWorkflowMissionViewAsync(database: NovelDatabase, chap
     throw new NovelError(`Chapter not found: ${chapterId}`)
   }
 
+  // mission 始终从“当前卷的最新 volume plan”读取，避免 CLI 混入历史计划版本。
   const volumePlan = await new VolumePlanRepository(database).getLatestByVolumeIdAsync(chapter.volumeId)
   const mission = volumePlan?.chapterMissions.find((item) => item.chapterId === chapterId) ?? null
 
@@ -237,6 +238,7 @@ export async function loadWorkflowVolumeReviewViewAsync(database: NovelDatabase,
   const chapterRepository = new ChapterRepository(database)
   const reviewRepository = new ChapterReviewRepository(database)
   const chapterRows = await chapterRepository.listByBookIdAsync(book.id)
+  // 这里按 volume 过滤后再逐章补 latest review，保持视图语义与同步版本一致。
   const chapters = await Promise.all(
     chapterRows
       .filter((chapter) => chapter.volumeId === volumeId)

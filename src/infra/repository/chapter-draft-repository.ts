@@ -14,6 +14,12 @@ type ChapterDraftRow = {
   created_at: string
 }
 
+/**
+ * `ChapterDraftRepository` 保存 generation 阶段产出的正文草稿版本。
+ *
+ * 这里是 append-only 语义：
+ * 每次写新草稿都会新增一条记录，而 chapter 主表只通过 current_version_id 指向当前正在使用的那版正文。
+ */
 export class ChapterDraftRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -74,6 +80,7 @@ export class ChapterDraftRepository {
   }
 
   getLatestByChapterId(chapterId: string): ChapterDraft | null {
+    // latest 语义以 created_at 为准，便于按时间回看草稿演进，而不依赖 version_id 规则。
     const row = dbGet<ChapterDraftRow>(
       this.database,
       `
@@ -149,6 +156,7 @@ export class ChapterDraftRepository {
 }
 
 function mapDraft(row: ChapterDraftRow): ChapterDraft {
+  // llm metadata 会原样保留，供 doctor / chapter show / 回归分析查看真实生成执行信息。
   return {
     id: row.id,
     bookId: row.book_id,

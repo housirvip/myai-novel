@@ -1,5 +1,6 @@
 import { formatJson, formatSection } from '../../../shared/utils/format.js'
 
+// 卷级状态输出强调“窗口视角”：本卷章节、卷计划、主线线程、完结准备度一起看。
 export function printStateVolumeSummary(input: {
   book: { id: string; title: string }
   volume: {

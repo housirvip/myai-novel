@@ -13,6 +13,7 @@ type TraceDetail = {
   nextValueSummary?: string
 }
 
+// state 命令负责把“当前投影”和“最近变更痕迹”并排展示，便于核对状态是否真的落库。
 export function printStoryState(state: unknown | null): void {
   if (!state) {
     console.log('Story state: (empty)')
@@ -117,6 +118,7 @@ export function printStateShowSummary(input: {
   })))
   console.log(formatSection(
     'Character current state:',
+    // 打印时补齐角色名/地点名，避免用户还要拿 id 再去查一次。
     formatJson(characterStates.map((state) => ({
       characterId: state.characterId,
       characterName: characterNameById.get(state.characterId) ?? state.characterId,
@@ -128,6 +130,7 @@ export function printStateShowSummary(input: {
   ))
   console.log(formatSection(
     'Important item current state:',
+    // 重要物品既显示 owner 也显示 location，兼容“被谁持有”和“落在某处无人持有”两种情况。
     formatJson(importantItems.map((item) => ({
       itemId: item.id,
       itemName: item.name,
@@ -162,6 +165,7 @@ export function printStateShowSummary(input: {
   console.log(formatSection('Long-term memory current:', formatJson(longTermMemory)))
   console.log(formatSection(
     'Recent state updates:',
+    // recent updates 额外输出格式化 trace，让 before/after 与证据摘要更易读。
     formatJson(recentStateUpdates.map((update) => ({
       ...update,
       entityName:
@@ -239,6 +243,7 @@ export function printStateUpdatesSummary(input: {
         reviewId: input.review.id,
         decision: input.review.decision,
         approvalRisk: input.review.approvalRisk,
+        // 这里只取前几条问题和建议，作为“为什么产生这些更新”的简短背景。
         closureSummary: summarizeClosureSuggestions(input.review.closureSuggestions),
         topIssues: [
           ...input.review.consistencyIssues,
@@ -290,6 +295,7 @@ export function printStateThreadsSummary(input: {
   console.log(`Book: ${input.book.title}`)
 
   if (input.volume) {
+    // volume 可选，是因为线程既可以按整书看，也可以按当前卷窗口聚焦。
     console.log(`Volume: ${input.volume.title} (${input.volume.id})`)
   }
 

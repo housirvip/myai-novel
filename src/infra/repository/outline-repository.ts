@@ -12,10 +12,18 @@ type OutlineRow = {
   updated_at: string
 }
 
+/**
+ * `OutlineRepository` 保存作品总纲。
+ *
+ * 这也是按 book 维度唯一存在的一份 current 真源，
+ * chapter / planning / doctor 都会把它当作卷级与章节级决策的上位约束。
+ */
 export class OutlineRepository {
   constructor(private readonly database: NovelDatabase) {}
 
   upsert(outline: Outline): void {
+    // 总纲按 book_id 覆盖更新，而不是保留历史版本；
+    // 若需要历史演进，应该由 plans 文档或外部版本控制承担。
     dbRun(
       this.database,
       `

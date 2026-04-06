@@ -28,6 +28,7 @@ type ImportantItemRow = {
   updated_at: string | null
 }
 
+// `item_current_state` 维护物品的最新归属/位置/数量，供上下文与状态命令直接消费。
 export class ItemCurrentStateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -44,6 +45,7 @@ export class ItemCurrentStateRepository {
           status,
           updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        -- 每个物品只保留一条当前记录；章节级历史若需要追溯，应看输出或审查结果表。
         ON CONFLICT(book_id, item_id) DO UPDATE SET
           owner_character_id = excluded.owner_character_id,
           location_id = excluded.location_id,
@@ -74,6 +76,7 @@ export class ItemCurrentStateRepository {
           status,
           updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        -- async 写入遵循同样的最新快照覆盖逻辑。
         ON CONFLICT(book_id, item_id) DO UPDATE SET
           owner_character_id = excluded.owner_character_id,
           location_id = excluded.location_id,
@@ -137,6 +140,7 @@ export class ItemCurrentStateRepository {
          AND items.id = item_current_state.item_id
         WHERE items.book_id = ?
           AND items.is_important = 1
+        -- 先按物品定义顺序遍历，再拼接状态，避免状态更新时间影响核心设定展示顺序。
         ORDER BY items.created_at ASC
       `,
       bookId,
@@ -169,6 +173,7 @@ export class ItemCurrentStateRepository {
          AND items.id = item_current_state.item_id
         WHERE items.book_id = ?
           AND items.is_important = 1
+        -- 与同步接口一致，保证上下文构建在 sync/async 模式下可比对。
         ORDER BY items.created_at ASC
       `,
       bookId,
@@ -203,6 +208,7 @@ function mapContextItemView(row: ImportantItemRow): ContextItemView {
     isImportant: row.is_important === 1,
     ownerCharacterId: row.owner_character_id ?? undefined,
     locationId: row.location_id ?? undefined,
+    // 尚未写入 current-state 的重要物品，按“单件、未记录”兜底，避免上下文里直接缺失。
     quantity: row.quantity ?? 1,
     status: row.status ?? '未记录',
     updatedAt: row.updated_at ?? '',

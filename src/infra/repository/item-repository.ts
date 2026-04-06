@@ -15,6 +15,7 @@ type ItemRow = {
   updated_at: string
 }
 
+// `items` 存的是物品定义与基础属性；归属、位置、数量等会落在 current-state 表里。
 export class ItemRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -91,6 +92,7 @@ export class ItemRepository {
   }
 
   listByBookId(bookId: string): Item[] {
+    // 重要物品的展示通常希望跟建档顺序一致，避免每次读取顺序漂移。
     const rows = dbAll<ItemRow>(this.database, 'SELECT * FROM items WHERE book_id = ? ORDER BY created_at ASC', bookId)
 
     return rows.map(mapItem)
@@ -99,6 +101,7 @@ export class ItemRepository {
   async listByBookIdAsync(bookId: string): Promise<Item[]> {
     const rows = await dbAllAsync<ItemRow>(
       this.database,
+      // async 版本保持同样的稳定顺序，方便上下文和快照比较。
       'SELECT * FROM items WHERE book_id = ? ORDER BY created_at ASC',
       bookId,
     )

@@ -53,6 +53,13 @@ export function createChapterWorldService(database: NovelDatabase): WorldService
   )
 }
 
+/**
+ * 创建 chapter 域使用的 `RewriteService`。
+ *
+ * 这里故意只注入 rewrite 真正会消费的状态真源，
+ * 避免命令层把“章域里所有 repository”一股脑传给 service，
+ * 让后续阅读依赖边界时更容易看出 rewrite 到底信任哪些输入。
+ */
 export function createChapterRewriteService(database: NovelDatabase): RewriteService {
   return new RewriteService(
     new BookRepository(database),
@@ -69,6 +76,13 @@ export function createChapterRewriteService(database: NovelDatabase): RewriteSer
   )
 }
 
+/**
+ * 创建 chapter 域使用的 `ApproveService`。
+ *
+ * approve 是章级命令里依赖最重的一步：
+ * 它既要提交最终输出，也要推动故事状态、线程推进、记忆和终局准备真源更新，
+ * 所以这里集中装配能帮助命令文件保持薄、也方便日后核对“提交阶段到底会写哪些状态”。
+ */
 export function createChapterApproveService(database: NovelDatabase, rootDir: string): ApproveService {
   return new ApproveService(
     rootDir,
@@ -100,6 +114,12 @@ export function createChapterApproveService(database: NovelDatabase, rootDir: st
   )
 }
 
+/**
+ * 创建 chapter 删除服务。
+ *
+ * drop 只负责删除章节链路上的直接产物，不负责做状态反演，
+ * 因此这里的依赖被刻意限制在 chapter 及其过程产物仓储。
+ */
 export function createChapterDropService(database: NovelDatabase): ChapterDropService {
   return new ChapterDropService(
     new ChapterRepository(database),
