@@ -1,18 +1,18 @@
 # myai-novel 命令指南
 
-这是一份面向实际使用的 CLI 命令手册，专门说明 [`novel`](src/cli.ts:13) 提供的全部命令、参数、典型示例与推荐执行顺序。
+这份文档按当前 CLI 源码逐项整理，目标是和 [`src/cli.ts`](src/cli.ts) 以及各命令注册文件保持一一对应。
 
-如果你只想快速了解项目，可以先看 [`README.md`](README.md)；如果你想系统掌握每一条命令，请以本文件为准。
+如果你只想快速浏览项目，先看 [`README.md`](README.md)；如果你要确认某条命令到底支不支持、参数是什么、应该放在哪个流程里，请以本文件为准。
 
 ---
 
-## 1. 使用方式
+## 1. 运行方式
 
-本项目 CLI 名称为 `novel`，入口定义在 [`src/cli.ts`](src/cli.ts:10)。
+CLI 名称是 `novel`，入口在 [`src/cli.ts`](src/cli.ts)。
 
-你有两种常见运行方式：
+常见运行方式有三种：
 
-### 方式一：开发模式直接运行
+### 1.1 开发模式
 
 ```bash
 npm run dev -- <command>
@@ -24,17 +24,10 @@ npm run dev -- <command>
 npm run dev -- init --title "雾港回声" --genre "奇幻悬疑"
 ```
 
-### 方式二：编译后运行
-
-先构建：
+### 1.2 构建后运行
 
 ```bash
 npm run build
-```
-
-再运行：
-
-```bash
 node dist/cli.js <command>
 ```
 
@@ -44,151 +37,162 @@ node dist/cli.js <command>
 node dist/cli.js book show
 ```
 
-如果你已经全局安装或通过 `bin` 接入，也可以直接使用：
+### 1.3 使用 bin 入口
 
 ```bash
 novel <command>
+```
+
+查看帮助：
+
+```bash
+novel --help
+novel chapter --help
+novel doctor volume --help
 ```
 
 ---
 
 ## 2. 命令总览
 
-根据 [`src/cli.ts`](src/cli.ts:17) 的注册顺序，当前 CLI 分为以下几组：
+当前 CLI 共有这些命令分组。
 
-- 项目初始化与总纲
-  - `init`
-  - `outline set`
-  - `book show`
-- 世界设定录入
-  - `volume add`
-  - `character add`
-  - `location add`
-  - `faction add`
-  - `hook add`
-  - `item add`
-- 章节管理
-  - `chapter add`
-  - `chapter show <chapterId>`
-  - `chapter rewrite <chapterId>`
-  - `chapter approve <chapterId>`
-  - `chapter drop <chapterId>`
-- 工作流命令
-  - `plan chapter <chapterId>`
-  - `plan show <chapterId>`
-  - `plan volume-window <chapterId>`
-  - `plan volume-show <volumeId>`
-  - `plan mission-show <chapterId>`
-  - `write next <chapterId>`
-  - `draft show <chapterId>`
-  - `review chapter <chapterId>`
-  - `review show <chapterId>`
-  - `review volume <volumeId>`
-  - `rewrite show <chapterId>`
-- 状态追踪
-  - `story show`
-  - `state show`
-  - `state threads [volumeId]`
-  - `state ending`
-  - `state volume-plan <volumeId>`
-  - `state volume <volumeId>`
-  - `state-updates show <chapterId>`
-- 运维与回归
-  - `doctor`
-  - `doctor chapter <chapterId>`
-  - `doctor volume <volumeId>`
-  - `regression list`
-  - `regression run <caseName> [targetId]`
-  - `regression volume <volumeId>`
-  - `snapshot state`
-  - `snapshot chapter <chapterId>`
-  - `snapshot volume <volumeId>`
+### 2.1 项目与总纲
+
+- `init`
+- `outline set`
+- `book show`
+
+### 2.2 世界设定
+
+- `volume add`
+- `character add`
+- `location add`
+- `faction add`
+- `hook add`
+- `item add`
+
+### 2.3 章节管理
+
+- `chapter add`
+- `chapter show <chapterId>`
+- `chapter rewrite <chapterId>`
+- `chapter approve <chapterId>`
+- `chapter drop <chapterId>`
+
+### 2.4 工作流
+
+- `plan chapter <chapterId>`
+- `plan show <chapterId>`
+- `plan mission-show <chapterId>`
+- `plan volume-window <chapterId>`
+- `plan volume-show <volumeId>`
+- `write next <chapterId>`
+- `draft show <chapterId>`
+- `review chapter <chapterId>`
+- `review show <chapterId>`
+- `review volume <volumeId>`
+- `rewrite show <chapterId>`
+
+### 2.5 状态追踪
+
+- `story show`
+- `state show`
+- `state threads [volumeId]`
+- `state ending`
+- `state volume-plan <volumeId>`
+- `state volume <volumeId>`
+- `state-updates show <chapterId>`
+
+### 2.6 诊断、回归、快照
+
+- `doctor`
+- `doctor chapter <chapterId>`
+- `doctor volume <volumeId>`
+- `regression list`
+- `regression run <caseName> [targetId]`
+- `regression volume <volumeId>`
+- `snapshot state`
+- `snapshot chapter <chapterId>`
+- `snapshot volume <volumeId>`
 
 ---
 
 ## 3. 推荐执行顺序
 
-一个最典型的长篇写作流程如下：
+一个典型流程通常是：
 
 1. `init`
 2. `outline set`
 3. `volume add`
 4. `character add`
 5. `location add`
-6. `faction add`（可选）
-7. `hook add`
-8. `item add`
-9. `chapter add`
-10. `plan chapter`
-11. `plan volume-window <chapterId>`
-12. `plan mission-show <chapterId>` / `plan volume-show <volumeId>`
-13. `write next`
-14. `review chapter`
-15. `review volume <volumeId>`
-16. `chapter rewrite`（按需）
-17. `chapter approve`
-18. `state show`
-19. `state threads [volumeId]` / `state ending` / `state volume <volumeId>`
-20. `doctor chapter <chapterId>` / `doctor volume <volumeId>`（排障时）
-21. `snapshot chapter <chapterId>` / `snapshot volume <volumeId>`（留存快照时）
-22. `regression run <caseName> [targetId]` / `regression volume <volumeId>`（回归验证时）
-23. `chapter drop <chapterId>`（需要安全回退当前链路时）
-
-这个顺序对应了项目中“规划 → 写作 → 审查 → 重写 → 批准 → 状态沉淀”的主链路，核心实现分布在：
-
-- [`src/core/planning/service.ts`](src/core/planning/service.ts)
-- [`src/core/generation/service.ts`](src/core/generation/service.ts)
-- [`src/core/review/service.ts`](src/core/review/service.ts)
-- [`src/core/rewrite/service.ts`](src/core/rewrite/service.ts)
-- [`src/core/approve/service.ts`](src/core/approve/service.ts)
+6. `faction add` 或 `hook add` 或 `item add`
+7. `chapter add`
+8. `plan chapter <chapterId>`
+9. `plan volume-window <chapterId>`
+10. `plan mission-show <chapterId>` 或 `plan volume-show <volumeId>`
+11. `write next <chapterId>`
+12. `review chapter <chapterId>`
+13. `review volume <volumeId>`
+14. `chapter rewrite <chapterId>`，按需执行
+15. `chapter approve <chapterId>`
+16. `state show`
+17. `state threads [volumeId]` / `state ending` / `state volume <volumeId>`
+18. `doctor`
+19. `doctor chapter <chapterId>` 或 `doctor volume <volumeId>`
+20. `snapshot chapter <chapterId>` 或 `snapshot volume <volumeId>`
+21. `regression run <caseName> [targetId]` 或 `regression volume <volumeId>`
+22. `chapter drop <chapterId>`，仅在需要安全清理当前链路时使用
 
 ---
 
-## 4. 项目初始化与总纲命令
+## 4. 项目与总纲命令
 
-命令定义主要位于 [`src/cli/commands/project-commands.ts`](src/cli/commands/project-commands.ts:19)。
+源码入口见 [`src/cli/commands/project-commands.ts`](src/cli/commands/project-commands.ts)。
 
 ### 4.1 `init`
 
-初始化当前目录为一个新的小说项目。
-
-#### 语法
+初始化当前目录为一个小说项目。
 
 ```bash
-novel init --title <title> --genre <genre> [--word-count <number>] [--tolerance <number>] \
-  [--db-client <sqlite|mysql>] [--db-filename <filename>] \
-  [--db-host <host>] [--db-port <port>] [--db-user <user>] \
-  [--db-password <password>] [--db-name <name>]
+novel init \
+  --title <title> \
+  --genre <genre> \
+  [--word-count <number>] \
+  [--tolerance <number>] \
+  [--db-client <sqlite|mysql>] \
+  [--db-filename <filename>] \
+  [--db-host <host>] \
+  [--db-port <port>] \
+  [--db-user <user>] \
+  [--db-password <password>] \
+  [--db-name <name>]
 ```
 
-#### 参数
+参数：
 
 - `--title <title>`：书名，必填
 - `--genre <genre>`：题材，必填
 - `--word-count <number>`：默认章节字数，默认 `3000`
 - `--tolerance <number>`：章节字数容忍比例，默认 `0.15`
-- `--db-client <sqlite|mysql>`：数据库后端类型，默认 `sqlite`
-- `--db-filename <filename>`：SQLite 文件路径，默认 `data/novel.sqlite`
+- `--db-client <sqlite|mysql>`：数据库后端，默认 `sqlite`
+- `--db-filename <filename>`：SQLite 文件名，默认 `data/novel.sqlite`
 - `--db-host <host>`：MySQL 主机，默认 `127.0.0.1`
 - `--db-port <port>`：MySQL 端口，默认 `3306`
 - `--db-user <user>`：MySQL 用户，默认 `root`
 - `--db-password <password>`：MySQL 密码，可选
 - `--db-name <name>`：MySQL 数据库名，默认 `myai_novel`
 
-#### 作用
+这个命令会：
 
-执行后会：
-
-- 创建项目目录结构
-- 生成 `config/database.json`
-- 当选择 `sqlite` 时创建 `data/novel.sqlite`
-- 当选择 `mysql` 时写入 MySQL 连接配置
-- 自动执行数据库迁移
+- 创建项目目录
+- 写入 `config/database.json`
+- 打开并初始化数据库
+- 运行迁移
 - 创建第一本书的基础记录
 
-目录生成逻辑见 [`src/shared/utils/project-paths.ts`](src/shared/utils/project-paths.ts:26)。
-
-#### 示例
+示例：
 
 ```bash
 novel init \
@@ -196,7 +200,9 @@ novel init \
   --genre "奇幻冒险" \
   --word-count 2500 \
   --tolerance 0.2
+```
 
+```bash
 novel init \
   --title "测试之书" \
   --genre "奇幻冒险" \
@@ -208,13 +214,9 @@ novel init \
   --db-name myai_novel
 ```
 
----
-
 ### 4.2 `outline set`
 
-为当前书籍设置总纲。
-
-#### 语法
+设置书籍总纲。
 
 ```bash
 novel outline set \
@@ -225,15 +227,15 @@ novel outline set \
   --ending-vision <endingVision>
 ```
 
-#### 参数
+参数：
 
 - `--premise <premise>`：故事前提
 - `--theme <theme>`：主题
-- `--worldview <worldview>`：世界观描述
+- `--worldview <worldview>`：世界观
 - `--core-conflict <items...>`：一个或多个核心冲突
-- `--ending-vision <endingVision>`：希望到达的结局方向
+- `--ending-vision <endingVision>`：结局方向
 
-#### 示例
+示例：
 
 ```bash
 novel outline set \
@@ -244,36 +246,29 @@ novel outline set \
   --ending-vision "主角理解古戒的代价并作出最终选择"
 ```
 
----
-
 ### 4.3 `book show`
 
-查看当前书籍的基础信息和总纲摘要。
-
-#### 语法
+查看当前书籍和总纲摘要。
 
 ```bash
 novel book show
 ```
 
-#### 输出内容
+通常会输出：
 
-- 书名
-- 书籍 ID
+- 书名与书籍 ID
 - 题材
 - 默认章节字数
 - 容差比例
 - 卷数量
 - 章节数量
-- 总纲前提与核心冲突
+- 总纲前提和核心冲突摘要
 
 ---
 
 ## 5. 世界设定命令
 
-命令定义位于 [`src/cli/commands/world-commands.ts`](src/cli/commands/world-commands.ts:16)。
-
-这些命令负责为后续规划、写作和审查提供结构化上下文。
+源码入口见 [`src/cli/commands/world-commands.ts`](src/cli/commands/world-commands.ts)。
 
 ### 5.1 `volume add`
 
@@ -286,19 +281,8 @@ novel volume add --title <title> --goal <goal> --summary <summary>
 参数：
 
 - `--title <title>`：卷名
-- `--goal <goal>`：该卷目标
+- `--goal <goal>`：卷目标
 - `--summary <summary>`：卷摘要
-
-示例：
-
-```bash
-novel volume add \
-  --title "第一卷：迷雾初航" \
-  --goal "建立世界观与主线危机" \
-  --summary "主角被迫踏上寻找遗迹的旅程"
-```
-
----
 
 ### 5.2 `character add`
 
@@ -315,11 +299,9 @@ novel character add \
 参数：
 
 - `--name <name>`：角色名
-- `--role <role>`：角色定位，如主角、反派、导师
+- `--role <role>`：角色定位
 - `--profile <profile>`：人物简介
 - `--motivation <motivation>`：核心动机
-
----
 
 ### 5.3 `location add`
 
@@ -334,8 +316,6 @@ novel location add --name <name> --type <type> --description <description>
 - `--name <name>`：地点名
 - `--type <type>`：地点类型
 - `--description <description>`：地点描述
-
----
 
 ### 5.4 `faction add`
 
@@ -356,8 +336,6 @@ novel faction add \
 - `--objective <objective>`：势力目标
 - `--description <description>`：势力说明
 
----
-
 ### 5.5 `hook add`
 
 新增伏笔 / 钩子。
@@ -373,19 +351,11 @@ novel hook add \
 
 参数：
 
-- `--title <title>`：钩子标题
-- `--description <description>`：钩子说明
+- `--title <title>`：标题
+- `--description <description>`：说明
 - `--payoff-expectation <payoffExpectation>`：未来回收预期
 - `--priority <priority>`：优先级，默认 `medium`
 - `--source-chapter-id <sourceChapterId>`：来源章节 ID，可选
-
-适合用于：
-
-- 埋伏笔
-- 记录悬念
-- 跟踪尚未回收的剧情承诺
-
----
 
 ### 5.6 `item add`
 
@@ -408,27 +378,25 @@ novel item add \
 参数：
 
 - `--name <name>`：物品名
-- `--unit <unit>`：数量单位，如“把”“枚”“卷”
+- `--unit <unit>`：数量单位
 - `--type <type>`：物品类型
 - `--description <description>`：物品描述
 - `--quantity <number>`：数量，默认 `1`
 - `--status <status>`：状态描述，默认 `正常`
-- `--owner-character-id <ownerCharacterId>`：持有角色 ID
-- `--location-id <locationId>`：所在地点 ID
+- `--owner-character-id <ownerCharacterId>`：当前持有角色 ID
+- `--location-id <locationId>`：当前地点 ID
 - `--important`：标记为关键物品
 - `--unique`：标记为全局唯一物品
-
-这个命令会同时影响物品定义和当前状态表，相关模型见 [`src/infra/db/schema.ts`](src/infra/db/schema.ts:260)。
 
 ---
 
 ## 6. 章节管理命令
 
-命令定义位于 [`src/cli/commands/chapter-commands.ts`](src/cli/commands/chapter-commands.ts:32)。
+源码入口见 [`src/cli/commands/chapter/register.ts`](src/cli/commands/chapter/register.ts)。
 
 ### 6.1 `chapter add`
 
-新增章节。
+新增章节主记录。
 
 ```bash
 novel chapter add \
@@ -444,44 +412,30 @@ novel chapter add \
 - `--volume-id <volumeId>`：所属卷 ID
 - `--title <title>`：章节标题
 - `--objective <objective>`：章节目标
-- `--planned-beat <items...>`：章节计划节拍，可多个
-- `--index <number>`：章节序号，可手动覆盖
-
-示例：
-
-```bash
-novel chapter add \
-  --volume-id volume_xxx \
-  --title "灯塔前的抉择" \
-  --objective "让主角发现关键证据并意识到自己被盯上" \
-  --planned-beat "抵达旧灯塔" "发现铭文" "遭遇跟踪者"
-```
-
----
+- `--planned-beat <items...>`：计划节拍，可多个
+- `--index <number>`：手动指定章节序号
 
 ### 6.2 `chapter show <chapterId>`
 
-查看某一章当前状态及最新流程产物。
+查看章节当前状态和最新流程产物。
 
 ```bash
 novel chapter show <chapterId>
 ```
 
-典型输出包括：
+通常会汇总：
 
-- 章节标题与 ID
-- 当前章节状态
-- 当前计划版本号
-- 当前正文版本号
-- 最新 plan / draft / review / rewrite / final output 信息
-
-适合用于快速判断这一章走到了哪一步。
-
----
+- 章节主记录
+- 最新 `plan`
+- 最新 `draft`
+- 最新 `review`
+- 最新 `rewrite`
+- 最新 `final output`
+- 最新 outcome / debt / contradiction / updates 摘要
 
 ### 6.3 `chapter rewrite <chapterId>`
 
-基于最新草稿与审查结果重写该章节。
+基于最新草稿执行重写。
 
 ```bash
 novel chapter rewrite <chapterId> [--goal <items...>] [--strategy <strategy>]
@@ -490,138 +444,157 @@ novel chapter rewrite <chapterId> [--goal <items...>] [--strategy <strategy>]
 参数：
 
 - `--goal <items...>`：一个或多个重写目标
-- `--strategy <strategy>`：重写策略，`full` 或 `partial`，默认 `partial`
+- `--strategy <strategy>`：`full` 或 `partial`，默认 `partial`
+
+说明：
+
+- 如果不传 `--goal`，CLI 会使用默认目标：`优化节奏与结尾牵引`
+
+### 6.4 `chapter approve <chapterId>`
+
+批准最新审查结果，并导出最终正文。
+
+```bash
+novel chapter approve <chapterId> [--force]
+```
+
+参数：
+
+- `--force`：即使最新 review 风险较高，也继续批准
+
+执行后通常会：
+
+- 生成最终输出
+- 更新章节状态
+- 更新 story / state / memory / hook / thread / ending 相关投影
+
+### 6.5 `chapter drop <chapterId>`
+
+安全清理当前章节的计划链或草稿链。
+
+```bash
+novel chapter drop <chapterId> [--plan-only | --draft-only | --all-current] [--force]
+```
+
+参数：
+
+- `--plan-only`：只丢弃当前 plan
+- `--draft-only`：只丢弃当前 draft 链
+- `--all-current`：同时丢弃当前 plan 和当前 draft 链
+- `--force`：允许对 `finalized` 章节或已有最终输出的章节执行 drop
+
+说明：
+
+- `--plan-only`、`--draft-only`、`--all-current` 三者互斥
+- 如果三者都不传，默认按 `--all-current` 处理
 
 示例：
 
 ```bash
-novel chapter rewrite chapter_xxx \
-  --strategy full \
-  --goal "补足目标字数" \
-  --goal "强化结尾悬念"
+novel chapter drop <chapterId> --all-current
+novel chapter drop <chapterId> --plan-only
+novel chapter drop <chapterId> --draft-only --force
 ```
-
-如果没有显式传 `--goal`，系统会使用默认重写目标。
-
----
-
-### 6.4 `chapter approve <chapterId>`
-
-批准某章的最新已审查版本，并导出最终内容。
-
-```bash
-novel chapter approve <chapterId>
-```
-
-#### 重要前提
-
-只有已处于 `reviewed` 状态的章节才能批准，这一校验位于 [`src/core/approve/service.ts`](src/core/approve/service.ts:85)。
-
-#### 执行效果
-
-执行后会：
-
-- 将最终正文写入 `completed-chapters/`
-- 创建章节输出记录
-- 更新故事当前状态
-- 更新角色、物品、钩子、记忆状态
-- 写入状态追踪日志
-- 把章节状态改为 `finalized`
-
-批准后的导出文件名由 [`src/shared/utils/project-paths.ts`](src/shared/utils/project-paths.ts:66) 生成。
 
 ---
 
 ## 7. 工作流命令
 
-命令定义位于 [`src/cli/commands/workflow-commands.ts`](src/cli/commands/workflow-commands.ts:26)。
+源码入口见 [`src/cli/commands/workflow/register.ts`](src/cli/commands/workflow/register.ts)。
 
 ### 7.1 `plan chapter <chapterId>`
 
-为章节生成规划。
+为某章生成计划。
 
 ```bash
 novel plan chapter <chapterId>
 ```
 
-#### 作用
-
-它会聚合：
-
-- 书籍信息
-- 总纲
-- 卷与章节信息
-- 角色当前状态
-- 物品当前状态
-- 钩子当前状态
-- 记忆系统
-
-相关上下文拼装逻辑见 [`src/core/context/planning-context-builder.ts`](src/core/context/planning-context-builder.ts)。
-
-#### 输出
+输出重点通常包括：
 
 - 计划版本号
 - 章节目标
 - 场景卡数量
-- 事件纲要数量
-
----
+- hook 规划数量
+- 状态预测数量
 
 ### 7.2 `plan show <chapterId>`
 
-查看最新章节规划详情。
+查看该章最新计划详情。
 
 ```bash
 novel plan show <chapterId>
 ```
 
-可查看：
+常用来检查：
 
 - `sceneCards`
 - `eventOutline`
 - `statePredictions`
 - `memoryCandidates`
 
-适合在真正开始写作前校验规划质量。
+### 7.3 `plan mission-show <chapterId>`
 
----
+查看某章在最新卷窗口计划中的 mission。
 
-### 7.3 `write next <chapterId>`
+```bash
+novel plan mission-show <chapterId>
+```
 
-根据最新计划生成下一版章节草稿。
+适合回答：
+
+- 这一章在当前卷窗口里的职责是什么
+- 当前章节应该推进哪条主线或伏笔
+
+### 7.4 `plan volume-window <chapterId>`
+
+以某章为锚点，生成并持久化 rolling volume window。
+
+```bash
+novel plan volume-window <chapterId>
+```
+
+输出重点通常包括：
+
+- volume plan ID
+- volume ID
+- 线程数量
+- chapter mission 数量
+
+### 7.5 `plan volume-show <volumeId>`
+
+查看某卷最新的 rolling volume window。
+
+```bash
+novel plan volume-show <volumeId>
+```
+
+### 7.6 `write next <chapterId>`
+
+根据最新计划生成下一版草稿。
 
 ```bash
 novel write next <chapterId>
 ```
 
-#### 输出
+输出重点通常包括：
 
-- 草稿 ID
+- draft ID
 - 章节状态
 - 实际字数
-- 下一步建议动作
+- 下一步推荐动作
 
-写作逻辑位于 [`src/core/generation/service.ts`](src/core/generation/service.ts)。
+### 7.7 `draft show <chapterId>`
 
----
-
-### 7.4 `draft show <chapterId>`
-
-查看章节的最新草稿。
+查看章节最新草稿。
 
 ```bash
 novel draft show <chapterId>
 ```
 
-通常用于：
+这个命令会直接输出草稿正文预览，适合人工阅读。
 
-- 人工检查草稿质量
-- 快速复制正文
-- 判断是否进入审查或重写
-
----
-
-### 7.5 `review chapter <chapterId>`
+### 7.8 `review chapter <chapterId>`
 
 审查最新草稿。
 
@@ -629,29 +602,15 @@ novel draft show <chapterId>
 novel review chapter <chapterId>
 ```
 
-#### 审查维度
-
-依据 [`src/core/review/service.ts`](src/core/review/service.ts) 的设计，审查会覆盖：
-
-- 一致性问题
-- 人物问题
-- 物品问题
-- 记忆问题
-- 节奏问题
-- 钩子问题
-- 字数检查
-- 修订建议
-
-#### 输出
+输出重点通常包括：
 
 - review ID
 - 审查决策
-- 字数是否通过
-- 修订建议列表
+- approval risk
+- 问题数量
+- closure suggestions 摘要
 
----
-
-### 7.6 `review show <chapterId>`
+### 7.9 `review show <chapterId>`
 
 查看最新审查报告。
 
@@ -659,11 +618,22 @@ novel review chapter <chapterId>
 novel review show <chapterId>
 ```
 
-如果你需要决定“是否重写、重写方向是什么”，这个命令最重要。
+### 7.10 `review volume <volumeId>`
 
----
+查看卷级审查摘要。
 
-### 7.7 `rewrite show <chapterId>`
+```bash
+novel review volume <volumeId>
+```
+
+这个视图会聚合：
+
+- volume plan
+- threads
+- ending readiness
+- 该卷章节 review
+
+### 7.11 `rewrite show <chapterId>`
 
 查看最新重写候选稿。
 
@@ -671,161 +641,227 @@ novel review show <chapterId>
 novel rewrite show <chapterId>
 ```
 
-通常在执行完 `chapter rewrite` 之后使用，查看：
-
-- 重写版本号
-- 重写策略
-- 实际字数
-- 重写目标
-- 内容预览
-
 ---
 
 ## 8. 状态追踪命令
 
-命令定义位于 [`src/cli/commands/state-commands.ts`](src/cli/commands/state-commands.ts:21)。
-
-这是本项目和一般“AI 一次性写文脚本”最大的区别之一。
+源码入口见 [`src/cli/commands/state/register.ts`](src/cli/commands/state/register.ts)。
 
 ### 8.1 `story show`
 
-查看当前故事状态。
+查看最核心的 story state。
 
 ```bash
 novel story show
 ```
 
-适合快速看当前主线推进到了哪一章。
+说明：
 
----
+- 这是保留的旧入口
+- 适合快速看全局故事游标
 
 ### 8.2 `state show`
 
-查看当前书籍的规范化真源状态。
+查看当前书籍的 canonical state 投影。
 
 ```bash
 novel state show
 ```
 
-#### 通常会输出
+通常会包含：
 
-- 当前故事状态
+- story state
 - 角色当前状态
-- 关键物品当前状态
-- 钩子当前状态
-- 短期记忆
-- 长期记忆
+- 物品当前状态
+- hooks 当前状态
+- memory 摘要
 - 最近状态更新记录
-- 最近记忆更新记录
-- 最近钩子更新记录
 
-如果你在排查“角色瞬移”“物品丢失”“伏笔状态不对”“模型忘设定”等问题，这个命令非常关键。
+### 8.3 `state threads [volumeId]`
 
----
+查看活跃故事线程和最近推进情况。
 
-### 8.3 `state-updates show <chapterId>`
+```bash
+novel state threads [volumeId]
+```
 
-查看某一章引发的状态更新记录。
+说明：
+
+- 不传 `volumeId` 时看整书
+- 传 `volumeId` 时聚焦某卷
+
+### 8.4 `state ending`
+
+查看整书当前的 ending readiness 和 closure 状态。
+
+```bash
+novel state ending
+```
+
+### 8.5 `state volume-plan <volumeId>`
+
+查看状态层消费到的最新卷计划和 mission window。
+
+```bash
+novel state volume-plan <volumeId>
+```
+
+### 8.6 `state volume <volumeId>`
+
+查看卷级状态、规划和线程摘要。
+
+```bash
+novel state volume <volumeId>
+```
+
+### 8.7 `state-updates show <chapterId>`
+
+查看某章写入的状态更新痕迹。
 
 ```bash
 novel state-updates show <chapterId>
 ```
 
-会展示：
+通常会展示：
 
-- 角色 / 物品状态更新
-- 记忆更新
-- 钩子更新
-
-适合回答这类问题：
-
-- 某个状态是在哪一章变的？
-- 某个重要物品为什么现在在这个位置？
-- 某条长期记忆是从哪章沉淀进来的？
+- state updates
+- memory updates
+- hook updates
 
 ---
 
-## 9. 真实模型模式与兜底模式
+## 9. 诊断、回归、快照命令
 
-LLM 创建逻辑位于 [`src/infra/llm/factory.ts`](src/infra/llm/factory.ts:5)。
+### 9.1 `doctor`
 
-### 9.1 真实模型模式
+项目级诊断入口。
 
-当前 `v5` 已支持通过环境变量选择 `LLM provider`，工厂入口在 [`createLlmAdapter()`](src/infra/llm/factory.ts:5)。
-
-默认 provider 仍是 `openai`，也可切换到 `openai-compatible`。
-
-典型环境变量：
-
-```env
-LLM_PROVIDER=openai
-OPENAI_API_KEY=your_key
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-5
+```bash
+novel doctor
 ```
 
-如果使用兼容 OpenAI 协议的第二 provider，可以配置：
+说明：
 
-```env
-LLM_PROVIDER=openai-compatible
-OPENAI_COMPATIBLE_API_KEY=your_key
-OPENAI_COMPATIBLE_BASE_URL=https://your-compatible-provider.example/v1
-OPENAI_COMPATIBLE_MODEL=your-model
+- 已初始化项目时，输出 project-level diagnostics
+- 未初始化项目时，也会尽量输出 bootstrap 诊断，帮助检查 `config/database.json`、provider、backend 等基础配置
+
+源码见 [`src/cli/commands/doctor/register.ts`](src/cli/commands/doctor/register.ts) 和 [`src/cli/commands/doctor/project.ts`](src/cli/commands/doctor/project.ts)。
+
+### 9.2 `doctor chapter <chapterId>`
+
+查看单章诊断结果。
+
+```bash
+novel doctor chapter <chapterId>
 ```
 
-如果你希望不同工作流阶段使用不同模型，还可以增加阶段级覆盖：
+### 9.3 `doctor volume <volumeId>`
 
-```env
-LLM_PLANNING_MODEL=gpt-5
-LLM_GENERATION_MODEL=gpt-5
-LLM_REVIEW_MODEL=gpt-5
-LLM_REWRITE_MODEL=gpt-5
+查看单卷诊断结果。
+
+```bash
+novel doctor volume <volumeId> [--json] [--strict]
 ```
 
-### 9.2 数据库后端选择
+参数：
 
-当前 `v5` 的数据库后端口径是：单个项目通过 `config/database.json` 在 `sqlite` 和 `mysql` 之间二选一。
+- `--json`：输出原始 JSON 诊断结果
+- `--strict`：如果存在 high risk，则以退出码 `1` 结束
 
-- `sqlite` 仍是默认、本地、零配置路径
-- `mysql` 是可选后端
-- 不是同时启用双后端
+### 9.4 `regression list`
 
-`sqlite` 典型配置：
+列出内建回归 case。
 
-```json
-{
-  "database": {
-    "client": "sqlite",
-    "filename": "data/novel.sqlite"
-  }
-}
+```bash
+novel regression list
 ```
 
-`mysql` 典型配置：
+当前内建 case 名称来自 [`src/cli/commands/regression/cases.ts`](src/cli/commands/regression/cases.ts)：
 
-```json
-{
-  "database": {
-    "client": "mysql",
-    "host": "127.0.0.1",
-    "port": 3306,
-    "user": "root",
-    "password": "secret",
-    "database": "myai_novel"
-  }
-}
+- `llm-provider-smoke`
+- `secondary-provider-smoke`
+- `database-backend-smoke`
+- `sqlite-backend-smoke`
+- `mysql-backend-smoke`
+- `mixed-config-validation`
+- `hook-pressure-smoke`
+- `chapter-drop-safety`
+- `review-layering-smoke`
+- `volume-plan-smoke`
+- `mission-carry-smoke`
+- `thread-progression-smoke`
+- `ending-readiness-smoke`
+- `volume-doctor-smoke`
+
+### 9.5 `regression run <caseName> [targetId]`
+
+执行单个回归 case。
+
+```bash
+novel regression run <caseName> [targetId]
 ```
 
-### 9.3 规则兜底模式
+说明：
 
-如果没有可用的 `OPENAI_API_KEY`，部分核心流程会退回规则式实现：
+- 有些 case 不需要项目上下文，可以直接运行
+- 需要章节或卷目标的 case，需要提供 `targetId`
 
-- 规划会有规则式 plan
-- 草稿会有规则式 draft
-- 审查会有规则式 review
-- 重写会有规则式 rewrite
+当前无需项目即可运行的 case 包括：
 
-这样可以在本地无模型时依然完整测试主链路。
+- `llm-provider-smoke`
+- `secondary-provider-smoke`
+- `database-backend-smoke`
+- `sqlite-backend-smoke`
+- `mysql-backend-smoke`
+- `mixed-config-validation`
+
+示例：
+
+```bash
+novel regression run llm-provider-smoke
+novel regression run database-backend-smoke
+novel regression run volume-plan-smoke <volumeId>
+novel regression run mission-carry-smoke <chapterId>
+```
+
+### 9.6 `regression volume <volumeId>`
+
+执行内建卷级回归套件。
+
+```bash
+novel regression volume <volumeId>
+```
+
+当前卷级套件包含：
+
+- `volume-plan-smoke`
+- `thread-progression-smoke`
+- `ending-readiness-smoke`
+- `volume-doctor-smoke`
+
+### 9.7 `snapshot state`
+
+输出当前项目的状态快照。
+
+```bash
+novel snapshot state
+```
+
+### 9.8 `snapshot chapter <chapterId>`
+
+输出单章 workflow 快照。
+
+```bash
+novel snapshot chapter <chapterId>
+```
+
+### 9.9 `snapshot volume <volumeId>`
+
+输出卷级 workflow 快照。
+
+```bash
+novel snapshot volume <volumeId>
+```
 
 ---
 
@@ -879,6 +915,8 @@ novel chapter add \
   --objective "让主角首次接触案件核心线索"
 
 novel plan chapter <chapterId>
+novel plan volume-window <chapterId>
+novel plan mission-show <chapterId>
 novel write next <chapterId>
 novel review chapter <chapterId>
 novel chapter rewrite <chapterId> --goal "增强节奏与结尾牵引"
@@ -886,9 +924,7 @@ novel chapter approve <chapterId>
 novel state show
 ```
 
----
-
-### 10.2 只检查某章当前状态
+### 10.2 查看某章当前链路
 
 ```bash
 novel chapter show <chapterId>
@@ -896,295 +932,28 @@ novel plan show <chapterId>
 novel draft show <chapterId>
 novel review show <chapterId>
 novel rewrite show <chapterId>
-```
-
----
-
-### 10.3 排查状态问题
-
-```bash
-novel state show
 novel state-updates show <chapterId>
-novel story show
+novel snapshot chapter <chapterId>
 ```
 
----
-
-### 10.4 `v3` 运维与回归命令
-
-#### `chapter drop <chapterId>`
-
-用于安全清理当前章节的当前 plan / draft 链，不默认回滚主线状态。
+### 10.3 查看某卷当前链路
 
 ```bash
-novel chapter drop <chapterId> --all-current
-novel chapter drop <chapterId> --plan-only
-novel chapter drop <chapterId> --draft-only --force
-```
-
-默认建议：
-
-- 只在确认当前章节需要重做时使用
-- 优先先执行 `novel chapter show <chapterId>` 观察当前链路
-- 若章节已批准，只有在明确知道后果时才使用 `--force`
-
-#### 日志目录说明
-
-关键命令会写本地操作日志，目录解析逻辑见 [`src/shared/utils/project-paths.ts`](src/shared/utils/project-paths.ts:78)。
-
-默认关注两个目录：
-
-- `logs/operations/`：主命令运行日志，按日写入 `ndjson`
-- `logs/errors/`：日志写入失败或补充错误信息时的兜底输出
-
-可配合：
-
-```bash
-novel doctor
-novel doctor chapter <chapterId>
-```
-
-一起确认链路状态与日志目录位置。
-
-#### `doctor`
-
-用于快速排查项目级、章节级和卷级工作流断链。
-
-```bash
-novel doctor
-novel doctor chapter <chapterId>
+novel plan volume-show <volumeId>
+novel review volume <volumeId>
+novel state threads <volumeId>
+novel state volume-plan <volumeId>
+novel state volume <volumeId>
 novel doctor volume <volumeId>
-```
-
-如果当前目录还没有初始化项目，`novel doctor` 现在也会输出一份基础设施摘要，至少展示：
-
-- 当前是否存在 `config/database.json`
-- 当前数据库后端配置状态
-- 当前 LLM provider 与阶段路由结果
-
-当前推荐把 [`doctor volume <volumeId>`](src/cli/commands/doctor/volume.ts:7) 当作卷级诊断入口，它会分层输出：
-
-- 总体风险摘要
-- mission 风险
-- thread 风险
-- ending 风险
-- chapter 风险
-
-如果需要自动化验收，还可以使用：
-
-```bash
-novel doctor volume <volumeId> --json
-novel doctor volume <volumeId> --strict
-```
-
-#### `regression`
-
-用于管理回归样本名称、单 case 执行和卷级 case 套件执行。
-
-```bash
-novel regression list
-novel regression run volume-plan-smoke <volumeId>
+novel snapshot volume <volumeId>
 novel regression volume <volumeId>
 ```
 
-当前 `v4.1-A` 后已经提供：
-
-- 样本列表输出
-- 单 case 结构化执行结果
-- 卷级内建 case 套件执行结果
-- steps / artifacts / summary 的统一输出结构
-
-`v5` 当前还补充了两个基础设施 smoke case：
-
-- `llm-provider-smoke`：检查当前 provider 凭据与阶段路由是否可解析
-- `database-backend-smoke`：检查当前项目启用的是哪个数据库后端，以及该后端是否处于已接线状态
-
-其中：
-
-- `llm-provider-smoke` 可以在未初始化项目时直接执行
-- `database-backend-smoke` 会优先读取运行时数据库，若当前目录还没项目，也会尝试读取 `config/database.json`
-
-推荐优先使用的卷级样本：
-
-- `volume-plan-smoke`
-- `mission-carry-smoke`
-- `thread-progression-smoke`
-- `ending-readiness-smoke`
-- `volume-doctor-smoke`
-
-#### `snapshot`
-
-用于冻结当前项目、单章链路或卷级视图快照，便于排障与回归比对。
-
-```bash
-novel snapshot state
-novel snapshot chapter <chapterId>
-novel snapshot volume <volumeId>
-```
-
-推荐卷级回归路径：
-
-1. `novel plan volume-window <chapterId>`
-2. `novel plan volume-show <volumeId>` / `novel plan mission-show <chapterId>`
-3. `novel review volume <volumeId>`
-4. `novel state volume <volumeId>` / `novel state volume-plan <volumeId>` / `novel state ending`
-5. `novel doctor volume <volumeId>`
-6. `novel snapshot volume <volumeId>`
-7. `novel regression volume <volumeId>`
-
----
-
-## 11. 常见问题
-
-### 11.1 为什么 `chapter approve` 执行失败？
-
-最常见原因是章节还没有进入 `reviewed` 状态。请先执行：
-
-```bash
-novel review chapter <chapterId>
-```
-
-如果你还想优化质量，先执行：
-
-```bash
-novel chapter rewrite <chapterId>
-```
-
----
-
-### 11.2 为什么生成结果比较模板化？
-
-通常是因为当前没有可用模型配置，系统走了规则兜底模式。请检查：
-
-- `OPENAI_API_KEY`
-- `OPENAI_BASE_URL`
-- `OPENAI_MODEL`
-
-如果你在 `v5` 配置了阶段级 provider / model，也请一起检查：
-
-- `LLM_PROVIDER`
-- `LLM_PLANNING_PROVIDER` / `LLM_PLANNING_MODEL`
-- `LLM_GENERATION_PROVIDER` / `LLM_GENERATION_MODEL`
-- `LLM_REVIEW_PROVIDER` / `LLM_REVIEW_MODEL`
-- `LLM_REWRITE_PROVIDER` / `LLM_REWRITE_MODEL`
-- `OPENAI_COMPATIBLE_API_KEY`
-- `OPENAI_COMPATIBLE_BASE_URL`
-- `OPENAI_COMPATIBLE_MODEL`
-
-当前实现会优先按请求阶段读取 provider / model 配置；如果目标 provider 没有可用凭据，则会回退到当前已配置的可用 provider。
-
-环境变量读取逻辑见 [`src/shared/utils/env.ts`](src/shared/utils/env.ts:11)。
-
----
-
-### 11.3 为什么状态里有些字段还是“未知”？
-
-因为当前系统的状态更新部分依赖正文中是否包含足够明确的结构化线索；若正文没有显式声明角色位置、物品持有者等信息，系统会保留上一状态或写入默认说明。状态提交逻辑在 [`src/core/approve/service.ts`](src/core/approve/service.ts:117) 开始执行。
-
----
-
-### 11.4 如何查看某条状态是从哪一章来的？
-
-使用：
-
-```bash
-novel state-updates show <chapterId>
-```
-
-如果不知道是哪一章造成的，先用：
-
-```bash
-novel state show
-```
-
-查看最近更新记录。
-
----
-
-### 11.5 如何切换默认 provider 与阶段模型？
-
-最小 OpenAI 配置：
-
-```bash
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-5
-```
-
-如果你希望某个阶段单独走不同 provider / model，可以继续增加：
-
-```bash
-LLM_PLANNING_PROVIDER=openai
-LLM_PLANNING_MODEL=gpt-5
-LLM_GENERATION_PROVIDER=openai-compatible
-LLM_GENERATION_MODEL=your-compatible-model
-LLM_REVIEW_TIMEOUT_MS=60000
-LLM_REWRITE_MAX_RETRIES=1
-```
-
-`v5.1` 之后，阶段路由除了 provider / model，还支持 `TIMEOUT_MS` 与 `MAX_RETRIES`。最终命中的默认 provider、阶段路由、超时与重试配置，可通过：
+### 10.4 基础设施验收
 
 ```bash
 novel doctor
-```
-
-直接查看。
-
----
-
-### 11.6 如何初始化 SQLite / MySQL 项目？
-
-SQLite：
-
-```bash
-novel init \
-  --title "测试之书" \
-  --genre "奇幻" \
-  --db-client sqlite \
-  --db-filename data/novel.sqlite
-```
-
-MySQL：
-
-```bash
-novel init \
-  --title "测试之书" \
-  --genre "奇幻" \
-  --db-client mysql \
-  --db-host 127.0.0.1 \
-  --db-port 3306 \
-  --db-user root \
-  --db-password secret \
-  --db-name myai_novel
-```
-
-如果初始化失败，`v5.1` 之后 CLI 会明确提示是哪个 backend 打开/迁移失败。此时建议依次检查：
-
-- `config/database.json` 是否存在且字段完整
-- MySQL 主机、端口、用户名、数据库名是否可连通
-- 当前目录是否就是小说项目根目录
-- 是否先执行了 `novel init`
-
----
-
-### 11.7 如何用 doctor / regression 验收基础设施？
-
-先看当前到底跑在哪个 provider/backend 上：
-
-```bash
-novel doctor
-```
-
-然后看有哪些基础设施回归项：
-
-```bash
 novel regression list
-```
-
-推荐最小验收顺序：
-
-```bash
 novel regression run llm-provider-smoke
 novel regression run secondary-provider-smoke
 novel regression run mixed-config-validation
@@ -1193,29 +962,75 @@ novel regression run mysql-backend-smoke
 novel regression run database-backend-smoke
 ```
 
-如果项目已经初始化并存在具体卷，还可以继续：
+---
+
+## 11. 常见问题
+
+### 11.1 为什么 `chapter approve` 会失败？
+
+通常是因为当前章节还没有到可以批准的状态，或者最新 review 风险过高。常见排查顺序：
 
 ```bash
-novel doctor volume <volumeId>
-novel regression volume <volumeId>
+novel review chapter <chapterId>
+novel review show <chapterId>
+novel chapter show <chapterId>
 ```
 
-这套组合对应 `v5.1` 的核心目标：
+如果你明确要跳过高风险限制，再考虑：
 
-- 看得见当前 provider / backend / stage routing
-- 能尽早发现 provider 凭据缺失、阶段路由错配、数据库配置不完整
-- 对卷级 planning / thread / ending / doctor 能建立最小保护面
+```bash
+novel chapter approve <chapterId> --force
+```
+
+### 11.2 `story show` 和 `state show` 有什么区别？
+
+- `story show`：更轻量，只看核心 story state
+- `state show`：更完整，查看 canonical state 投影
+
+### 11.3 如何追查“某个状态到底是哪一章改的”？
+
+先看整书状态：
+
+```bash
+novel state show
+```
+
+再看目标章节的变更痕迹：
+
+```bash
+novel state-updates show <chapterId>
+```
+
+### 11.4 如何查看当前卷窗口规划是否已经生成？
+
+```bash
+novel plan volume-show <volumeId>
+novel state volume-plan <volumeId>
+novel review volume <volumeId>
+```
+
+### 11.5 如何在脚本或 CI 里消费卷级诊断？
+
+用 `--json` 和 `--strict`：
+
+```bash
+novel doctor volume <volumeId> --json
+novel doctor volume <volumeId> --strict
+```
 
 ---
 
-## 12. 建议配套阅读
+## 12. 配套阅读
 
 - [`README.md`](README.md)
 - [`src/cli.ts`](src/cli.ts)
 - [`src/cli/commands/project-commands.ts`](src/cli/commands/project-commands.ts)
 - [`src/cli/commands/world-commands.ts`](src/cli/commands/world-commands.ts)
-- [`src/cli/commands/chapter-commands.ts`](src/cli/commands/chapter-commands.ts)
-- [`src/cli/commands/workflow-commands.ts`](src/cli/commands/workflow-commands.ts)
-- [`src/cli/commands/state-commands.ts`](src/cli/commands/state-commands.ts)
+- [`src/cli/commands/chapter/register.ts`](src/cli/commands/chapter/register.ts)
+- [`src/cli/commands/workflow/register.ts`](src/cli/commands/workflow/register.ts)
+- [`src/cli/commands/state/register.ts`](src/cli/commands/state/register.ts)
+- [`src/cli/commands/doctor/register.ts`](src/cli/commands/doctor/register.ts)
+- [`src/cli/commands/regression/register.ts`](src/cli/commands/regression/register.ts)
+- [`src/cli/commands/snapshot/register.ts`](src/cli/commands/snapshot/register.ts)
 
-这几份文件一起看，基本就能完整理解当前 CLI 的使用方式和内部流程。
+这几处源码和本文件一起看，基本就能完整掌握当前 CLI 的全部命令与使用顺序。
