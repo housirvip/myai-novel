@@ -38,6 +38,7 @@ export class WritingContextBuilder {
     return {
       ...planningContext,
       chapterPlan,
+      // sceneTasks 是对 chapterPlan 内分散字段的再归并，方便 generation/rewrite 按“场景任务包”直接消费。
       sceneTasks: {
         goals: chapterPlan.sceneGoals,
         constraints: chapterPlan.sceneConstraints,
@@ -73,6 +74,7 @@ export class WritingContextBuilder {
           '避免整段摘要式概括盖过场景推进。',
         ],
       },
+      // tone / voice / emotional curve 都是 generation 提示词里的“软约束”，用于稳定正文质感。
       toneConstraints: [
         { label: 'genre', requirement: `保持 ${planningContext.book.genre} 类型叙事质感。` },
         { label: 'style-guide', requirement: planningContext.book.styleGuide[0] ?? '保持与当前作品既有风格一致。' },
@@ -114,6 +116,7 @@ export class WritingContextBuilder {
     return {
       ...planningContext,
       chapterPlan,
+      // async 版本保持与同步版相同的上下文形状，避免 generation 在不同数据库后端下拿到不同 contract。
       sceneTasks: {
         goals: chapterPlan.sceneGoals,
         constraints: chapterPlan.sceneConstraints,

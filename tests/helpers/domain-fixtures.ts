@@ -13,6 +13,8 @@ import type {
   VolumePlan,
 } from '../../src/shared/types/domain.js'
 
+// 这些 fixture 提供的是“最小但完整”的 v6 主链样本：
+// 默认值会尽量落在同一套 book/chapter/volume/thread 命名上，方便不同测试自由拼装。
 export function createBookFixture(overrides?: Partial<Book>): Book {
   return {
     id: 'book-1',
@@ -28,6 +30,7 @@ export function createBookFixture(overrides?: Partial<Book>): Book {
 }
 
 export function createChapterPlanFixture(overrides?: Partial<ChapterPlan>): ChapterPlan {
+  // chapter plan fixture 会尽量覆盖 planning/generation/review 常用字段，避免测试里反复手填大对象。
   return {
     id: 'plan-1',
     bookId: 'book-1',
@@ -106,6 +109,7 @@ export function createChapterDraftFixture(overrides?: Partial<ChapterDraft>): Ch
 }
 
 export function createReviewReportFixture(overrides?: Partial<ReviewReport>): ReviewReport {
+  // review fixture 默认给出 warning 级结果，适合覆盖 rewrite / approve / state-updates 等后续链路。
   return {
     id: 'review-1',
     bookId: 'book-1',
@@ -217,6 +221,7 @@ export function createChapterRewriteFixture(overrides?: Partial<ChapterRewrite>)
 }
 
 export function createVolumePlanFixture(overrides?: Partial<VolumePlan>): VolumePlan {
+  // volume plan fixture 默认只放一条 mission，保持最小可读，同时足够支撑 mission/window 测试。
   return {
     id: 'volume-plan-1',
     bookId: 'book-1',
@@ -330,6 +335,7 @@ export function createChapterFixture(overrides?: Partial<Chapter>): Chapter {
 }
 
 export function createStoryThreadFixture(overrides?: Partial<StoryThread>): StoryThread {
+  // 默认线程是 active/high/main，便于直接用于 planning/state/doctor 相关视图测试。
   return {
     id: 'thread-1',
     bookId: 'book-1',

@@ -108,6 +108,9 @@ function createWritingContext(): WritingContext {
   } as unknown as WritingContext
 }
 
+// 这组测试围绕 generation 的两个关键保证：
+// 1. prompt payload / fallback content 会把 planning 约束完整带过去
+// 2. writeNext 会稳定持久化 draft 并推进章节状态
 test('buildGenerationPromptPayload preserves mission, state and writing constraints in payload', () => {
   const context = createWritingContext()
   const payload = __generationServiceTestables.buildGenerationPromptPayload(context)
@@ -150,6 +153,7 @@ test('GenerationService writeNext persists fallback draft and marks chapter draf
   const createdDrafts: any[] = []
   const draftedCalls: Array<{ chapterId: string; versionId: string }> = []
 
+  // 用最小 stub 覆盖主链副作用，避免这个测试依赖真实 repo/context 构造。
   const service = new GenerationService(
     {
       buildAsync: async (chapterId: string) => ({
@@ -191,6 +195,7 @@ test('GenerationService writeNext uses llm draft output and returns llm metadata
   const context = createWritingContext()
   const createdDrafts: any[] = []
 
+  // 这里验证 LLM 分支不会走 fallback，并且 metadata 会原样透传到 draft/result。
   const service = new GenerationService(
     {
       buildAsync: async () => context,

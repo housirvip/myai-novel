@@ -13,6 +13,7 @@ import { registerWorkflowRewriteShowCommand } from './rewrite-show.js'
 import { registerWorkflowWriteNextCommand } from './write-next.js'
 
 export function registerWorkflowCommands(program: Command): void {
+  // workflow 以 plan/write/review/draft/rewrite 五个域拆开，贴合章节生产链路的实际阶段。
   const planCommand = program.command('plan').description('Planning commands')
   const writeCommand = program.command('write').description('Writing commands')
   const reviewCommand = program.command('review').description('Review commands')

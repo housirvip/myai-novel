@@ -6,6 +6,7 @@ import { BookRepository } from '../../../../src/infra/repository/book-repository
 import { createBookFixture } from '../../../helpers/domain-fixtures.js'
 import { insertVolumeAndChapter, withSqliteDatabase } from '../../../helpers/sqlite.js'
 
+// story_current_state 是整书级单行快照，这个测试确认 upsert 会覆盖旧游标而不是追加新记录。
 test('StoryStateRepository upsert persists and updates story current state', async () => {
   await withSqliteDatabase(async (database) => {
     await new BookRepository(database).createAsync(createBookFixture())
@@ -70,6 +71,7 @@ test('StoryStateRepository upsert persists and updates story current state', asy
       updatedAt: '2026-04-06T00:10:00.000Z',
     })
 
+    // 第二次 upsert 应直接反映为新的 current chapter 与 recent events。
     const updated = repository.getByBookId('book-1')
     assert.deepEqual(updated, {
       bookId: 'book-1',

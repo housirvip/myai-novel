@@ -43,6 +43,7 @@ const resetEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// workflow-services 的测试重点不是模型行为，而是 CLI 装配层有没有把正确的 builder/service/view 拼起来。
 test('workflow service factories create the expected builder, repository and service instances', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv({ ...resetEnv }, async () => {
@@ -68,6 +69,7 @@ test('loadWorkflowMissionView returns chapter, latest volume plan and matched mi
     await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
       await new BookRepository(database).createAsync(createBookFixture())
       await insertVolumeAndChapter(database, { bookId: 'book-1', volumeId: 'volume-1', chapterId: 'chapter-1' })
+      // mission 必须来自最新 volume plan，而不是章节自身字段。
       await new VolumePlanRepository(database).createAsync(createVolumePlanFixture())
 
       const view = loadWorkflowMissionView(database, 'chapter-1')
@@ -88,6 +90,7 @@ test('loadWorkflowVolumeReviewView aggregates chapter reviews under a volume', a
       await new ChapterDraftRepository(database).createAsync(createChapterDraftFixture())
       await new ChapterReviewRepository(database).createAsync(createReviewReportFixture())
       await new VolumePlanRepository(database).createAsync(createVolumePlanFixture())
+      // 这里手工插入一条 thread，覆盖 volume review 视图里“章节审阅 + 线程信息并排聚合”的场景。
       await database.dbAsync.run(
         `INSERT INTO story_threads (
           id, book_id, volume_id, title, thread_type, summary, priority, stage,
@@ -148,6 +151,7 @@ test('loadWorkflowMissionViewAsync and loadWorkflowVolumeReviewViewAsync return 
       await new ChapterReviewRepository(database).createAsync(createReviewReportFixture())
       await new VolumePlanRepository(database).createAsync(createVolumePlanFixture())
 
+      // async 版本应与同步版本语义一致，只是数据读取路径不同。
       const missionView = await loadWorkflowMissionViewAsync(database, 'chapter-1')
       const reviewView = await loadWorkflowVolumeReviewViewAsync(database, 'volume-1')
 

@@ -369,6 +369,7 @@ export function loadStateUpdatesView(database: NovelDatabase, chapterId: string)
   const stateUpdates = new ChapterStateUpdateRepository(database).listByChapterId(chapterId) as StateUpdateView[]
   const memoryUpdates = new ChapterMemoryUpdateRepository(database).listByChapterId(chapterId) as MemoryUpdateView[]
   const hookUpdates = new ChapterHookUpdateRepository(database).listByChapterId(chapterId) as HookUpdateView[]
+  // 名称映射以 chapter.bookId 为边界补齐，保证 trace 展示时能把 entityId 翻译成用户可读名称。
   const characterNameById = new Map(
     characterRepository.listByBookId(chapter?.bookId ?? '').map((item) => [item.id, item.name]),
   )
@@ -422,6 +423,7 @@ export async function loadStateUpdatesViewAsync(database: NovelDatabase, chapter
   const stateUpdates = await new ChapterStateUpdateRepository(database).listByChapterIdAsync(chapterId) as StateUpdateView[]
   const memoryUpdates = await new ChapterMemoryUpdateRepository(database).listByChapterIdAsync(chapterId) as MemoryUpdateView[]
   const hookUpdates = await new ChapterHookUpdateRepository(database).listByChapterIdAsync(chapterId) as HookUpdateView[]
+  // 即便 chapter 为空也回退到空 bookId，保持“没有找到章节时只是不补名字，不额外抛错”的查询语义。
   const characterNameById = new Map(
     (await characterRepository.listByBookIdAsync(chapter?.bookId ?? '')).map((item) => [item.id, item.name]),
   )
@@ -463,6 +465,7 @@ export function loadStateThreadsView(database: NovelDatabase, volumeId?: string)
     : new StoryThreadRepository(database).listActiveByBookId(book.id)
   const recentProgress = new StoryThreadProgressRepository(database)
     .listByBookId(book.id)
+    // 指定 volume 时，只保留属于该卷线程集合的 progress，避免把其他卷推进混进来。
     .filter((progress) => !volumeId || activeThreads.some((thread) => (thread as { id: string }).id === progress.threadId))
     .slice(0, 10)
 
@@ -497,6 +500,7 @@ export async function loadStateThreadsViewAsync(database: NovelDatabase, volumeI
     : await new StoryThreadRepository(database).listActiveByBookIdAsync(book.id)
   const recentProgress = (await new StoryThreadProgressRepository(database)
     .listByBookIdAsync(book.id))
+    // 只截最近 10 条，保证 `state threads` 更像态势面板而不是完整历史列表。
     .filter((progress) => !volumeId || activeThreads.some((thread) => (thread as { id: string }).id === progress.threadId))
     .slice(0, 10)
 
@@ -520,6 +524,7 @@ export function loadStateEndingView(database: NovelDatabase): {
 
   return {
     book,
+    // ending 是单一 current-state 真源，因此这里只需直读，不做额外聚合。
     endingReadiness: new EndingReadinessRepository(database).getByBookId(book.id),
   }
 }
@@ -594,6 +599,7 @@ export async function loadStateVolumePlanViewAsync(database: NovelDatabase, volu
   return {
     book,
     volume,
+    // 这里刻意只取 latestVolumePlan，不把历史多版本卷计划混进状态视图。
     latestVolumePlan: await new VolumePlanRepository(database).getLatestByVolumeIdAsync(volumeId),
   }
 }

@@ -205,6 +205,7 @@ export async function loadDoctorVolumeViewAsync(database: NovelDatabase, volumeI
         index: chapter.index,
         title: chapter.title,
         status: chapter.status,
+        // 卷级诊断只关心 finalized 是否真的有 output，因此这里把输出存在性也并发算出来。
         hasOutput: Boolean(await outputRepository.getLatestByChapterIdAsync(chapter.id)),
       })),
   )
@@ -300,6 +301,7 @@ type BuildMissionRisksInput = {
 }
 
 function buildMissionRisks(input: BuildMissionRisksInput): DoctorVolumeRisk[] {
+  // mission 风险负责检查卷窗口计划本身是否能覆盖本卷章节、且窗口区间没有漂移。
   const risks: DoctorVolumeRisk[] = []
 
   if (!input.volumePlan) {
@@ -383,6 +385,7 @@ type BuildThreadRisksInput = {
 }
 
 function buildThreadRisks(input: BuildThreadRisksInput): DoctorVolumeRisk[] {
+  // thread 风险主要看“卷内有没有推进”和“高优先级线程是否长期卡在 setup/stalled”。
   const risks: DoctorVolumeRisk[] = []
   const activeThreads = input.storyThreads.filter((thread) => thread.status === 'active')
 
@@ -457,6 +460,7 @@ type BuildEndingRisksInput = {
 }
 
 function buildEndingRisks(input: BuildEndingRisksInput): DoctorVolumeRisk[] {
+  // ending 风险聚焦 closure gap、pending payoff、final conflict prerequisite 三类收束压力。
   const risks: DoctorVolumeRisk[] = []
 
   if (!input.endingReadiness) {
@@ -538,6 +542,7 @@ type BuildChapterRisksInput = {
 }
 
 function buildChapterRisks(input: BuildChapterRisksInput): DoctorVolumeRisk[] {
+  // chapter 风险更多是流程一致性检查：finalized 是否有 output、mission 章节是否长期未完成。
   const risks: DoctorVolumeRisk[] = []
   const missingOutputs = input.chapters.filter((chapter) => chapter.status === 'finalized' && !chapter.hasOutput)
 
@@ -569,6 +574,7 @@ function buildChapterRisks(input: BuildChapterRisksInput): DoctorVolumeRisk[] {
 }
 
 function buildOverview(risks: DoctorVolumeRisk[]): { overallLevel: DoctorVolumeRiskLevel; summary: string } {
+  // overall level 采用最简单的高/中优先级压制规则，让 CLI 一眼就知道先不先修。
   const highRiskCount = risks.filter((risk) => risk.level === 'high').length
   const mediumRiskCount = risks.filter((risk) => risk.level === 'medium').length
 
@@ -593,6 +599,7 @@ function buildOverview(risks: DoctorVolumeRisk[]): { overallLevel: DoctorVolumeR
 }
 
 function resolveMissionChapterIndex(chapterId: string, chapterIds: string[], minChapterIndex?: number): number | undefined {
+  // 这里默认 chapterIds 已按卷内章节顺序排列，因此可用 offset + minIndex 反推章节号区间。
   const offset = chapterIds.indexOf(chapterId)
 
   if (offset < 0 || minChapterIndex === undefined) {

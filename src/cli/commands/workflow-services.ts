@@ -263,6 +263,7 @@ export async function loadWorkflowVolumeReviewViewAsync(database: NovelDatabase,
 }
 
 export function createWorkflowWritingContextBuilder(database: NovelDatabase): WritingContextBuilder {
+  // 写作上下文 = 规划上下文 + 当前章节计划版本，是 generation 阶段专用的更窄视图。
   return new WritingContextBuilder(
     createWorkflowPlanningContextBuilder(database),
     new ChapterPlanRepository(database),
@@ -270,6 +271,7 @@ export function createWorkflowWritingContextBuilder(database: NovelDatabase): Wr
 }
 
 export function createWorkflowGenerationService(database: NovelDatabase): GenerationService {
+  // generation 只依赖写作上下文、章节仓储和 draft 落库，不感知 review/rewrite 侧依赖。
   return new GenerationService(
     createWorkflowWritingContextBuilder(database),
     new ChapterDraftRepository(database),
@@ -279,6 +281,7 @@ export function createWorkflowGenerationService(database: NovelDatabase): Genera
 }
 
 export function createWorkflowReviewService(database: NovelDatabase): ReviewService {
+  // review 需要读取比 generation 更宽的状态面，因此这里把角色/物品/记忆/伏笔相关真源都装配进来。
   return new ReviewService(
     new BookRepository(database),
     new ChapterRepository(database),

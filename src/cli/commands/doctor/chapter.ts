@@ -12,6 +12,7 @@ export function registerDoctorChapterCommand(doctorCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
+        // chapter doctor 只读不修复，职责是把当前指针与最新产物是否一致展示出来。
         printDoctorChapterSummary(await loadDoctorChapterViewAsync(database, chapterId))
       } finally {
         database.close()

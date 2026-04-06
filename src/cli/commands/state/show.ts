@@ -12,6 +12,7 @@ export function registerStateShowCommand(stateCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
+        // `state show` 是整书级 canonical projection 入口，优先看“现在是什么状态”而不是单章过程。
         printStateShowSummary(await loadStateShowViewAsync(database))
       } finally {
         database.close()

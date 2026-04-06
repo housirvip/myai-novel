@@ -9,6 +9,7 @@ type StoryStateRow = {
   updated_at: string
 }
 
+// `story_current_state` 是整书级单行快照，记录“故事现在推进到哪一章”和最近事件摘要。
 export class StoryStateRepository {
   constructor(private readonly database: NovelDatabase) {}
 
@@ -22,6 +23,7 @@ export class StoryStateRepository {
           recent_events_json,
           updated_at
         ) VALUES (?, ?, ?, ?)
+        -- 每本书只保留一条当前游标记录，新的章节推进会覆盖旧值。
         ON CONFLICT(book_id) DO UPDATE SET
           current_chapter_id = excluded.current_chapter_id,
           recent_events_json = excluded.recent_events_json,
@@ -44,6 +46,7 @@ export class StoryStateRepository {
           recent_events_json,
           updated_at
         ) VALUES (?, ?, ?, ?)
+        -- async 路径与同步路径保持相同的单行快照语义。
         ON CONFLICT(book_id) DO UPDATE SET
           current_chapter_id = excluded.current_chapter_id,
           recent_events_json = excluded.recent_events_json,
@@ -70,6 +73,7 @@ export class StoryStateRepository {
     return {
       bookId: row.book_id,
       currentChapterId: row.current_chapter_id,
+      // recent events 保持数组顺序，便于 story/state 命令按最近事件串联输出。
       recentEvents: JSON.parse(row.recent_events_json) as string[],
       updatedAt: row.updated_at,
     }
@@ -89,6 +93,7 @@ export class StoryStateRepository {
     return {
       bookId: row.book_id,
       currentChapterId: row.current_chapter_id,
+      // async 读取同样保留原始事件顺序。
       recentEvents: JSON.parse(row.recent_events_json) as string[],
       updatedAt: row.updated_at,
     }

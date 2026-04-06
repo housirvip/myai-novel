@@ -15,6 +15,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// ending_readiness_current 是整书级 current-state 快照，后写入应覆盖前一版分数与缺口信息。
 test('EndingReadinessRepository upsert persists and updates readiness snapshot', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -38,6 +39,7 @@ test('EndingReadinessRepository upsert persists and updates readiness snapshot',
         await repository.upsertAsync(first)
         await repository.upsertAsync(second)
 
+        // 第二次 upsert 后，读取结果应反映最新 readiness/closure 评分。
         const loaded = await repository.getByBookIdAsync('book-1')
         assert.deepEqual(loaded, second)
       },

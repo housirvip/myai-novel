@@ -13,6 +13,7 @@ export function registerWorkflowDraftShowCommand(draftCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
+        // draft show 直接看最新草稿正文，属于人工阅读场景，因此不做额外摘要裁剪。
         const draft = await new ChapterDraftRepository(database).getLatestByChapterIdAsync(chapterId)
 
         if (!draft) {
@@ -22,6 +23,7 @@ export function registerWorkflowDraftShowCommand(draftCommand: Command): void {
         console.log(`Draft id: ${draft.id}`)
         console.log(`Version: ${draft.versionId}`)
         console.log(`Word count: ${draft.actualWordCount}`)
+        // 内容以 section 输出，保留原始段落结构，便于终端里直接预览。
         console.log(formatSection('Content preview:', draft.content))
 
         if (draft.llmMetadata) {

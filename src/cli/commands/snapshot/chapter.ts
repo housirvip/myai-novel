@@ -12,6 +12,7 @@ export function registerSnapshotChapterCommand(snapshotCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
+        // 章节 snapshot 直接聚合 latest plan/draft/review/rewrite/output，方便排查链路断点。
         printChapterSnapshot(await loadSnapshotChapterViewAsync(database, chapterId))
       } finally {
         database.close()

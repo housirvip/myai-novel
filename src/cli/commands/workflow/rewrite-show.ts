@@ -13,6 +13,7 @@ export function registerWorkflowRewriteShowCommand(rewriteCommand: Command): voi
       const database = await openProjectDatabase()
 
       try {
+        // rewrite show 查看的是最近一次改写候选，不等同于最终 approved output。
         const rewrite = await new ChapterRewriteRepository(database).getLatestByChapterIdAsync(chapterId)
 
         if (!rewrite) {

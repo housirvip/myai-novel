@@ -13,6 +13,7 @@ export function registerWorkflowPlanShowCommand(planCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
+        // show 命令读取“最新计划”，而不是 chapter.currentPlanVersionId，对应的是最近一次生成结果的细节查看。
         const plan = await new ChapterPlanRepository(database).getLatestByChapterIdAsync(chapterId)
 
         if (!plan) {

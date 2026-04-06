@@ -15,6 +15,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// volume_plan 是卷级版本表，latest 选择依赖 updatedAt 而不是 createdAt。
 test('VolumePlanRepository persists volume plans and resolves latest ordering by updatedAt', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -38,6 +39,7 @@ test('VolumePlanRepository persists volume plans and resolves latest ordering by
         await repository.createAsync(first)
         await repository.createAsync(second)
 
+        // 更新版 updatedAt 更晚，应覆盖为当前卷窗口的 latest 计划。
         const latest = await repository.getLatestByVolumeIdAsync('volume-1')
         const list = await repository.listByVolumeIdAsync('volume-1')
 

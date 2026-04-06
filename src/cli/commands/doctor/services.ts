@@ -135,6 +135,7 @@ export async function loadDoctorProjectViewAsync(database: NovelDatabase): Promi
     chapterCount: chapters.length,
     operationLogDir: resolveOperationLogDir(process.cwd()),
     infrastructure: buildDoctorInfrastructureView(database.client, llmStages),
+    // 每章只保留链路覆盖布尔值，doctor project 关注的是“有无断链”，不是具体内容细节。
     chapters: await Promise.all(chapters.map(async (chapter) => ({
       chapterId: chapter.id,
       title: chapter.title,
@@ -278,6 +279,7 @@ export async function loadDoctorChapterViewAsync(database: NovelDatabase, chapte
     throw new NovelError(`Chapter not found: ${chapterId}`)
   }
 
+  // 并发读取 latest 产物后，再和 chapter.current* 指针比较，可直接发现“最新结果未被挂当前”的情况。
   const [latestPlan, latestDraft, latestReview, latestRewrite, latestOutput] = await Promise.all([
     planRepository.getLatestByChapterIdAsync(chapterId),
     draftRepository.getLatestByChapterIdAsync(chapterId),
@@ -344,6 +346,7 @@ function buildDoctorInfrastructureView(
 
     const providerConfigured = configuredProviderMap.get(config.provider) ?? false
 
+    // 反向记录每个 provider 被哪些 stage 使用，便于 doctor 一眼看出路由覆盖范围。
     const matchedProvider = configuredProviders.find((item) => item.provider === config.provider)
     if (matchedProvider) {
       matchedProvider.usedByStages.push(stage)
@@ -362,6 +365,7 @@ function buildDoctorInfrastructureView(
     ...(!existsSync(configPath) ? ['缺少项目数据库配置文件 config/database.json'] : []),
     ...(activeBackend === 'unconfigured' ? ['当前未识别到有效数据库 backend'] : []),
   ]
+  // stage routing issue 不判断模型名，只判断 provider 是否已配置，聚焦“能不能跑起来”这一层。
   const stageRoutingIssues = stageRouting
     .filter((item) => !item.providerConfigured)
     .map((item) => `阶段 ${item.stage} 当前路由到 provider=${item.provider}，但该 provider 未完成配置。`)
@@ -402,6 +406,7 @@ function readConfiguredBackend(): NovelDatabase['client'] | 'unconfigured' {
     return 'unconfigured'
   }
 
+  // backend 读取只做宽松判定：显式 mysql 走 mysql，其余回落 sqlite，方便未完整初始化时也能给出诊断。
   const raw = JSON.parse(readFileSync(configPath, 'utf8')) as {
     database?: {
       client?: unknown

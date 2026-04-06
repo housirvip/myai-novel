@@ -71,6 +71,9 @@ function createPlan(versionSuffix: string, createdAt: string): ChapterPlan {
   }
 }
 
+// chapter_plan 是典型版本表，这个测试重点验证：
+// 1. 完整 payload 能往返保存
+// 2. latest/list 会按 createdAt 倒序解析最新版本
 test('ChapterPlanRepository persists full plan payloads and resolves latest version ordering', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -100,6 +103,7 @@ test('ChapterPlanRepository persists full plan payloads and resolves latest vers
         await repository.createAsync(first)
         await repository.createAsync(second)
 
+        // 第二版时间更晚且 approvedByUser=true，应成为 latest 版本。
         const latest = await repository.getLatestByChapterIdAsync('chapter-1')
         const byVersion = await repository.getByVersionIdAsync('chapter-1', 'plan-version-1')
         const list = await repository.listByChapterIdAsync('chapter-1')

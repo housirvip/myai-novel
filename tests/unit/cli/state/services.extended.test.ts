@@ -38,6 +38,8 @@ const resetEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// 这组测试补的是 state 服务装配层的“横切视图”能力：
+// story/state/threads/ending/volume-plan/state-updates 都需要把不同真源拼成 CLI 可读对象。
 test('loadStateThreadsView returns volume-scoped active threads and recent progress', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
@@ -79,6 +81,7 @@ test('loadStateThreadsView returns volume-scoped active threads and recent progr
         '2026-04-06T00:10:00.000Z',
       )
 
+      // 指定 volumeId 时，应该只看到该卷线程及其 progress。
       const view = loadStateThreadsView(database, 'volume-1')
 
       assert.equal(view.book.id, 'book-1')
@@ -110,6 +113,7 @@ test('loadStateVolumePlanView and loadStateEndingView return persisted volume di
         '2026-04-06T00:00:00.000Z',
       )
 
+      // volume plan 和 ending readiness 都是 current snapshot 读法，不涉及历史版本枚举。
       const volumePlanView = loadStateVolumePlanView(database, 'volume-1')
       const endingView = loadStateEndingView(database)
 
@@ -231,6 +235,7 @@ test('loadStoryStateView and loadStoryStateViewAsync return story state snapshot
         '2026-04-06T00:00:00.000Z',
       )
 
+      // story view 只测全局游标与 recent events，不要求展开 character/item/hook 侧信息。
       const view = loadStoryStateView(database)
       const asyncView = await loadStoryStateViewAsync(database)
 
@@ -273,6 +278,7 @@ test('loadStateShowView and loadStateShowViewAsync aggregate state dashboard wit
         '2026-04-06T00:05:00.000Z',
       )
 
+      // 这里的重点是验证 story_current_state.currentChapterId 会被补成 currentChapterTitle。
       const view = loadStateShowView(database)
       const asyncView = await loadStateShowViewAsync(database)
 

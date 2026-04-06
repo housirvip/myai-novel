@@ -12,6 +12,7 @@ import { VolumePlanRepository } from '../../../infra/repository/volume-plan-repo
 import { VolumeRepository } from '../../../infra/repository/volume-repository.js'
 import { NovelError } from '../../../shared/utils/errors.js'
 
+// 卷快照会把卷下每章的 latest workflow 产物也一并展开，适合一次性做人工巡检。
 export function loadSnapshotVolumeView(database: NovelDatabase, volumeId: string): {
   volume: unknown
   latestVolumePlan: unknown | null
@@ -44,6 +45,7 @@ export function loadSnapshotVolumeView(database: NovelDatabase, volumeId: string
     .filter((chapter) => chapter.volumeId === volumeId)
     .map((chapter) => ({
       chapter,
+      // 这里保留每章的 latest 链路节点，便于判断卷内是否存在卡在某一阶段的章节。
       latestPlan: new ChapterPlanRepository(database).getLatestByChapterId(chapter.id),
       latestDraft: new ChapterDraftRepository(database).getLatestByChapterId(chapter.id),
       latestReview: new ChapterReviewRepository(database).getLatestByChapterId(chapter.id),
@@ -93,6 +95,7 @@ export async function loadSnapshotVolumeViewAsync(database: NovelDatabase, volum
       .filter((chapter) => chapter.volumeId === volumeId)
       .map(async (chapter) => ({
         chapter,
+        // 异步版本按章节并发抓取 latest 产物，避免卷级快照在章节多时串行过慢。
         latestPlan: await new ChapterPlanRepository(database).getLatestByChapterIdAsync(chapter.id),
         latestDraft: await new ChapterDraftRepository(database).getLatestByChapterIdAsync(chapter.id),
         latestReview: await new ChapterReviewRepository(database).getLatestByChapterIdAsync(chapter.id),

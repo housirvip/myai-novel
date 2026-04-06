@@ -12,6 +12,7 @@ export function registerStateVolumePlanCommand(stateCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
+        // 这里关注的是状态层如何消费最新卷计划，而不是 workflow 侧的完整计划详情。
         printStateVolumePlanSummary(await loadStateVolumePlanViewAsync(database, volumeId))
       } finally {
         database.close()

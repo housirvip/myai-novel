@@ -49,6 +49,10 @@ const resetDoctorEnv = {
   LLM_REWRITE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// doctor 测试主要覆盖三层：
+// 1. bootstrap 场景下的基础设施诊断
+// 2. project 级链路覆盖率汇总
+// 3. chapter 级 current-vs-latest 指针比对
 test('loadDoctorBootstrapView reports missing database config and unconfigured providers', async () => {
   await withTempDir(async (rootDir) => {
     await withCwd(rootDir, async () => {
@@ -107,6 +111,7 @@ test('loadDoctorBootstrapView reflects configured backend and stage routing usag
         () => {
           const view = loadDoctorBootstrapView()
 
+          // 这个场景专门验证 default provider 与 per-stage routing 可以分别落到不同 provider。
           assert.equal(view.infrastructure.database.activeBackend, 'mysql')
           assert.equal(view.infrastructure.database.configPresent, true)
           assert.equal(view.infrastructure.database.readiness.status, 'ready')
@@ -166,6 +171,7 @@ test('loadDoctorProjectView and loadDoctorProjectViewAsync aggregate chapter wor
       const view = loadDoctorProjectView(database)
       const asyncView = await loadDoctorProjectViewAsync(database)
 
+      // 这里关注的是 hasPlan/hasDraft/... 这些覆盖位是否全部被正确点亮。
       assert.equal(view.projectInitialized, true)
       assert.equal(view.bookId, 'book-1')
       assert.equal(view.chapterCount, 1)
@@ -199,6 +205,7 @@ test('loadDoctorChapterView and loadDoctorChapterViewAsync summarize workflow ch
         'chapter-1',
       )
 
+      // currentVersion 指向 rewrite 版本，故意制造“当前 draft 指针已落后，但 rewrite 指针匹配最新”的组合。
       await new ChapterPlanRepository(database).createAsync(createChapterPlanFixture())
       await new ChapterDraftRepository(database).createAsync(createChapterDraftFixture())
       await new ChapterReviewRepository(database).createAsync(createReviewReportFixture())

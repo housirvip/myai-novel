@@ -13,6 +13,7 @@ export function registerWorkflowReviewShowCommand(reviewCommand: Command): void 
       const database = await openProjectDatabase()
 
       try {
+        // review detail 直接展示最新审阅结果，供人工分析问题项和 rewrite 建议。
         const review = await new ChapterReviewRepository(database).getLatestByChapterIdAsync(chapterId)
 
         if (!review) {

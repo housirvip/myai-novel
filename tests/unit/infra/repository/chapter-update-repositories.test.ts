@@ -9,6 +9,7 @@ import { ChapterStateUpdateRepository } from '../../../../src/infra/repository/c
 import { createBookFixture } from '../../../helpers/domain-fixtures.js'
 import { insertVolumeAndChapter, withSqliteDatabase } from '../../../helpers/sqlite.js'
 
+// 这组测试覆盖 chapter_state_update / memory_update / hook_update 三类“按章追加”的历史记录表。
 test('chapter update repositories persist and list updates by chapter/book', async () => {
   await withSqliteDatabase(async (database) => {
     await new BookRepository(database).createAsync(createBookFixture())
@@ -60,6 +61,7 @@ test('chapter update repositories persist and list updates by chapter/book', asy
       createdAt: '2026-04-06T00:12:00.000Z',
     })
 
+    // 这里同时断言按 chapter 和按 book 的查询口径，确保追踪命令能复用同一份历史数据。
     assert.equal(stateRepository.listByChapterId('chapter-1').length, 1)
     assert.equal((await stateRepository.listByBookIdAsync('book-1')).length, 1)
     assert.equal(memoryRepository.listByChapterId('chapter-1')[0]?.memoryType, 'observation')

@@ -13,6 +13,7 @@ export function registerWorkflowPlanVolumeShowCommand(planCommand: Command): voi
       const database = await openProjectDatabase()
 
       try {
+        // 卷计划展示读取最新一版 rolling window，用于核对当前卷窗口的总体推进设计。
         const plan = await new VolumePlanRepository(database).getLatestByVolumeIdAsync(volumeId)
 
         if (!plan) {

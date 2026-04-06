@@ -20,6 +20,7 @@ export function registerStateUpdatesShowCommand(stateUpdatesCommand: Command): v
             result,
             chapterId,
             bookId: result.chapter?.bookId,
+            // 日志里记录 update 数量和 reviewId，足够帮助回溯“这一章到底落了多少状态变更”。
             summary: `State updates loaded for chapter: ${chapterId}`,
             detail: {
               stateUpdateCount: result.stateUpdates.length,

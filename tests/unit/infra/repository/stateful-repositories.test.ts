@@ -12,6 +12,7 @@ import { HookPressureRepository } from '../../../../src/infra/repository/hook-pr
 import { createBookFixture } from '../../../helpers/domain-fixtures.js'
 import { insertVolumeAndChapter, withSqliteDatabase } from '../../../helpers/sqlite.js'
 
+// 这组测试聚焦 current-state 仓储：upsert 后应只保留最新快照，并按风险/更新时间支持查询排序。
 test('stateful repositories persist and query character/hook current state', async () => {
   await withSqliteDatabase(async (database) => {
     await new BookRepository(database).createAsync(createBookFixture())
@@ -88,6 +89,7 @@ test('stateful repositories persist and query character/hook current state', asy
       updatedAt: '2026-04-06T00:12:00.000Z',
     })
 
+    // 先验证基本读写，再验证 active/list/getById 这些查询口径是否都指向当前快照。
     assert.equal(characterStateRepository.getByCharacterId('book-1', 'character-1')?.currentLocationId, 'location-1')
     assert.equal((await characterStateRepository.listByBookIdAsync('book-1')).length, 1)
     assert.equal(characterArcRepository.getByCharacterId('book-1', 'character-1')[0]?.currentStage, 'rising')
@@ -126,6 +128,7 @@ test('stateful repositories persist and query character/hook current state', asy
       updatedAt: '2026-04-06T00:14:00.000Z',
     })
 
+    // 第二条高压 hook 应排在前面，验证 pressure 列表的排序语义对状态面板稳定可用。
     const ordered = hookPressureRepository.listActiveByBookId('book-1')
     assert.equal(ordered[0]?.hookId, 'hook-2')
   })

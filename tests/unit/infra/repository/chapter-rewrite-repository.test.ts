@@ -24,6 +24,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// rewrite 仓储同样承担历史兼容职责：既要按版本排序，也要修正旧 validation.reviewDecision。
 test('ChapterRewriteRepository persists rewrite payloads and resolves latest ordering', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -51,6 +52,7 @@ test('ChapterRewriteRepository persists rewrite payloads and resolves latest ord
         await repository.createAsync(first)
         await repository.createAsync(second)
 
+        // latest rewrite 应反映新版策略/质量目标，而不只是正文内容。
         const latest = await repository.getLatestByChapterIdAsync('chapter-1')
         const list = await repository.listByChapterIdAsync('chapter-1')
 
@@ -105,6 +107,7 @@ test('ChapterRewriteRepository normalizes legacy revise validation decision to n
           legacy.createdAt,
         )
 
+        // 这里直接写入 legacy validation，验证读取层做向后兼容归一化。
         const loaded = await new ChapterRewriteRepository(database).getLatestByChapterIdAsync('chapter-1')
         assert.equal(loaded?.validation.reviewDecision, 'needs-rewrite')
       },

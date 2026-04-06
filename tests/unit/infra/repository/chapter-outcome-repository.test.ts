@@ -6,6 +6,7 @@ import { ChapterOutcomeRepository } from '../../../../src/infra/repository/chapt
 import { createBookFixture } from '../../../helpers/domain-fixtures.js'
 import { insertVolumeAndChapter, withSqliteDatabase } from '../../../helpers/sqlite.js'
 
+// outcome 表保存章节审阅后的结构化落地结果，按 createdAt 追踪最近一次结论。
 test('ChapterOutcomeRepository persists outcomes and resolves latest/list queries', async () => {
   await withSqliteDatabase(async (database) => {
     await new BookRepository(database).createAsync(createBookFixture())
@@ -39,6 +40,7 @@ test('ChapterOutcomeRepository persists outcomes and resolves latest/list querie
       createdAt: '2026-04-06T00:20:00.000Z',
     })
 
+    // 第二次 outcome 决策为 pass，应成为 latest，同时历史 warning 结果仍保留在列表中。
     const latestSync = repository.getLatestByChapterId('chapter-1')
     const latestAsync = await repository.getLatestByChapterIdAsync('chapter-1')
     const listSync = repository.listByChapterId('chapter-1')

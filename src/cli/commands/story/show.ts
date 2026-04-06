@@ -14,6 +14,7 @@ export function registerStoryShowCommand(program: Command): void {
       const database = await openProjectDatabase()
 
       try {
+        // `story show` 保留旧入口，只输出最核心的 story_state 视图，适合快速看全局故事游标。
         printStoryState((await loadStoryStateViewAsync(database)).state)
       } finally {
         database.close()

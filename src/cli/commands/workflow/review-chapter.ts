@@ -21,6 +21,7 @@ export function registerWorkflowReviewChapterCommand(reviewCommand: Command): vo
             result,
             chapterId,
             bookId: result.bookId,
+            // review 命令日志更关心决策与问题规模，便于回看这次审阅为什么给出当前结论。
             summary: `Chapter review created: ${result.id}`,
             detail: {
               reviewId: result.id,

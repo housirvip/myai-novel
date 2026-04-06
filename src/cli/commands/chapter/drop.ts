@@ -30,6 +30,7 @@ export function registerChapterDropCommand(chapterCommand: Command): void {
             chapterId,
             dropMode,
             force,
+            // 把命令名、参数和请求时间显式传入，方便 drop 结果形成可追溯的操作记录。
             command: 'chapter drop',
             args: buildDropArgs(chapterId, dropMode, force),
             requestedAt: nowIso(),
@@ -62,6 +63,7 @@ function resolveDropMode(options: {
   draftOnly?: boolean
   allCurrent?: boolean
 }): DropChapterMode {
+  // 三种 drop 模式互斥，先在命令层做约束，避免服务层收到含糊意图。
   const selectedModes = [options.planOnly, options.draftOnly, options.allCurrent].filter(Boolean).length
 
   if (selectedModes > 1) {
@@ -98,5 +100,6 @@ function buildDropArgs(chapterId: string, dropMode: DropChapterMode, force: bool
     args.push('--force')
   }
 
+  // 这里返回的是“规范化后的”实际参数，用于日志与审计记录。
   return args
 }

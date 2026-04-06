@@ -20,6 +20,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// chapter_drafts 同样是按版本追加的历史表，这里验证 latest/byId/list 三种常用读取口径。
 test('ChapterDraftRepository persists drafts and resolves latest/byId/list queries', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -46,6 +47,7 @@ test('ChapterDraftRepository persists drafts and resolves latest/byId/list queri
         await repository.createAsync(first)
         await repository.createAsync(second)
 
+        // newer createdAt 的 draft 应排在 latest/list 首位。
         const latest = await repository.getLatestByChapterIdAsync('chapter-1')
         const byId = await repository.getByIdAsync('draft-1')
         const list = await repository.listByChapterIdAsync('chapter-1')

@@ -15,6 +15,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// volume 主仓储既保存卷本身，也维护 chapterIds 这种卷内顺序指针。
 test('VolumeRepository supports create/get/update/list queries', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -54,6 +55,7 @@ test('VolumeRepository supports create/get/update/list queries', async () => {
         )
         await repository.updateChapterIdsAsync('volume-1', ['chapter-1', 'chapter-2'], '2026-04-06T00:20:00.000Z')
 
+        // updateChapterIdsAsync 应同步更新时间，供卷级状态/计划视图判断最新卷结构。
         const byId = await repository.getByIdAsync('volume-1')
         const byChapter = await repository.getByChapterIdAsync('chapter-1')
         const list = await repository.listByBookIdAsync('book-1')

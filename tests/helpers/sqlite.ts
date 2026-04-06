@@ -5,6 +5,7 @@ import { openDatabase } from '../../src/infra/db/database.js'
 import { runMigrations } from '../../src/infra/db/migrate.js'
 import { withTempDir } from './fs.js'
 
+// 大多数仓储/服务测试都依赖真实迁移后的 sqlite，因此这里统一负责建库、迁移、回收。
 export async function withSqliteDatabase<T>(
   run: (database: NovelDatabase, input: { rootDir: string; filename: string }) => T | Promise<T>,
 ): Promise<T> {
@@ -30,6 +31,7 @@ export async function insertVolumeAndChapter(
     timestamp?: string
   },
 ): Promise<{ volumeId: string; chapterId: string }> {
+  // 这个 helper 故意只插入“最小卷 + 最小章节”组合，适合作为大多数 repository 测试的起点。
   const volumeId = input.volumeId ?? 'volume-1'
   const chapterId = input.chapterId ?? 'chapter-1'
   const timestamp = input.timestamp ?? '2026-04-06T00:00:00.000Z'

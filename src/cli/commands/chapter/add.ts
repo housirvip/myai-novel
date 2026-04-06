@@ -17,6 +17,7 @@ export function registerChapterAddCommand(chapterCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
+        // add 命令直接走 world service，因为它只负责创建章节主记录，不涉及工作流日志链。
         const chapter = createChapterWorldService(database).addChapter({
           volumeId: options.volumeId,
           title: options.title,

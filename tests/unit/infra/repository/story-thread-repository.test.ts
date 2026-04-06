@@ -15,6 +15,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// story_threads 兼有“活跃线程筛选”和“按卷列出所有线程”两种常见读取口径。
 test('StoryThreadRepository supports batch create, active list, volume list and upsert', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -46,6 +47,7 @@ test('StoryThreadRepository supports batch create, active list, volume list and 
           }),
         )
 
+        // upsert 后活跃列表只保留 active 线程，而 volume 列表仍应包含 paused 线程。
         const activeList = await repository.listActiveByBookIdAsync('book-1')
         const volumeList = await repository.listByVolumeIdAsync('volume-1')
 

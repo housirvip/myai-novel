@@ -13,6 +13,7 @@ import { NarrativeDebtRepository } from '../../../../src/infra/repository/narrat
 import { createBookFixture } from '../../../helpers/domain-fixtures.js'
 import { insertVolumeAndChapter, withSqliteDatabase } from '../../../helpers/sqlite.js'
 
+// 这组测试把“静态设定仓储”和“状态型领域仓储”分开覆盖，确保基础 domain 真源与 current-state 真源都可单独工作。
 test('character/location/item/hook repositories persist and list domain entities', async () => {
   await withSqliteDatabase(async (database) => {
     await new BookRepository(database).createAsync(createBookFixture())
@@ -67,6 +68,7 @@ test('character/location/item/hook repositories persist and list domain entities
       updatedAt: '2026-04-06T00:00:00.000Z',
     })
 
+    // 这里主要验证基础设定表的 create/get/list 口径，以及主角兜底选择逻辑。
     assert.equal(characterRepository.getById('character-1')?.name, '林泽')
     assert.equal((await characterRepository.getPrimaryByBookIdAsync('book-1'))?.id, 'character-1')
     assert.equal(characterRepository.listByBookId('book-1').length, 1)
@@ -181,6 +183,7 @@ test('item current state, memory and narrative debt repositories persist statefu
       },
     ])
 
+    // 这一段覆盖 item current state、memory current snapshots、narrative debt open/resolve 三种不同语义。
     assert.equal(itemStateRepository.getByItemId('book-1', 'item-1')?.ownerCharacterId, 'character-1')
     assert.equal(itemStateRepository.listImportantByBookId('book-1')[0]?.status, '随身携带')
     assert.equal((await itemStateRepository.getByItemIdAsync('book-1', 'item-1'))?.quantity, 1)
@@ -221,6 +224,7 @@ test('item current state falls back to defaults for important items without pers
       updatedAt: '2026-04-06T00:00:00.000Z',
     })
 
+    // 重要物品即使还没有 current-state，也应在上下文视图里以默认值出现，而不是直接缺失。
     const views = new ItemCurrentStateRepository(database).listImportantByBookId('book-1')
     assert.equal(views[0]?.quantity, 1)
     assert.equal(views[0]?.status, '未记录')

@@ -15,6 +15,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// story_thread_progress 是追加式历史表，这里同时验证 latest、全书列表和章节窗口三种读取方式。
 test('StoryThreadProgressRepository supports latest/list/window queries', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -84,6 +85,7 @@ test('StoryThreadProgressRepository supports latest/list/window queries', async 
         await repository.createAsync(first)
         await repository.createAsync(second)
 
+        // 第二条 progress 更晚，应该成为 latest，也应排在 book/window 列表前面。
         const latest = await repository.getLatestByThreadIdAsync('thread-1')
         const byBook = await repository.listByBookIdAsync('book-1')
         const byWindow = await repository.listRecentByChapterWindowAsync('book-1', 'chapter-1', 'chapter-2')

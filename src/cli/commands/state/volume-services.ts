@@ -117,6 +117,7 @@ export async function loadStateVolumeViewAsync(database: NovelDatabase, volumeId
     book,
     volume,
     chapters,
+    // 这里返回的是“最新卷计划”，因为 state 视图关心当前应执行的窗口，而不是计划历史。
     latestVolumePlan: await new VolumePlanRepository(database).getLatestByVolumeIdAsync(volumeId),
     storyThreads: await new StoryThreadRepository(database).listByVolumeIdAsync(volumeId),
     endingReadiness: await new EndingReadinessRepository(database).getByBookIdAsync(book.id),

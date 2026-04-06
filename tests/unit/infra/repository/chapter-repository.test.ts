@@ -15,6 +15,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// 章节主仓储既负责顺序管理，也负责 workflow 指针与最终输出路径这类主记录状态迁移。
 test('ChapterRepository supports create, sequencing and workflow state transitions', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -71,6 +72,7 @@ test('ChapterRepository supports create, sequencing and workflow state transitio
         const loaded = await repository.getByIdAsync('chapter-1')
         const list = await repository.listByBookIdAsync('book-1')
 
+        // 这里串起一整条章节状态迁移，确保 currentPlan/currentVersion/path/summary 都会同步落库。
         assert.equal(loaded?.status, 'finalized')
         assert.equal(loaded?.currentPlanVersionId, 'plan-version-1')
         assert.equal(loaded?.currentVersionId, 'final-version-1')

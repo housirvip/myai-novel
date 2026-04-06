@@ -12,6 +12,7 @@ export function registerSnapshotVolumeCommand(snapshotCommand: Command): void {
       const database = await openProjectDatabase()
 
       try {
+        // 卷 snapshot 适合一次性核对 volume plan、threads、ending readiness 与章节列表是否一致。
         printVolumeSnapshot(await loadSnapshotVolumeViewAsync(database, volumeId))
       } finally {
         database.close()

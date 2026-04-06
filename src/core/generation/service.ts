@@ -79,6 +79,7 @@ async function createLlmDraft(
       '如果有关键状态约束，请把它自然地转化为正文事实，而不是生硬罗列。',
       '请直接输出章节正文。',
     ].join(' '),
+    // user payload 采用结构化 JSON，降低长上下文里 scene/state/directive 混杂时的遗漏概率。
     user: JSON.stringify(buildGenerationPromptPayload(context), null, 2),
     metadata: {
       stage: 'generation',
@@ -159,6 +160,7 @@ function buildGenerationPromptPayload(context: WritingContext): Record<string, u
       endingReadiness: context.endingReadiness,
       characterPresenceWindows: context.characterPresenceWindows,
       ensembleBalanceReport: context.ensembleBalanceReport,
+      // chapterPlanDirectives 是卷级约束的“可执行摘要”，避免模型只看到整份 volumePlan 却抓不到当前章任务。
       chapterPlanDirectives: {
         missionId: context.chapterPlan.missionId,
         missionSummary: context.currentChapterMission?.summary,
@@ -238,6 +240,7 @@ function createRuleBasedDraft(context: WritingContext, timestamp: string): Chapt
 }
 
 function buildDraftContent(context: WritingContext): string {
+  // fallback 草稿按 section 组织，是为了让后续 review/rewrite 仍能从文本里稳定抽取结构性约束。
   const sceneTaskSection = context.sceneTasks.goals.length > 0
     ? [
         '## 场景任务',

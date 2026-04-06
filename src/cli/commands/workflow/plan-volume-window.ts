@@ -17,6 +17,7 @@ export function registerWorkflowPlanVolumeWindowCommand(planCommand: Command): v
           const contextBuilder = createWorkflowPlanningContextBuilder(database)
           const planningService = createWorkflowPlanningService(database)
           const volumePlanRepository = createWorkflowVolumePlanRepository(database)
+          // 先基于锚点章节构建上下文，再生成并立刻持久化 volume window，确保后续 mission-show 可直接读取。
           const context = contextBuilder.build(chapterId)
           const result = planningService.planVolumeWindow(context)
 
@@ -26,6 +27,7 @@ export function registerWorkflowPlanVolumeWindowCommand(planCommand: Command): v
             result,
             chapterId,
             bookId: result.bookId,
+            // 卷窗口日志只保留规模型字段，方便判断这次规划是否覆盖了预期线程和 mission 数量。
             summary: `Volume window plan created: ${result.id}`,
             detail: {
               volumePlanId: result.id,

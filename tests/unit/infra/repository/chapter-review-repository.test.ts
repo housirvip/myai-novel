@@ -22,6 +22,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// review 仓储除了 latest 排序外，还要兼容历史上遗留的 `revise` 决策值。
 test('ChapterReviewRepository persists review payloads and resolves latest ordering', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -48,6 +49,7 @@ test('ChapterReviewRepository persists review payloads and resolves latest order
         await repository.createAsync(first)
         await repository.createAsync(second)
 
+        // 第二版 review 更晚，且其 reviewLayers/closureSuggestions 这种复杂 JSON 也应完整反序列化。
         const latest = await repository.getLatestByChapterIdAsync('chapter-1')
         const byId = await repository.getByIdAsync('review-1')
         const list = await repository.listByChapterIdAsync('chapter-1')
@@ -110,6 +112,7 @@ test('ChapterReviewRepository normalizes legacy revise decision to needs-rewrite
           legacy.createdAt,
         )
 
+        // 直接插入旧值，验证仓储读取层会把 legacy `revise` 统一规范成当前枚举。
         const loaded = await new ChapterReviewRepository(database).getByIdAsync('legacy-review')
         assert.equal(loaded?.decision, 'needs-rewrite')
       },

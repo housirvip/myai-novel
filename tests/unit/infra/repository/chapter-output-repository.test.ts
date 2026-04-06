@@ -6,6 +6,7 @@ import { ChapterOutputRepository } from '../../../../src/infra/repository/chapte
 import { createBookFixture } from '../../../helpers/domain-fixtures.js'
 import { insertVolumeAndChapter, withSqliteDatabase } from '../../../helpers/sqlite.js'
 
+// chapter_output 是最终导出产物表，这里只关心“同章多份输出时谁算最新”。
 test('ChapterOutputRepository persists outputs and resolves latest by chapter id', async () => {
   await withSqliteDatabase(async (database) => {
     await new BookRepository(database).createAsync(createBookFixture())
@@ -33,6 +34,7 @@ test('ChapterOutputRepository persists outputs and resolves latest by chapter id
       createdAt: '2026-04-06T00:20:00.000Z',
     })
 
+    // rewrite 输出比 draft 输出更新，应成为最新 final artifact。
     const latestSync = repository.getLatestByChapterId('chapter-1')
     const latestAsync = await repository.getLatestByChapterIdAsync('chapter-1')
 

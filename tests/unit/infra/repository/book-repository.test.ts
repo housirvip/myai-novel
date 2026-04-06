@@ -13,6 +13,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// book 表除了作品基本信息，还会把当前 provider/model 默认值快照进项目主记录。
 test('BookRepository persists and reads the first book with provider defaults', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -44,6 +45,7 @@ test('BookRepository persists and reads the first book with provider defaults', 
           'book-1',
         )
 
+        // 这里既校验 domain 对象往返，也校验底层落库的 provider/model 默认值是否来自环境配置。
         assert.deepEqual(first, book)
         assert.deepEqual(byId, book)
         assert.deepEqual(raw, {

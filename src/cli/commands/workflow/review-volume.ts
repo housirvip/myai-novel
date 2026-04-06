@@ -12,6 +12,7 @@ export function registerWorkflowReviewVolumeCommand(reviewCommand: Command): voi
       const database = await openProjectDatabase()
 
       try {
+        // 卷级 review 目前是只读聚合视图，不走 runLoggedCommand，避免把大型汇总结果重复写入操作日志。
         printWorkflowVolumeReviewDetail(await loadWorkflowVolumeReviewViewAsync(database, volumeId))
       } finally {
         database.close()

@@ -24,6 +24,7 @@ export function registerChapterApproveCommand(chapterCommand: Command): void {
           return {
             result: approveResult,
             chapterId,
+            // approve 日志会记录所有落库副作用，便于追查最终通过时更新了哪些状态域。
             summary: `Chapter approved: ${approveResult.chapterId}`,
             detail: {
               chapterStatus: approveResult.chapterStatus,
@@ -46,5 +47,6 @@ export function registerChapterApproveCommand(chapterCommand: Command): void {
 }
 
 function buildApproveArgs(chapterId: string, force: boolean): string[] {
+  // 把实际执行参数单独收口，保证日志里记录的 args 与用户命令语义一致。
   return force ? [chapterId, '--force'] : [chapterId]
 }

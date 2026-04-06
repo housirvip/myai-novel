@@ -41,6 +41,7 @@ export class ChapterDropService {
     const latestDraft = this.chapterDraftRepository.getLatestByChapterId(request.chapterId)
     const latestReview = this.chapterReviewRepository.getLatestByChapterId(request.chapterId)
     const latestRewrite = this.chapterRewriteRepository.getLatestByChapterId(request.chapterId)
+    // plan drop 只影响 chapter.currentPlanVersionId，本身不删除历史 plan 记录。
     const droppedPlan = chapter.currentPlanVersionId
       ? this.chapterPlanRepository.getByVersionId(request.chapterId, chapter.currentPlanVersionId)
       : null
@@ -56,6 +57,7 @@ export class ChapterDropService {
       throw new NovelError('Chapter has no current draft chain to drop.')
     }
 
+    // drop 的语义是“断开当前引用”，而不是物理删除 draft/review/rewrite/output 历史产物。
     const nextCurrentPlanVersionId = shouldDropPlan ? null : (chapter.currentPlanVersionId ?? null)
     const nextCurrentVersionId = shouldDropDraftChain ? null : (chapter.currentVersionId ?? null)
     const nextStatus = deriveNextStatus(chapter.status, nextCurrentPlanVersionId, nextCurrentVersionId)
@@ -93,6 +95,7 @@ function deriveNextStatus(
   currentPlanVersionId: string | null,
   currentVersionId: string | null,
 ): ChapterStatus {
+  // finalized 章节即使 force drop 当前引用，也保留 finalized 状态，避免伪装成未完结章节。
   if (previousStatus === 'finalized') {
     return 'finalized'
   }
@@ -113,6 +116,7 @@ function resolveDroppedDraftVersionId(
   latestDraft: { versionId: string } | null,
   latestRewrite: { versionId: string } | null,
 ): string | undefined {
+  // 优先返回当前挂载的 version；若当前为空，则退回最新 rewrite/draft，便于日志说明断开的链路端点。
   if (!currentVersionId) {
     return latestRewrite?.versionId ?? latestDraft?.versionId
   }

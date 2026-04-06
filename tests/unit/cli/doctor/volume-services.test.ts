@@ -23,6 +23,8 @@ const resetEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// doctor volume 的测试主要验证风险分层是否符合预期：
+// 缺计划/缺 ending readiness 时应报高风险，数据健康时应收敛到低风险。
 test('loadDoctorVolumeView reports high risks when volume plan and ending readiness are missing', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
@@ -97,6 +99,7 @@ test('loadDoctorVolumeView summarizes thread and mission diagnostics from persis
         '2026-04-06T00:20:00.000Z',
       )
 
+      // 这是一个“健康卷”基线：有 volume plan、有线程推进、无 closure/payout 压力。
       const view = loadDoctorVolumeView(database, 'volume-1')
 
       assert.equal(view.diagnostics.hasVolumePlan, true)
@@ -201,6 +204,7 @@ test('loadDoctorVolumeView surfaces mission, thread, ending and chapter risk com
     await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
       await new BookRepository(database).createAsync(createBookFixture())
 
+      // 这个场景故意把多类风险叠在一起，验证 doctor volume 的总体风险摘要不会漏项。
       await database.dbAsync.run(
         `INSERT INTO volumes (id, book_id, title, goal, summary, chapter_ids_json, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

@@ -21,6 +21,7 @@ const resetEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// state volume 的测试关注“卷级当前态”是否被完整拼出来，而不是 workflow 历史明细。
 test('loadStateVolumeView and loadStateVolumeViewAsync aggregate volume snapshot', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
@@ -63,6 +64,7 @@ test('loadStateVolumeView and loadStateVolumeViewAsync aggregate volume snapshot
         '2026-04-06T00:00:00.000Z',
       )
 
+      // 这里把 volume plan、threads、ending readiness 三个卷级快照都准备齐，验证聚合口径。
       const view = loadStateVolumeView(database, 'volume-1')
       const asyncView = await loadStateVolumeViewAsync(database, 'volume-1')
 

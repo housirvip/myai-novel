@@ -15,6 +15,7 @@ const resetLlmEnv = {
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
 
+// outline 是单书单行快照表，重复 upsert 应覆盖旧值而不是保留历史版本。
 test('OutlineRepository upsert persists and updates outline by book id', async () => {
   await withSqliteDatabase(async (database) => {
     await withEnv(
@@ -37,6 +38,7 @@ test('OutlineRepository upsert persists and updates outline by book id', async (
         await repository.upsertAsync(first)
         await repository.upsertAsync(second)
 
+        // 第二次 upsert 后读取结果应完全等于新快照。
         const loaded = await repository.getByBookIdAsync('book-1')
         assert.deepEqual(loaded, second)
       },

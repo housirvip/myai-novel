@@ -32,6 +32,7 @@ export function loadSnapshotStateView(database: NovelDatabase): {
   const chapters = chapterRepository.listByBookId(book.id)
 
   return {
+    // state snapshot 只拼“故事当前态 + 章节指针”，故意保持轻量，适合作为快速健康检查。
     storyState: new StoryStateRepository(database).getByBookId(book.id) ?? null,
     chapters: chapters.map((chapter) => ({
       chapterId: chapter.id,
@@ -91,6 +92,7 @@ export function loadSnapshotChapterView(database: NovelDatabase, chapterId: stri
 
   return {
     chapter,
+    // 章节 snapshot 走 latest 视角，方便排查各阶段产物是否存在，而不是只看 current pointer。
     latestPlan: new ChapterPlanRepository(database).getLatestByChapterId(chapterId),
     latestDraft: new ChapterDraftRepository(database).getLatestByChapterId(chapterId),
     latestReview: new ChapterReviewRepository(database).getLatestByChapterId(chapterId),
@@ -114,6 +116,7 @@ export async function loadSnapshotChapterViewAsync(database: NovelDatabase, chap
     throw new NovelError(`Chapter not found: ${chapterId}`)
   }
 
+  // async 版本并发抓取 plan/draft/review/rewrite/output，减少纯读取命令的等待时间。
   const [latestPlan, latestDraft, latestReview, latestRewrite, latestOutput] = await Promise.all([
     new ChapterPlanRepository(database).getLatestByChapterIdAsync(chapterId),
     new ChapterDraftRepository(database).getLatestByChapterIdAsync(chapterId),
