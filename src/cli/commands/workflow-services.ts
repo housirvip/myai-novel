@@ -50,6 +50,12 @@ export function createWorkflowPlanningContextBuilder(database: NovelDatabase): P
   )
 }
 
+/**
+ * 创建 workflow 域使用的 `PlanningService`。
+ *
+ * 这里把 planning 所需 builder、repository 和 LLM 入口统一装配起来，
+ * 避免命令文件直接了解主链 service 的依赖细节。
+ */
 export function createWorkflowPlanningService(database: NovelDatabase): PlanningService {
   return new PlanningService(
     createWorkflowPlanningContextBuilder(database),
@@ -64,6 +70,12 @@ export function createWorkflowVolumePlanRepository(database: NovelDatabase): Vol
   return new VolumePlanRepository(database)
 }
 
+/**
+ * 读取某一章在当前卷计划中的 mission 视图。
+ *
+ * 这是一个查询装配函数，不会自己生成或修改 volume plan；
+ * 它只负责把“chapter + latest volume plan + matched mission”折叠成 CLI 可展示的视图对象。
+ */
 export function loadWorkflowMissionView(database: NovelDatabase, chapterId: string): {
   chapter: {
     id: string
@@ -126,6 +138,12 @@ export async function loadWorkflowMissionViewAsync(database: NovelDatabase, chap
   }
 }
 
+/**
+ * 读取某一卷的 review 聚合视图。
+ *
+ * 这里把 volume、latest volume plan、story threads、ending readiness 与 chapter reviews 放到同一视图里，
+ * 供 workflow / doctor / volume review 类命令统一消费。
+ */
 export function loadWorkflowVolumeReviewView(database: NovelDatabase, volumeId: string): {
   volume: {
     id: string

@@ -38,6 +38,14 @@ export type MySqlAdapter = {
   close(): Promise<void>
 }
 
+/**
+ * 创建 MySQL 后端适配器。
+ *
+ * 当前阶段保留的关键边界是：
+ * - async 查询链路已接通，可供 repository / migration 使用
+ * - sync API 明确抛错，避免调用方误以为 MySQL 可以像 sqlite 一样走同步路径
+ * - 事务通过 `AsyncLocalStorage` 绑定当前连接，确保事务内多次查询复用同一连接
+ */
 export function createMySqlAdapter(config: MySqlDatabaseConfig): MySqlAdapter {
   const pool = createPool({
     host: config.host,

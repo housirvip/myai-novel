@@ -3,12 +3,22 @@ import { NovelError } from '../../shared/utils/errors.js'
 import type { ChapterPlanRepository } from '../../infra/repository/chapter-plan-repository.js'
 import type { PlanningContextBuilder } from './planning-context-builder.js'
 
+/**
+ * `WritingContextBuilder` 负责把 `PlanningContext + ChapterPlan` 进一步收束成 `WritingContext`。
+ *
+ * 它回答的是 generation 阶段真正需要的两个问题：
+ * - 当前章应该执行哪些 scene / mission / carry / ending 约束
+ * - 这些约束如何被整理成模型或 fallback 草稿可以直接消费的写作任务包
+ */
 export class WritingContextBuilder {
   constructor(
     private readonly planningContextBuilder: PlanningContextBuilder,
     private readonly chapterPlanRepository: ChapterPlanRepository,
   ) {}
 
+  /**
+   * 同步构建 generation 使用的 `WritingContext`。
+   */
   build(chapterId: string): WritingContext {
     const planningContext = this.planningContextBuilder.build(chapterId)
 
@@ -82,6 +92,9 @@ export class WritingContextBuilder {
     }
   }
 
+  /**
+   * 异步构建 generation 使用的 `WritingContext`。
+   */
   async buildAsync(chapterId: string): Promise<WritingContext> {
     const planningContext = await this.planningContextBuilder.buildAsync(chapterId)
 

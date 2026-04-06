@@ -29,6 +29,21 @@ type ActiveHookView = {
   status: Hook['status']
 }
 
+/**
+ * `PlanningService` 负责把当前章的 planning 真源收束成一份可执行的 `ChapterPlan`。
+ *
+ * 它的输入真源主要来自：
+ * - `PlanningContextBuilder` 拼出的 `PlanningContext`
+ * - `HookRepository` 提供的 Hook 定义信息
+ *
+ * 它的输出真源是：
+ * - `ChapterPlanRepository` 中的新 plan 版本
+ * - `ChapterRepository.currentPlanVersionId` 的更新
+ *
+ * 这里保留了双轨语义：
+ * - 有 LLM 时，优先生成结构化计划并做 normalize 收口
+ * - 无 LLM 时，退化到 `createRuleBasedPlan()`，保证主链仍可继续推进
+ */
 export class PlanningService {
   constructor(
     private readonly contextBuilder: PlanningContextBuilder,
@@ -38,6 +53,12 @@ export class PlanningService {
     private readonly hookRepository: HookRepository,
   ) {}
 
+  /**
+   * 为指定章节生成当前有效的单章计划，并把版本写回 chapter 真源。
+   *
+   * 如果当前上下文尚未存在 `volumePlan`，这里会先用 `planVolumeWindow()` 推导一个最小卷级窗口，
+   * 以保证单章 planning 仍然拥有 mission / thread / carry 语义，而不是退化成孤立章节。
+   */
   async planChapter(chapterId: string): Promise<ChapterPlan> {
     const baseContext = await this.contextBuilder.buildAsync(chapterId)
     const derivedVolumePlan = baseContext.volumePlan ?? this.planVolumeWindow(baseContext)
@@ -60,6 +81,12 @@ export class PlanningService {
     return plan
   }
 
+  /**
+   * 基于当前章位置推导一个最小卷级滚动窗口。
+   *
+   * 这个方法不直接替代 `VolumePlanRepository` 的持久化卷计划，
+   * 它的职责是：当卷级导演真源还不完整时，先为接下来 `2-3` 章建立一个可连续推进的 mission 窗口。
+   */
   planVolumeWindow(context: PlanningContext): VolumePlan {
     const timestamp = nowIso()
     const chaptersInWindow = this.chapterRepository

@@ -7,6 +7,17 @@ import { VolumePlanRepository } from '../../../infra/repository/volume-plan-repo
 import { VolumeRepository } from '../../../infra/repository/volume-repository.js'
 import { NovelError } from '../../../shared/utils/errors.js'
 
+/**
+ * `state volume` 命令域的查询装配层。
+ *
+ * 这里把某一卷当前最重要的长期状态真源汇总到一起：
+ * - 卷本身与章节列表
+ * - 最新卷计划
+ * - 当前故事线程
+ * - 终局准备快照
+ *
+ * 它是一个状态视图函数，不负责生成或修改这些对象。
+ */
 export function loadStateVolumeView(database: NovelDatabase, volumeId: string): {
   book: { id: string; title: string }
   volume: {
@@ -58,6 +69,9 @@ export function loadStateVolumeView(database: NovelDatabase, volumeId: string): 
   }
 }
 
+/**
+ * 异步版卷状态聚合视图。
+ */
 export async function loadStateVolumeViewAsync(database: NovelDatabase, volumeId: string): Promise<{
   book: { id: string; title: string }
   volume: {

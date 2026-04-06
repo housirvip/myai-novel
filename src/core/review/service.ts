@@ -26,6 +26,22 @@ import { extractJsonObject } from '../../shared/utils/json.js'
 import { NovelError } from '../../shared/utils/errors.js'
 import { nowIso } from '../../shared/utils/time.js'
 
+/**
+ * `ReviewService` 负责把一章草稿转成结构化 `ReviewReport`。
+ *
+ * 它不是纯文本打分器，而是主链中的“诊断与分流”阶段：
+ * - 向 rewrite 提供问题分类、策略建议和结构化闭环提示
+ * - 向 approve 提供风险等级、mission 承接判断和 outcome 候选
+ *
+ * 它会同时综合三类信息：
+ * - 当前草稿与 chapter plan 的执行偏差
+ * - 当前状态真源（角色 / 物品 / Hook / 记忆）的连续性
+ * - 卷级 mission、thread、ending readiness 的导演信号
+ *
+ * fallback 语义：
+ * - 有 LLM 时，先尝试获得更细粒度审查结果
+ * - 失败或未配置时，退化到 rule-based review，再通过 merge 逻辑补齐关键硬约束检查
+ */
 export class ReviewService {
   constructor(
     private readonly bookRepository: BookRepository,
@@ -44,6 +60,12 @@ export class ReviewService {
     private readonly llmAdapter: LlmAdapter | null,
   ) {}
 
+  /**
+   * 对指定章节的当前草稿执行审查，并产出持久化 review 版本。
+   *
+   * 这里的“当前草稿”与“当前计划”都来自 chapter 真源上的 version 指针，
+   * 因此 review 的语义始终对应“当前准备用于后续 rewrite / approve 的那一版输入”。
+   */
   async reviewChapter(chapterId: string): Promise<ReviewReport> {
     const book = await this.bookRepository.getFirstAsync()
 

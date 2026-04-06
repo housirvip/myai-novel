@@ -12,6 +12,15 @@ import { readLlmEnv, readLlmStageConfig, type LlmEnvConfig } from '../../shared/
 import { OpenAiCompatibleLlmAdapter } from './openai-compatible-adapter.js'
 import { OpenAiLlmAdapter } from './openai-adapter.js'
 
+/**
+ * 创建当前项目使用的统一 LLM 入口。
+ *
+ * 这里的目标不是简单返回某个 provider adapter，
+ * 而是构造一个具备以下能力的“路由层”适配器：
+ * - 按 stage routing 或 input hint 选择 provider
+ * - 在 provider 不可用或执行失败时尝试 fallback provider
+ * - 为最终结果补齐统一的 `LlmExecutionMetadata`
+ */
 export function createLlmAdapter(): LlmAdapter | null {
   const env = readLlmEnv()
   const registry = createProviderRegistry(env)
@@ -23,6 +32,12 @@ export function createLlmAdapter(): LlmAdapter | null {
   return new RoutedLlmAdapter(env, registry)
 }
 
+/**
+ * `RoutedLlmAdapter` 是项目内部真正使用的 LLM 门面。
+ *
+ * 它把“请求想用哪个 provider”与“最终实际用了哪个 provider / model”分离开来，
+ * 从而支持 stage routing、fallback、统一 metadata 和 provider 尝试次数统计。
+ */
 class RoutedLlmAdapter implements LlmAdapter {
   readonly provider: LlmProvider
 
@@ -33,6 +48,15 @@ class RoutedLlmAdapter implements LlmAdapter {
     this.provider = env.provider
   }
 
+  /**
+   * 执行一次带 provider 路由和 fallback 的文本生成请求。
+   *
+   * 流程是：
+   * 1. 先解析本次请求“理论上应该使用”的 provider
+   * 2. 再构造直接 provider + fallback provider 的尝试序列
+   * 3. 每次尝试都为底层 adapter 补齐 model / timeout / retry / trace metadata
+   * 4. 成功后统一回填 `LlmExecutionMetadata`
+   */
   async generateText(input: PromptInput): Promise<GenerateResult> {
     const providerResolution = resolveRequestedProvider(input, this.env)
     const adapterAttempts = this.pickAdapterAttempts(providerResolution.provider)

@@ -60,6 +60,17 @@ type DraftSource =
   | { sourceType: 'rewrite'; sourceId: string; versionId: string; content: string }
   | { sourceType: 'draft'; sourceId: string; versionId: string; content: string }
 
+/**
+ * `ApproveService` 是当前章节主链的最终提交器。
+ *
+ * 它的职责不是再做一轮创作，而是把已经通过 review / rewrite 的结果真正提交进项目真源：
+ * - 写出最终章节文件
+ * - 记录 `ChapterOutput`
+ * - 更新角色、物品、Hook、记忆、故事状态、线程推进、终局准备等持久化状态
+ * - 将章节状态正式推进到 `finalized`
+ *
+ * 因此 approve 是“状态闭环阶段”，不是“文本优化阶段”。
+ */
 export class ApproveService {
   constructor(
     private readonly rootDir: string,
@@ -90,6 +101,12 @@ export class ApproveService {
     private readonly memoryRepository: MemoryRepository,
   ) {}
 
+  /**
+   * 批准当前章节，把 review / rewrite 结果提交为正式真源。
+   *
+   * 默认情况下，如果最新 review 风险为 `high`，这里会阻止提交；
+   * `force` 仅用于明确接受高风险批准的人工覆盖场景。
+   */
   async approveChapter(chapterId: string, options?: { force?: boolean }): Promise<ApproveResult> {
     const book = await this.bookRepository.getFirstAsync()
 

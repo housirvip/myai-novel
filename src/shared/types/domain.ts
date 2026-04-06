@@ -1,5 +1,27 @@
+/**
+ * 本文件定义小说工作流系统的核心领域模型。
+ *
+ * 可以把这些类型按三层理解：
+ * - 基础真源：`Book / Outline / Volume / Chapter / Character / Item / Hook / Memory`
+ * - 过程真源：`VolumePlan / ChapterPlan / ChapterDraft / ReviewReport / ChapterRewrite / ChapterOutput`
+ * - 上下文视图：`PlanningContext / WritingContext / ContextItemView / NarrativePressure`
+ *
+ * 主链的大致流向是：
+ * `Outline + State + Volume signals -> ChapterPlan -> ChapterDraft -> ReviewReport -> ChapterRewrite -> ApproveResult`
+ *
+ * 因此，阅读本文件时最重要的不是单个字段本身，而是弄清：
+ * - 哪些对象是“持久化真源”
+ * - 哪些对象是“阶段产物”
+ * - 哪些对象只是为了 planning / generation / review 临时拼装的上下文快照
+ */
 export type IsoTimestamp = string
 
+/**
+ * `Book` 是项目级真源。
+ *
+ * 它不只保存作品标题，也提供全局默认创作参数，尤其是字数目标与容差，
+ * 后续 generation / review 都会直接使用这些字段作为执行基线。
+ */
 export type Book = {
   id: string
   title: string
@@ -32,8 +54,25 @@ export type Volume = {
   updatedAt: IsoTimestamp
 }
 
+/**
+ * `ChapterStatus` 表示章节在主链中的推进阶段。
+ *
+ * 这里的状态不是“文本质量评价”，而是工作流状态：
+ * - `planned`：已有计划，但还没有正文
+ * - `drafted`：已有正文草稿
+ * - `reviewed`：已有审查结果，可决定重写或批准
+ * - `finalized`：已完成 approve 并形成最终输出
+ */
 export type ChapterStatus = 'planned' | 'drafted' | 'reviewed' | 'finalized'
 
+/**
+ * `Chapter` 是单章主真源。
+ *
+ * 它负责把“章节身份”和“工作流状态”绑定在一起：
+ * - `currentPlanVersionId` 指向当前使用的 planning 结果
+ * - `currentVersionId` 指向当前用于 review / approve 的正文来源版本
+ * - `status` 决定 CLI 是否允许继续进入下一阶段命令
+ */
 export type Chapter = {
   id: string
   bookId: string
@@ -95,6 +134,15 @@ export type ItemCurrentState = {
   updatedAt: IsoTimestamp
 }
 
+/**
+ * `ContextItemView` 是 planning / writing / review 阶段使用的“关键物品上下文视图”。
+ *
+ * 它把 `Item` 的静态定义和 `ItemCurrentState` 的动态状态合并到一起，
+ * 这样上层 service 不需要反复自己 join 两份真源，就能直接判断：
+ * - 这个物品是什么
+ * - 当前在哪、谁持有、数量多少、状态如何
+ * - 它是否属于重要物品，是否应该被正文显式承接
+ */
 export type ContextItemView = ItemCurrentState & {
   id: string
   name: string
@@ -536,6 +584,17 @@ export type WritingQualityContract = {
   proseQualityRules: string[]
 }
 
+/**
+ * `PlanningContext` 是 planning 阶段的输入快照。
+ *
+ * 它不是新的持久化真源，而是把当前章 planning 需要的所有约束拼到一起：
+ * - 基础作品信息：`book / outline / volume / chapter`
+ * - 当前状态真源：角色、物品、Hook、记忆、叙事压力
+ * - 卷级导演信号：`volumePlan / activeStoryThreads / currentChapterMission / endingReadiness`
+ * - 群像与支线平衡信号：`characterPresenceWindows / ensembleBalanceReport`
+ *
+ * `PlanningService` 的职责，就是把这个上下文收束成一份可执行的 `ChapterPlan`。
+ */
 export type PlanningContext = {
   book: Book
   outline: Outline
@@ -558,6 +617,16 @@ export type PlanningContext = {
   ensembleBalanceReport: EnsembleBalanceReport
 }
 
+/**
+ * `WritingContext` 是 generation 阶段的输入快照。
+ *
+ * 它在 `PlanningContext` 基础上新增了三类 generation 专用约束：
+ * - `chapterPlan`：单章执行计划真源
+ * - `sceneTasks`：把场景目标、限制、情绪、结果清单整理成任务包
+ * - `writingQualityContract` 与风格约束：把“怎样写”显式化
+ *
+ * 简单说：`PlanningContext` 回答“该写什么”，`WritingContext` 回答“该怎样写”。
+ */
 export type WritingContext = PlanningContext & {
   chapterPlan: ChapterPlan
   sceneTasks: {
@@ -873,6 +942,16 @@ export type ChapterRewriteValidation = {
   targetedIssueTypes: string[]
 }
 
+/**
+ * `ChapterRewrite` 是 rewrite 阶段的正式产物。
+ *
+ * 它并不是“替换原草稿的匿名文本”，而是一份带有来源链与验证信息的可追溯版本：
+ * - `sourceDraftId / sourceReviewId` 记录它基于哪一轮草稿与审查生成
+ * - `strategyProfile / qualityTarget` 记录本次重写要优先修什么
+ * - `validation` 记录 rewrite 后是否仍保持既有结构化事实边界
+ *
+ * approve 阶段会基于它决定是否直接提交重写稿，或回退到原草稿版本来源。
+ */
 export type ChapterRewrite = {
   id: string
   bookId: string
@@ -1060,6 +1139,17 @@ export type LlmResolutionSource = 'input-hint' | 'stage-routing' | 'default-prov
 
 export type LlmModelSource = 'input-hint' | 'stage-routing' | 'provider-default'
 
+/**
+ * `LlmExecutionMetadata` 是所有 LLM 阶段共享的执行追踪信息。
+ *
+ * 它存在的意义不是“日志装饰”，而是为了把一次模型调用的关键决策显式保存下来：
+ * - 请求原本想用哪个 provider / model
+ * - 最终实际用了哪个 provider / model
+ * - 是否发生 fallback、重试、超时调整
+ * - 这次调用属于哪个 stage，traceId 是什么
+ *
+ * doctor、regression、snapshot 以及 review/approve 的可解释性都依赖这些元数据。
+ */
 export type LlmExecutionMetadata = {
   stage?: LlmTaskStage
   requestedProvider?: LlmProvider

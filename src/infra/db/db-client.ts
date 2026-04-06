@@ -1,5 +1,12 @@
 import type { NovelDatabase } from './database.js'
 
+/**
+ * 本文件提供数据库访问的薄包装函数。
+ *
+ * 它的意义不是增加额外逻辑，而是把 repository 层常用的读写入口统一成稳定函数名，
+ * 便于后续替换底层 database 门面时减少直接耦合面。
+ */
+
 export function dbGet<T>(database: NovelDatabase, sql: string, ...params: unknown[]): T | undefined {
   return database.db.get<T>(sql, ...params)
 }

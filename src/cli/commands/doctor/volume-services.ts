@@ -61,6 +61,16 @@ export type DoctorVolumeView = {
   }>
 }
 
+/**
+ * `doctor volume` 的诊断装配层。
+ *
+ * 它的职责不是修复问题，而是把卷级导演真源、线程推进、章节产出和 ending readiness
+ * 汇总成一份可读的风险视图，用于回答：
+ * - 这一卷有没有卷计划
+ * - 线程有没有长期停滞
+ * - mission 链是否断裂
+ * - 终局收束压力是否正在累积
+ */
 export function loadDoctorVolumeView(database: NovelDatabase, volumeId: string): DoctorVolumeView {
   const book = new BookRepository(database).getFirst()
 
@@ -168,6 +178,9 @@ export function loadDoctorVolumeView(database: NovelDatabase, volumeId: string):
   }
 }
 
+/**
+ * 异步版卷级风险诊断视图。
+ */
 export async function loadDoctorVolumeViewAsync(database: NovelDatabase, volumeId: string): Promise<DoctorVolumeView> {
   const book = await new BookRepository(database).getFirstAsync()
 

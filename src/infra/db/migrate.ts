@@ -2,6 +2,14 @@ import type { NovelDatabase } from './database.js'
 import { migrations } from './schema.js'
 import { isSqliteDatabase } from './sqlite-support.js'
 
+/**
+ * 执行数据库迁移。
+ *
+ * 这里的目标不是做复杂 migration 框架，而是为当前项目提供一套可重复执行、幂等的最小迁移机制：
+ * - 统一维护 `schema_migrations`
+ * - 按顺序执行 `schema.ts` 中声明的 migrations
+ * - 允许部分“可忽略重复列”错误安全跳过，兼容已存在的演进状态
+ */
 export async function runMigrations(database: NovelDatabase): Promise<void> {
   if (!isSqliteDatabase(database)) {
     await database.dbAsync.exec(`
@@ -54,6 +62,11 @@ export async function runMigrations(database: NovelDatabase): Promise<void> {
   }
 }
 
+/**
+ * 判断某次 migration 错误是否可以视为“已具备目标结构”的兼容情况。
+ *
+ * 当前仅对重复列错误做宽容处理，避免历史库在补迁移时因为已存在列而整批失败。
+ */
 function isIgnorableMigrationError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false

@@ -15,6 +15,13 @@ import type { StoryThreadRepository } from '../../infra/repository/story-thread-
 import type { VolumePlanRepository } from '../../infra/repository/volume-plan-repository.js'
 import type { VolumeRepository } from '../../infra/repository/volume-repository.js'
 
+/**
+ * `PlanningContextBuilder` 负责把 planning 阶段需要的分散真源拼成 `PlanningContext`。
+ *
+ * 它本身不生成 plan，也不写回任何状态；
+ * 它的职责是把 book / outline / chapter / volume / state / memory / thread / ending signals
+ * 聚合成一次 planning 可直接消费的上下文快照。
+ */
 export class PlanningContextBuilder {
   constructor(
     private readonly bookRepository: BookRepository,
@@ -33,6 +40,12 @@ export class PlanningContextBuilder {
     private readonly narrativeDebtRepository: NarrativeDebtRepository,
   ) {}
 
+  /**
+   * 同步构建 planning 上下文。
+   *
+   * 适用于当前仍走 sqlite 同步链路的场景；
+   * 若依赖后端是 async-only，则应使用 `buildAsync()`。
+   */
   build(chapterId: string): PlanningContext {
     const book = this.bookRepository.getFirst()
 
@@ -124,6 +137,12 @@ export class PlanningContextBuilder {
     }
   }
 
+  /**
+   * 异步构建 planning 上下文。
+   *
+   * 这是面向 MySQL / async repository 链路的标准入口，
+   * 语义上与 `build()` 保持一致，只是改为异步取数。
+   */
   async buildAsync(chapterId: string): Promise<PlanningContext> {
     const book = await this.bookRepository.getFirstAsync()
 

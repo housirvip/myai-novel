@@ -1,6 +1,17 @@
 import type { LlmProvider } from '../../shared/types/domain.js'
 import { LlmRequestError, type LlmErrorCategory } from '../../shared/utils/errors.js'
 
+/**
+ * 本文件负责执行最底层的 LLM HTTP 请求，并把响应错误统一归类。
+ *
+ * `factory` 负责 provider 路由与 fallback，
+ * 而这里负责：
+ * - 真正发请求
+ * - 处理超时
+ * - 处理重试
+ * - 把 HTTP / network / abort 错误归一到 `LlmRequestError`
+ */
+
 type ExecuteResponsesRequestInput = {
   provider: LlmProvider
   url: string
@@ -10,6 +21,12 @@ type ExecuteResponsesRequestInput = {
   maxRetries: number
 }
 
+/**
+ * 执行一次 responses 风格的 LLM 请求。
+ *
+ * 这里的 retry 只针对“可重试错误”生效；
+ * 一旦错误被归类为不可重试，就会立即抛出，避免无意义放大失败延迟。
+ */
 export async function executeResponsesRequest<T>(input: ExecuteResponsesRequestInput): Promise<{
   payload: T
   requestId?: string
@@ -76,6 +93,11 @@ export async function executeResponsesRequest<T>(input: ExecuteResponsesRequestI
   throw lastError instanceof Error ? lastError : new Error('Unknown LLM request failure')
 }
 
+/**
+ * 把任意底层错误归一成 `LlmRequestError`。
+ *
+ * 这样上游逻辑不需要知道 fetch / AbortController / 原始异常对象的细节。
+ */
 function normalizeLlmError(error: unknown, provider: LlmProvider, timeoutMs: number): LlmRequestError {
   if (error instanceof LlmRequestError) {
     return error
@@ -104,6 +126,9 @@ function normalizeLlmError(error: unknown, provider: LlmProvider, timeoutMs: num
   )
 }
 
+/**
+ * 根据 HTTP 状态码推断统一错误分类。
+ */
 function categoryFromStatus(status: number): LlmErrorCategory {
   if (status === 401 || status === 403) {
     return 'auth'
@@ -124,6 +149,9 @@ function categoryFromStatus(status: number): LlmErrorCategory {
   return 'client'
 }
 
+/**
+ * 是否值得对该状态码继续重试。
+ */
 function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 425 || status === 429 || status >= 500
 }

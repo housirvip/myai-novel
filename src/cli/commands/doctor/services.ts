@@ -74,6 +74,9 @@ type DoctorProjectSummary = {
 
 /**
  * `doctor` 命令域的查询装配层。
+ *
+ * 这里的职责不是执行业务主链，而是把项目当前的“可运行性 / 可读性 / 链路完整性”
+ * 汇总成一组稳定诊断视图，供 CLI 与 regression 共同消费。
  */
 export function loadDoctorProjectView(database: NovelDatabase): DoctorProjectSummary {
   const book = new BookRepository(database).getFirst()
@@ -145,6 +148,12 @@ export async function loadDoctorProjectViewAsync(database: NovelDatabase): Promi
   }
 }
 
+/**
+ * `loadDoctorBootstrapView()` 用于项目尚未初始化时的最小诊断视图。
+ *
+ * 它允许 `novel doctor` 在没有 book / database runtime 的情况下，
+ * 仍然先展示 env provider 与 database config 是否可读、可用。
+ */
 export function loadDoctorBootstrapView(): DoctorProjectSummary {
   const llmStages: readonly LlmTaskStage[] = ['planning', 'generation', 'review', 'rewrite']
 

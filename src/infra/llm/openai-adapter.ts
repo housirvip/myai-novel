@@ -20,11 +20,23 @@ type ResponsesApiResponse = {
   }>
 }
 
+/**
+ * OpenAI 官方 responses API 适配器。
+ *
+ * 它的职责是把项目内部统一的 `PromptInput` 转成 OpenAI `/responses` 请求，
+ * 并把返回值收敛成项目统一的 `GenerateResult` 结构。
+ */
 export class OpenAiLlmAdapter implements LlmAdapter {
   readonly provider = 'openai' as const
 
   constructor(private readonly options: OpenAiAdapterOptions) {}
 
+  /**
+   * 执行一次 OpenAI 文本生成。
+   *
+   * 如果响应里没有可提取的文本内容，这里会抛出 `invalid-response`，
+   * 交由上层 factory 决定是否 fallback 到其他 provider。
+   */
   async generateText(input: PromptInput): Promise<GenerateResult> {
     const timeoutMs = input.metadata?.timeoutMs ?? 60000
     const maxRetries = input.metadata?.maxRetries ?? 1

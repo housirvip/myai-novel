@@ -23,6 +23,20 @@ import type { HookStateRepository } from '../../infra/repository/hook-state-repo
 import type { ItemCurrentStateRepository } from '../../infra/repository/item-current-state-repository.js'
 import type { MemoryRepository } from '../../infra/repository/memory-repository.js'
 
+/**
+ * `RewriteService` 负责把 `ReviewReport` 转成一份可提交或再次复核的重写版本。
+ *
+ * 它不重新决定章节方向，而是严格围绕 review 的问题分类、closure suggestions
+ * 和卷级导演上下文，对既有草稿进行“定向修复”。
+ *
+ * 输出真源：
+ * - `ChapterRewriteRepository` 中新增 rewrite 版本
+ * - `ChapterRepository.currentVersionId` 更新为该 rewrite 版本
+ *
+ * fallback 语义：
+ * - 有 LLM 时，优先请求模型重写
+ * - 否则构造带有策略说明和保护事实的 rule-based rewrite 文本，保证主链不中断
+ */
 export class RewriteService {
   constructor(
     private readonly bookRepository: BookRepository,
@@ -38,6 +52,16 @@ export class RewriteService {
     private readonly llmAdapter: LlmAdapter | null,
   ) {}
 
+  /**
+   * 为指定章节生成一版新的 rewrite 结果。
+   *
+   * rewrite 的前置条件比 generation 更严格：
+   * - 必须已有 draft
+   * - 必须已有 review
+   * - 必须已有 current plan
+   *
+   * 因为没有这些结构化输入，就无法保证重写仍然服务于原本章节职责，而不是演变成再次自由创作。
+   */
   async rewriteChapter(request: RewriteRequest): Promise<ChapterRewrite> {
     const book = await this.bookRepository.getFirstAsync()
 

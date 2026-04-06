@@ -45,6 +45,16 @@ export type RegressionVolumeSuiteResult = {
   summary: string
 }
 
+/**
+ * `regression` 命令域的执行装配层。
+ *
+ * 它的职责不是直接调用业务主链，而是把一组“可重复运行的回归烟雾检查”收口成统一结果结构：
+ * - 先判断 case 是否已注册
+ * - 再判断该 case 是否依赖项目数据库或特定 target
+ * - 最后把诊断结果统一折叠成 `RegressionRunResult`
+ *
+ * 这样 CLI、测试和后续 volume suite 都能复用同一套回归口径。
+ */
 export async function executeRegressionCase(
   database: NovelDatabase | null,
   caseName: string,

@@ -6,6 +6,20 @@ import type { ChapterDraftRepository } from '../../infra/repository/chapter-draf
 import type { ChapterRepository } from '../../infra/repository/chapter-repository.js'
 import type { WritingContextBuilder } from '../context/writing-context-builder.js'
 
+/**
+ * `GenerationService` 负责把 `WritingContext` 转成可供 review 的章节草稿。
+ *
+ * 它承接的是已经完成 planning 的章节，因此这里不再决定“写什么”，
+ * 而是负责把 `chapterPlan + state + volume directives + style constraints` 兑现成正文。
+ *
+ * 输出真源有两处：
+ * - `ChapterDraftRepository` 中新增的 draft 版本
+ * - `ChapterRepository` 中当前章节状态切换为 `drafted`
+ *
+ * fallback 语义：
+ * - 有 LLM 时，直接请求模型写正文
+ * - 无 LLM 时，生成结构化 rule-based draft，保证 review / rewrite 链路仍可继续
+ */
 export class GenerationService {
   constructor(
     private readonly writingContextBuilder: WritingContextBuilder,
@@ -14,6 +28,12 @@ export class GenerationService {
     private readonly llmAdapter: LlmAdapter | null,
   ) {}
 
+  /**
+   * 为指定章节生成下一版正文草稿。
+   *
+   * 这里不会自行查询 chapter plan 之外的真源，而是完全信任 `WritingContextBuilder`
+   * 已经把 generation 所需约束收口完毕。
+   */
   async writeNext(chapterId: string): Promise<WriteNextResult> {
     const context = await this.writingContextBuilder.buildAsync(chapterId)
     const timestamp = nowIso()
@@ -35,6 +55,12 @@ export class GenerationService {
   }
 }
 
+/**
+ * LLM 正文生成分支。
+ *
+ * 这里保留单独函数，是为了把 generation 阶段的提示词组织、执行元数据和产物封装隔离出来，
+ * 让 `writeNext()` 保持“调度 + 持久化”职责，而不是同时承担 prompt 细节。
+ */
 async function createLlmDraft(
   llmAdapter: LlmAdapter,
   context: WritingContext,
@@ -77,6 +103,12 @@ async function createLlmDraft(
   }
 }
 
+/**
+ * 把 `WritingContext` 收束成 generation 阶段的结构化 payload。
+ *
+ * 这个 payload 的核心目标不是“把所有上下文原样塞给模型”，
+ * 而是明确告诉模型：当前章的 mission、scene task、状态约束、卷级导演要求和结尾牵引分别是什么。
+ */
 function buildGenerationPromptPayload(context: WritingContext): Record<string, unknown> {
   return {
     task: {
@@ -184,6 +216,12 @@ function buildGenerationPromptPayload(context: WritingContext): Record<string, u
   }
 }
 
+/**
+ * 无 LLM 时的最小草稿 fallback。
+ *
+ * 它不追求文学质量，而追求结构完整：让 review / rewrite / approve 能继续沿着稳定字段工作，
+ * 而不是因为外部模型不可用就让整条主链断掉。
+ */
 function createRuleBasedDraft(context: WritingContext, timestamp: string): ChapterDraft {
   const content = buildDraftContent(context)
 

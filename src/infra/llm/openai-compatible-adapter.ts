@@ -20,11 +20,20 @@ type CompatibleResponsesApiResponse = {
   }>
 }
 
+/**
+ * OpenAI-compatible responses API 适配器。
+ *
+ * 这个适配器和 `OpenAiLlmAdapter` 共享统一输入输出协议，
+ * 但允许把请求发往兼容 OpenAI 接口的第三方 provider。
+ */
 export class OpenAiCompatibleLlmAdapter implements LlmAdapter {
   readonly provider = 'openai-compatible' as const
 
   constructor(private readonly options: OpenAiCompatibleAdapterOptions) {}
 
+  /**
+   * 执行一次兼容 OpenAI 协议的文本生成。
+   */
   async generateText(input: PromptInput): Promise<GenerateResult> {
     const timeoutMs = input.metadata?.timeoutMs ?? 60000
     const maxRetries = input.metadata?.maxRetries ?? 1
