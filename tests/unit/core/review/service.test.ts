@@ -154,6 +154,11 @@ test('review helper groups detect thread, ending, ensemble, debt and scene execu
     ['未完成叙事债务未被承接：promise：兑现旧约'],
   )
 
+  assert.deepEqual(
+    __reviewServiceTestables.mergeDebtCarryIssues(['promise：兑现旧约'], [], '正文里主角终于兑现旧约，并为旧案付出代价。'),
+    [],
+  )
+
   const sceneIssues = __reviewServiceTestables.mergeSceneExecutionIssues(
     [{ sceneTitle: '场景一', conflict: '潜入敌营', informationReveal: '发现异常', emotionalShift: '紧张升级' }],
     [{ sceneTitle: '场景一', mustHappen: ['进入据点'] }],

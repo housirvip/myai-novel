@@ -1343,8 +1343,36 @@ function mergeDebtCarryIssues(
     : openNarrativeDebts.slice(0, 3).map((item) => item.summary)
 
   return targets
-    .filter((target) => !content.includes(target.split('：').at(-1) ?? target))
+    .filter((target) => !containsAffirmedDebtCarry(content, target))
     .map((target) => `未完成叙事债务未被承接：${target}`)
+}
+
+/**
+ * 叙事债务的承接判断不能只看关键词是否出现。
+ *
+ * 像“没有兑现旧约”这类否定句，虽然字面包含“兑现旧约”，
+ * 但语义上仍然是在说明债务尚未被承接，因此这里需要排除明显的否定前缀。
+ */
+function containsAffirmedDebtCarry(content: string, target: string): boolean {
+  const normalizedTarget = (target.split('：').at(-1) ?? target).trim()
+
+  if (normalizedTarget.length < 2) {
+    return false
+  }
+
+  let index = content.indexOf(normalizedTarget)
+
+  while (index !== -1) {
+    const prefix = content.slice(Math.max(0, index - 6), index).replace(/[，。；、,.;:!?（）()【】\[\]<>《》“”"'\-\s]+/g, '')
+
+    if (!/(没有|并没有|尚未|还未|并未|未能|未曾|从未|不能|无法|无力|没能|未)$/u.test(prefix)) {
+      return true
+    }
+
+    index = content.indexOf(normalizedTarget, index + normalizedTarget.length)
+  }
+
+  return false
 }
 
 function mergeSceneExecutionIssues(

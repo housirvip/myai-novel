@@ -562,16 +562,16 @@
 
 ## 11. v6 执行清单
 
-- [ ] 定义统一的关键代码注释标准
-- [ ] 补齐 P0 核心模块注释
-- [ ] 补齐 P1 关键基础设施与命令服务层注释
-- [ ] 建立正式单测脚本与测试目录约定
-- [ ] 增加 `tsconfig.test.json` 或等价测试类型检查方案
-- [ ] 建立测试 helper / fixture / temp project 基础设施
-- [ ] 覆盖 `env / llm factory / request-runtime` 第一批单测
-- [ ] 覆盖 `review / rewrite / doctor / regression` 第一批高价值单测
-- [ ] 建立基础 coverage 输出能力
-- [ ] 固化 `v6` 的验收与后续维护规范
+- [x] 定义统一的关键代码注释标准
+- [x] 补齐 P0 核心模块注释
+- [x] 补齐 P1 关键基础设施与命令服务层注释
+- [x] 建立正式单测脚本与测试目录约定
+- [x] 增加 `tsconfig.test.json` 或等价测试类型检查方案
+- [x] 建立测试 helper / fixture / temp project 基础设施
+- [x] 覆盖 `env / llm factory / request-runtime` 第一批单测
+- [x] 覆盖 `review / rewrite / doctor / regression` 第一批高价值单测
+- [x] 建立基础 coverage 输出能力
+- [x] 固化 `v6` 的验收与后续维护规范
 
 ---
 
