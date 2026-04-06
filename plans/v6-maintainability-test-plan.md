@@ -13,10 +13,17 @@
 
 > 为当前小说工作流系统建立一套可长期维护的“注释 + 测试 + 验收”基线，让团队接手、后续重构、基础设施调整都更安全。
 
-这份计划是对 [`plans/v6-task-breakdown.md`](plans/v6-task-breakdown.md:1) 的上层说明：
+这份文档现在定位为 `v6` 的专项补充计划，整体关系如下：
 
-- 这里回答 **为什么做、优先做什么、按什么原则做**
-- task breakdown 回答 **具体做到哪、分哪些阶段落地**
+- 总体计划见 [`plans/v6-plan.md`](plans/v6-plan.md:1)
+- 任务拆解见 [`plans/v6-task-breakdown.md`](plans/v6-task-breakdown.md:1)
+- 验收口径见 [`plans/v6-acceptance-checklist.md`](plans/v6-acceptance-checklist.md:1)
+
+其中：
+
+- [`plans/v6-plan.md`](plans/v6-plan.md:1) 回答 **为什么做、优先做什么、按什么原则做**
+- 当前文档回答 **可维护性与测试基线应如何组织**
+- [`plans/v6-task-breakdown.md`](plans/v6-task-breakdown.md:1) 回答 **具体做到哪、分哪些阶段落地**
 
 ---
 

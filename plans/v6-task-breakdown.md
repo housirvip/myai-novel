@@ -1,5 +1,13 @@
 # AI 自动写小说工具 v6 任务拆解
 
+配套上层计划见 [`plans/v6-plan.md`](plans/v6-plan.md:1)。
+
+建议阅读顺序：
+
+1. 先看 [`plans/v6-plan.md`](plans/v6-plan.md:1)，理解 `v6` 的目标、原则与范围
+2. 再看当前文档，理解 `v6` 的阶段拆解与任务落地方式
+3. 最后结合 [`plans/v6-acceptance-checklist.md`](plans/v6-acceptance-checklist.md:1) 做验收
+
 ## 1. 这份文档的定位
 
 - 这份文档不是继续扩新功能面

@@ -2,6 +2,12 @@
 
 本清单用于确认 `v6` 是否已经达到“可理解、可验证、可维护、可持续扩展”的目标。
 
+配套文档建议结合阅读：
+
+- 总体计划：[`plans/v6-plan.md`](plans/v6-plan.md:1)
+- 任务拆解：[`plans/v6-task-breakdown.md`](plans/v6-task-breakdown.md:1)
+- 专项计划：[`plans/v6-maintainability-test-plan.md`](plans/v6-maintainability-test-plan.md:1)
+
 ---
 
 ## 1. 注释补全基线
