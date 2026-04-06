@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { loadWorkflowMissionView, loadWorkflowVolumeReviewView } from '../../../src/cli/commands/workflow-services.js'
+import {
+  loadWorkflowMissionView,
+  loadWorkflowMissionViewAsync,
+  loadWorkflowVolumeReviewView,
+  loadWorkflowVolumeReviewViewAsync,
+} from '../../../src/cli/commands/workflow-services.js'
+import { NovelError } from '../../../src/shared/utils/errors.js'
 import { BookRepository } from '../../../src/infra/repository/book-repository.js'
 import { ChapterDraftRepository } from '../../../src/infra/repository/chapter-draft-repository.js'
 import { ChapterPlanRepository } from '../../../src/infra/repository/chapter-plan-repository.js'
@@ -80,6 +86,56 @@ test('loadWorkflowVolumeReviewView aggregates chapter reviews under a volume', a
       assert.equal(view.storyThreads.length, 1)
       assert.equal(view.chapterReviews.length, 1)
       assert.equal((view.chapterReviews[0] as any)?.latestReview?.id, 'review-1')
+    })
+  })
+})
+
+test('loadWorkflowMissionView throws when chapter is missing', async () => {
+  await withSqliteDatabase(async (database) => {
+    assert.throws(() => loadWorkflowMissionView(database, 'missing-chapter'), NovelError)
+  })
+})
+
+test('loadWorkflowVolumeReviewView throws when project is not initialized or volume is missing', async () => {
+  await withSqliteDatabase(async (database) => {
+    assert.throws(() => loadWorkflowVolumeReviewView(database, 'volume-1'), NovelError)
+
+    await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
+      await new BookRepository(database).createAsync(createBookFixture())
+      assert.throws(() => loadWorkflowVolumeReviewView(database, 'missing-volume'), NovelError)
+    })
+  })
+})
+
+test('loadWorkflowMissionViewAsync and loadWorkflowVolumeReviewViewAsync return async views', async () => {
+  await withSqliteDatabase(async (database) => {
+    await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
+      await new BookRepository(database).createAsync(createBookFixture())
+      await insertVolumeAndChapter(database, { bookId: 'book-1', volumeId: 'volume-1', chapterId: 'chapter-1' })
+      await new ChapterPlanRepository(database).createAsync(createChapterPlanFixture())
+      await new ChapterDraftRepository(database).createAsync(createChapterDraftFixture())
+      await new ChapterReviewRepository(database).createAsync(createReviewReportFixture())
+      await new VolumePlanRepository(database).createAsync(createVolumePlanFixture())
+
+      const missionView = await loadWorkflowMissionViewAsync(database, 'chapter-1')
+      const reviewView = await loadWorkflowVolumeReviewViewAsync(database, 'volume-1')
+
+      assert.equal(missionView.chapter.id, 'chapter-1')
+      assert.equal((missionView.mission as any)?.chapterId, 'chapter-1')
+      assert.equal(reviewView.volume.id, 'volume-1')
+      assert.equal(reviewView.chapterReviews.length, 1)
+    })
+  })
+})
+
+test('loadWorkflowMissionViewAsync and loadWorkflowVolumeReviewViewAsync reject on missing resources', async () => {
+  await withSqliteDatabase(async (database) => {
+    await assert.rejects(() => loadWorkflowMissionViewAsync(database, 'missing-chapter'), NovelError)
+    await assert.rejects(() => loadWorkflowVolumeReviewViewAsync(database, 'volume-1'), NovelError)
+
+    await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
+      await new BookRepository(database).createAsync(createBookFixture())
+      await assert.rejects(() => loadWorkflowVolumeReviewViewAsync(database, 'missing-volume'), NovelError)
     })
   })
 })

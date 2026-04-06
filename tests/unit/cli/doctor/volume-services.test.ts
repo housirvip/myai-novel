@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { loadDoctorVolumeView } from '../../../../src/cli/commands/doctor/volume-services.js'
+import { loadDoctorVolumeView, loadDoctorVolumeViewAsync } from '../../../../src/cli/commands/doctor/volume-services.js'
 import { BookRepository } from '../../../../src/infra/repository/book-repository.js'
 import { VolumePlanRepository } from '../../../../src/infra/repository/volume-plan-repository.js'
+import { NovelError } from '../../../../src/shared/utils/errors.js'
 import { withEnv } from '../../../helpers/env.js'
 import {
   createBookFixture,
@@ -104,6 +105,93 @@ test('loadDoctorVolumeView summarizes thread and mission diagnostics from persis
       assert.equal(view.diagnostics.missionChainGapCount, 0)
       assert.equal(view.diagnostics.closureGapCount, 0)
       assert.equal(view.overview.overallLevel, 'low')
+    })
+  })
+})
+
+test('loadDoctorVolumeView throws when project or volume is missing', async () => {
+  await withSqliteDatabase(async (database) => {
+    assert.throws(() => loadDoctorVolumeView(database, 'volume-1'), NovelError)
+
+    await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
+      await new BookRepository(database).createAsync(createBookFixture())
+      assert.throws(() => loadDoctorVolumeView(database, 'missing-volume'), NovelError)
+    })
+  })
+})
+
+test('loadDoctorVolumeViewAsync mirrors the persisted healthy diagnostics view', async () => {
+  await withSqliteDatabase(async (database) => {
+    await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
+      await new BookRepository(database).createAsync(createBookFixture())
+      await insertVolumeAndChapter(database, { bookId: 'book-1', volumeId: 'volume-1', chapterId: 'chapter-1' })
+
+      await new VolumePlanRepository(database).createAsync(createVolumePlanFixture())
+      await database.dbAsync.run(
+        `INSERT INTO story_threads (
+          id, book_id, volume_id, title, thread_type, summary, priority, stage,
+          linked_character_ids_json, linked_hook_ids_json, target_outcome, status,
+          updated_by_chapter_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        'thread-1',
+        'book-1',
+        'volume-1',
+        '王城线',
+        'main',
+        '围绕王城阴谋持续推进',
+        'high',
+        'developing',
+        JSON.stringify([]),
+        JSON.stringify([]),
+        '逼近真相',
+        'active',
+        'chapter-1',
+        '2026-04-06T00:00:00.000Z',
+      )
+      await database.dbAsync.run(
+        `INSERT INTO story_thread_progress (
+          id, book_id, thread_id, chapter_id, progress_status, summary, detail_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        'progress-1',
+        'book-1',
+        'thread-1',
+        'chapter-1',
+        'advanced',
+        '王城线推进',
+        JSON.stringify(createStoryThreadProgressFixture().impacts),
+        '2026-04-06T00:10:00.000Z',
+      )
+      await database.dbAsync.run(
+        `INSERT INTO ending_readiness_current (
+          book_id, target_volume_id, readiness_score, closure_score,
+          pending_payoffs_json, closure_gaps_json, final_conflict_prerequisites_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        'book-1',
+        'volume-1',
+        80,
+        70,
+        JSON.stringify([]),
+        JSON.stringify([]),
+        JSON.stringify([]),
+        '2026-04-06T00:20:00.000Z',
+      )
+
+      const view = await loadDoctorVolumeViewAsync(database, 'volume-1')
+
+      assert.equal(view.diagnostics.hasVolumePlan, true)
+      assert.equal(view.diagnostics.threadCount, 1)
+      assert.equal(view.overview.overallLevel, 'low')
+    })
+  })
+})
+
+test('loadDoctorVolumeViewAsync rejects when project or volume is missing', async () => {
+  await withSqliteDatabase(async (database) => {
+    await assert.rejects(() => loadDoctorVolumeViewAsync(database, 'volume-1'), NovelError)
+
+    await withEnv({ ...resetEnv, LLM_PROVIDER: 'openai', OPENAI_MODEL: 'gpt-openai' }, async () => {
+      await new BookRepository(database).createAsync(createBookFixture())
+      await assert.rejects(() => loadDoctorVolumeViewAsync(database, 'missing-volume'), NovelError)
     })
   })
 })
