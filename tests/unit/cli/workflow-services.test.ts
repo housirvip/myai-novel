@@ -2,11 +2,22 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  createWorkflowGenerationService,
+  createWorkflowPlanningContextBuilder,
+  createWorkflowPlanningService,
+  createWorkflowReviewService,
+  createWorkflowVolumePlanRepository,
+  createWorkflowWritingContextBuilder,
   loadWorkflowMissionView,
   loadWorkflowMissionViewAsync,
   loadWorkflowVolumeReviewView,
   loadWorkflowVolumeReviewViewAsync,
 } from '../../../src/cli/commands/workflow-services.js'
+import { PlanningContextBuilder } from '../../../src/core/context/planning-context-builder.js'
+import { WritingContextBuilder } from '../../../src/core/context/writing-context-builder.js'
+import { GenerationService } from '../../../src/core/generation/service.js'
+import { PlanningService } from '../../../src/core/planning/service.js'
+import { ReviewService } from '../../../src/core/review/service.js'
 import { NovelError } from '../../../src/shared/utils/errors.js'
 import { BookRepository } from '../../../src/infra/repository/book-repository.js'
 import { ChapterDraftRepository } from '../../../src/infra/repository/chapter-draft-repository.js'
@@ -31,6 +42,26 @@ const resetEnv = {
   OPENAI_COMPATIBLE_API_KEY: undefined,
   OPENAI_COMPATIBLE_MODEL: undefined,
 } satisfies Record<string, string | undefined>
+
+test('workflow service factories create the expected builder, repository and service instances', async () => {
+  await withSqliteDatabase(async (database) => {
+    await withEnv({ ...resetEnv }, async () => {
+      const planningContextBuilder = createWorkflowPlanningContextBuilder(database)
+      const planningService = createWorkflowPlanningService(database)
+      const volumePlanRepository = createWorkflowVolumePlanRepository(database)
+      const writingContextBuilder = createWorkflowWritingContextBuilder(database)
+      const generationService = createWorkflowGenerationService(database)
+      const reviewService = createWorkflowReviewService(database)
+
+      assert.ok(planningContextBuilder instanceof PlanningContextBuilder)
+      assert.ok(planningService instanceof PlanningService)
+      assert.ok(volumePlanRepository instanceof VolumePlanRepository)
+      assert.ok(writingContextBuilder instanceof WritingContextBuilder)
+      assert.ok(generationService instanceof GenerationService)
+      assert.ok(reviewService instanceof ReviewService)
+    })
+  })
+})
 
 test('loadWorkflowMissionView returns chapter, latest volume plan and matched mission', async () => {
   await withSqliteDatabase(async (database) => {

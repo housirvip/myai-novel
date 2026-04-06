@@ -8,7 +8,7 @@ import type {
   RewriteRequest,
   RewriteStrategyProfile,
 } from '../../../../src/shared/types/domain.js'
-import { __rewriteServiceTestables } from '../../../../src/core/rewrite/service.js'
+import { RewriteService, __rewriteServiceTestables } from '../../../../src/core/rewrite/service.js'
 
 const baseClosureSuggestions = (): ClosureSuggestions => ({
   characters: [],
@@ -212,4 +212,196 @@ test('validateRewrite computes closure preservation and targeted issue types', (
   assert.ok(validation.targetedIssueTypes.includes('consistency'))
   assert.ok(validation.targetedIssueTypes.includes('state'))
   assert.ok(validation.targetedIssueTypes.includes('hook'))
+})
+
+test('RewriteService rewriteChapter rejects missing prerequisites', async () => {
+  const baseDeps = {
+    bookRepository: { getFirstAsync: async () => ({ id: 'book-1' }) },
+    chapterRepository: {
+      getByIdAsync: async () => ({ id: 'chapter-1', currentVersionId: 'draft-version-1', currentPlanVersionId: 'plan-version-1' }),
+      updateCurrentVersionAsync: async () => undefined,
+    },
+    chapterDraftRepository: { getLatestByChapterIdAsync: async () => ({ id: 'draft-1', content: '原稿内容' }) },
+    chapterPlanRepository: { getByVersionIdAsync: async () => ({}) },
+    chapterReviewRepository: { getLatestByChapterIdAsync: async () => baseReview() },
+    chapterRewriteRepository: { createAsync: async () => undefined },
+    characterCurrentStateRepository: { listByBookIdAsync: async () => [] },
+    itemCurrentStateRepository: { listImportantByBookIdAsync: async () => [] },
+    hookStateRepository: { listActiveByBookIdAsync: async () => [] },
+    memoryRepository: {
+      getShortTermByBookIdAsync: async () => null,
+      getObservationByBookIdAsync: async () => null,
+      getLongTermByBookIdAsync: async () => null,
+    },
+  }
+
+  const missingBookService = new RewriteService(
+    { getFirstAsync: async () => null } as never,
+    baseDeps.chapterRepository as never,
+    baseDeps.chapterDraftRepository as never,
+    baseDeps.chapterPlanRepository as never,
+    baseDeps.chapterReviewRepository as never,
+    baseDeps.chapterRewriteRepository as never,
+    baseDeps.characterCurrentStateRepository as never,
+    baseDeps.itemCurrentStateRepository as never,
+    baseDeps.hookStateRepository as never,
+    baseDeps.memoryRepository as never,
+    null,
+  )
+  await assert.rejects(
+    () => missingBookService.rewriteChapter({
+      chapterId: 'chapter-1',
+      strategy: 'partial',
+      goals: [],
+      preserveFacts: true,
+      preserveHooks: true,
+      preserveEndingBeat: true,
+    }),
+    /Project is not initialized/,
+  )
+
+  const missingReviewService = new RewriteService(
+    baseDeps.bookRepository as never,
+    baseDeps.chapterRepository as never,
+    baseDeps.chapterDraftRepository as never,
+    baseDeps.chapterPlanRepository as never,
+    { getLatestByChapterIdAsync: async () => null } as never,
+    baseDeps.chapterRewriteRepository as never,
+    baseDeps.characterCurrentStateRepository as never,
+    baseDeps.itemCurrentStateRepository as never,
+    baseDeps.hookStateRepository as never,
+    baseDeps.memoryRepository as never,
+    null,
+  )
+  await assert.rejects(
+    () => missingReviewService.rewriteChapter({
+      chapterId: 'chapter-1',
+      strategy: 'partial',
+      goals: [],
+      preserveFacts: true,
+      preserveHooks: true,
+      preserveEndingBeat: true,
+    }),
+    /Review is required before rewrite/,
+  )
+})
+
+test('RewriteService rewriteChapter builds and persists fallback rewrite when llm is unavailable', async () => {
+  const createdRewrites: any[] = []
+  const updatedVersions: Array<{ chapterId: string; versionId: string }> = []
+
+  const service = new RewriteService(
+    { getFirstAsync: async () => ({ id: 'book-1', title: '测试小说' }) } as never,
+    {
+      getByIdAsync: async () => ({
+        id: 'chapter-1',
+        title: '暗潮',
+        objective: '查明真相',
+        currentVersionId: 'draft-version-1',
+        currentPlanVersionId: 'plan-version-1',
+      }),
+      updateCurrentVersionAsync: async (chapterId: string, versionId: string) => {
+        updatedVersions.push({ chapterId, versionId })
+      },
+    } as never,
+    {
+      getLatestByChapterIdAsync: async () => ({
+        id: 'draft-1',
+        content: '原稿保留了 hook-1、thread-1 与 fortress 等事实。',
+      }),
+    } as never,
+    {
+      getByVersionIdAsync: async () => ({
+        sceneCards: [{ title: '开场铺垫', purpose: '建立冲突', beats: ['潜入'] }],
+        eventOutline: ['推进 thread-1'],
+        statePredictions: ['hero：获得线索'],
+        hookPlan: [{ hookId: 'hook-1', action: 'advance', note: '推进 hook-1' }],
+        missionId: 'mission-1',
+        threadFocus: ['thread-1'],
+        windowRole: 'advance',
+        carryInTasks: ['承接前情'],
+        carryOutTasks: ['后续推进'],
+        ensembleFocusCharacterIds: ['hero'],
+        subplotCarryThreadIds: ['subplot-1'],
+        endingDrive: '章末抛出新悬念',
+      }),
+    } as never,
+    {
+      getLatestByChapterIdAsync: async () =>
+        baseReview({
+          id: 'review-1',
+          consistencyIssues: ['设定冲突'],
+          characterIssues: ['角色状态偏移'],
+          pacingIssues: ['节奏偏慢'],
+          hookIssues: ['Hook 未推进'],
+          revisionAdvice: ['补强结尾推进', '增强对话张力'],
+          closureSuggestions: {
+            characters: [
+              {
+                characterId: 'hero',
+                nextLocationId: 'fortress',
+                nextStatusNotes: ['警惕'],
+                reason: '角色状态已确认',
+                evidence: ['角色（hero）'],
+                source: 'rule-based',
+              },
+            ],
+            items: [],
+            hooks: [
+              {
+                hookId: 'hook-1',
+                nextStatus: 'payoff-planned',
+                actualOutcome: 'advance',
+                reason: '推进 hook',
+                evidence: ['Hook（hook-1）'],
+                source: 'rule-based',
+              },
+            ],
+            memory: [],
+          },
+        }),
+    } as never,
+    {
+      createAsync: async (rewrite: any) => {
+        createdRewrites.push(rewrite)
+      },
+    } as never,
+    {
+      listByBookIdAsync: async () => [{ characterId: 'hero', currentLocationId: 'fortress', statusNotes: ['警惕'] }],
+    } as never,
+    {
+      listImportantByBookIdAsync: async () => [{ id: 'item-1', name: '密信', quantity: 1, status: '完整', ownerCharacterId: 'hero', locationId: 'fortress' }],
+    } as never,
+    {
+      listActiveByBookIdAsync: async () => [{ hookId: 'hook-1', status: 'open' }],
+    } as never,
+    {
+      getShortTermByBookIdAsync: async () => ({ summaries: ['短期摘要'], recentEvents: ['最近事件'] }),
+      getObservationByBookIdAsync: async () => ({ entries: [{ summary: '观察事实' }] }),
+      getLongTermByBookIdAsync: async () => ({ entries: [{ summary: '长期事实', importance: 5 }] }),
+    } as never,
+    null,
+  )
+
+  const rewrite = await service.rewriteChapter({
+    chapterId: 'chapter-1',
+    strategy: 'partial',
+    goals: ['增强对话张力'],
+    preserveFacts: true,
+    preserveHooks: true,
+    preserveEndingBeat: true,
+  })
+
+  assert.equal(rewrite.bookId, 'book-1')
+  assert.equal(rewrite.chapterId, 'chapter-1')
+  assert.equal(rewrite.sourceDraftId, 'draft-1')
+  assert.equal(rewrite.sourceReviewId, 'review-1')
+  assert.equal(createdRewrites.length, 1)
+  assert.equal(updatedVersions[0]?.chapterId, 'chapter-1')
+  assert.equal(updatedVersions[0]?.versionId, rewrite.versionId)
+  assert.match(rewrite.content, /## 重写说明/)
+  assert.match(rewrite.content, /增强对话张力/)
+  assert.equal(rewrite.actualWordCount > 0, true)
+  assert.equal(rewrite.validation.reviewDecision, 'warning')
+  assert.equal(rewrite.validation.strategyAligned, true)
 })

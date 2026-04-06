@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { WritingContext } from '../../../../src/shared/types/domain.js'
-import { __generationServiceTestables } from '../../../../src/core/generation/service.js'
+import { GenerationService, __generationServiceTestables } from '../../../../src/core/generation/service.js'
 
 function createWritingContext(): WritingContext {
   return {
@@ -143,4 +143,85 @@ test('createRuleBasedDraft and estimateWordCount produce stable fallback draft o
   assert.equal(draft.createdAt, '2026-04-06T00:00:00.000Z')
   assert.equal(draft.actualWordCount, __generationServiceTestables.estimateWordCount(draft.content))
   assert.ok(draft.content.includes('## 本章事件提要'))
+})
+
+test('GenerationService writeNext persists fallback draft and marks chapter drafted', async () => {
+  const context = createWritingContext()
+  const createdDrafts: any[] = []
+  const draftedCalls: Array<{ chapterId: string; versionId: string }> = []
+
+  const service = new GenerationService(
+    {
+      buildAsync: async (chapterId: string) => ({
+        ...context,
+        chapter: {
+          ...context.chapter,
+          id: chapterId,
+        },
+      }),
+    } as never,
+    {
+      createAsync: async (draft: any) => {
+        createdDrafts.push(draft)
+      },
+    } as never,
+    {
+      markDraftedAsync: async (chapterId: string, versionId: string) => {
+        draftedCalls.push({ chapterId, versionId })
+      },
+    } as never,
+    null,
+  )
+
+  const result = await service.writeNext('chapter-1')
+
+  assert.equal(result.chapterId, 'chapter-1')
+  assert.equal(result.chapterStatus, 'drafted')
+  assert.equal(result.nextAction, 'review')
+  assert.equal(createdDrafts.length, 1)
+  assert.equal(createdDrafts[0]?.chapterId, 'chapter-1')
+  assert.equal(createdDrafts[0]?.chapterPlanId, 'plan-1')
+  assert.equal(createdDrafts[0]?.actualWordCount > 0, true)
+  assert.equal(draftedCalls[0]?.chapterId, 'chapter-1')
+  assert.equal(draftedCalls[0]?.versionId, createdDrafts[0]?.versionId)
+  assert.equal(result.draftId, createdDrafts[0]?.id)
+})
+
+test('GenerationService writeNext uses llm draft output and returns llm metadata', async () => {
+  const context = createWritingContext()
+  const createdDrafts: any[] = []
+
+  const service = new GenerationService(
+    {
+      buildAsync: async () => context,
+    } as never,
+    {
+      createAsync: async (draft: any) => {
+        createdDrafts.push(draft)
+      },
+    } as never,
+    {
+      markDraftedAsync: async () => undefined,
+    } as never,
+    {
+      generateText: async () => ({
+        text: '这是 LLM 生成的章节正文，包含完整场景推进与结尾牵引。',
+        metadata: {
+          selectedProvider: 'openai',
+          providerSource: 'default-provider',
+          selectedModel: 'gpt-openai',
+          modelSource: 'provider-default',
+          fallbackUsed: false,
+        },
+      }),
+    } as never,
+  )
+
+  const result = await service.writeNext('chapter-1')
+
+  assert.equal(createdDrafts.length, 1)
+  assert.equal(createdDrafts[0]?.content, '这是 LLM 生成的章节正文，包含完整场景推进与结尾牵引。')
+  assert.equal(createdDrafts[0]?.llmMetadata?.selectedProvider, 'openai')
+  assert.equal(result.llmMetadata?.selectedModel, 'gpt-openai')
+  assert.equal(result.actualWordCount, __generationServiceTestables.estimateWordCount(createdDrafts[0]?.content))
 })
