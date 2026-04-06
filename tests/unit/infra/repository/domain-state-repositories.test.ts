@@ -183,15 +183,47 @@ test('item current state, memory and narrative debt repositories persist statefu
 
     assert.equal(itemStateRepository.getByItemId('book-1', 'item-1')?.ownerCharacterId, 'character-1')
     assert.equal(itemStateRepository.listImportantByBookId('book-1')[0]?.status, '随身携带')
+    assert.equal((await itemStateRepository.getByItemIdAsync('book-1', 'item-1'))?.quantity, 1)
+    assert.equal((await itemStateRepository.listImportantByBookIdAsync('book-1')).length, 1)
 
     assert.equal(memoryRepository.getShortTermByBookId('book-1')?.chapterId, 'chapter-1')
     assert.equal((await memoryRepository.getObservationByBookIdAsync('book-1'))?.entries.length, 1)
     assert.equal((await memoryRepository.getLongTermByBookIdAsync('book-1'))?.entries[0]?.importance, 9)
+    assert.deepEqual(memoryRepository.recallRelevantLongTermEntries('book-1', ['王城 阴谋', '确认'], 1), [
+      { summary: '王城阴谋已被确认存在', importance: 9, sourceChapterId: 'chapter-1' },
+    ])
+    assert.deepEqual(await memoryRepository.recallRelevantLongTermEntriesAsync('book-1', ['阴谋'], 2), [
+      { summary: '王城阴谋已被确认存在', importance: 9, sourceChapterId: 'chapter-1' },
+    ])
+    assert.deepEqual(memoryRepository.recallRelevantLongTermEntries('missing-book', ['阴谋']), [])
 
     assert.equal(debtRepository.listByChapterId('chapter-1')[0]?.id, 'debt-1')
     assert.equal((await debtRepository.listOpenByBookIdAsync('book-1')).length, 1)
 
     debtRepository.resolveByIds(['debt-1'], '2026-04-06T00:20:00.000Z')
     assert.equal(debtRepository.listOpenByBookId('book-1').length, 0)
+  })
+})
+
+test('item current state falls back to defaults for important items without persisted state', async () => {
+  await withSqliteDatabase(async (database) => {
+    await new BookRepository(database).createAsync(createBookFixture())
+    await new ItemRepository(database).createAsync({
+      id: 'item-2',
+      bookId: 'book-1',
+      name: '古卷',
+      unit: '册',
+      type: 'artifact',
+      isUniqueWorldwide: false,
+      isImportant: true,
+      description: '未登记状态的重要道具',
+      createdAt: '2026-04-06T00:00:00.000Z',
+      updatedAt: '2026-04-06T00:00:00.000Z',
+    })
+
+    const views = new ItemCurrentStateRepository(database).listImportantByBookId('book-1')
+    assert.equal(views[0]?.quantity, 1)
+    assert.equal(views[0]?.status, '未记录')
+    assert.equal(views[0]?.updatedAt, '')
   })
 })

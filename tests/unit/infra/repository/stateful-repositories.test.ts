@@ -96,5 +96,37 @@ test('stateful repositories persist and query character/hook current state', asy
     assert.equal((await hookStateRepository.listByBookIdAsync('book-1')).length, 1)
     assert.equal(hookPressureRepository.getByHookId('book-1', 'hook-1')?.pressureScore, 85)
     assert.equal((await hookPressureRepository.listActiveByBookIdAsync('book-1')).length, 1)
+
+    hookPressureRepository.upsert({
+      bookId: 'book-1',
+      hookId: 'hook-1',
+      pressureScore: 70,
+      riskLevel: 'medium',
+      updatedAt: '2026-04-06T00:13:00.000Z',
+    })
+    assert.equal((await hookPressureRepository.getByHookIdAsync('book-1', 'hook-1'))?.riskLevel, 'medium')
+
+    await new HookRepository(database).createAsync({
+      id: 'hook-2',
+      bookId: 'book-1',
+      title: '第二谜团',
+      sourceChapterId: 'chapter-1',
+      description: '次级悬念',
+      payoffExpectation: '未来揭晓',
+      priority: 'medium',
+      status: 'open',
+      createdAt: '2026-04-06T00:00:00.000Z',
+      updatedAt: '2026-04-06T00:00:00.000Z',
+    })
+    await hookPressureRepository.upsertAsync({
+      bookId: 'book-1',
+      hookId: 'hook-2',
+      pressureScore: 95,
+      riskLevel: 'high',
+      updatedAt: '2026-04-06T00:14:00.000Z',
+    })
+
+    const ordered = hookPressureRepository.listActiveByBookId('book-1')
+    assert.equal(ordered[0]?.hookId, 'hook-2')
   })
 })
