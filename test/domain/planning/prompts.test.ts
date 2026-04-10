@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   buildApprovePrompt,
   buildDraftPrompt,
+  buildPlanPrompt,
   buildRepairPrompt,
+  buildReviewPrompt,
 } from "../../../src/domain/planning/prompts.js";
 
 test("repair prompt includes plan and retrieved context", () => {
@@ -21,7 +23,7 @@ test("repair prompt includes plan and retrieved context", () => {
   assert.equal(messages[0]?.role, "system");
   assert.match(messages[1]?.content ?? "", /章节规划：/);
   assert.match(messages[1]?.content ?? "", /本章要推进黑铁令线索/);
-  assert.match(messages[1]?.content ?? "", /召回上下文：/);
+  assert.match(messages[1]?.content ?? "", /召回上下文（必须保持一致）：/);
   assert.match(messages[1]?.content ?? "", /林夜/);
   assert.match(messages[1]?.content ?? "", /宗门制度/);
 });
@@ -58,4 +60,53 @@ test("approve prompt includes retrieved context and finalization constraints", (
   assert.match(messages[1]?.content ?? "", /林夜/);
   assert.match(messages[1]?.content ?? "", /定稿要求：/);
   assert.match(messages[1]?.content ?? "", /只输出最终文稿正文/);
+});
+
+test("plan prompt uses structured sections and explicit recall constraints", () => {
+  const messages = buildPlanPrompt({
+    bookTitle: "青岳入门录",
+    chapterNo: 12,
+    authorIntent: "本章让主角借黑铁令撬开外门局势。",
+    retrievedContext: {
+      book: {
+        id: 1,
+        title: "青岳入门录",
+        summary: null,
+        targetChapterCount: 200,
+        currentChapterCount: 11,
+      },
+      outlines: [],
+      recentChapters: [],
+      hooks: [],
+      characters: [],
+      factions: [],
+      items: [],
+      relations: [],
+      worldSettings: [],
+      riskReminders: ["注意承接上一章状态"],
+    },
+  });
+
+  assert.match(messages[0]?.content ?? "", /有效约束/);
+  assert.match(messages[1]?.content ?? "", /章节信息：/);
+  assert.match(messages[1]?.content ?? "", /作者意图：/);
+  assert.match(messages[1]?.content ?? "", /召回上下文（必须严格参考）/);
+  assert.match(messages[1]?.content ?? "", /输出要求：/);
+});
+
+test("review prompt uses retrieved context as validation baseline", () => {
+  const messages = buildReviewPrompt({
+    planContent: "本章推进主角入宗。",
+    draftContent: "章节草稿正文。",
+    retrievedContext: {
+      characters: [{ id: 1, name: "林夜", content: "status=alive" }],
+      riskReminders: ["注意人物位置变化"],
+    },
+  });
+
+  assert.match(messages[0]?.content ?? "", /核对基准/);
+  assert.match(messages[1]?.content ?? "", /章节规划：/);
+  assert.match(messages[1]?.content ?? "", /章节草稿：/);
+  assert.match(messages[1]?.content ?? "", /召回上下文（作为核对基准）/);
+  assert.match(messages[1]?.content ?? "", /输出要求：/);
 });

@@ -57,21 +57,28 @@ export function buildPlanPrompt(input: {
     {
       role: "system",
       content:
-        "你是一名长篇网文策划助手。请基于给定上下文输出结构化章节规划，保证连续性、设定一致性和钩子推进。",
+        [
+          "你是一名长篇网文策划助手。",
+          "请基于作者意图、召回上下文和最近章节状态，输出可直接用于写作的章节规划。",
+          "召回上下文中的人物、势力、关系、物品、钩子、世界规则默认都应视为有效约束。",
+          "规划必须优先保证连续性、设定一致性、人物动机成立和钩子推进清晰。",
+        ].join(""),
     },
     {
       role: "user",
-      content: [
-        `书名：${input.bookTitle}`,
-        `章节号：第 ${input.chapterNo} 章`,
-        "",
-        `作者意图：${input.authorIntent}`,
-        "",
-        "召回上下文：",
-        JSON.stringify(input.retrievedContext, null, 2),
-        "",
-        "请输出章节规划，包含：本章目标、主线、支线、出场角色、出场势力、关键道具、钩子推进、节奏分段、风险提醒。",
-      ].join("\n"),
+      content: buildStructuredPrompt([
+        section("章节信息", [
+          `书名：${input.bookTitle}`,
+          `章节号：第 ${input.chapterNo} 章`,
+        ]),
+        section("作者意图", input.authorIntent),
+        jsonSection("召回上下文（必须严格参考）", input.retrievedContext),
+        section("输出要求", [
+          "请输出章节规划。",
+          "至少包含：本章目标、主线、支线、出场角色、出场势力、关键道具、钩子推进、节奏分段、风险提醒。",
+          "如果召回上下文里存在风险提醒、未回收钩子、关键关系或世界规则，规划中必须显式承接。",
+        ]),
+      ]),
     },
   ];
 }
@@ -97,20 +104,21 @@ export function buildDraftPrompt(input: {
     },
     {
       role: "user",
-      content: [
-        "章节规划：",
-        input.planContent,
-        input.retrievedContext ? `\n召回上下文（必须严格参考）：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
-        input.targetWords ? `\n目标字数：${input.targetWords}` : "",
-        "",
-        "写作要求：",
-        "1. 必须覆盖章节规划中的主线推进、支线推进和钩子推进。",
-        "2. 人物行为要符合已召回的人设、目标、位置、能力和关系。",
-        "3. 世界设定、势力状态、物品状态、关系状态不能自相矛盾。",
-        "4. 节奏上要像小说正文，不要写成大纲复述。",
-        "5. 如果上下文里有风险提醒，正文中要主动规避对应问题。",
-        "6. 只输出完整章节草稿正文。",
-      ].join("\n"),
+      content: buildStructuredPrompt([
+        section("章节规划", input.planContent),
+        input.retrievedContext
+          ? jsonSection("召回上下文（必须严格参考）", input.retrievedContext)
+          : null,
+        input.targetWords ? section("目标字数", String(input.targetWords)) : null,
+        section("写作要求", [
+          "1. 必须覆盖章节规划中的主线推进、支线推进和钩子推进。",
+          "2. 人物行为要符合已召回的人设、目标、位置、能力和关系。",
+          "3. 世界设定、势力状态、物品状态、关系状态不能自相矛盾。",
+          "4. 节奏上要像小说正文，不要写成大纲复述。",
+          "5. 如果上下文里有风险提醒，正文中要主动规避对应问题。",
+          "6. 只输出完整章节草稿正文。",
+        ]),
+      ]),
     },
   ];
 }
@@ -124,20 +132,25 @@ export function buildReviewPrompt(input: {
     {
       role: "system",
       content:
-        "你是一名小说审校助手。请检查草稿的设定一致性、人物行为、节奏、逻辑漏洞和钩子推进，并返回结构化审阅结果。",
+        [
+          "你是一名长篇小说审校助手。",
+          "请检查草稿在设定一致性、人物行为、节奏、逻辑链路、关系演变和钩子推进上的问题。",
+          "召回上下文中的事实默认都应视为核对基准。",
+          "输出应聚焦真正影响正文质量和连续性的关键问题，不要泛泛而谈。",
+        ].join(""),
     },
     {
       role: "user",
-      content: [
-        "章节规划：",
-        input.planContent,
-        "",
-        "章节草稿：",
-        input.draftContent,
-        input.retrievedContext ? `\n召回上下文：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
-        "",
-        "请输出：总结、问题列表、风险列表、连续性检查、修复建议。",
-      ].join("\n"),
+      content: buildStructuredPrompt([
+        section("章节规划", input.planContent),
+        section("章节草稿", input.draftContent),
+        input.retrievedContext ? jsonSection("召回上下文（作为核对基准）", input.retrievedContext) : null,
+        section("输出要求", [
+          "请输出：总结、问题列表、风险列表、连续性检查、修复建议。",
+          "优先指出会导致后续章节连锁出错的问题。",
+          "如果没有问题，也要明确说明连续性是否稳定。",
+        ]),
+      ]),
     },
   ];
 }
@@ -156,19 +169,17 @@ export function buildRepairPrompt(input: {
     },
     {
       role: "user",
-      content: [
-        "章节规划：",
-        input.planContent,
-        "",
-        "当前草稿：",
-        input.draftContent,
-        "",
-        "审阅结果：",
-        input.reviewContent,
-        input.retrievedContext ? `\n召回上下文：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
-        "",
-        "请输出修复后的完整草稿，优先修复审阅问题，同时不要偏离既有规划和召回设定。",
-      ].join("\n"),
+      content: buildStructuredPrompt([
+        section("章节规划", input.planContent),
+        section("当前草稿", input.draftContent),
+        section("审阅结果", input.reviewContent),
+        input.retrievedContext ? jsonSection("召回上下文（必须保持一致）", input.retrievedContext) : null,
+        section("修稿要求", [
+          "优先修复审阅问题，同时不要偏离既有规划和召回设定。",
+          "如果草稿已有可用段落，尽量保留其节奏、气氛和信息密度。",
+          "只输出修复后的完整草稿正文。",
+        ]),
+      ]),
     },
   ];
 }
@@ -193,24 +204,19 @@ export function buildApprovePrompt(input: {
     },
     {
       role: "user",
-      content: [
-        "章节规划：",
-        input.planContent,
-        "",
-        "当前草稿：",
-        input.draftContent,
-        "",
-        "审阅结果：",
-        input.reviewContent,
-        input.retrievedContext ? `\n召回上下文（必须保持一致）：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
-        "",
-        "定稿要求：",
-        "1. 修复审阅中提到的问题。",
-        "2. 不要丢失原计划中的关键剧情推进和钩子推进。",
-        "3. 不要违背召回出的设定、人物状态、关系和世界规则。",
-        "4. 尽量继承当前草稿中已经写得好的段落和气氛。",
-        "5. 只输出最终文稿正文。",
-      ].join("\n"),
+      content: buildStructuredPrompt([
+        section("章节规划", input.planContent),
+        section("当前草稿", input.draftContent),
+        section("审阅结果", input.reviewContent),
+        input.retrievedContext ? jsonSection("召回上下文（必须保持一致）", input.retrievedContext) : null,
+        section("定稿要求", [
+          "1. 修复审阅中提到的问题。",
+          "2. 不要丢失原计划中的关键剧情推进和钩子推进。",
+          "3. 不要违背召回出的设定、人物状态、关系和世界规则。",
+          "4. 尽量继承当前草稿中已经写得好的段落和气氛。",
+          "5. 只输出最终文稿正文。",
+        ]),
+      ]),
     },
   ];
 }
@@ -229,21 +235,32 @@ export function buildApproveDiffPrompt(input: {
     },
     {
       role: "user",
-      content: [
-        "最终文稿：",
-        input.finalContent,
-        "",
-        "章节规划：",
-        input.planContent,
-        "",
-        "审阅结果：",
-        input.reviewContent,
-        input.retrievedContext ? `\n召回上下文：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
-        "",
-        "请返回 JSON，包含：chapterSummary, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, newRelations, updates。",
-        "newRelations 用于新增关系，字段包含 sourceType, sourceId, targetType, targetId, relationType, intensity, status, description, keywords。",
-        "updates 中的 entityType 支持 character, faction, relation, item, story_hook, world_setting；action 支持 update_fields, append_notes, status_change。",
-      ].join("\n"),
+      content: buildStructuredPrompt([
+        section("最终文稿", input.finalContent),
+        section("章节规划", input.planContent),
+        section("审阅结果", input.reviewContent),
+        input.retrievedContext ? jsonSection("召回上下文（用于校对事实变更）", input.retrievedContext) : null,
+        section("输出要求", [
+          "请返回 JSON。",
+          "字段包含：chapterSummary, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, newRelations, updates。",
+          "newRelations 用于新增关系，字段包含 sourceType, sourceId, targetType, targetId, relationType, intensity, status, description, keywords。",
+          "updates 中的 entityType 支持 character, faction, relation, item, story_hook, world_setting；action 支持 update_fields, append_notes, status_change。",
+          "actual*Ids 应只保留本章真实出场或真实产生影响的实体。",
+        ]),
+      ]),
     },
   ];
+}
+
+function buildStructuredPrompt(sections: Array<string | null>): string {
+  return sections.filter(Boolean).join("\n\n");
+}
+
+function section(title: string, content: string | string[]): string {
+  const normalized = Array.isArray(content) ? content.join("\n") : content;
+  return `${title}：\n${normalized}`;
+}
+
+function jsonSection(title: string, content: unknown): string {
+  return section(title, JSON.stringify(content, null, 2));
 }
