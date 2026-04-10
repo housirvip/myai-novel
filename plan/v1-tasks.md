@@ -207,21 +207,21 @@
   - [x] 更新 `chapters.current_plan_id`
   - [x] 更新章节状态为 `planned`
 
-- [ ] `T020` 实现 `draft` 工作流
-  - [ ] 读取当前 `chapter_plans`
-  - [ ] 组织上下文
-  - [ ] 生成草稿
-  - [ ] 写入 `chapter_drafts`
-  - [ ] 更新 `chapters.current_draft_id`
-  - [ ] 更新章节状态为 `drafted`
+- [x] `T020` 实现 `draft` 工作流
+  - [x] 读取当前 `chapter_plans`
+  - [x] 组织上下文
+  - [x] 生成草稿
+  - [x] 写入 `chapter_drafts`
+  - [x] 更新 `chapters.current_draft_id`
+  - [x] 更新章节状态为 `drafted`
 
-- [ ] `T021` 实现 `review` 工作流
-  - [ ] 读取当前 `chapter_drafts`
-  - [ ] 读取当前 `chapter_plans`
-  - [ ] 组织审阅 Prompt
-  - [ ] 写入 `chapter_reviews`
-  - [ ] 更新 `chapters.current_review_id`
-  - [ ] 更新章节状态为 `reviewed`
+- [x] `T021` 实现 `review` 工作流
+  - [x] 读取当前 `chapter_drafts`
+  - [x] 读取当前 `chapter_plans`
+  - [x] 组织审阅 Prompt
+  - [x] 写入 `chapter_reviews`
+  - [x] 更新 `chapters.current_review_id`
+  - [x] 更新章节状态为 `reviewed`
 
 - [ ] `T022` 实现 `repair` 工作流
   - [ ] 读取当前 `chapter_drafts`
@@ -308,7 +308,7 @@
 - [x] `T010` repository
 - [x] `T014` mock provider
 - [x] `T019` plan
-- [ ] `T020` draft
+- [x] `T020` draft
 
 ## 5. V1 完成定义
 

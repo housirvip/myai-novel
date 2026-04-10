@@ -38,8 +38,42 @@ export class MockLlmClient implements LlmClient {
     const lastUserMessage = [...params.messages].reverse().find((message) => message.role === "user");
     const combinedText = params.messages.map((message) => message.content).join("\n");
 
+    if (combinedText.includes("小说审校助手") || combinedText.includes("修复建议")) {
+      return JSON.stringify(
+        {
+          summary: "本章主线明确，黑铁令线索建立有效，但势力反应仍可再加强。",
+          issues: [
+            "外门其他弟子对黑铁令的反应略快，缺少一两句铺垫。",
+            "执事长老的态度可以更鲜明，以增强悬念。",
+          ],
+          risks: [
+            "若后续不解释黑铁令特殊性，当前悬念强度可能提前透支。",
+          ],
+          continuity_checks: [
+            "主角当前身份仍为外门弟子，未出现越级资源获取。",
+            "黑铁令当前归属与既有设定一致。",
+          ],
+          repair_suggestions: [
+            "补一段旁观弟子的窃语，强化令牌不寻常。",
+            "增加执事短暂迟疑，暗示令牌来历复杂。",
+          ],
+        },
+        null,
+        2,
+      );
+    }
+
     if (combinedText.includes("作者意图草案")) {
       return "本章重点推进主角当前主线，抛出关键线索，并为后续冲突埋下钩子。";
+    }
+
+    if (combinedText.includes("根据章节规划创作") || combinedText.includes("章节规划：")) {
+      return [
+        "林夜踏入外门山门时，天色尚未完全亮起，石阶尽头的钟声正一下一下荡开。",
+        "执事长老没有多看他，只在名册上划了一笔，随后将一枚沉甸甸的黑铁令拍进他掌心。",
+        "那令牌冰冷异常，边缘刻痕却像被人反复摩挲过。林夜压下疑惑，将它收入袖中，却注意到周围几名弟子的目光明显变了。",
+        "他很快意识到，这枚令牌不只是入门凭证，更像一把会把人拖进更深暗流的钥匙。",
+      ].join("\n\n");
     }
 
     if (combinedText.includes("请输出章节规划")) {

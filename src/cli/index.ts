@@ -4,12 +4,14 @@ import { registerBookCommands } from "./commands/book.js";
 import { registerChapterCommands } from "./commands/chapter.js";
 import { registerCharacterCommands } from "./commands/character.js";
 import { registerDbCommands } from "./commands/db.js";
+import { registerDraftCommands } from "./commands/draft.js";
 import { registerFactionCommands } from "./commands/faction.js";
 import { registerHookCommands } from "./commands/hook.js";
 import { registerItemCommands } from "./commands/item.js";
 import { registerOutlineCommands } from "./commands/outline.js";
 import { registerPlanCommands } from "./commands/plan.js";
 import { registerRelationCommands } from "./commands/relation.js";
+import { registerReviewCommands } from "./commands/review.js";
 import { registerWorldCommands } from "./commands/world.js";
 
 export async function runCli(argv: string[]): Promise<void> {
@@ -30,6 +32,8 @@ export async function runCli(argv: string[]): Promise<void> {
   registerHookCommands(program);
   registerChapterCommands(program);
   registerPlanCommands(program);
+  registerDraftCommands(program);
+  registerReviewCommands(program);
   registerDbCommands(program);
 
   await program.parseAsync(argv);

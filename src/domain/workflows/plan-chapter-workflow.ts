@@ -7,6 +7,7 @@ import { createLlmFactory } from "../../core/llm/factory.js";
 import type { LlmProviderName } from "../../core/llm/types.js";
 import type { AppLogger } from "../../core/logger/index.js";
 import { withTimingLog } from "../../core/logger/index.js";
+import { parseLooseJson } from "../../shared/utils/json.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { extractedIntentSchema, planInputSchema } from "../planning/input.js";
 import {
@@ -76,7 +77,7 @@ export class PlanChapterWorkflow {
           messages: buildKeywordExtractionPrompt({ authorIntent }),
           responseFormat: "json",
         });
-        const extractedIntent = extractedIntentSchema.parse(parseJsonContent(keywordResult.content));
+        const extractedIntent = extractedIntentSchema.parse(parseLooseJson(keywordResult.content));
 
         const retrievedContext = await retrievalService.retrievePlanContext({
           bookId: payload.bookId,
@@ -158,14 +159,6 @@ export class PlanChapterWorkflow {
       },
     );
   }
-}
-
-function parseJsonContent(content: string): unknown {
-  const trimmed = content.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  const target = fenced?.[1] ?? trimmed;
-
-  return JSON.parse(target);
 }
 
 function formatOutlines(context: PlanRetrievedContext): string {
