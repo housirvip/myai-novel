@@ -179,6 +179,7 @@ export class ApproveChapterWorkflow {
                 planContent: currentPlan.content,
                 draftContent: currentDraft.content,
                 reviewContent: currentReview.raw_result,
+                retrievedContext: parseStoredJson(currentPlan.retrieved_context),
               }),
             });
 

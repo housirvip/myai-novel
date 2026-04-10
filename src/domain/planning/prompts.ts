@@ -85,15 +85,31 @@ export function buildDraftPrompt(input: {
     {
       role: "system",
       content:
-        "你是一名网络小说写作助手。请根据章节规划创作自然连贯的章节草稿，注意角色行为和世界设定一致。",
+        [
+          "你是一名长篇网络小说写作助手。",
+          "请根据章节规划创作完整、自然、连贯的章节草稿。",
+          "召回上下文中的人物状态、关系、势力信息、物品归属、钩子状态、世界规则，默认都应视为硬约束。",
+          "如果章节规划与召回上下文有细微冲突，优先保证设定一致和前后连续，再在正文里自然化处理。",
+          "不要为了推进剧情而随意改写人物性格、能力边界、世界规则、货币体系、战力体系。",
+          "若必须引入新信息，请保持克制，并避免与已召回设定直接冲突。",
+          "输出时只给正文，不要附解释、标题清单或额外说明。",
+        ].join(""),
     },
     {
       role: "user",
       content: [
         "章节规划：",
         input.planContent,
-        input.retrievedContext ? `\n召回上下文：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
+        input.retrievedContext ? `\n召回上下文（必须严格参考）：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
         input.targetWords ? `\n目标字数：${input.targetWords}` : "",
+        "",
+        "写作要求：",
+        "1. 必须覆盖章节规划中的主线推进、支线推进和钩子推进。",
+        "2. 人物行为要符合已召回的人设、目标、位置、能力和关系。",
+        "3. 世界设定、势力状态、物品状态、关系状态不能自相矛盾。",
+        "4. 节奏上要像小说正文，不要写成大纲复述。",
+        "5. 如果上下文里有风险提醒，正文中要主动规避对应问题。",
+        "6. 只输出完整章节草稿正文。",
       ].join("\n"),
     },
   ];
@@ -161,12 +177,19 @@ export function buildApprovePrompt(input: {
   planContent: string;
   draftContent: string;
   reviewContent: string;
+  retrievedContext?: unknown;
 }): LlmMessage[] {
   return [
     {
       role: "system",
       content:
-        "你是一名小说定稿助手。请基于计划、草稿和审阅结果输出润色后的最终章节文稿，只输出正文。",
+        [
+          "你是一名长篇小说定稿助手。",
+          "请基于章节规划、当前草稿、审阅结果和召回上下文，输出可直接作为正式稿保存的最终章节文稿。",
+          "你必须修复审阅里指出的问题，同时保留章节原本应推进的主线、支线、人物关系和钩子。",
+          "召回上下文中的设定与事实默认都应视为正式约束，不要为了润色而改坏连续性。",
+          "输出时只给最终正文，不要附带说明、批注、总结或解释。",
+        ].join(""),
     },
     {
       role: "user",
@@ -179,8 +202,14 @@ export function buildApprovePrompt(input: {
         "",
         "审阅结果：",
         input.reviewContent,
+        input.retrievedContext ? `\n召回上下文（必须保持一致）：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
         "",
-        "请输出最终文稿，要求修复审阅中提到的问题，并保留当前章节的主线、钩子和设定一致性。",
+        "定稿要求：",
+        "1. 修复审阅中提到的问题。",
+        "2. 不要丢失原计划中的关键剧情推进和钩子推进。",
+        "3. 不要违背召回出的设定、人物状态、关系和世界规则。",
+        "4. 尽量继承当前草稿中已经写得好的段落和气氛。",
+        "5. 只输出最终文稿正文。",
       ].join("\n"),
     },
   ];
