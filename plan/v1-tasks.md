@@ -263,22 +263,22 @@
 
 ## 2.8 阶段八：测试、文档与示例数据
 
-- [ ] `T025` 单元测试
-  - [ ] 配置解析测试
-  - [ ] logger 开关测试
-  - [ ] 关键词校验测试
-  - [ ] repository CRUD 测试
-  - [ ] LLM factory 测试
-  - [ ] diff 解析测试
+- [x] `T025` 单元测试
+  - [x] 配置解析测试
+  - [x] logger 开关测试
+  - [x] 关键词校验测试
+  - [x] repository CRUD 测试
+  - [x] LLM factory 测试
+  - [x] diff 解析测试
 
-- [ ] `T026` 集成测试
-  - [ ] SQLite 临时库初始化
-  - [ ] `plan` 全链路测试
-  - [ ] `draft` 全链路测试
-  - [ ] `review` 全链路测试
-  - [ ] `repair` 全链路测试
-  - [ ] `approve` 全链路测试
-  - [ ] Markdown 导入导出测试
+- [x] `T026` 集成测试
+  - [x] SQLite 临时库初始化
+  - [x] `plan` 全链路测试
+  - [x] `draft` 全链路测试
+  - [x] `review` 全链路测试
+  - [x] `repair` 全链路测试
+  - [x] `approve` 全链路测试
+  - [x] Markdown 导入导出测试
 
 - [ ] `T027` README 与示例数据
   - [ ] 安装说明
