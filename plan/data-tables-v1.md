@@ -7,8 +7,7 @@
 V1 推荐采用：
 
 - `chapters` 作为章节主表
-- `chapter_plans`、`chapter_drafts`、`chapter_reviews` 作为过程表
-- `final_content` 仍保留在 `chapters`
+- `chapter_plans`、`chapter_drafts`、`chapter_reviews`、`chapter_finals` 作为过程表
 
 ## 2. 通用约定
 
@@ -87,8 +86,6 @@ books
 
 补充关系：
 
-- `characters.item_ids` 关联 `items.id`
-- `factions.item_ids` 关联 `items.id`
 - `relations` 同时支持：
   - `character -> character`
   - `faction -> faction`
@@ -96,6 +93,7 @@ books
 - `chapters.current_plan_id` 指向 `chapter_plans.id`
 - `chapters.current_draft_id` 指向 `chapter_drafts.id`
 - `chapters.current_review_id` 指向 `chapter_reviews.id`
+- `chapters.current_final_id` 指向 `chapter_finals.id`
 
 ## 4. 表设计
 
@@ -188,7 +186,6 @@ books
 | `status`           | TEXT     | 是  | `alive \| missing \| dead \| sealed \| retired \| unknown` |
 | `professions`      | TEXT     | 否  | JSON 字符串数组                                                 |
 | `levels`           | TEXT     | 否  | JSON 字符串数组                                                 |
-| `item_ids`         | TEXT     | 否  | JSON 数字数组                                                  |
 | `currencies`       | TEXT     | 否  | JSON 对象数组                                                  |
 | `abilities`        | TEXT     | 否  | JSON 字符串数组                                                 |
 | `goal`             | TEXT     | 否  | 当前目标                                                       |
@@ -227,7 +224,6 @@ books
 | `leader_character_id` | INTEGER  | 否  | 首领人物 ID    |
 | `headquarter`         | TEXT     | 否  | 总部/驻地      |
 | `status`              | TEXT     | 否  | 状态         |
-| `item_ids`            | TEXT     | 否  | JSON 数字数组  |
 | `append_notes`        | TEXT     | 否  | 增量补充       |
 | `keywords`            | TEXT     | 否  | JSON 字符串数组 |
 | `created_at`          | DATETIME | 是  | 创建时间       |
@@ -320,7 +316,7 @@ books
 
 ## 4.9 `chapters`
 
-用途：章节主表，保存当前有效版本引用和正式稿。
+用途：章节主表，保存当前有效版本引用。
 
 | 字段                     | 类型       | 必填 | 说明                                                               |
 | ---------------------- | -------- | -- | ---------------------------------------------------------------- |
@@ -334,11 +330,12 @@ books
 | `current_plan_id`      | INTEGER  | 否  | 当前计划版本 ID                                                        |
 | `current_draft_id`     | INTEGER  | 否  | 当前草稿版本 ID                                                        |
 | `current_review_id`    | INTEGER  | 否  | 当前审阅版本 ID                                                        |
-| `final_content`        | TEXT     | 否  | 正式稿                                                              |
+| `current_final_id`     | INTEGER  | 否  | 当前正式稿版本 ID                                                      |
 | `actual_character_ids` | TEXT     | 否  | JSON 数字数组                                                        |
 | `actual_faction_ids`   | TEXT     | 否  | JSON 数字数组                                                        |
 | `actual_item_ids`      | TEXT     | 否  | JSON 数字数组                                                        |
 | `actual_hook_ids`      | TEXT     | 否  | JSON 数字数组                                                        |
+| `actual_world_setting_ids` | TEXT | 否  | JSON 数字数组                                                        |
 | `created_at`           | DATETIME | 是  | 创建时间                                                             |
 | `updated_at`           | DATETIME | 是  | 更新时间                                                             |
 
@@ -419,6 +416,8 @@ books
 | `chapter_no`       | INTEGER  | 是  | 冗余章节号                                            |
 | `version_no`       | INTEGER  | 是  | 版本号，自增                                           |
 | `based_on_plan_id` | INTEGER  | 否  | 关联 `chapter_plans.id`                            |
+| `based_on_draft_id` | INTEGER | 否  | 关联上一版 `chapter_drafts.id`                      |
+| `based_on_review_id` | INTEGER | 否  | 关联触发本次修复的 `chapter_reviews.id`              |
 | `status`           | TEXT     | 是  | `active \| archived`                             |
 | `content`          | TEXT     | 是  | 草稿正文                                             |
 | `summary`          | TEXT     | 否  | 草稿摘要                                             |
@@ -433,6 +432,8 @@ books
 
 - `idx_chapter_drafts_book_chapter_id(book_id, chapter_id)`
 - `idx_chapter_drafts_book_plan_id(book_id, based_on_plan_id)`
+- `idx_chapter_drafts_book_prev_draft_id(book_id, based_on_draft_id)`
+- `idx_chapter_drafts_book_review_id(book_id, based_on_review_id)`
 - `idx_chapter_drafts_book_status(book_id, status)`
 
 ## 4.12 `chapter_reviews`
@@ -466,6 +467,32 @@ books
 - `idx_chapter_reviews_book_draft_id(book_id, draft_id)`
 - `idx_chapter_reviews_book_status(book_id, status)`
 
+## 4.13 `chapter_finals`
+
+用途：章节正式稿版本表。每次 `approve`、手工导入正式稿都新增一条。
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `id` | INTEGER | 是 | 主键 |
+| `book_id` | INTEGER | 是 | 归属书籍 |
+| `chapter_id` | INTEGER | 是 | 对应 `chapters.id` |
+| `chapter_no` | INTEGER | 是 | 冗余章节号 |
+| `version_no` | INTEGER | 是 | 版本号，自增 |
+| `based_on_draft_id` | INTEGER | 否 | 关联 `chapter_drafts.id` |
+| `status` | TEXT | 是 | `active \| archived` |
+| `content` | TEXT | 是 | 正式稿正文 |
+| `summary` | TEXT | 否 | 正式稿摘要 |
+| `word_count` | INTEGER | 否 | 正式稿字数 |
+| `source_type` | TEXT | 是 | `approved \| imported \| manual` |
+| `created_at` | DATETIME | 是 | 创建时间 |
+| `updated_at` | DATETIME | 是 | 更新时间 |
+
+建议索引：
+
+- `idx_chapter_finals_book_chapter_id(book_id, chapter_id)`
+- `idx_chapter_finals_book_draft_id(book_id, based_on_draft_id)`
+- `idx_chapter_finals_book_status(book_id, status)`
+
 ## 5. 建表顺序
 
 1. `books`
@@ -480,6 +507,7 @@ books
 10. `chapter_plans`
 11. `chapter_drafts`
 12. `chapter_reviews`
+13. `chapter_finals`
 
 ## 6. V1 设计结论
 
@@ -487,7 +515,7 @@ V1 最关键的结构选择是：
 
 - 设定类数据集中在业务实体表中
 - 章节流程数据拆成独立版本表
-- `chapters` 只承担“当前章节状态 + 当前版本引用 + 正式稿”职责
+- `chapters` 只承担“当前章节状态 + 当前版本引用”职责
 
 这样后续扩展：
 
