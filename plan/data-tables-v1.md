@@ -81,7 +81,8 @@ books
   └── chapters
        ├── chapter_plans
        ├── chapter_drafts
-       └── chapter_reviews
+       ├── chapter_reviews
+       └── chapter_finals
 ```
 
 补充关系：
