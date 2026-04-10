@@ -96,49 +96,49 @@
 
 ## 2.4 阶段四：Repository 与 CRUD 服务
 
-- [ ] `T010` 实现核心 Repository
-  - [ ] `BookRepository`
-  - [ ] `OutlineRepository`
-  - [ ] `WorldSettingRepository`
-  - [ ] `CharacterRepository`
-  - [ ] `FactionRepository`
-  - [ ] `RelationRepository`
-  - [ ] `ItemRepository`
-  - [ ] `StoryHookRepository`
-  - [ ] `ChapterRepository`
-  - [ ] `ChapterPlanRepository`
-  - [ ] `ChapterDraftRepository`
-  - [ ] `ChapterReviewRepository`
-  - [ ] `ChapterFinalRepository`
-  - [ ] CRUD 操作日志已接入
+- [x] `T010` 实现核心 Repository
+  - [x] `BookRepository`
+  - [x] `OutlineRepository`
+  - [x] `WorldSettingRepository`
+  - [x] `CharacterRepository`
+  - [x] `FactionRepository`
+  - [x] `RelationRepository`
+  - [x] `ItemRepository`
+  - [x] `StoryHookRepository`
+  - [x] `ChapterRepository`
+  - [x] `ChapterPlanRepository`
+  - [x] `ChapterDraftRepository`
+  - [x] `ChapterReviewRepository`
+  - [x] `ChapterFinalRepository`
+  - [x] CRUD 操作日志已接入
 
-- [ ] `T011` 实现 CRUD Service
-  - [ ] `BookService`
-  - [ ] `OutlineService`
-  - [ ] `WorldSettingService`
-  - [ ] `CharacterService`
-  - [ ] `FactionService`
-  - [ ] `RelationService`
-  - [ ] `ItemService`
-  - [ ] `StoryHookService`
-  - [ ] `ChapterService`
-  - [ ] 参数校验已接入
+- [x] `T011` 实现 CRUD Service
+  - [x] `BookService`
+  - [x] `OutlineService`
+  - [x] `WorldSettingService`
+  - [x] `CharacterService`
+  - [x] `FactionService`
+  - [x] `RelationService`
+  - [x] `ItemService`
+  - [x] `StoryHookService`
+  - [x] `ChapterService`
+  - [x] 参数校验已接入
 
-- [ ] `T012` 实现资源 CRUD CLI 命令
-  - [ ] `book`
-  - [ ] `outline`
-  - [ ] `world`
-  - [ ] `character`
-  - [ ] `faction`
-  - [ ] `relation`
-  - [ ] `item`
-  - [ ] `hook`
-  - [ ] `chapter`
-  - [ ] 每个命令支持 `create`
-  - [ ] 每个命令支持 `list`
-  - [ ] 每个命令支持 `get`
-  - [ ] 每个命令支持 `update`
-  - [ ] 每个命令支持 `delete`
+- [x] `T012` 实现资源 CRUD CLI 命令
+  - [x] `book`
+  - [x] `outline`
+  - [x] `world`
+  - [x] `character`
+  - [x] `faction`
+  - [x] `relation`
+  - [x] `item`
+  - [x] `hook`
+  - [x] `chapter`
+  - [x] 每个命令支持 `create`
+  - [x] 每个命令支持 `list`
+  - [x] 每个命令支持 `get`
+  - [x] 每个命令支持 `update`
+  - [x] 每个命令支持 `delete`
 
 ## 2.5 阶段五：LLM 抽象与 Provider
 
