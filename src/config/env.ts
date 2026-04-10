@@ -18,14 +18,19 @@ const envSchema = z.object({
   DB_CLIENT: z.enum(["sqlite", "mysql"]).default("sqlite"),
   DB_SQLITE_PATH: z.string().default("./data/novel.db"),
   LLM_PROVIDER: z.enum(["mock", "openai", "anthropic", "custom"]).default("mock"),
+  MOCK_LLM_MODE: z.enum(["echo", "fixture", "json"]).default("echo"),
+  MOCK_LLM_RESPONSE_TEXT: z.string().default("Mock response"),
+  MOCK_LLM_FIXTURE_PATH: z.string().optional(),
+  MOCK_LLM_MODEL: z.string().default("mock-v1"),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().optional(),
-  OPENAI_MODEL: z.string().optional(),
+  OPENAI_MODEL: z.string().default("gpt-5.4-mini"),
   ANTHROPIC_API_KEY: z.string().optional(),
-  ANTHROPIC_MODEL: z.string().optional(),
+  ANTHROPIC_BASE_URL: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-20250514"),
   CUSTOM_LLM_BASE_URL: z.string().optional(),
   CUSTOM_LLM_API_KEY: z.string().optional(),
-  CUSTOM_LLM_MODEL: z.string().optional(),
+  CUSTOM_LLM_MODEL: z.string().default("custom-default"),
 });
 
 const parsedEnv = envSchema.parse(process.env);
@@ -34,7 +39,9 @@ export const env = {
   ...parsedEnv,
   LOG_DIR: path.resolve(parsedEnv.LOG_DIR),
   DB_SQLITE_PATH: path.resolve(parsedEnv.DB_SQLITE_PATH),
+  MOCK_LLM_FIXTURE_PATH: parsedEnv.MOCK_LLM_FIXTURE_PATH
+    ? path.resolve(parsedEnv.MOCK_LLM_FIXTURE_PATH)
+    : undefined,
 };
 
 export type AppEnv = typeof env;
-

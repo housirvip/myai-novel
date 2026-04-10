@@ -1,0 +1,103 @@
+import { env } from "../../../config/env.js";
+import type { AppLogger } from "../../logger/index.js";
+import { withLlmLogging } from "../logger.js";
+import type { LlmClient, LlmGenerateParams, LlmGenerateResult, LlmMessage } from "../types.js";
+
+interface OpenAiChatCompletionResponse {
+  id: string;
+  model: string;
+  choices?: Array<{
+    message?: {
+      content?: string | Array<{ type?: string; text?: string }>;
+    };
+  }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
+export class OpenAiLlmClient implements LlmClient {
+  constructor(private readonly logger: AppLogger) {}
+
+  async generate(params: LlmGenerateParams): Promise<LlmGenerateResult> {
+    const model = params.model ?? env.OPENAI_MODEL;
+    const baseUrl = env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
+
+    if (!env.OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is required for OpenAI provider");
+    }
+
+    return withLlmLogging(this.logger, "openai", model, params, async () => {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: buildOpenAiMessages(params.messages, params.responseFormat),
+          temperature: params.temperature,
+          max_completion_tokens: params.maxTokens,
+          response_format:
+            params.responseFormat === "json" ? { type: "json_object" } : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI request failed: ${response.status} ${await response.text()}`);
+      }
+
+      const raw = (await response.json()) as OpenAiChatCompletionResponse;
+      const content = extractOpenAiContent(raw);
+
+      return {
+        provider: "openai",
+        model: raw.model || model,
+        content,
+        usage: {
+          inputTokens: raw.usage?.prompt_tokens,
+          outputTokens: raw.usage?.completion_tokens,
+          totalTokens: raw.usage?.total_tokens,
+        },
+        raw,
+      };
+    });
+  }
+}
+
+function buildOpenAiMessages(
+  messages: LlmMessage[],
+  responseFormat: LlmGenerateParams["responseFormat"],
+): Array<{ role: string; content: string }> {
+  if (responseFormat !== "json") {
+    return messages;
+  }
+
+  return [
+    ...messages,
+    {
+      role: "system",
+      content: "Return valid JSON only. Do not include markdown fences or extra explanation.",
+    },
+  ];
+}
+
+function extractOpenAiContent(raw: OpenAiChatCompletionResponse): string {
+  const content = raw.choices?.[0]?.message?.content;
+
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => part.text ?? "")
+      .join("")
+      .trim();
+  }
+
+  throw new Error("OpenAI response did not include message content");
+}

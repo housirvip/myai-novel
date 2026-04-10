@@ -8,6 +8,7 @@ import { registerFactionCommands } from "./commands/faction.js";
 import { registerHookCommands } from "./commands/hook.js";
 import { registerItemCommands } from "./commands/item.js";
 import { registerOutlineCommands } from "./commands/outline.js";
+import { registerPlanCommands } from "./commands/plan.js";
 import { registerRelationCommands } from "./commands/relation.js";
 import { registerWorldCommands } from "./commands/world.js";
 
@@ -28,6 +29,7 @@ export async function runCli(argv: string[]): Promise<void> {
   registerItemCommands(program);
   registerHookCommands(program);
   registerChapterCommands(program);
+  registerPlanCommands(program);
   registerDbCommands(program);
 
   await program.parseAsync(argv);

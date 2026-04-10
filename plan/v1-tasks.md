@@ -142,70 +142,70 @@
 
 ## 2.5 阶段五：LLM 抽象与 Provider
 
-- [ ] `T013` 定义 LLM 核心接口与工厂
-  - [ ] 创建 `src/core/llm/types.ts`
-  - [ ] 创建 `src/core/llm/factory.ts`
-  - [ ] 定义 `LlmClient`
-  - [ ] 定义 `LlmGenerateParams`
-  - [ ] 定义 `LlmGenerateResult`
+- [x] `T013` 定义 LLM 核心接口与工厂
+  - [x] 创建 `src/core/llm/types.ts`
+  - [x] 创建 `src/core/llm/factory.ts`
+  - [x] 定义 `LlmClient`
+  - [x] 定义 `LlmGenerateParams`
+  - [x] 定义 `LlmGenerateResult`
 
-- [ ] `T014` 实现 `mock` provider
-  - [ ] 支持固定输出
-  - [ ] 支持 fixture 输出
-  - [ ] 支持结构化 JSON 输出
-  - [ ] 验证无 API Key 也能跑通
+- [x] `T014` 实现 `mock` provider
+  - [x] 支持固定输出
+  - [x] 支持 fixture 输出
+  - [x] 支持结构化 JSON 输出
+  - [x] 验证无 API Key 也能跑通
 
-- [ ] `T015` 实现真实 provider
-  - [ ] `openai`
-  - [ ] `anthropic`
-  - [ ] `custom`
-  - [ ] 统一错误处理
-  - [ ] 统一 usage 记录
-  - [ ] 统一耗时日志
+- [x] `T015` 实现真实 provider
+  - [x] `openai`
+  - [x] `anthropic`
+  - [x] `custom`
+  - [x] 统一错误处理
+  - [x] 统一 usage 记录
+  - [x] 统一耗时日志
 
 ## 2.6 阶段六：检索与 Prompt 组织
 
-- [ ] `T016` 实现关键词与输入解析工具
-  - [ ] 解析 `authorIntent`
-  - [ ] 解析手工指定实体 ID
-  - [ ] 校验关键词长度
-  - [ ] 校验 JSON 输入
+- [x] `T016` 实现关键词与输入解析工具
+  - [x] 解析 `authorIntent`
+  - [x] 解析手工指定实体 ID
+  - [x] 校验关键词长度
+  - [x] 校验 JSON 输入
 
-- [ ] `T017` 实现检索 Query Service
-  - [ ] 检索大纲
-  - [ ] 检索上文章节
-  - [ ] 检索故事钩子
-  - [ ] 检索人物
-  - [ ] 检索势力
-  - [ ] 检索物品
-  - [ ] 检索关系
-  - [ ] 检索世界设定
-  - [ ] 支持手工指定 ID
-  - [ ] 支持关键词命中
-  - [ ] 支持状态过滤
-  - [ ] 支持近期章节加权
+- [x] `T017` 实现检索 Query Service
+  - [x] 检索大纲
+  - [x] 检索上文章节
+  - [x] 检索故事钩子
+  - [x] 检索人物
+  - [x] 检索势力
+  - [x] 检索物品
+  - [x] 检索关系
+  - [x] 检索世界设定
+  - [x] 支持手工指定 ID
+  - [x] 支持关键词命中
+  - [x] 支持状态过滤
+  - [x] 支持近期章节加权
 
-- [ ] `T018` 实现 Prompt 模板层
-  - [ ] `buildPlanPrompt`
-  - [ ] `buildDraftPrompt`
-  - [ ] `buildReviewPrompt`
-  - [ ] `buildRepairPrompt`
-  - [ ] `buildApprovePrompt`
-  - [ ] AI 关键词提取 Prompt
-  - [ ] AI 作者意图生成 Prompt
+- [x] `T018` 实现 Prompt 模板层
+  - [x] `buildPlanPrompt`
+  - [x] `buildDraftPrompt`
+  - [x] `buildReviewPrompt`
+  - [x] `buildRepairPrompt`
+  - [x] `buildApprovePrompt`
+  - [x] AI 关键词提取 Prompt
+  - [x] AI 作者意图生成 Prompt
 
 ## 2.7 阶段七：章节工作流
 
-- [ ] `T019` 实现 `plan` 工作流
-  - [ ] 读取章节输入参数
-  - [ ] 支持 `authorIntent`
-  - [ ] 支持手工指定实体 ID
-  - [ ] 无作者意图时先生成作者意图草案
-  - [ ] AI 提取关键词
-  - [ ] 生成 `retrieved_context`
-  - [ ] 写入 `chapter_plans`
-  - [ ] 更新 `chapters.current_plan_id`
-  - [ ] 更新章节状态为 `planned`
+- [x] `T019` 实现 `plan` 工作流
+  - [x] 读取章节输入参数
+  - [x] 支持 `authorIntent`
+  - [x] 支持手工指定实体 ID
+  - [x] 无作者意图时先生成作者意图草案
+  - [x] AI 提取关键词
+  - [x] 生成 `retrieved_context`
+  - [x] 写入 `chapter_plans`
+  - [x] 更新 `chapters.current_plan_id`
+  - [x] 更新章节状态为 `planned`
 
 - [ ] `T020` 实现 `draft` 工作流
   - [ ] 读取当前 `chapter_plans`
@@ -252,14 +252,14 @@
   - [ ] 更新 `books.current_chapter_count`
   - [ ] 更新章节状态为 `approved`
 
-- [ ] `T024` 实现章节 Markdown 导入导出
-  - [ ] `chapter export --stage plan`
-  - [ ] `chapter export --stage draft`
-  - [ ] `chapter export --stage final`
-  - [ ] `chapter import --stage plan`
-  - [ ] `chapter import --stage draft`
-  - [ ] `chapter import --stage final`
-  - [ ] 导入时创建新版本，不覆盖旧版本
+- [x] `T024` 实现章节 Markdown 导入导出
+  - [x] `chapter export --stage plan`
+  - [x] `chapter export --stage draft`
+  - [x] `chapter export --stage final`
+  - [x] `chapter import --stage plan`
+  - [x] `chapter import --stage draft`
+  - [x] `chapter import --stage final`
+  - [x] 导入时创建新版本，不覆盖旧版本
 
 ## 2.8 阶段八：测试、文档与示例数据
 
@@ -289,9 +289,9 @@
 ## 3. 建议执行顺序
 
 - [x] 第一轮基础设施：`T001-T009`
-- [ ] 第二轮资源层：`T010-T012`
-- [ ] 第三轮模型层：`T013-T015`
-- [ ] 第四轮检索与 Prompt：`T016-T018`
+- [x] 第二轮资源层：`T010-T012`
+- [x] 第三轮模型层：`T013-T015`
+- [x] 第四轮检索与 Prompt：`T016-T018`
 - [ ] 第五轮章节工作流：`T019-T024`
 - [ ] 第六轮测试与文档：`T025-T027`
 
@@ -305,16 +305,16 @@
 - [x] `T007` Database 类型
 - [x] `T008` migration
 - [x] `T009` db:init / db:migrate
-- [ ] `T010` repository
-- [ ] `T014` mock provider
-- [ ] `T019` plan
+- [x] `T010` repository
+- [x] `T014` mock provider
+- [x] `T019` plan
 - [ ] `T020` draft
 
 ## 5. V1 完成定义
 
-- [ ] 所有核心表与 migration 已完成
-- [ ] 所有资源 CRUD CLI 可用
+- [x] 所有核心表与 migration 已完成
+- [x] 所有资源 CRUD CLI 可用
 - [ ] `mock` 模式下 `plan -> draft -> review -> repair -> approve` 可跑通
-- [ ] 支持 Markdown 导入导出 `plan/draft/final`
-- [ ] 支持日志、耗时记录、AI 内容日志开关
+- [x] 支持 Markdown 导入导出 `plan/draft/final`
+- [x] 支持日志、耗时记录、AI 内容日志开关
 - [ ] 支持 `approve` 后的事实回写
