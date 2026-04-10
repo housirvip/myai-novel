@@ -233,7 +233,7 @@
   - [x] 更新 `chapters.current_draft_id`
   - [x] 更新章节状态为 `repaired`
 
-- [ ] `T023` 实现 `approve` 工作流
+- [x] `T023` 实现 `approve` 工作流
   - [x] 读取当前 draft / plan / review
   - [x] 写入 `chapter_finals`
   - [x] 更新 `chapters.current_final_id`
@@ -242,7 +242,7 @@
   - [x] 更新势力
   - [x] 更新物品
   - [x] 更新钩子
-  - [ ] 更新关系
+  - [x] 更新关系
   - [x] 更新世界设定
   - [x] 更新 `actual_character_ids`
   - [x] 更新 `actual_faction_ids`
@@ -292,7 +292,7 @@
 - [x] 第二轮资源层：`T010-T012`
 - [x] 第三轮模型层：`T013-T015`
 - [x] 第四轮检索与 Prompt：`T016-T018`
-- [ ] 第五轮章节工作流：`T019-T024`
+- [x] 第五轮章节工作流：`T019-T024`
 - [ ] 第六轮测试与文档：`T025-T027`
 
 ## 4. 第一批建议先做
@@ -310,7 +310,7 @@
 - [x] `T019` plan
 - [x] `T020` draft
 - [x] `T022` repair
-- [ ] `T023` approve
+- [x] `T023` approve
 
 ## 5. V1 完成定义
 
@@ -319,4 +319,4 @@
 - [x] `mock` 模式下 `plan -> draft -> review -> repair -> approve` 可跑通
 - [x] 支持 Markdown 导入导出 `plan/draft/final`
 - [x] 支持日志、耗时记录、AI 内容日志开关
-- [ ] 支持 `approve` 后的事实回写
+- [x] 支持 `approve` 后的事实回写

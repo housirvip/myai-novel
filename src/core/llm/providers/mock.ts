@@ -92,6 +92,19 @@ export class MockLlmClient implements LlmClient {
             },
           ],
           newWorldSettings: [],
+          newRelations: [
+            {
+              sourceType: "character",
+              sourceId: 1,
+              targetType: "faction",
+              targetId: 1,
+              relationType: "member",
+              intensity: 60,
+              status: "active",
+              description: "林夜正式以外门弟子身份进入青岳宗。",
+              keywords: ["林夜", "青岳宗", "外门"],
+            },
+          ],
           updates: [
             {
               entityType: "story_hook",

@@ -10,6 +10,7 @@ import { ChapterReviewRepository } from "../../core/db/repositories/chapter-revi
 import { CharacterRepository } from "../../core/db/repositories/character-repository.js";
 import { FactionRepository } from "../../core/db/repositories/faction-repository.js";
 import { ItemRepository } from "../../core/db/repositories/item-repository.js";
+import { RelationRepository } from "../../core/db/repositories/relation-repository.js";
 import { StoryHookRepository } from "../../core/db/repositories/story-hook-repository.js";
 import { WorldSettingRepository } from "../../core/db/repositories/world-setting-repository.js";
 import { createLlmFactory } from "../../core/llm/factory.js";
@@ -75,10 +76,25 @@ const approveDiffSchema = z.object({
       }),
     )
     .default([]),
+  newRelations: z
+    .array(
+      z.object({
+        sourceType: z.enum(["character", "faction"]),
+        sourceId: z.number().int().positive(),
+        targetType: z.enum(["character", "faction"]),
+        targetId: z.number().int().positive(),
+        relationType: z.string().min(1),
+        intensity: z.number().int().min(-100).max(100).nullable().optional(),
+        status: z.string().nullable().optional(),
+        description: z.string().min(1),
+        keywords: z.array(z.string().min(1).max(8)).default([]),
+      }),
+    )
+    .default([]),
   updates: z
     .array(
       z.object({
-        entityType: z.enum(["character", "faction", "item", "story_hook", "world_setting"]),
+        entityType: z.enum(["character", "faction", "relation", "item", "story_hook", "world_setting"]),
         entityId: z.number().int().positive(),
         action: z.enum(["update_fields", "append_notes", "status_change"]),
         payload: z.record(z.string(), z.unknown()),
@@ -132,6 +148,7 @@ export class ApproveChapterWorkflow {
             const bookRepository = new BookRepository(trx);
             const characterRepository = new CharacterRepository(trx);
             const factionRepository = new FactionRepository(trx);
+            const relationRepository = new RelationRepository(trx);
             const itemRepository = new ItemRepository(trx);
             const hookRepository = new StoryHookRepository(trx);
             const worldSettingRepository = new WorldSettingRepository(trx);
@@ -183,6 +200,7 @@ export class ApproveChapterWorkflow {
               items: [],
               hooks: [],
               worldSettings: [],
+              relations: [],
             };
 
             const timestamp = nowIso();
@@ -371,6 +389,47 @@ export class ApproveChapterWorkflow {
               createdEntities.worldSettings.push(created.id);
             }
 
+            for (const item of diff.newRelations) {
+              const existing = await relationRepository.findByComposite({
+                bookId: payload.bookId,
+                sourceType: item.sourceType,
+                sourceId: item.sourceId,
+                targetType: item.targetType,
+                targetId: item.targetId,
+                relationType: item.relationType,
+              });
+
+              if (existing) {
+                createdEntities.relations.push(existing.id);
+                await relationRepository.updateById(existing.id, {
+                  intensity: item.intensity ?? existing.intensity,
+                  status: item.status ?? existing.status,
+                  description: item.description,
+                  keywords: JSON.stringify(item.keywords),
+                  append_notes: appendChapterNote(existing.append_notes, payload.chapterNo, item.description),
+                  updated_at: timestamp,
+                });
+                continue;
+              }
+
+              const created = await relationRepository.create({
+                book_id: payload.bookId,
+                source_type: item.sourceType,
+                source_id: item.sourceId,
+                target_type: item.targetType,
+                target_id: item.targetId,
+                relation_type: item.relationType,
+                intensity: item.intensity ?? null,
+                status: item.status ?? "active",
+                description: item.description,
+                append_notes: appendChapterNote(null, payload.chapterNo, item.description),
+                keywords: JSON.stringify(item.keywords),
+                created_at: timestamp,
+                updated_at: timestamp,
+              });
+              createdEntities.relations.push(created.id);
+            }
+
             let updatedCount = 0;
             for (const update of diff.updates) {
               if (update.entityType === "character") {
@@ -398,6 +457,18 @@ export class ApproveChapterWorkflow {
                 }
                 updatedCount += 1;
                 await itemRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
+              }
+
+              if (update.entityType === "relation") {
+                const existing = await relationRepository.getById(update.entityId);
+                if (!existing) {
+                  continue;
+                }
+                updatedCount += 1;
+                await relationRepository.updateById(
+                  update.entityId,
+                  mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp),
+                );
               }
 
               if (update.entityType === "story_hook") {

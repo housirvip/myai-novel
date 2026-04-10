@@ -205,8 +205,9 @@ export function buildApproveDiffPrompt(input: {
         input.reviewContent,
         input.retrievedContext ? `\n召回上下文：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
         "",
-        "请返回 JSON，包含：chapterSummary, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, updates。",
-        "updates 中的 entityType 支持 character, faction, item, story_hook, world_setting；action 支持 update_fields, append_notes, status_change。",
+        "请返回 JSON，包含：chapterSummary, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, newRelations, updates。",
+        "newRelations 用于新增关系，字段包含 sourceType, sourceId, targetType, targetId, relationType, intensity, status, description, keywords。",
+        "updates 中的 entityType 支持 character, faction, relation, item, story_hook, world_setting；action 支持 update_fields, append_notes, status_change。",
       ].join("\n"),
     },
   ];

@@ -34,6 +34,26 @@ export class RelationRepository {
     return this.db.selectFrom("relations").selectAll().where("id", "=", id).executeTakeFirst();
   }
 
+  async findByComposite(input: {
+    bookId: number;
+    sourceType: string;
+    sourceId: number;
+    targetType: string;
+    targetId: number;
+    relationType: string;
+  }): Promise<RelationRow | undefined> {
+    return this.db
+      .selectFrom("relations")
+      .selectAll()
+      .where("book_id", "=", input.bookId)
+      .where("source_type", "=", input.sourceType)
+      .where("source_id", "=", input.sourceId)
+      .where("target_type", "=", input.targetType)
+      .where("target_id", "=", input.targetId)
+      .where("relation_type", "=", input.relationType)
+      .executeTakeFirst();
+  }
+
   async updateById(id: number, input: RelationUpdateRow): Promise<RelationRow | undefined> {
     return this.db
       .updateTable("relations")
