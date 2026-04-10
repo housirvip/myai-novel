@@ -11,22 +11,24 @@ import { printData } from "../../shared/utils/output.js";
 import { runCliCommand } from "../runtime.js";
 
 export function registerFactionCommands(program: Command): void {
-  const faction = program.command("faction").description("Manage factions");
+  const faction = program.command("faction").description("势力管理");
+  faction.helpOption("-h, --help", "查看帮助");
+  faction.addHelpCommand("help [command]", "查看命令帮助");
 
   faction
     .command("create")
-    .description("Create a faction")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--name <name>", "Faction name")
-    .option("--category <category>", "Category")
-    .option("--coreGoal <text>", "Core goal")
-    .option("--description <text>", "Description")
-    .option("--leaderCharacterId <id>", "Leader character id")
-    .option("--headquarter <text>", "Headquarter")
-    .option("--status <status>", "Status", "active")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("创建势力")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--name <name>", "势力名称")
+    .option("--category <category>", "势力分类")
+    .option("--coreGoal <text>", "核心目标")
+    .option("--description <text>", "描述")
+    .option("--leaderCharacterId <id>", "领袖人物 ID")
+    .option("--headquarter <text>", "总部/驻地")
+    .option("--status <status>", "状态", "active")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("faction.create", async (logger) => {
         const result = await new FactionService(logger).create({
@@ -50,11 +52,11 @@ export function registerFactionCommands(program: Command): void {
 
   faction
     .command("list")
-    .description("List factions by book")
-    .requiredOption("--book <id>", "Book id")
-    .option("--status <status>", "Filter by status")
-    .option("--limit <count>", "Limit result count", "50")
-    .option("--json", "Print JSON output")
+    .description("查看某本书的势力列表")
+    .requiredOption("--book <id>", "书籍 ID")
+    .option("--status <status>", "按状态过滤")
+    .option("--limit <count>", "返回数量上限", "50")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("faction.list", async (logger) => {
         const result = await new FactionService(logger).list(
@@ -68,9 +70,9 @@ export function registerFactionCommands(program: Command): void {
 
   faction
     .command("get")
-    .description("Get faction by id")
-    .requiredOption("--id <id>", "Faction id")
-    .option("--json", "Print JSON output")
+    .description("按 ID 查看势力")
+    .requiredOption("--id <id>", "势力 ID")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("faction.get", async (logger) => {
         const result = await new FactionService(logger).get(
@@ -82,19 +84,19 @@ export function registerFactionCommands(program: Command): void {
 
   faction
     .command("update")
-    .description("Update faction by id")
-    .requiredOption("--id <id>", "Faction id")
-    .option("--book <id>", "Book id")
-    .option("--name <name>", "Faction name")
-    .option("--category <category>", "Category")
-    .option("--coreGoal <text>", "Core goal")
-    .option("--description <text>", "Description")
-    .option("--leaderCharacterId <id>", "Leader character id")
-    .option("--headquarter <text>", "Headquarter")
-    .option("--status <status>", "Status")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("更新势力")
+    .requiredOption("--id <id>", "势力 ID")
+    .option("--book <id>", "书籍 ID")
+    .option("--name <name>", "势力名称")
+    .option("--category <category>", "势力分类")
+    .option("--coreGoal <text>", "核心目标")
+    .option("--description <text>", "描述")
+    .option("--leaderCharacterId <id>", "领袖人物 ID")
+    .option("--headquarter <text>", "总部/驻地")
+    .option("--status <status>", "状态")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("faction.update", async (logger) => {
         const result = await new FactionService(logger).update({
@@ -119,8 +121,8 @@ export function registerFactionCommands(program: Command): void {
 
   faction
     .command("delete")
-    .description("Delete faction by id")
-    .requiredOption("--id <id>", "Faction id")
+    .description("删除势力")
+    .requiredOption("--id <id>", "势力 ID")
     .action(async (options) => {
       await runCliCommand("faction.delete", async (logger) => {
         await new FactionService(logger).remove(parseRequiredNumber(options.id as string, "id"));

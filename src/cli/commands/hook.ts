@@ -11,22 +11,24 @@ import { printData } from "../../shared/utils/output.js";
 import { runCliCommand } from "../runtime.js";
 
 export function registerHookCommands(program: Command): void {
-  const hook = program.command("hook").description("Manage story hooks");
+  const hook = program.command("hook").description("故事钩子管理");
+  hook.helpOption("-h, --help", "查看帮助");
+  hook.addHelpCommand("help [command]", "查看命令帮助");
 
   hook
     .command("create")
-    .description("Create a story hook")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--title <title>", "Story hook title")
-    .option("--hookType <type>", "Hook type")
-    .option("--description <text>", "Description")
-    .option("--sourceChapter <number>", "Source chapter number")
-    .option("--targetChapter <number>", "Target chapter number")
-    .option("--status <status>", "Status", "open")
-    .option("--importance <level>", "Importance")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("创建故事钩子")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--title <title>", "钩子标题")
+    .option("--hookType <type>", "钩子类型")
+    .option("--description <text>", "描述")
+    .option("--sourceChapter <number>", "来源章节号")
+    .option("--targetChapter <number>", "目标章节号")
+    .option("--status <status>", "状态", "open")
+    .option("--importance <level>", "重要度")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("hook.create", async (logger) => {
         const result = await new StoryHookService(logger).create({
@@ -47,11 +49,11 @@ export function registerHookCommands(program: Command): void {
 
   hook
     .command("list")
-    .description("List story hooks by book")
-    .requiredOption("--book <id>", "Book id")
-    .option("--status <status>", "Filter by status")
-    .option("--limit <count>", "Limit result count", "50")
-    .option("--json", "Print JSON output")
+    .description("查看某本书的故事钩子列表")
+    .requiredOption("--book <id>", "书籍 ID")
+    .option("--status <status>", "按状态过滤")
+    .option("--limit <count>", "返回数量上限", "50")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("hook.list", async (logger) => {
         const result = await new StoryHookService(logger).list(
@@ -65,9 +67,9 @@ export function registerHookCommands(program: Command): void {
 
   hook
     .command("get")
-    .description("Get story hook by id")
-    .requiredOption("--id <id>", "Story hook id")
-    .option("--json", "Print JSON output")
+    .description("按 ID 查看故事钩子")
+    .requiredOption("--id <id>", "故事钩子 ID")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("hook.get", async (logger) => {
         const result = await new StoryHookService(logger).get(
@@ -79,19 +81,19 @@ export function registerHookCommands(program: Command): void {
 
   hook
     .command("update")
-    .description("Update story hook by id")
-    .requiredOption("--id <id>", "Story hook id")
-    .option("--book <id>", "Book id")
-    .option("--title <title>", "Story hook title")
-    .option("--hookType <type>", "Hook type")
-    .option("--description <text>", "Description")
-    .option("--sourceChapter <number>", "Source chapter number")
-    .option("--targetChapter <number>", "Target chapter number")
-    .option("--status <status>", "Status")
-    .option("--importance <level>", "Importance")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("更新故事钩子")
+    .requiredOption("--id <id>", "故事钩子 ID")
+    .option("--book <id>", "书籍 ID")
+    .option("--title <title>", "钩子标题")
+    .option("--hookType <type>", "钩子类型")
+    .option("--description <text>", "描述")
+    .option("--sourceChapter <number>", "来源章节号")
+    .option("--targetChapter <number>", "目标章节号")
+    .option("--status <status>", "状态")
+    .option("--importance <level>", "重要度")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("hook.update", async (logger) => {
         const result = await new StoryHookService(logger).update({
@@ -113,8 +115,8 @@ export function registerHookCommands(program: Command): void {
 
   hook
     .command("delete")
-    .description("Delete story hook by id")
-    .requiredOption("--id <id>", "Story hook id")
+    .description("删除故事钩子")
+    .requiredOption("--id <id>", "故事钩子 ID")
     .action(async (options) => {
       await runCliCommand("hook.delete", async (logger) => {
         await new StoryHookService(logger).remove(parseRequiredNumber(options.id as string, "id"));

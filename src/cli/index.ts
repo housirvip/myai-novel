@@ -21,8 +21,23 @@ export async function runCli(argv: string[]): Promise<void> {
 
   program
     .name("novel")
-    .description("AI novel CLI tool")
-    .version("0.1.0");
+    .description("AI 小说创作命令行工具")
+    .version("0.1.0", "-V, --version", "查看版本号")
+    .helpOption("-h, --help", "查看帮助");
+
+  program.addHelpCommand("help [command]", "查看命令帮助");
+
+  program.addHelpText(
+    "after",
+    [
+      "",
+      "使用示例：",
+      "  novel db init",
+      "  novel book create --title \"青岳入门录\"",
+      "  novel plan --book 1 --chapter 1 --provider mock",
+      "  novel chapter export --book 1 --chapter 1 --stage draft --output ./draft.md",
+    ].join("\n"),
+  );
 
   registerApproveCommands(program);
   registerBookCommands(program);

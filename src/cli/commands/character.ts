@@ -12,28 +12,30 @@ import { printData } from "../../shared/utils/output.js";
 import { runCliCommand } from "../runtime.js";
 
 export function registerCharacterCommands(program: Command): void {
-  const character = program.command("character").description("Manage characters");
+  const character = program.command("character").description("人物管理");
+  character.helpOption("-h, --help", "查看帮助");
+  character.addHelpCommand("help [command]", "查看命令帮助");
 
   character
     .command("create")
-    .description("Create a character")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--name <name>", "Character name")
-    .option("--alias <alias>", "Alias")
-    .option("--gender <gender>", "Gender")
-    .option("--age <age>", "Age")
-    .option("--personality <text>", "Personality")
-    .option("--background <text>", "Background")
-    .option("--location <text>", "Current location")
-    .option("--status <status>", "Status", "alive")
-    .option("--professions <items>", "Professions, JSON or comma separated")
-    .option("--levels <items>", "Levels, JSON or comma separated")
-    .option("--currencies <items>", "Currencies, JSON or comma separated")
-    .option("--abilities <items>", "Abilities, JSON or comma separated")
-    .option("--goal <text>", "Goal")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("创建人物")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--name <name>", "人物名称")
+    .option("--alias <alias>", "别名")
+    .option("--gender <gender>", "性别")
+    .option("--age <age>", "年龄")
+    .option("--personality <text>", "性格")
+    .option("--background <text>", "背景")
+    .option("--location <text>", "当前位置")
+    .option("--status <status>", "状态", "alive")
+    .option("--professions <items>", "职业，支持 JSON 或逗号分隔")
+    .option("--levels <items>", "等级/境界，支持 JSON 或逗号分隔")
+    .option("--currencies <items>", "货币，支持 JSON 或逗号分隔")
+    .option("--abilities <items>", "特殊能力，支持 JSON 或逗号分隔")
+    .option("--goal <text>", "目标")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("character.create", async (logger) => {
         const result = await new CharacterService(logger).create({
@@ -60,11 +62,11 @@ export function registerCharacterCommands(program: Command): void {
 
   character
     .command("list")
-    .description("List characters by book")
-    .requiredOption("--book <id>", "Book id")
-    .option("--status <status>", "Filter by status")
-    .option("--limit <count>", "Limit result count", "50")
-    .option("--json", "Print JSON output")
+    .description("查看某本书的人物列表")
+    .requiredOption("--book <id>", "书籍 ID")
+    .option("--status <status>", "按状态过滤")
+    .option("--limit <count>", "返回数量上限", "50")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("character.list", async (logger) => {
         const result = await new CharacterService(logger).list(
@@ -78,9 +80,9 @@ export function registerCharacterCommands(program: Command): void {
 
   character
     .command("get")
-    .description("Get character by id")
-    .requiredOption("--id <id>", "Character id")
-    .option("--json", "Print JSON output")
+    .description("按 ID 查看人物")
+    .requiredOption("--id <id>", "人物 ID")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("character.get", async (logger) => {
         const result = await new CharacterService(logger).get(
@@ -92,25 +94,25 @@ export function registerCharacterCommands(program: Command): void {
 
   character
     .command("update")
-    .description("Update character by id")
-    .requiredOption("--id <id>", "Character id")
-    .option("--book <id>", "Book id")
-    .option("--name <name>", "Character name")
-    .option("--alias <alias>", "Alias")
-    .option("--gender <gender>", "Gender")
-    .option("--age <age>", "Age")
-    .option("--personality <text>", "Personality")
-    .option("--background <text>", "Background")
-    .option("--location <text>", "Current location")
-    .option("--status <status>", "Status")
-    .option("--professions <items>", "Professions, JSON or comma separated")
-    .option("--levels <items>", "Levels, JSON or comma separated")
-    .option("--currencies <items>", "Currencies, JSON or comma separated")
-    .option("--abilities <items>", "Abilities, JSON or comma separated")
-    .option("--goal <text>", "Goal")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("更新人物")
+    .requiredOption("--id <id>", "人物 ID")
+    .option("--book <id>", "书籍 ID")
+    .option("--name <name>", "人物名称")
+    .option("--alias <alias>", "别名")
+    .option("--gender <gender>", "性别")
+    .option("--age <age>", "年龄")
+    .option("--personality <text>", "性格")
+    .option("--background <text>", "背景")
+    .option("--location <text>", "当前位置")
+    .option("--status <status>", "状态")
+    .option("--professions <items>", "职业，支持 JSON 或逗号分隔")
+    .option("--levels <items>", "等级/境界，支持 JSON 或逗号分隔")
+    .option("--currencies <items>", "货币，支持 JSON 或逗号分隔")
+    .option("--abilities <items>", "特殊能力，支持 JSON 或逗号分隔")
+    .option("--goal <text>", "目标")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("character.update", async (logger) => {
         const result = await new CharacterService(logger).update({
@@ -138,8 +140,8 @@ export function registerCharacterCommands(program: Command): void {
 
   character
     .command("delete")
-    .description("Delete character by id")
-    .requiredOption("--id <id>", "Character id")
+    .description("删除人物")
+    .requiredOption("--id <id>", "人物 ID")
     .action(async (options) => {
       await runCliCommand("character.delete", async (logger) => {
         await new CharacterService(logger).remove(parseRequiredNumber(options.id as string, "id"));

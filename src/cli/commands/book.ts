@@ -5,16 +5,18 @@ import { runCliCommand } from "../runtime.js";
 import { printData } from "../../shared/utils/output.js";
 
 export function registerBookCommands(program: Command): void {
-  const book = program.command("book").description("Manage books");
+  const book = program.command("book").description("书籍管理");
+  book.helpOption("-h, --help", "查看帮助");
+  book.addHelpCommand("help [command]", "查看命令帮助");
 
   book
     .command("create")
-    .description("Create a book")
-    .requiredOption("--title <title>", "Book title")
-    .option("--summary <summary>", "Book summary")
-    .option("--targetChapters <count>", "Target chapter count")
-    .option("--status <status>", "Book status", "planning")
-    .option("--json", "Print JSON output")
+    .description("创建书籍")
+    .requiredOption("--title <title>", "书名")
+    .option("--summary <summary>", "书籍简介")
+    .option("--targetChapters <count>", "预期章节数")
+    .option("--status <status>", "书籍状态", "planning")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("book.create", async (logger) => {
         const service = new BookService(logger);
@@ -30,9 +32,9 @@ export function registerBookCommands(program: Command): void {
 
   book
     .command("list")
-    .description("List books")
-    .option("--limit <count>", "Limit result count", "50")
-    .option("--json", "Print JSON output")
+    .description("查看书籍列表")
+    .option("--limit <count>", "返回数量上限", "50")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("book.list", async (logger) => {
         const service = new BookService(logger);
@@ -43,9 +45,9 @@ export function registerBookCommands(program: Command): void {
 
   book
     .command("get")
-    .description("Get a book by id")
-    .requiredOption("--id <id>", "Book id")
-    .option("--json", "Print JSON output")
+    .description("按 ID 查看书籍")
+    .requiredOption("--id <id>", "书籍 ID")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("book.get", async (logger) => {
         const service = new BookService(logger);
@@ -56,13 +58,13 @@ export function registerBookCommands(program: Command): void {
 
   book
     .command("update")
-    .description("Update a book")
-    .requiredOption("--id <id>", "Book id")
-    .option("--title <title>", "Book title")
-    .option("--summary <summary>", "Book summary")
-    .option("--targetChapters <count>", "Target chapter count")
-    .option("--status <status>", "Book status")
-    .option("--json", "Print JSON output")
+    .description("更新书籍")
+    .requiredOption("--id <id>", "书籍 ID")
+    .option("--title <title>", "书名")
+    .option("--summary <summary>", "书籍简介")
+    .option("--targetChapters <count>", "预期章节数")
+    .option("--status <status>", "书籍状态")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("book.update", async (logger) => {
         const service = new BookService(logger);
@@ -79,8 +81,8 @@ export function registerBookCommands(program: Command): void {
 
   book
     .command("delete")
-    .description("Delete a book")
-    .requiredOption("--id <id>", "Book id")
+    .description("删除书籍")
+    .requiredOption("--id <id>", "书籍 ID")
     .action(async (options) => {
       await runCliCommand("book.delete", async (logger) => {
         const service = new BookService(logger);

@@ -11,22 +11,24 @@ import { printData } from "../../shared/utils/output.js";
 import { runCliCommand } from "../runtime.js";
 
 export function registerItemCommands(program: Command): void {
-  const item = program.command("item").description("Manage items");
+  const item = program.command("item").description("物品管理");
+  item.helpOption("-h, --help", "查看帮助");
+  item.addHelpCommand("help [command]", "查看命令帮助");
 
   item
     .command("create")
-    .description("Create an item")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--name <name>", "Item name")
-    .option("--category <category>", "Category")
-    .option("--description <text>", "Description")
-    .option("--ownerType <type>", "Owner type", "none")
-    .option("--ownerId <id>", "Owner id")
-    .option("--rarity <rarity>", "Rarity")
-    .option("--status <status>", "Status", "active")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("创建物品")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--name <name>", "物品名称")
+    .option("--category <category>", "分类")
+    .option("--description <text>", "描述")
+    .option("--ownerType <type>", "持有者类型", "none")
+    .option("--ownerId <id>", "持有者 ID")
+    .option("--rarity <rarity>", "稀有度")
+    .option("--status <status>", "状态", "active")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("item.create", async (logger) => {
         const result = await new ItemService(logger).create({
@@ -47,11 +49,11 @@ export function registerItemCommands(program: Command): void {
 
   item
     .command("list")
-    .description("List items by book")
-    .requiredOption("--book <id>", "Book id")
-    .option("--status <status>", "Filter by status")
-    .option("--limit <count>", "Limit result count", "50")
-    .option("--json", "Print JSON output")
+    .description("查看某本书的物品列表")
+    .requiredOption("--book <id>", "书籍 ID")
+    .option("--status <status>", "按状态过滤")
+    .option("--limit <count>", "返回数量上限", "50")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("item.list", async (logger) => {
         const result = await new ItemService(logger).list(
@@ -65,9 +67,9 @@ export function registerItemCommands(program: Command): void {
 
   item
     .command("get")
-    .description("Get item by id")
-    .requiredOption("--id <id>", "Item id")
-    .option("--json", "Print JSON output")
+    .description("按 ID 查看物品")
+    .requiredOption("--id <id>", "物品 ID")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("item.get", async (logger) => {
         const result = await new ItemService(logger).get(
@@ -79,19 +81,19 @@ export function registerItemCommands(program: Command): void {
 
   item
     .command("update")
-    .description("Update item by id")
-    .requiredOption("--id <id>", "Item id")
-    .option("--book <id>", "Book id")
-    .option("--name <name>", "Item name")
-    .option("--category <category>", "Category")
-    .option("--description <text>", "Description")
-    .option("--ownerType <type>", "Owner type")
-    .option("--ownerId <id>", "Owner id")
-    .option("--rarity <rarity>", "Rarity")
-    .option("--status <status>", "Status")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("更新物品")
+    .requiredOption("--id <id>", "物品 ID")
+    .option("--book <id>", "书籍 ID")
+    .option("--name <name>", "物品名称")
+    .option("--category <category>", "分类")
+    .option("--description <text>", "描述")
+    .option("--ownerType <type>", "持有者类型")
+    .option("--ownerId <id>", "持有者 ID")
+    .option("--rarity <rarity>", "稀有度")
+    .option("--status <status>", "状态")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("item.update", async (logger) => {
         const result = await new ItemService(logger).update({
@@ -113,8 +115,8 @@ export function registerItemCommands(program: Command): void {
 
   item
     .command("delete")
-    .description("Delete item by id")
-    .requiredOption("--id <id>", "Item id")
+    .description("删除物品")
+    .requiredOption("--id <id>", "物品 ID")
     .action(async (options) => {
       await runCliCommand("item.delete", async (logger) => {
         await new ItemService(logger).remove(parseRequiredNumber(options.id as string, "id"));

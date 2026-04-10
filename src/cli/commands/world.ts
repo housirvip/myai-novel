@@ -10,19 +10,21 @@ import { printData } from "../../shared/utils/output.js";
 import { runCliCommand } from "../runtime.js";
 
 export function registerWorldCommands(program: Command): void {
-  const world = program.command("world").description("Manage world settings");
+  const world = program.command("world").description("世界设定管理");
+  world.helpOption("-h, --help", "查看帮助");
+  world.addHelpCommand("help [command]", "查看命令帮助");
 
   world
     .command("create")
-    .description("Create a world setting")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--title <title>", "World setting title")
-    .requiredOption("--category <category>", "World setting category")
-    .requiredOption("--content <content>", "World setting content")
-    .option("--status <status>", "Status", "active")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("创建世界设定")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--title <title>", "设定标题")
+    .requiredOption("--category <category>", "设定分类")
+    .requiredOption("--content <content>", "设定内容")
+    .option("--status <status>", "状态", "active")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("world.create", async (logger) => {
         const result = await new WorldSettingService(logger).create({
@@ -40,11 +42,11 @@ export function registerWorldCommands(program: Command): void {
 
   world
     .command("list")
-    .description("List world settings by book")
-    .requiredOption("--book <id>", "Book id")
-    .option("--status <status>", "Filter by status")
-    .option("--limit <count>", "Limit result count", "50")
-    .option("--json", "Print JSON output")
+    .description("查看某本书的世界设定列表")
+    .requiredOption("--book <id>", "书籍 ID")
+    .option("--status <status>", "按状态过滤")
+    .option("--limit <count>", "返回数量上限", "50")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("world.list", async (logger) => {
         const result = await new WorldSettingService(logger).list(
@@ -58,9 +60,9 @@ export function registerWorldCommands(program: Command): void {
 
   world
     .command("get")
-    .description("Get world setting by id")
-    .requiredOption("--id <id>", "World setting id")
-    .option("--json", "Print JSON output")
+    .description("按 ID 查看世界设定")
+    .requiredOption("--id <id>", "世界设定 ID")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("world.get", async (logger) => {
         const result = await new WorldSettingService(logger).get(
@@ -72,16 +74,16 @@ export function registerWorldCommands(program: Command): void {
 
   world
     .command("update")
-    .description("Update world setting by id")
-    .requiredOption("--id <id>", "World setting id")
-    .option("--book <id>", "Book id")
-    .option("--title <title>", "World setting title")
-    .option("--category <category>", "World setting category")
-    .option("--content <content>", "World setting content")
-    .option("--status <status>", "Status")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("更新世界设定")
+    .requiredOption("--id <id>", "世界设定 ID")
+    .option("--book <id>", "书籍 ID")
+    .option("--title <title>", "设定标题")
+    .option("--category <category>", "设定分类")
+    .option("--content <content>", "设定内容")
+    .option("--status <status>", "状态")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("world.update", async (logger) => {
         const result = await new WorldSettingService(logger).update({
@@ -100,8 +102,8 @@ export function registerWorldCommands(program: Command): void {
 
   world
     .command("delete")
-    .description("Delete world setting by id")
-    .requiredOption("--id <id>", "World setting id")
+    .description("删除世界设定")
+    .requiredOption("--id <id>", "世界设定 ID")
     .action(async (options) => {
       await runCliCommand("world.delete", async (logger) => {
         await new WorldSettingService(logger).remove(parseRequiredNumber(options.id as string, "id"));

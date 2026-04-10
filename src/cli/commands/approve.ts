@@ -8,13 +8,13 @@ import { runCliCommand } from "../runtime.js";
 export function registerApproveCommands(program: Command): void {
   program
     .command("approve")
-    .description("Approve current chapter draft into final content and sync facts")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--chapter <number>", "Chapter number")
-    .option("--provider <provider>", "LLM provider override")
-    .option("--model <model>", "LLM model override")
-    .option("--dryRun", "Generate final content and diff without writing to database")
-    .option("--json", "Print JSON output")
+    .description("将当前草稿定稿，并把事实同步回设定库")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--chapter <number>", "章节号")
+    .option("--provider <provider>", "覆盖默认 LLM provider")
+    .option("--model <model>", "覆盖默认模型")
+    .option("--dryRun", "仅生成正式稿和 diff，不写入数据库")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("approve", async (logger) => {
         const result = await new ApproveChapterWorkflow(logger).run({

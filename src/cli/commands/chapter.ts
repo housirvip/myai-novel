@@ -11,23 +11,25 @@ import { printData } from "../../shared/utils/output.js";
 import { runCliCommand } from "../runtime.js";
 
 export function registerChapterCommands(program: Command): void {
-  const chapter = program.command("chapter").description("Manage chapters");
+  const chapter = program.command("chapter").description("章节管理");
+  chapter.helpOption("-h, --help", "查看帮助");
+  chapter.addHelpCommand("help [command]", "查看命令帮助");
 
   chapter
     .command("create")
-    .description("Create a chapter")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--chapter <number>", "Chapter number")
-    .option("--title <title>", "Chapter title")
-    .option("--summary <text>", "Summary")
-    .option("--wordCount <number>", "Word count")
-    .option("--status <status>", "Status", "todo")
-    .option("--characterIds <ids>", "Actual character ids, JSON array or comma separated")
-    .option("--factionIds <ids>", "Actual faction ids, JSON array or comma separated")
-    .option("--itemIds <ids>", "Actual item ids, JSON array or comma separated")
-    .option("--hookIds <ids>", "Actual hook ids, JSON array or comma separated")
-    .option("--worldSettingIds <ids>", "Actual world setting ids, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("创建章节")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--chapter <number>", "章节号")
+    .option("--title <title>", "章节标题")
+    .option("--summary <text>", "章节总结")
+    .option("--wordCount <number>", "字数")
+    .option("--status <status>", "状态", "todo")
+    .option("--characterIds <ids>", "实际出场人物 ID，支持 JSON 数组或逗号分隔")
+    .option("--factionIds <ids>", "实际出场势力 ID，支持 JSON 数组或逗号分隔")
+    .option("--itemIds <ids>", "实际关联物品 ID，支持 JSON 数组或逗号分隔")
+    .option("--hookIds <ids>", "实际关联钩子 ID，支持 JSON 数组或逗号分隔")
+    .option("--worldSettingIds <ids>", "实际关联世界设定 ID，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("chapter.create", async (logger) => {
         const result = await new ChapterService(logger).create({
@@ -58,11 +60,11 @@ export function registerChapterCommands(program: Command): void {
 
   chapter
     .command("list")
-    .description("List chapters by book")
-    .requiredOption("--book <id>", "Book id")
-    .option("--status <status>", "Filter by status")
-    .option("--limit <count>", "Limit result count", "50")
-    .option("--json", "Print JSON output")
+    .description("查看某本书的章节列表")
+    .requiredOption("--book <id>", "书籍 ID")
+    .option("--status <status>", "按状态过滤")
+    .option("--limit <count>", "返回数量上限", "50")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("chapter.list", async (logger) => {
         const result = await new ChapterService(logger).list(
@@ -76,10 +78,10 @@ export function registerChapterCommands(program: Command): void {
 
   chapter
     .command("get")
-    .description("Get chapter by book and chapter number")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--chapter <number>", "Chapter number")
-    .option("--json", "Print JSON output")
+    .description("按书籍和章节号查看章节")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--chapter <number>", "章节号")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("chapter.get", async (logger) => {
         const result = await new ChapterService(logger).get(
@@ -92,19 +94,19 @@ export function registerChapterCommands(program: Command): void {
 
   chapter
     .command("update")
-    .description("Update chapter by book and chapter number")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--chapter <number>", "Chapter number")
-    .option("--title <title>", "Chapter title")
-    .option("--summary <text>", "Summary")
-    .option("--wordCount <number>", "Word count")
-    .option("--status <status>", "Status")
-    .option("--characterIds <ids>", "Actual character ids, JSON array or comma separated")
-    .option("--factionIds <ids>", "Actual faction ids, JSON array or comma separated")
-    .option("--itemIds <ids>", "Actual item ids, JSON array or comma separated")
-    .option("--hookIds <ids>", "Actual hook ids, JSON array or comma separated")
-    .option("--worldSettingIds <ids>", "Actual world setting ids, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("更新章节")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--chapter <number>", "章节号")
+    .option("--title <title>", "章节标题")
+    .option("--summary <text>", "章节总结")
+    .option("--wordCount <number>", "字数")
+    .option("--status <status>", "状态")
+    .option("--characterIds <ids>", "实际出场人物 ID，支持 JSON 数组或逗号分隔")
+    .option("--factionIds <ids>", "实际出场势力 ID，支持 JSON 数组或逗号分隔")
+    .option("--itemIds <ids>", "实际关联物品 ID，支持 JSON 数组或逗号分隔")
+    .option("--hookIds <ids>", "实际关联钩子 ID，支持 JSON 数组或逗号分隔")
+    .option("--worldSettingIds <ids>", "实际关联世界设定 ID，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("chapter.update", async (logger) => {
         const result = await new ChapterService(logger).update({
@@ -135,12 +137,12 @@ export function registerChapterCommands(program: Command): void {
 
   chapter
     .command("export")
-    .description("Export chapter stage to markdown")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--chapter <number>", "Chapter number")
-    .requiredOption("--stage <stage>", "Stage: plan | draft | final")
-    .requiredOption("--output <path>", "Output path")
-    .option("--json", "Print JSON output")
+    .description("导出章节阶段内容为 Markdown")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--chapter <number>", "章节号")
+    .requiredOption("--stage <stage>", "阶段：plan | draft | final")
+    .requiredOption("--output <path>", "输出路径")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("chapter.export", async (logger) => {
         const result = await new ChapterService(logger).exportStage({
@@ -155,13 +157,13 @@ export function registerChapterCommands(program: Command): void {
 
   chapter
     .command("import")
-    .description("Import chapter stage from markdown")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--chapter <number>", "Chapter number")
-    .requiredOption("--stage <stage>", "Stage: plan | draft | final")
-    .requiredOption("--input <path>", "Input path")
-    .option("--force", "Force import even if status guard would block it")
-    .option("--json", "Print JSON output")
+    .description("从 Markdown 导入章节阶段内容")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--chapter <number>", "章节号")
+    .requiredOption("--stage <stage>", "阶段：plan | draft | final")
+    .requiredOption("--input <path>", "输入路径")
+    .option("--force", "忽略状态保护并强制导入")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("chapter.import", async (logger) => {
         const result = await new ChapterService(logger).importStage({
@@ -177,9 +179,9 @@ export function registerChapterCommands(program: Command): void {
 
   chapter
     .command("delete")
-    .description("Delete chapter by book and chapter number")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--chapter <number>", "Chapter number")
+    .description("删除章节")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--chapter <number>", "章节号")
     .action(async (options) => {
       await runCliCommand("chapter.delete", async (logger) => {
         await new ChapterService(logger).remove(

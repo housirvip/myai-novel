@@ -12,19 +12,19 @@ import { runCliCommand } from "../runtime.js";
 export function registerPlanCommands(program: Command): void {
   program
     .command("plan")
-    .description("Generate chapter plan with retrieved context")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--chapter <number>", "Chapter number")
-    .option("--authorIntent <text>", "Author intent for this chapter")
-    .option("--characterIds <ids>", "Related character ids, JSON array or comma separated")
-    .option("--factionIds <ids>", "Related faction ids, JSON array or comma separated")
-    .option("--itemIds <ids>", "Related item ids, JSON array or comma separated")
-    .option("--hookIds <ids>", "Related hook ids, JSON array or comma separated")
-    .option("--relationIds <ids>", "Related relation ids, JSON array or comma separated")
-    .option("--worldSettingIds <ids>", "Related world setting ids, JSON array or comma separated")
-    .option("--provider <provider>", "LLM provider override")
-    .option("--model <model>", "LLM model override")
-    .option("--json", "Print JSON output")
+    .description("规划本章内容并召回相关设定")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--chapter <number>", "章节号")
+    .option("--authorIntent <text>", "作者对本章的意图")
+    .option("--characterIds <ids>", "关联人物 ID，支持 JSON 数组或逗号分隔")
+    .option("--factionIds <ids>", "关联势力 ID，支持 JSON 数组或逗号分隔")
+    .option("--itemIds <ids>", "关联物品 ID，支持 JSON 数组或逗号分隔")
+    .option("--hookIds <ids>", "关联钩子 ID，支持 JSON 数组或逗号分隔")
+    .option("--relationIds <ids>", "关联关系 ID，支持 JSON 数组或逗号分隔")
+    .option("--worldSettingIds <ids>", "关联世界设定 ID，支持 JSON 数组或逗号分隔")
+    .option("--provider <provider>", "覆盖默认 LLM provider")
+    .option("--model <model>", "覆盖默认模型")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("plan", async (logger) => {
         const manualEntityRefs = createEmptyManualEntityRefs();

@@ -11,23 +11,25 @@ import { printData } from "../../shared/utils/output.js";
 import { runCliCommand } from "../runtime.js";
 
 export function registerRelationCommands(program: Command): void {
-  const relation = program.command("relation").description("Manage relations");
+  const relation = program.command("relation").description("关系管理");
+  relation.helpOption("-h, --help", "查看帮助");
+  relation.addHelpCommand("help [command]", "查看命令帮助");
 
   relation
     .command("create")
-    .description("Create a relation")
-    .requiredOption("--book <id>", "Book id")
-    .requiredOption("--sourceType <type>", "Source type")
-    .requiredOption("--sourceId <id>", "Source id")
-    .requiredOption("--targetType <type>", "Target type")
-    .requiredOption("--targetId <id>", "Target id")
-    .requiredOption("--relationType <type>", "Relation type")
-    .option("--intensity <number>", "Intensity 0-100")
-    .option("--status <status>", "Status", "active")
-    .option("--description <text>", "Description")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("创建关系")
+    .requiredOption("--book <id>", "书籍 ID")
+    .requiredOption("--sourceType <type>", "起点实体类型")
+    .requiredOption("--sourceId <id>", "起点实体 ID")
+    .requiredOption("--targetType <type>", "终点实体类型")
+    .requiredOption("--targetId <id>", "终点实体 ID")
+    .requiredOption("--relationType <type>", "关系类型")
+    .option("--intensity <number>", "关系强度，建议 0-100")
+    .option("--status <status>", "状态", "active")
+    .option("--description <text>", "描述")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("relation.create", async (logger) => {
         const result = await new RelationService(logger).create({
@@ -49,11 +51,11 @@ export function registerRelationCommands(program: Command): void {
 
   relation
     .command("list")
-    .description("List relations by book")
-    .requiredOption("--book <id>", "Book id")
-    .option("--status <status>", "Filter by status")
-    .option("--limit <count>", "Limit result count", "50")
-    .option("--json", "Print JSON output")
+    .description("查看某本书的关系列表")
+    .requiredOption("--book <id>", "书籍 ID")
+    .option("--status <status>", "按状态过滤")
+    .option("--limit <count>", "返回数量上限", "50")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("relation.list", async (logger) => {
         const result = await new RelationService(logger).list(
@@ -67,9 +69,9 @@ export function registerRelationCommands(program: Command): void {
 
   relation
     .command("get")
-    .description("Get relation by id")
-    .requiredOption("--id <id>", "Relation id")
-    .option("--json", "Print JSON output")
+    .description("按 ID 查看关系")
+    .requiredOption("--id <id>", "关系 ID")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("relation.get", async (logger) => {
         const result = await new RelationService(logger).get(
@@ -81,20 +83,20 @@ export function registerRelationCommands(program: Command): void {
 
   relation
     .command("update")
-    .description("Update relation by id")
-    .requiredOption("--id <id>", "Relation id")
-    .option("--book <id>", "Book id")
-    .option("--sourceType <type>", "Source type")
-    .option("--sourceId <id>", "Source id")
-    .option("--targetType <type>", "Target type")
-    .option("--targetId <id>", "Target id")
-    .option("--relationType <type>", "Relation type")
-    .option("--intensity <number>", "Intensity 0-100")
-    .option("--status <status>", "Status")
-    .option("--description <text>", "Description")
-    .option("--appendNotes <text>", "Append notes")
-    .option("--keywords <items>", "Keywords, JSON array or comma separated")
-    .option("--json", "Print JSON output")
+    .description("更新关系")
+    .requiredOption("--id <id>", "关系 ID")
+    .option("--book <id>", "书籍 ID")
+    .option("--sourceType <type>", "起点实体类型")
+    .option("--sourceId <id>", "起点实体 ID")
+    .option("--targetType <type>", "终点实体类型")
+    .option("--targetId <id>", "终点实体 ID")
+    .option("--relationType <type>", "关系类型")
+    .option("--intensity <number>", "关系强度，建议 0-100")
+    .option("--status <status>", "状态")
+    .option("--description <text>", "描述")
+    .option("--appendNotes <text>", "补充信息")
+    .option("--keywords <items>", "关键词，支持 JSON 数组或逗号分隔")
+    .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("relation.update", async (logger) => {
         const result = await new RelationService(logger).update({
@@ -121,8 +123,8 @@ export function registerRelationCommands(program: Command): void {
 
   relation
     .command("delete")
-    .description("Delete relation by id")
-    .requiredOption("--id <id>", "Relation id")
+    .description("删除关系")
+    .requiredOption("--id <id>", "关系 ID")
     .action(async (options) => {
       await runCliCommand("relation.delete", async (logger) => {
         await new RelationService(logger).remove(parseRequiredNumber(options.id as string, "id"));

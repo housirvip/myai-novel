@@ -5,10 +5,12 @@ import { createDatabaseManager } from "../../core/db/client.js";
 import { createLogger, createRunContext } from "../../core/logger/index.js";
 
 export function registerDbCommands(program: Command): void {
-  const db = program.command("db").description("Database utilities");
+  const db = program.command("db").description("数据库工具");
+  db.helpOption("-h, --help", "查看帮助");
+  db.addHelpCommand("help [command]", "查看命令帮助");
 
   db.command("init")
-    .description("Initialize the database schema")
+    .description("初始化数据库结构")
     .action(async () => {
       await runDbTask("db.init", async (manager) => {
         await manager.migrate();
@@ -16,7 +18,7 @@ export function registerDbCommands(program: Command): void {
     });
 
   db.command("migrate")
-    .description("Run database migrations")
+    .description("执行数据库迁移")
     .action(async () => {
       await runDbTask("db.migrate", async (manager) => {
         await manager.migrate();
@@ -24,7 +26,7 @@ export function registerDbCommands(program: Command): void {
     });
 
   db.command("check")
-    .description("Check database connectivity")
+    .description("检查数据库连接")
     .action(async () => {
       await runDbTask("db.check", async (manager) => {
         const database = manager.getClient();
