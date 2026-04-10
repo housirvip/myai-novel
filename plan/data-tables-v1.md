@@ -301,7 +301,7 @@ books
 | `id`                | INTEGER  | 是  | 主键                                             |
 | `book_id`           | INTEGER  | 是  | 归属书籍                                           |
 | `title`             | TEXT     | 是  | 钩子标题                                           |
-| `hook_type`         | TEXT     | 否  | 如 `伏笔`、`悬念`、`任务`、`谜团`                          |
+| `hook_type`         | TEXT     | 否  | 如 `foreshadowing`、`suspense`、`quest`、`mystery`、`prophecy` |
 | `description`       | TEXT     | 否  | 描述                                             |
 | `source_chapter_no` | INTEGER  | 否  | 来源章节                                           |
 | `target_chapter_no` | INTEGER  | 否  | 预期回收章节                                         |
