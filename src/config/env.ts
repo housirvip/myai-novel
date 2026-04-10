@@ -22,6 +22,7 @@ const envSchema = z.object({
   MOCK_LLM_RESPONSE_TEXT: z.string().default("Mock response"),
   MOCK_LLM_FIXTURE_PATH: z.string().optional(),
   MOCK_LLM_MODEL: z.string().default("mock-v1"),
+  LLM_DEFAULT_MAX_TOKENS: z.coerce.number().int().positive().default(2048),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-5.4-mini"),
@@ -31,6 +32,20 @@ const envSchema = z.object({
   CUSTOM_LLM_BASE_URL: z.string().optional(),
   CUSTOM_LLM_API_KEY: z.string().optional(),
   CUSTOM_LLM_MODEL: z.string().default("custom-default"),
+  PLANNING_KEYWORD_MAX_LENGTH: z.coerce.number().int().positive().default(8),
+  PLANNING_INTENT_KEYWORD_LIMIT: z.coerce.number().int().positive().default(20),
+  PLANNING_INTENT_MUST_INCLUDE_LIMIT: z.coerce.number().int().positive().default(20),
+  PLANNING_INTENT_MUST_AVOID_LIMIT: z.coerce.number().int().positive().default(20),
+  PLANNING_RETRIEVAL_OUTLINE_LIMIT: z.coerce.number().int().positive().default(3),
+  PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT: z.coerce.number().int().positive().default(3),
+  PLANNING_RETRIEVAL_RECENT_CHAPTER_SCAN_MULTIPLIER: z.coerce.number().int().positive().default(5),
+  PLANNING_RETRIEVAL_HOOK_LIMIT: z.coerce.number().int().positive().default(10),
+  PLANNING_RETRIEVAL_CHARACTER_LIMIT: z.coerce.number().int().positive().default(12),
+  PLANNING_RETRIEVAL_FACTION_LIMIT: z.coerce.number().int().positive().default(8),
+  PLANNING_RETRIEVAL_ITEM_LIMIT: z.coerce.number().int().positive().default(8),
+  PLANNING_RETRIEVAL_RELATION_LIMIT: z.coerce.number().int().positive().default(10),
+  PLANNING_RETRIEVAL_WORLD_SETTING_LIMIT: z.coerce.number().int().positive().default(8),
+  PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT: z.coerce.number().int().positive().default(200),
 });
 
 const parsedEnv = envSchema.parse(process.env);

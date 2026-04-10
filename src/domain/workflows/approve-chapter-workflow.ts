@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { env } from "../../config/env.js";
 import { createDatabaseManager } from "../../core/db/client.js";
 import { BookRepository } from "../../core/db/repositories/book-repository.js";
 import { ChapterDraftRepository } from "../../core/db/repositories/chapter-draft-repository.js";
@@ -35,7 +36,7 @@ const approveDiffSchema = z.object({
       z.object({
         name: z.string().min(1),
         summary: z.string().min(1),
-        keywords: z.array(z.string().min(1).max(8)).default([]),
+        keywords: z.array(z.string().min(1).max(env.PLANNING_KEYWORD_MAX_LENGTH)).default([]),
       }),
     )
     .default([]),
@@ -44,7 +45,7 @@ const approveDiffSchema = z.object({
       z.object({
         name: z.string().min(1),
         summary: z.string().min(1),
-        keywords: z.array(z.string().min(1).max(8)).default([]),
+        keywords: z.array(z.string().min(1).max(env.PLANNING_KEYWORD_MAX_LENGTH)).default([]),
       }),
     )
     .default([]),
@@ -53,7 +54,7 @@ const approveDiffSchema = z.object({
       z.object({
         name: z.string().min(1),
         summary: z.string().min(1),
-        keywords: z.array(z.string().min(1).max(8)).default([]),
+        keywords: z.array(z.string().min(1).max(env.PLANNING_KEYWORD_MAX_LENGTH)).default([]),
       }),
     )
     .default([]),
@@ -62,7 +63,7 @@ const approveDiffSchema = z.object({
       z.object({
         title: z.string().min(1),
         description: z.string().min(1),
-        keywords: z.array(z.string().min(1).max(8)).default([]),
+        keywords: z.array(z.string().min(1).max(env.PLANNING_KEYWORD_MAX_LENGTH)).default([]),
       }),
     )
     .default([]),
@@ -72,7 +73,7 @@ const approveDiffSchema = z.object({
         title: z.string().min(1),
         category: z.string().min(1),
         content: z.string().min(1),
-        keywords: z.array(z.string().min(1).max(8)).default([]),
+        keywords: z.array(z.string().min(1).max(env.PLANNING_KEYWORD_MAX_LENGTH)).default([]),
       }),
     )
     .default([]),
@@ -87,7 +88,7 @@ const approveDiffSchema = z.object({
         intensity: z.number().int().min(-100).max(100).nullable().optional(),
         status: z.string().nullable().optional(),
         description: z.string().min(1),
-        keywords: z.array(z.string().min(1).max(8)).default([]),
+        keywords: z.array(z.string().min(1).max(env.PLANNING_KEYWORD_MAX_LENGTH)).default([]),
       }),
     )
     .default([]),

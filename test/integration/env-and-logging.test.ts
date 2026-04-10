@@ -11,12 +11,15 @@ test("env config resolves paths and keeps defaults", async () => {
   const env = createTestEnv(tempDir, {
     LOG_DIR: "./tmp-logs",
     DB_SQLITE_PATH: "./tmp-db/novel.sqlite",
+    PLANNING_RETRIEVAL_CHARACTER_LIMIT: "9",
   });
 
   const result = await runInlineModule<{
     logDir: string;
     sqlitePath: string;
     provider: string;
+    planningCharacterLimit: number;
+    llmDefaultMaxTokens: number;
   }>(
     [
       "import { env } from './src/config/env.ts';",
@@ -24,12 +27,16 @@ test("env config resolves paths and keeps defaults", async () => {
       "  logDir: env.LOG_DIR,",
       "  sqlitePath: env.DB_SQLITE_PATH,",
       "  provider: env.LLM_PROVIDER,",
+      "  planningCharacterLimit: env.PLANNING_RETRIEVAL_CHARACTER_LIMIT,",
+      "  llmDefaultMaxTokens: env.LLM_DEFAULT_MAX_TOKENS,",
       "}));",
     ].join("\n"),
     env,
   );
 
   assert.equal(result.provider, "mock");
+  assert.equal(result.planningCharacterLimit, 9);
+  assert.equal(result.llmDefaultMaxTokens, 2048);
   assert.match(result.logDir, /tmp-logs$/);
   assert.match(result.sqlitePath, /tmp-db\/novel\.sqlite$/);
 });

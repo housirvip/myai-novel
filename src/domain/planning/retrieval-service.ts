@@ -1,3 +1,4 @@
+import { env } from "../../config/env.js";
 import type { AppLogger } from "../../core/logger/index.js";
 import { executeDbAction } from "../shared/service-helpers.js";
 import type { DatabaseSchema } from "../../core/db/schema/database.js";
@@ -26,15 +27,19 @@ interface RetrievalScoredRow {
 }
 
 const KEYWORD_LIMITS = {
-  outlines: 3,
-  recentChapters: 3,
-  hooks: 10,
-  characters: 12,
-  factions: 8,
-  items: 8,
-  relations: 10,
-  worldSettings: 8,
+  outlines: env.PLANNING_RETRIEVAL_OUTLINE_LIMIT,
+  recentChapters: env.PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT,
+  hooks: env.PLANNING_RETRIEVAL_HOOK_LIMIT,
+  characters: env.PLANNING_RETRIEVAL_CHARACTER_LIMIT,
+  factions: env.PLANNING_RETRIEVAL_FACTION_LIMIT,
+  items: env.PLANNING_RETRIEVAL_ITEM_LIMIT,
+  relations: env.PLANNING_RETRIEVAL_RELATION_LIMIT,
+  worldSettings: env.PLANNING_RETRIEVAL_WORLD_SETTING_LIMIT,
 } as const;
+
+const ENTITY_SCAN_LIMIT = env.PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT;
+const RECENT_CHAPTER_SCAN_LIMIT =
+  env.PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT * env.PLANNING_RETRIEVAL_RECENT_CHAPTER_SCAN_MULTIPLIER;
 
 export class RetrievalQueryService {
   constructor(private readonly logger: AppLogger) {}
@@ -154,7 +159,7 @@ export class RetrievalQueryService {
       .where("chapter_no", "<", chapterNo)
       .where("status", "!=", "todo")
       .orderBy("chapter_no", "desc")
-      .limit(KEYWORD_LIMITS.recentChapters * 5)
+      .limit(RECENT_CHAPTER_SCAN_LIMIT)
       .execute();
 
     const planIds = rows
@@ -220,7 +225,7 @@ export class RetrievalQueryService {
       .selectAll()
       .where("book_id", "=", params.bookId)
       .where("status", "in", ["alive", "missing", "unknown"])
-      .limit(200)
+      .limit(ENTITY_SCAN_LIMIT)
       .execute();
 
     return rankRows(
@@ -294,7 +299,7 @@ export class RetrievalQueryService {
       .selectFrom("factions")
       .selectAll()
       .where("book_id", "=", params.bookId)
-      .limit(200)
+      .limit(ENTITY_SCAN_LIMIT)
       .execute();
 
     return rankRows(
@@ -336,7 +341,7 @@ export class RetrievalQueryService {
       .selectFrom("items")
       .selectAll()
       .where("book_id", "=", params.bookId)
-      .limit(200)
+      .limit(ENTITY_SCAN_LIMIT)
       .execute();
 
     return rankRows(
@@ -379,7 +384,7 @@ export class RetrievalQueryService {
       .selectAll()
       .where("book_id", "=", params.bookId)
       .where("status", "in", ["open", "progressing"])
-      .limit(200)
+      .limit(ENTITY_SCAN_LIMIT)
       .execute();
 
     return rankRows(
@@ -424,7 +429,7 @@ export class RetrievalQueryService {
       .selectFrom("relations")
       .selectAll()
       .where("book_id", "=", params.bookId)
-      .limit(200)
+      .limit(ENTITY_SCAN_LIMIT)
       .execute();
 
     const characterIds = rows.flatMap((row) => [
@@ -530,7 +535,7 @@ export class RetrievalQueryService {
       .selectAll()
       .where("book_id", "=", params.bookId)
       .where("status", "=", "active")
-      .limit(200)
+      .limit(ENTITY_SCAN_LIMIT)
       .execute();
 
     return rankRows(

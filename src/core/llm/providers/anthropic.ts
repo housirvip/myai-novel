@@ -41,7 +41,7 @@ export class AnthropicLlmClient implements LlmClient {
         },
         body: JSON.stringify({
           model,
-          max_tokens: params.maxTokens ?? 2048,
+          max_tokens: params.maxTokens ?? env.LLM_DEFAULT_MAX_TOKENS,
           temperature: params.temperature,
           system: systemMessages.map((message) => message.content).join("\n\n"),
           messages: conversationMessages.map((message) => ({

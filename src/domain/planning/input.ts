@@ -1,15 +1,16 @@
 import { z } from "zod";
 
+import { env } from "../../config/env.js";
 import { parseRequiredNumber } from "../../shared/utils/cli.js";
 import type { ManualEntityRefs } from "./types.js";
 
-const keywordSchema = z.string().min(1).max(8);
+const keywordSchema = z.string().min(1).max(env.PLANNING_KEYWORD_MAX_LENGTH);
 
 export const extractedIntentSchema = z.object({
   intentSummary: z.string().min(1),
-  keywords: z.array(keywordSchema).max(20),
-  mustInclude: z.array(z.string().min(1)).max(20).default([]),
-  mustAvoid: z.array(z.string().min(1)).max(20).default([]),
+  keywords: z.array(keywordSchema).max(env.PLANNING_INTENT_KEYWORD_LIMIT),
+  mustInclude: z.array(z.string().min(1)).max(env.PLANNING_INTENT_MUST_INCLUDE_LIMIT).default([]),
+  mustAvoid: z.array(z.string().min(1)).max(env.PLANNING_INTENT_MUST_AVOID_LIMIT).default([]),
 });
 
 export const planInputSchema = z.object({
