@@ -127,25 +127,31 @@ export function buildReviewPrompt(input: {
 }
 
 export function buildRepairPrompt(input: {
+  planContent: string;
   draftContent: string;
   reviewContent: string;
+  retrievedContext?: unknown;
 }): LlmMessage[] {
   return [
     {
       role: "system",
       content:
-        "你是一名小说修稿助手。请根据审阅意见修复章节草稿，尽量少破坏已有可用内容。",
+        "你是一名小说修稿助手。请根据章节规划、召回上下文和审阅意见修复章节草稿，尽量少破坏已有可用内容，并保持主线、设定和人物行为一致。",
     },
     {
       role: "user",
       content: [
+        "章节规划：",
+        input.planContent,
+        "",
         "当前草稿：",
         input.draftContent,
         "",
         "审阅结果：",
         input.reviewContent,
+        input.retrievedContext ? `\n召回上下文：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
         "",
-        "请输出修复后的完整草稿。",
+        "请输出修复后的完整草稿，优先修复审阅问题，同时不要偏离既有规划和召回设定。",
       ].join("\n"),
     },
   ];

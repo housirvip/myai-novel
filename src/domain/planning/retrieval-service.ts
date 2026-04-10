@@ -1,5 +1,3 @@
-import { sql } from "kysely";
-
 import type { AppLogger } from "../../core/logger/index.js";
 import { executeDbAction } from "../shared/service-helpers.js";
 import type { DatabaseSchema } from "../../core/db/schema/database.js";
@@ -142,20 +140,75 @@ export class RetrievalQueryService {
   ): Promise<RetrievedChapterSummary[]> {
     const rows = await db
       .selectFrom("chapters")
-      .select(["id", "chapter_no", "title", "summary", "status"])
+      .select([
+        "id",
+        "chapter_no",
+        "title",
+        "summary",
+        "status",
+        "current_plan_id",
+        "current_draft_id",
+        "current_final_id",
+      ])
       .where("book_id", "=", bookId)
       .where("chapter_no", "<", chapterNo)
+      .where("status", "!=", "todo")
       .orderBy("chapter_no", "desc")
-      .limit(KEYWORD_LIMITS.recentChapters)
+      .limit(KEYWORD_LIMITS.recentChapters * 5)
       .execute();
 
-    return rows.map((row) => ({
-      id: row.id,
-      chapterNo: row.chapter_no,
-      title: row.title,
-      summary: row.summary,
-      status: row.status,
-    }));
+    const planIds = rows
+      .map((row) => row.current_plan_id)
+      .filter((value): value is number => value !== null);
+    const draftIds = rows
+      .map((row) => row.current_draft_id)
+      .filter((value): value is number => value !== null);
+    const finalIds = rows
+      .map((row) => row.current_final_id)
+      .filter((value): value is number => value !== null);
+
+    const [planRows, draftRows, finalRows] = await Promise.all([
+      planIds.length > 0
+        ? db
+            .selectFrom("chapter_plans")
+            .select(["id", "author_intent"])
+            .where("id", "in", planIds)
+            .execute()
+        : Promise.resolve([]),
+      draftIds.length > 0
+        ? db
+            .selectFrom("chapter_drafts")
+            .select(["id", "summary"])
+            .where("id", "in", draftIds)
+            .execute()
+        : Promise.resolve([]),
+      finalIds.length > 0
+        ? db
+            .selectFrom("chapter_finals")
+            .select(["id", "summary"])
+            .where("id", "in", finalIds)
+            .execute()
+        : Promise.resolve([]),
+    ]);
+
+    const planSummaryMap = new Map(planRows.map((row) => [row.id, row.author_intent]));
+    const draftSummaryMap = new Map(draftRows.map((row) => [row.id, row.summary]));
+    const finalSummaryMap = new Map(finalRows.map((row) => [row.id, row.summary]));
+
+    return rows
+      .map((row) => ({
+        id: row.id,
+        chapterNo: row.chapter_no,
+        title: row.title,
+        summary:
+          row.summary ??
+          (row.current_final_id ? finalSummaryMap.get(row.current_final_id) ?? null : null) ??
+          (row.current_draft_id ? draftSummaryMap.get(row.current_draft_id) ?? null : null) ??
+          (row.current_plan_id ? planSummaryMap.get(row.current_plan_id) ?? null : null),
+        status: row.status,
+      }))
+      .filter((row) => Boolean(row.summary?.trim()))
+      .slice(0, KEYWORD_LIMITS.recentChapters);
   }
 
   private async loadCharacters(
@@ -195,8 +248,16 @@ export class RetrievalQueryService {
         }),
         content: compactLines([
           `name=${row.name}`,
+          row.alias ? `alias=${row.alias}` : undefined,
+          row.gender ? `gender=${row.gender}` : undefined,
+          row.age !== null ? `age=${row.age}` : undefined,
+          row.personality ? `personality=${row.personality}` : undefined,
+          row.background ? `background=${row.background}` : undefined,
+          row.current_location ? `current_location=${row.current_location}` : undefined,
           row.professions ? `professions=${row.professions}` : undefined,
           row.levels ? `levels=${row.levels}` : undefined,
+          row.currencies ? `currencies=${row.currencies}` : undefined,
+          row.abilities ? `abilities=${row.abilities}` : undefined,
           `status=${row.status}`,
           row.goal ? `goal=${row.goal}` : undefined,
           row.append_notes ? `append_notes=${row.append_notes}` : undefined,
@@ -237,6 +298,9 @@ export class RetrievalQueryService {
           `name=${row.name}`,
           row.category ? `category=${row.category}` : undefined,
           row.core_goal ? `core_goal=${row.core_goal}` : undefined,
+          row.description ? `description=${row.description}` : undefined,
+          row.leader_character_id ? `leader_character_id=${row.leader_character_id}` : undefined,
+          row.headquarter ? `headquarter=${row.headquarter}` : undefined,
           row.status ? `status=${row.status}` : undefined,
           row.append_notes ? `append_notes=${row.append_notes}` : undefined,
         ]),
@@ -275,9 +339,11 @@ export class RetrievalQueryService {
         content: compactLines([
           `name=${row.name}`,
           row.category ? `category=${row.category}` : undefined,
+          row.description ? `description=${row.description}` : undefined,
           `owner_type=${row.owner_type}`,
           row.owner_id ? `owner_id=${row.owner_id}` : undefined,
           row.rarity ? `rarity=${row.rarity}` : undefined,
+          row.status ? `status=${row.status}` : undefined,
           row.append_notes ? `append_notes=${row.append_notes}` : undefined,
         ]),
       })),
@@ -342,16 +408,55 @@ export class RetrievalQueryService {
       .limit(200)
       .execute();
 
+    const characterIds = rows.flatMap((row) => [
+      row.source_type === "character" ? row.source_id : null,
+      row.target_type === "character" ? row.target_id : null,
+    ]).filter((value): value is number => value !== null);
+    const factionIds = rows.flatMap((row) => [
+      row.source_type === "faction" ? row.source_id : null,
+      row.target_type === "faction" ? row.target_id : null,
+    ]).filter((value): value is number => value !== null);
+
+    const [characterRows, factionRows] = await Promise.all([
+      characterIds.length > 0
+        ? db
+            .selectFrom("characters")
+            .select(["id", "name"])
+            .where("id", "in", [...new Set(characterIds)])
+            .execute()
+        : Promise.resolve([]),
+      factionIds.length > 0
+        ? db
+            .selectFrom("factions")
+            .select(["id", "name"])
+            .where("id", "in", [...new Set(factionIds)])
+            .execute()
+        : Promise.resolve([]),
+    ]);
+
+    const characterNameMap = new Map(characterRows.map((row) => [row.id, row.name]));
+    const factionNameMap = new Map(factionRows.map((row) => [row.id, row.name]));
     const manualEntityIds = new Set([
       ...params.manualRefs.characterIds,
       ...params.manualRefs.factionIds,
-      ...params.manualRefs.itemIds,
     ]);
 
     return rankRows(
       rows.map((row) => {
         const relatedToManualEntity =
           manualEntityIds.has(row.source_id) || manualEntityIds.has(row.target_id);
+        const sourceLabel = resolveRelationEndpointName(
+          row.source_type,
+          row.source_id,
+          characterNameMap,
+          factionNameMap,
+        );
+        const targetLabel = resolveRelationEndpointName(
+          row.target_type,
+          row.target_id,
+          characterNameMap,
+          factionNameMap,
+        );
 
         return {
           id: row.id,
@@ -360,18 +465,32 @@ export class RetrievalQueryService {
               manualIds: params.manualRefs.relationIds,
               entityId: row.id,
               keywords: params.keywords,
-              textSources: [row.relation_type, row.description, row.append_notes, row.keywords],
+              textSources: [
+                sourceLabel,
+                targetLabel,
+                row.relation_type,
+                row.description,
+                row.append_notes,
+                row.keywords,
+              ],
             }) + (relatedToManualEntity ? 35 : 0),
           reason: buildReasons({
             manualIds: params.manualRefs.relationIds,
             entityId: row.id,
             keywords: params.keywords,
-            textSources: [row.relation_type, row.description, row.append_notes, row.keywords],
+            textSources: [
+              sourceLabel,
+              targetLabel,
+              row.relation_type,
+              row.description,
+              row.append_notes,
+              row.keywords,
+            ],
             extraReasons: relatedToManualEntity ? ["manual_entity_link"] : [],
           }),
           content: compactLines([
-            `source=${row.source_type}:${row.source_id}`,
-            `target=${row.target_type}:${row.target_id}`,
+            `source=${sourceLabel} (${row.source_type}:${row.source_id})`,
+            `target=${targetLabel} (${row.target_type}:${row.target_id})`,
             `relation_type=${row.relation_type}`,
             row.status ? `status=${row.status}` : undefined,
             row.description ? `description=${row.description}` : undefined,
@@ -497,6 +616,23 @@ function proximityBoost(targetChapterNo: number | null, chapterNo: number): numb
 
 function compactLines(lines: Array<string | undefined>): string {
   return lines.filter(Boolean).join("\n");
+}
+
+function resolveRelationEndpointName(
+  entityType: string,
+  entityId: number,
+  characterNameMap: Map<number, string>,
+  factionNameMap: Map<number, string>,
+): string {
+  if (entityType === "character") {
+    return characterNameMap.get(entityId) ?? `character:${entityId}`;
+  }
+
+  if (entityType === "faction") {
+    return factionNameMap.get(entityId) ?? `faction:${entityId}`;
+  }
+
+  return `${entityType}:${entityId}`;
 }
 
 function buildRiskReminders(input: {

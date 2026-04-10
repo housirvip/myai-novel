@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { createDatabaseManager } from "../../core/db/client.js";
 import { ChapterDraftRepository } from "../../core/db/repositories/chapter-draft-repository.js";
+import { ChapterPlanRepository } from "../../core/db/repositories/chapter-plan-repository.js";
 import { ChapterRepository } from "../../core/db/repositories/chapter-repository.js";
 import { ChapterReviewRepository } from "../../core/db/repositories/chapter-review-repository.js";
 import { createLlmFactory } from "../../core/llm/factory.js";
@@ -11,6 +12,7 @@ import { withTimingLog } from "../../core/logger/index.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
 import { buildRepairPrompt } from "../planning/prompts.js";
+import { parseStoredJson } from "./shared.js";
 
 const runRepairWorkflowSchema = z.object({
   bookId: z.number().int().positive(),
@@ -49,6 +51,7 @@ export class RepairChapterWorkflow {
           manager.getClient().transaction().execute(async (trx) => {
             const chapterRepository = new ChapterRepository(trx);
             const chapterDraftRepository = new ChapterDraftRepository(trx);
+            const chapterPlanRepository = new ChapterPlanRepository(trx);
             const chapterReviewRepository = new ChapterReviewRepository(trx);
             const chapter = await chapterRepository.getByBookAndChapterNo(payload.bookId, payload.chapterNo);
 
@@ -56,14 +59,19 @@ export class RepairChapterWorkflow {
               throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
             }
 
-            if (!chapter.current_draft_id || !chapter.current_review_id) {
+            if (!chapter.current_plan_id || !chapter.current_draft_id || !chapter.current_review_id) {
               throw new Error(
-                `Chapter needs both current draft and review before repair: book=${payload.bookId}, chapter=${payload.chapterNo}`,
+                `Chapter needs current plan, draft and review before repair: book=${payload.bookId}, chapter=${payload.chapterNo}`,
               );
             }
 
+            const currentPlan = await chapterPlanRepository.getById(chapter.current_plan_id);
             const currentDraft = await chapterDraftRepository.getById(chapter.current_draft_id);
             const currentReview = await chapterReviewRepository.getById(chapter.current_review_id);
+
+            if (!currentPlan || currentPlan.chapter_id !== chapter.id || currentPlan.book_id !== payload.bookId) {
+              throw new Error("Current plan pointer is invalid");
+            }
 
             if (!currentDraft || currentDraft.chapter_id !== chapter.id || currentDraft.book_id !== payload.bookId) {
               throw new Error("Current draft pointer is invalid");
@@ -76,8 +84,10 @@ export class RepairChapterWorkflow {
             const repairResult = await llmClient.generate({
               model: payload.model,
               messages: buildRepairPrompt({
+                planContent: currentPlan.content,
                 draftContent: currentDraft.content,
                 reviewContent: currentReview.raw_result,
+                retrievedContext: parseStoredJson(currentPlan.retrieved_context),
               }),
             });
 
