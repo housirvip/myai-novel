@@ -12,6 +12,7 @@ import { withTimingLog } from "../../core/logger/index.js";
 import { parseLooseJson } from "../../shared/utils/json.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { buildReviewPrompt } from "../planning/prompts.js";
+import { parseStoredJson } from "./shared.js";
 
 const reviewResultSchema = z.object({
   summary: z.string().min(1),
@@ -140,17 +141,5 @@ export class ReviewChapterWorkflow {
     } finally {
       await manager.destroy();
     }
-  }
-}
-
-function parseStoredJson(value: string | null): unknown {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
   }
 }

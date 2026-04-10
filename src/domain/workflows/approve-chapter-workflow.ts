@@ -1,0 +1,538 @@
+import { z } from "zod";
+
+import { createDatabaseManager } from "../../core/db/client.js";
+import { BookRepository } from "../../core/db/repositories/book-repository.js";
+import { ChapterDraftRepository } from "../../core/db/repositories/chapter-draft-repository.js";
+import { ChapterFinalRepository } from "../../core/db/repositories/chapter-final-repository.js";
+import { ChapterPlanRepository } from "../../core/db/repositories/chapter-plan-repository.js";
+import { ChapterRepository } from "../../core/db/repositories/chapter-repository.js";
+import { ChapterReviewRepository } from "../../core/db/repositories/chapter-review-repository.js";
+import { CharacterRepository } from "../../core/db/repositories/character-repository.js";
+import { FactionRepository } from "../../core/db/repositories/faction-repository.js";
+import { ItemRepository } from "../../core/db/repositories/item-repository.js";
+import { StoryHookRepository } from "../../core/db/repositories/story-hook-repository.js";
+import { WorldSettingRepository } from "../../core/db/repositories/world-setting-repository.js";
+import { createLlmFactory } from "../../core/llm/factory.js";
+import type { LlmProviderName } from "../../core/llm/types.js";
+import type { AppLogger } from "../../core/logger/index.js";
+import { withTimingLog } from "../../core/logger/index.js";
+import { parseLooseJson } from "../../shared/utils/json.js";
+import { nowIso } from "../../shared/utils/time.js";
+import { estimateWordCount } from "../../shared/utils/word-count.js";
+import { buildApproveDiffPrompt, buildApprovePrompt } from "../planning/prompts.js";
+import { appendChapterNote, dedupeNumberList, parseStoredJson } from "./shared.js";
+
+const approveDiffSchema = z.object({
+  chapterSummary: z.string().min(1),
+  actualCharacterIds: z.array(z.number().int().positive()).default([]),
+  actualFactionIds: z.array(z.number().int().positive()).default([]),
+  actualItemIds: z.array(z.number().int().positive()).default([]),
+  actualHookIds: z.array(z.number().int().positive()).default([]),
+  actualWorldSettingIds: z.array(z.number().int().positive()).default([]),
+  newCharacters: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        summary: z.string().min(1),
+        keywords: z.array(z.string().min(1).max(8)).default([]),
+      }),
+    )
+    .default([]),
+  newFactions: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        summary: z.string().min(1),
+        keywords: z.array(z.string().min(1).max(8)).default([]),
+      }),
+    )
+    .default([]),
+  newItems: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        summary: z.string().min(1),
+        keywords: z.array(z.string().min(1).max(8)).default([]),
+      }),
+    )
+    .default([]),
+  newHooks: z
+    .array(
+      z.object({
+        title: z.string().min(1),
+        description: z.string().min(1),
+        keywords: z.array(z.string().min(1).max(8)).default([]),
+      }),
+    )
+    .default([]),
+  newWorldSettings: z
+    .array(
+      z.object({
+        title: z.string().min(1),
+        category: z.string().min(1),
+        content: z.string().min(1),
+        keywords: z.array(z.string().min(1).max(8)).default([]),
+      }),
+    )
+    .default([]),
+  updates: z
+    .array(
+      z.object({
+        entityType: z.enum(["character", "faction", "item", "story_hook", "world_setting"]),
+        entityId: z.number().int().positive(),
+        action: z.enum(["update_fields", "append_notes", "status_change"]),
+        payload: z.record(z.string(), z.unknown()),
+      }),
+    )
+    .default([]),
+});
+
+const runApproveWorkflowSchema = z.object({
+  bookId: z.number().int().positive(),
+  chapterNo: z.number().int().positive(),
+  provider: z.enum(["mock", "openai", "anthropic", "custom"]).optional(),
+  model: z.string().min(1).optional(),
+  dryRun: z.boolean().default(false),
+});
+
+export class ApproveChapterWorkflow {
+  constructor(private readonly logger: AppLogger) {}
+
+  async run(
+    input: z.input<typeof runApproveWorkflowSchema>,
+  ): Promise<{
+    chapterId: number;
+    finalId?: number;
+    finalContent: string;
+    diff: z.infer<typeof approveDiffSchema>;
+    createdEntities: Record<string, number[]>;
+    updatedCount: number;
+  }> {
+    const payload = runApproveWorkflowSchema.parse(input);
+    const llmClient = createLlmFactory(this.logger).create(payload.provider as LlmProviderName | undefined);
+    const manager = createDatabaseManager(this.logger);
+
+    try {
+      return await withTimingLog(
+        this.logger,
+        {
+          event: "workflow.approve",
+          entityType: "chapter_final",
+          bookId: payload.bookId,
+          chapterNo: payload.chapterNo,
+          dryRun: payload.dryRun,
+        },
+        async () =>
+          manager.getClient().transaction().execute(async (trx) => {
+            const chapterRepository = new ChapterRepository(trx);
+            const chapterDraftRepository = new ChapterDraftRepository(trx);
+            const chapterPlanRepository = new ChapterPlanRepository(trx);
+            const chapterReviewRepository = new ChapterReviewRepository(trx);
+            const chapterFinalRepository = new ChapterFinalRepository(trx);
+            const bookRepository = new BookRepository(trx);
+            const characterRepository = new CharacterRepository(trx);
+            const factionRepository = new FactionRepository(trx);
+            const itemRepository = new ItemRepository(trx);
+            const hookRepository = new StoryHookRepository(trx);
+            const worldSettingRepository = new WorldSettingRepository(trx);
+
+            const chapter = await chapterRepository.getByBookAndChapterNo(payload.bookId, payload.chapterNo);
+
+            if (!chapter) {
+              throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
+            }
+
+            if (!chapter.current_plan_id || !chapter.current_draft_id || !chapter.current_review_id) {
+              throw new Error(
+                `Chapter needs current plan, draft and review before approve: book=${payload.bookId}, chapter=${payload.chapterNo}`,
+              );
+            }
+
+            const currentPlan = await chapterPlanRepository.getById(chapter.current_plan_id);
+            const currentDraft = await chapterDraftRepository.getById(chapter.current_draft_id);
+            const currentReview = await chapterReviewRepository.getById(chapter.current_review_id);
+
+            if (!currentPlan || !currentDraft || !currentReview) {
+              throw new Error("Current workflow pointers are invalid");
+            }
+
+            const finalResponse = await llmClient.generate({
+              model: payload.model,
+              messages: buildApprovePrompt({
+                planContent: currentPlan.content,
+                draftContent: currentDraft.content,
+                reviewContent: currentReview.raw_result,
+              }),
+            });
+
+            const diffResponse = await llmClient.generate({
+              model: payload.model,
+              messages: buildApproveDiffPrompt({
+                finalContent: finalResponse.content,
+                planContent: currentPlan.content,
+                reviewContent: currentReview.raw_result,
+                retrievedContext: parseStoredJson(currentPlan.retrieved_context),
+              }),
+              responseFormat: "json",
+            });
+            const diff = approveDiffSchema.parse(parseLooseJson(diffResponse.content));
+
+            const createdEntities: Record<string, number[]> = {
+              characters: [],
+              factions: [],
+              items: [],
+              hooks: [],
+              worldSettings: [],
+            };
+
+            const timestamp = nowIso();
+            const finalWordCount = estimateWordCount(finalResponse.content);
+
+            if (payload.dryRun) {
+              return {
+                chapterId: chapter.id,
+                finalContent: finalResponse.content,
+                diff,
+                createdEntities,
+                updatedCount: diff.updates.length,
+              };
+            }
+
+            for (const item of diff.newCharacters) {
+              const existing = await trx
+                .selectFrom("characters")
+                .select(["id", "append_notes"])
+                .where("book_id", "=", payload.bookId)
+                .where("name", "=", item.name)
+                .executeTakeFirst();
+
+              if (existing) {
+                createdEntities.characters.push(existing.id);
+                await characterRepository.updateById(existing.id, {
+                  append_notes: appendChapterNote(existing.append_notes, payload.chapterNo, item.summary),
+                  updated_at: timestamp,
+                });
+                continue;
+              }
+
+              const created = await characterRepository.create({
+                book_id: payload.bookId,
+                name: item.name,
+                alias: null,
+                gender: null,
+                age: null,
+                personality: null,
+                background: item.summary,
+                current_location: null,
+                status: "unknown",
+                professions: null,
+                levels: null,
+                currencies: null,
+                abilities: null,
+                goal: null,
+                append_notes: appendChapterNote(null, payload.chapterNo, item.summary),
+                keywords: JSON.stringify(item.keywords),
+                created_at: timestamp,
+                updated_at: timestamp,
+              });
+              createdEntities.characters.push(created.id);
+            }
+
+            for (const item of diff.newFactions) {
+              const existing = await trx
+                .selectFrom("factions")
+                .select(["id", "append_notes"])
+                .where("book_id", "=", payload.bookId)
+                .where("name", "=", item.name)
+                .executeTakeFirst();
+
+              if (existing) {
+                createdEntities.factions.push(existing.id);
+                await factionRepository.updateById(existing.id, {
+                  append_notes: appendChapterNote(existing.append_notes, payload.chapterNo, item.summary),
+                  updated_at: timestamp,
+                });
+                continue;
+              }
+
+              const created = await factionRepository.create({
+                book_id: payload.bookId,
+                name: item.name,
+                category: null,
+                core_goal: item.summary,
+                description: item.summary,
+                leader_character_id: null,
+                headquarter: null,
+                status: "active",
+                append_notes: appendChapterNote(null, payload.chapterNo, item.summary),
+                keywords: JSON.stringify(item.keywords),
+                created_at: timestamp,
+                updated_at: timestamp,
+              });
+              createdEntities.factions.push(created.id);
+            }
+
+            for (const item of diff.newItems) {
+              const existing = await trx
+                .selectFrom("items")
+                .select(["id", "append_notes"])
+                .where("book_id", "=", payload.bookId)
+                .where("name", "=", item.name)
+                .executeTakeFirst();
+
+              if (existing) {
+                createdEntities.items.push(existing.id);
+                await itemRepository.updateById(existing.id, {
+                  append_notes: appendChapterNote(existing.append_notes, payload.chapterNo, item.summary),
+                  updated_at: timestamp,
+                });
+                continue;
+              }
+
+              const created = await itemRepository.create({
+                book_id: payload.bookId,
+                name: item.name,
+                category: null,
+                description: item.summary,
+                owner_type: "none",
+                owner_id: null,
+                rarity: null,
+                status: "active",
+                append_notes: appendChapterNote(null, payload.chapterNo, item.summary),
+                keywords: JSON.stringify(item.keywords),
+                created_at: timestamp,
+                updated_at: timestamp,
+              });
+              createdEntities.items.push(created.id);
+            }
+
+            for (const item of diff.newHooks) {
+              const existing = await trx
+                .selectFrom("story_hooks")
+                .select(["id", "append_notes"])
+                .where("book_id", "=", payload.bookId)
+                .where("title", "=", item.title)
+                .executeTakeFirst();
+
+              if (existing) {
+                createdEntities.hooks.push(existing.id);
+                await hookRepository.updateById(existing.id, {
+                  append_notes: appendChapterNote(existing.append_notes, payload.chapterNo, item.description),
+                  updated_at: timestamp,
+                });
+                continue;
+              }
+
+              const created = await hookRepository.create({
+                book_id: payload.bookId,
+                title: item.title,
+                hook_type: "mystery",
+                description: item.description,
+                source_chapter_no: payload.chapterNo,
+                target_chapter_no: null,
+                status: "open",
+                importance: "medium",
+                append_notes: appendChapterNote(null, payload.chapterNo, item.description),
+                keywords: JSON.stringify(item.keywords),
+                created_at: timestamp,
+                updated_at: timestamp,
+              });
+              createdEntities.hooks.push(created.id);
+            }
+
+            for (const item of diff.newWorldSettings) {
+              const existing = await trx
+                .selectFrom("world_settings")
+                .select(["id", "append_notes"])
+                .where("book_id", "=", payload.bookId)
+                .where("title", "=", item.title)
+                .executeTakeFirst();
+
+              if (existing) {
+                createdEntities.worldSettings.push(existing.id);
+                await worldSettingRepository.updateById(existing.id, {
+                  append_notes: appendChapterNote(existing.append_notes, payload.chapterNo, item.content),
+                  updated_at: timestamp,
+                });
+                continue;
+              }
+
+              const created = await worldSettingRepository.create({
+                book_id: payload.bookId,
+                title: item.title,
+                category: item.category,
+                content: item.content,
+                status: "active",
+                append_notes: appendChapterNote(null, payload.chapterNo, item.content),
+                keywords: JSON.stringify(item.keywords),
+                created_at: timestamp,
+                updated_at: timestamp,
+              });
+              createdEntities.worldSettings.push(created.id);
+            }
+
+            let updatedCount = 0;
+            for (const update of diff.updates) {
+              if (update.entityType === "character") {
+                const existing = await characterRepository.getById(update.entityId);
+                if (!existing) {
+                  continue;
+                }
+                updatedCount += 1;
+                await characterRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
+              }
+
+              if (update.entityType === "faction") {
+                const existing = await factionRepository.getById(update.entityId);
+                if (!existing) {
+                  continue;
+                }
+                updatedCount += 1;
+                await factionRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
+              }
+
+              if (update.entityType === "item") {
+                const existing = await itemRepository.getById(update.entityId);
+                if (!existing) {
+                  continue;
+                }
+                updatedCount += 1;
+                await itemRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
+              }
+
+              if (update.entityType === "story_hook") {
+                const existing = await hookRepository.getById(update.entityId);
+                if (!existing) {
+                  continue;
+                }
+                updatedCount += 1;
+                await hookRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
+              }
+
+              if (update.entityType === "world_setting") {
+                const existing = await worldSettingRepository.getById(update.entityId);
+                if (!existing) {
+                  continue;
+                }
+                updatedCount += 1;
+                await worldSettingRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
+              }
+            }
+
+            const versionNo = (await chapterFinalRepository.getLatestVersionNo(chapter.id)) + 1;
+            const finalRecord = await chapterFinalRepository.create({
+              book_id: payload.bookId,
+              chapter_id: chapter.id,
+              chapter_no: payload.chapterNo,
+              version_no: versionNo,
+              based_on_draft_id: currentDraft.id,
+              status: "active",
+              content: finalResponse.content,
+              summary: diff.chapterSummary,
+              word_count: finalWordCount,
+              source_type: "approved",
+              created_at: timestamp,
+              updated_at: timestamp,
+            });
+
+            const actualCharacterIds = dedupeNumberList([
+              ...diff.actualCharacterIds,
+              ...createdEntities.characters,
+            ]);
+            const actualFactionIds = dedupeNumberList([
+              ...diff.actualFactionIds,
+              ...createdEntities.factions,
+            ]);
+            const actualItemIds = dedupeNumberList([
+              ...diff.actualItemIds,
+              ...createdEntities.items,
+            ]);
+            const actualHookIds = dedupeNumberList([
+              ...diff.actualHookIds,
+              ...createdEntities.hooks,
+            ]);
+            const actualWorldSettingIds = dedupeNumberList([
+              ...diff.actualWorldSettingIds,
+              ...createdEntities.worldSettings,
+            ]);
+
+            const updatedChapter = await chapterRepository.updateByBookAndChapterNo(
+              payload.bookId,
+              payload.chapterNo,
+              {
+                current_final_id: finalRecord.id,
+                title: chapter.title,
+                summary: diff.chapterSummary,
+                word_count: finalWordCount,
+                actual_character_ids: JSON.stringify(actualCharacterIds),
+                actual_faction_ids: JSON.stringify(actualFactionIds),
+                actual_item_ids: JSON.stringify(actualItemIds),
+                actual_hook_ids: JSON.stringify(actualHookIds),
+                actual_world_setting_ids: JSON.stringify(actualWorldSettingIds),
+                status: "approved",
+                updated_at: timestamp,
+              },
+            );
+
+            if (!updatedChapter) {
+              throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
+            }
+
+            const approvedCountRow = await trx
+              .selectFrom("chapters")
+              .select((expressionBuilder) => expressionBuilder.fn.count<number>("id").as("approved_count"))
+              .where("book_id", "=", payload.bookId)
+              .where("status", "=", "approved")
+              .executeTakeFirstOrThrow();
+
+            await bookRepository.updateById(payload.bookId, {
+              current_chapter_count: Number(approvedCountRow.approved_count),
+              updated_at: timestamp,
+            });
+
+            return {
+              chapterId: chapter.id,
+              finalId: finalRecord.id,
+              finalContent: finalResponse.content,
+              diff,
+              createdEntities,
+              updatedCount,
+            };
+          }),
+      );
+    } finally {
+      await manager.destroy();
+    }
+  }
+}
+
+function mapEntityUpdate<T extends { append_notes?: string | null; status?: string | null }>(
+  existing: T,
+  action: "update_fields" | "append_notes" | "status_change",
+  payload: Record<string, unknown>,
+  chapterNo: number,
+  timestamp: string,
+): Record<string, unknown> {
+  if (action === "append_notes") {
+    return {
+      append_notes: appendChapterNote(existing.append_notes ?? null, chapterNo, String(payload.note ?? payload.append_notes ?? "")),
+      updated_at: timestamp,
+    };
+  }
+
+  if (action === "status_change") {
+    return {
+      status: typeof payload.status === "string" ? payload.status : existing.status,
+      append_notes:
+        payload.note || payload.append_notes
+          ? appendChapterNote(existing.append_notes ?? null, chapterNo, String(payload.note ?? payload.append_notes))
+          : existing.append_notes,
+      updated_at: timestamp,
+    };
+  }
+
+  return {
+    ...payload,
+    updated_at: timestamp,
+  };
+}

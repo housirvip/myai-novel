@@ -223,34 +223,34 @@
   - [x] 更新 `chapters.current_review_id`
   - [x] 更新章节状态为 `reviewed`
 
-- [ ] `T022` 实现 `repair` 工作流
-  - [ ] 读取当前 `chapter_drafts`
-  - [ ] 读取当前 `chapter_reviews`
-  - [ ] 生成新草稿版本
-  - [ ] 写入 `based_on_plan_id`
-  - [ ] 写入 `based_on_draft_id`
-  - [ ] 写入 `based_on_review_id`
-  - [ ] 更新 `chapters.current_draft_id`
-  - [ ] 更新章节状态为 `repaired`
+- [x] `T022` 实现 `repair` 工作流
+  - [x] 读取当前 `chapter_drafts`
+  - [x] 读取当前 `chapter_reviews`
+  - [x] 生成新草稿版本
+  - [x] 写入 `based_on_plan_id`
+  - [x] 写入 `based_on_draft_id`
+  - [x] 写入 `based_on_review_id`
+  - [x] 更新 `chapters.current_draft_id`
+  - [x] 更新章节状态为 `repaired`
 
 - [ ] `T023` 实现 `approve` 工作流
-  - [ ] 读取当前 draft / plan / review
-  - [ ] 写入 `chapter_finals`
-  - [ ] 更新 `chapters.current_final_id`
-  - [ ] 提取事实 diff
-  - [ ] 更新人物
-  - [ ] 更新势力
-  - [ ] 更新物品
-  - [ ] 更新钩子
+  - [x] 读取当前 draft / plan / review
+  - [x] 写入 `chapter_finals`
+  - [x] 更新 `chapters.current_final_id`
+  - [x] 提取事实 diff
+  - [x] 更新人物
+  - [x] 更新势力
+  - [x] 更新物品
+  - [x] 更新钩子
   - [ ] 更新关系
-  - [ ] 更新世界设定
-  - [ ] 更新 `actual_character_ids`
-  - [ ] 更新 `actual_faction_ids`
-  - [ ] 更新 `actual_item_ids`
-  - [ ] 更新 `actual_hook_ids`
-  - [ ] 更新 `actual_world_setting_ids`
-  - [ ] 更新 `books.current_chapter_count`
-  - [ ] 更新章节状态为 `approved`
+  - [x] 更新世界设定
+  - [x] 更新 `actual_character_ids`
+  - [x] 更新 `actual_faction_ids`
+  - [x] 更新 `actual_item_ids`
+  - [x] 更新 `actual_hook_ids`
+  - [x] 更新 `actual_world_setting_ids`
+  - [x] 更新 `books.current_chapter_count`
+  - [x] 更新章节状态为 `approved`
 
 - [x] `T024` 实现章节 Markdown 导入导出
   - [x] `chapter export --stage plan`
@@ -309,12 +309,14 @@
 - [x] `T014` mock provider
 - [x] `T019` plan
 - [x] `T020` draft
+- [x] `T022` repair
+- [ ] `T023` approve
 
 ## 5. V1 完成定义
 
 - [x] 所有核心表与 migration 已完成
 - [x] 所有资源 CRUD CLI 可用
-- [ ] `mock` 模式下 `plan -> draft -> review -> repair -> approve` 可跑通
+- [x] `mock` 模式下 `plan -> draft -> review -> repair -> approve` 可跑通
 - [x] 支持 Markdown 导入导出 `plan/draft/final`
 - [x] 支持日志、耗时记录、AI 内容日志开关
 - [ ] 支持 `approve` 后的事实回写

@@ -63,6 +63,77 @@ export class MockLlmClient implements LlmClient {
       );
     }
 
+    if (combinedText.includes("小说修稿助手")) {
+      return [
+        "林夜踏入外门山门时，天色尚未完全亮起，石阶尽头的钟声一下一下传开。",
+        "执事长老翻到他的名字时，指尖明显顿了一下，这才将那枚沉甸甸的黑铁令拍进他掌心。",
+        "旁边几名弟子原本还在低声说笑，等看清令牌纹路后，声音却像被人掐断似地停住，只剩一句压得极低的窃语，说那东西不该出现在外门。",
+        "林夜压下追问的冲动，把令牌收入袖中，却清楚地意识到，这绝不是普通的入门凭证，而是一把会将他卷进更深暗流的钥匙。",
+      ].join("\n\n");
+    }
+
+    if (combinedText.includes("结构化事实变更") || combinedText.includes("updates 中的 entityType")) {
+      return JSON.stringify(
+        {
+          chapterSummary: "林夜入宗并获得黑铁令，正式察觉其背后隐藏的异常线索。",
+          actualCharacterIds: [1],
+          actualFactionIds: [1],
+          actualItemIds: [1],
+          actualHookIds: [1],
+          actualWorldSettingIds: [1],
+          newCharacters: [],
+          newFactions: [],
+          newItems: [],
+          newHooks: [
+            {
+              title: "黑铁令与宗门旧案",
+              description: "黑铁令可能与宗门旧案相关，后续需要追查来源。",
+              keywords: ["黑铁令", "旧案"],
+            },
+          ],
+          newWorldSettings: [],
+          updates: [
+            {
+              entityType: "story_hook",
+              entityId: 1,
+              action: "append_notes",
+              payload: {
+                note: "第2章确认黑铁令在外门内部极不寻常，并引出宗门旧案方向。",
+              },
+            },
+            {
+              entityType: "item",
+              entityId: 1,
+              action: "append_notes",
+              payload: {
+                note: "第2章确认黑铁令会引发外门弟子与执事的异常反应。",
+              },
+            },
+            {
+              entityType: "character",
+              entityId: 1,
+              action: "append_notes",
+              payload: {
+                note: "第2章起对黑铁令来源产生明确追查意图。",
+              },
+            },
+          ],
+        },
+        null,
+        2,
+      );
+    }
+
+    if (combinedText.includes("小说定稿助手")) {
+      return [
+        "晨雾还压在山门石阶上，外门的钟声已经一圈圈荡开。",
+        "林夜踏上最后一级台阶时，执事长老正翻看名册。对方翻到他的名字，指尖忽然顿住，随后才从木匣里取出一枚沉甸甸的黑铁令，啪地一声拍进他掌心。",
+        "令牌入手冰冷，边缘刻痕像被岁月反复摩挲过。更奇怪的是，周围几名外门弟子一见那令牌，原本散漫的神色立刻变了，有人甚至下意识后退了半步。",
+        "“那东西怎么会在他手里？”一声压得极低的窃语飘进耳中，却在执事长老抬眼的一瞬间戛然而止。",
+        "林夜没有追问，只将黑铁令缓缓收入袖中。他能感觉到，自己踏进宗门的这一刻，真正推开的不是外门，而是一道更深也更危险的暗门。",
+      ].join("\n\n");
+    }
+
     if (combinedText.includes("作者意图草案")) {
       return "本章重点推进主角当前主线，抛出关键线索，并为后续冲突埋下钩子。";
     }

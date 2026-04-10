@@ -160,7 +160,7 @@ export function buildApprovePrompt(input: {
     {
       role: "system",
       content:
-        "你是一名小说定稿助手。请基于计划、草稿和审阅结果输出最终章节文稿，并提炼结构化事实变更信息。",
+        "你是一名小说定稿助手。请基于计划、草稿和审阅结果输出润色后的最终章节文稿，只输出正文。",
     },
     {
       role: "user",
@@ -174,7 +174,39 @@ export function buildApprovePrompt(input: {
         "审阅结果：",
         input.reviewContent,
         "",
-        "请输出最终文稿，并附带可用于事实回写的结构化信息。",
+        "请输出最终文稿，要求修复审阅中提到的问题，并保留当前章节的主线、钩子和设定一致性。",
+      ].join("\n"),
+    },
+  ];
+}
+
+export function buildApproveDiffPrompt(input: {
+  finalContent: string;
+  planContent: string;
+  reviewContent: string;
+  retrievedContext?: unknown;
+}): LlmMessage[] {
+  return [
+    {
+      role: "system",
+      content:
+        "你是一名小说事实整理助手。请根据最终文稿、章节规划和审阅结果，输出结构化 JSON，用于更新设定数据库。",
+    },
+    {
+      role: "user",
+      content: [
+        "最终文稿：",
+        input.finalContent,
+        "",
+        "章节规划：",
+        input.planContent,
+        "",
+        "审阅结果：",
+        input.reviewContent,
+        input.retrievedContext ? `\n召回上下文：\n${JSON.stringify(input.retrievedContext, null, 2)}` : "",
+        "",
+        "请返回 JSON，包含：chapterSummary, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, updates。",
+        "updates 中的 entityType 支持 character, faction, item, story_hook, world_setting；action 支持 update_fields, append_notes, status_change。",
       ].join("\n"),
     },
   ];

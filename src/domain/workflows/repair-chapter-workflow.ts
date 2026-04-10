@@ -2,38 +2,37 @@ import { z } from "zod";
 
 import { createDatabaseManager } from "../../core/db/client.js";
 import { ChapterDraftRepository } from "../../core/db/repositories/chapter-draft-repository.js";
-import { ChapterPlanRepository } from "../../core/db/repositories/chapter-plan-repository.js";
 import { ChapterRepository } from "../../core/db/repositories/chapter-repository.js";
+import { ChapterReviewRepository } from "../../core/db/repositories/chapter-review-repository.js";
 import { createLlmFactory } from "../../core/llm/factory.js";
 import type { LlmProviderName } from "../../core/llm/types.js";
 import type { AppLogger } from "../../core/logger/index.js";
 import { withTimingLog } from "../../core/logger/index.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
-import { buildDraftPrompt } from "../planning/prompts.js";
-import { parseStoredJson } from "./shared.js";
+import { buildRepairPrompt } from "../planning/prompts.js";
 
-const runDraftWorkflowSchema = z.object({
+const runRepairWorkflowSchema = z.object({
   bookId: z.number().int().positive(),
   chapterNo: z.number().int().positive(),
   provider: z.enum(["mock", "openai", "anthropic", "custom"]).optional(),
   model: z.string().min(1).optional(),
-  targetWords: z.number().int().positive().optional(),
 });
 
-export class DraftChapterWorkflow {
+export class RepairChapterWorkflow {
   constructor(private readonly logger: AppLogger) {}
 
   async run(
-    input: z.input<typeof runDraftWorkflowSchema>,
+    input: z.input<typeof runRepairWorkflowSchema>,
   ): Promise<{
     chapterId: number;
     draftId: number;
-    basedOnPlanId: number;
+    basedOnDraftId: number;
+    basedOnReviewId: number;
     wordCount: number;
     content: string;
   }> {
-    const payload = runDraftWorkflowSchema.parse(input);
+    const payload = runRepairWorkflowSchema.parse(input);
     const llmClient = createLlmFactory(this.logger).create(payload.provider as LlmProviderName | undefined);
     const manager = createDatabaseManager(this.logger);
 
@@ -41,7 +40,7 @@ export class DraftChapterWorkflow {
       return await withTimingLog(
         this.logger,
         {
-          event: "workflow.draft",
+          event: "workflow.repair",
           entityType: "chapter_draft",
           bookId: payload.bookId,
           chapterNo: payload.chapterNo,
@@ -49,54 +48,57 @@ export class DraftChapterWorkflow {
         async () =>
           manager.getClient().transaction().execute(async (trx) => {
             const chapterRepository = new ChapterRepository(trx);
-            const chapterPlanRepository = new ChapterPlanRepository(trx);
             const chapterDraftRepository = new ChapterDraftRepository(trx);
+            const chapterReviewRepository = new ChapterReviewRepository(trx);
             const chapter = await chapterRepository.getByBookAndChapterNo(payload.bookId, payload.chapterNo);
 
             if (!chapter) {
               throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
             }
 
-            if (!chapter.current_plan_id) {
+            if (!chapter.current_draft_id || !chapter.current_review_id) {
               throw new Error(
-                `Chapter does not have a current plan: book=${payload.bookId}, chapter=${payload.chapterNo}`,
+                `Chapter needs both current draft and review before repair: book=${payload.bookId}, chapter=${payload.chapterNo}`,
               );
             }
 
-            const currentPlan = await chapterPlanRepository.getById(chapter.current_plan_id);
+            const currentDraft = await chapterDraftRepository.getById(chapter.current_draft_id);
+            const currentReview = await chapterReviewRepository.getById(chapter.current_review_id);
 
-            if (!currentPlan || currentPlan.chapter_id !== chapter.id || currentPlan.book_id !== payload.bookId) {
-              throw new Error("Current plan pointer is invalid");
+            if (!currentDraft || currentDraft.chapter_id !== chapter.id || currentDraft.book_id !== payload.bookId) {
+              throw new Error("Current draft pointer is invalid");
             }
 
-            const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
-            const draftResult = await llmClient.generate({
+            if (!currentReview || currentReview.chapter_id !== chapter.id || currentReview.book_id !== payload.bookId) {
+              throw new Error("Current review pointer is invalid");
+            }
+
+            const repairResult = await llmClient.generate({
               model: payload.model,
-              messages: buildDraftPrompt({
-                planContent: currentPlan.content,
-                retrievedContext,
-                targetWords: payload.targetWords,
+              messages: buildRepairPrompt({
+                draftContent: currentDraft.content,
+                reviewContent: currentReview.raw_result,
               }),
             });
 
             const timestamp = nowIso();
-            const wordCount = estimateWordCount(draftResult.content);
+            const wordCount = estimateWordCount(repairResult.content);
             const versionNo = (await chapterDraftRepository.getLatestVersionNo(chapter.id)) + 1;
             const created = await chapterDraftRepository.create({
               book_id: payload.bookId,
               chapter_id: chapter.id,
               chapter_no: payload.chapterNo,
               version_no: versionNo,
-              based_on_plan_id: currentPlan.id,
-              based_on_draft_id: chapter.current_draft_id,
-              based_on_review_id: chapter.current_review_id,
+              based_on_plan_id: currentDraft.based_on_plan_id,
+              based_on_draft_id: currentDraft.id,
+              based_on_review_id: currentReview.id,
               status: "active",
-              content: draftResult.content,
-              summary: chapter.summary ?? currentPlan.author_intent ?? null,
+              content: repairResult.content,
+              summary: currentDraft.summary,
               word_count: wordCount,
-              model: draftResult.model,
-              provider: draftResult.provider,
-              source_type: chapter.current_review_id ? "repaired" : "ai_generated",
+              model: repairResult.model,
+              provider: repairResult.provider,
+              source_type: "repaired",
               created_at: timestamp,
               updated_at: timestamp,
             });
@@ -107,7 +109,7 @@ export class DraftChapterWorkflow {
               {
                 current_draft_id: created.id,
                 word_count: wordCount,
-                status: "drafted",
+                status: "repaired",
                 updated_at: timestamp,
               },
             );
@@ -119,9 +121,10 @@ export class DraftChapterWorkflow {
             return {
               chapterId: chapter.id,
               draftId: created.id,
-              basedOnPlanId: currentPlan.id,
+              basedOnDraftId: currentDraft.id,
+              basedOnReviewId: currentReview.id,
               wordCount,
-              content: draftResult.content,
+              content: repairResult.content,
             };
           }),
       );
