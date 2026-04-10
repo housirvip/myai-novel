@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import { env } from "../../config/env.js";
 import type { AppLogger } from "../logger/index.js";
 import { createSqliteDb } from "./dialects/sqlite.js";
+import { migrateToLatest } from "./migrations/initial.js";
 import type { DatabaseSchema } from "./schema/database.js";
 
 export interface DatabaseManager {
@@ -37,7 +38,7 @@ export function createDatabaseManager(logger: AppLogger): DatabaseManager {
     },
 
     async migrate(): Promise<void> {
-      logger.info({ event: "db.migrate.skipped" }, "Migrations are not implemented yet");
+      await migrateToLatest(this.getClient(), logger);
     },
 
     async destroy(): Promise<void> {

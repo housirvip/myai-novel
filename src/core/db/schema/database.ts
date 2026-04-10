@@ -1,5 +1,7 @@
+import type { Generated } from "kysely";
+
 export interface BooksTable {
-  id: number;
+  id: Generated<number>;
   title: string;
   summary: string | null;
   target_chapter_count: number | null;
@@ -11,7 +13,7 @@ export interface BooksTable {
 }
 
 export interface OutlinesTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   volume_no: number | null;
   volume_title: string | null;
@@ -30,7 +32,7 @@ export interface OutlinesTable {
 }
 
 export interface WorldSettingsTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   title: string;
   category: string;
@@ -43,7 +45,7 @@ export interface WorldSettingsTable {
 }
 
 export interface CharactersTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   name: string;
   alias: string | null;
@@ -65,7 +67,7 @@ export interface CharactersTable {
 }
 
 export interface FactionsTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   name: string;
   category: string | null;
@@ -81,7 +83,7 @@ export interface FactionsTable {
 }
 
 export interface RelationsTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   source_type: string;
   source_id: number;
@@ -98,7 +100,7 @@ export interface RelationsTable {
 }
 
 export interface ItemsTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   name: string;
   category: string | null;
@@ -114,7 +116,7 @@ export interface ItemsTable {
 }
 
 export interface StoryHooksTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   title: string;
   hook_type: string | null;
@@ -130,7 +132,7 @@ export interface StoryHooksTable {
 }
 
 export interface ChaptersTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   chapter_no: number;
   title: string | null;
@@ -151,7 +153,7 @@ export interface ChaptersTable {
 }
 
 export interface ChapterPlansTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   chapter_id: number;
   chapter_no: number;
@@ -171,7 +173,7 @@ export interface ChapterPlansTable {
 }
 
 export interface ChapterDraftsTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   chapter_id: number;
   chapter_no: number;
@@ -191,7 +193,7 @@ export interface ChapterDraftsTable {
 }
 
 export interface ChapterReviewsTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   chapter_id: number;
   chapter_no: number;
@@ -212,7 +214,7 @@ export interface ChapterReviewsTable {
 }
 
 export interface ChapterFinalsTable {
-  id: number;
+  id: Generated<number>;
   book_id: number;
   chapter_id: number;
   chapter_no: number;
@@ -242,4 +244,3 @@ export interface DatabaseSchema {
   chapter_reviews: ChapterReviewsTable;
   chapter_finals: ChapterFinalsTable;
 }
-

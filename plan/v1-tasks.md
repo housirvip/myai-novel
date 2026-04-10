@@ -14,85 +14,85 @@
 
 ## 2.1 阶段一：工程初始化
 
-- [ ] `T001` 初始化 Node.js + TypeScript 工程
-  - [ ] 创建 `package.json`
-  - [ ] 创建 `tsconfig.json`
-  - [ ] 创建基础目录结构 `src/cli` `src/config` `src/core` `src/domain` `src/shared`
-  - [ ] 配置 `build` `dev` `lint` `test` 脚本
-  - [ ] 验证 `npm run build` 可通过
+- [x] `T001` 初始化 Node.js + TypeScript 工程
+  - [x] 创建 `package.json`
+  - [x] 创建 `tsconfig.json`
+  - [x] 创建基础目录结构 `src/cli` `src/config` `src/core` `src/domain` `src/shared`
+  - [x] 配置 `build` `dev` `lint` `test` 脚本
+  - [x] 验证 `npm run build` 可通过
 
-- [ ] `T002` 初始化 CLI 入口
-  - [ ] 创建 `src/cli/index.ts`
-  - [ ] 接入 `commander`
-  - [ ] 定义 `novel` 根命令
-  - [ ] 支持 `--help`
-  - [ ] 支持 `--version`
-  - [ ] 验证 `novel --help` 正常输出
+- [x] `T002` 初始化 CLI 入口
+  - [x] 创建 `src/cli/index.ts`
+  - [x] 接入 `commander`
+  - [x] 定义 `novel` 根命令
+  - [x] 支持 `--help`
+  - [x] 支持 `--version`
+  - [x] 验证 `novel --help` 正常输出
 
 ## 2.2 阶段二：配置与日志系统
 
-- [ ] `T003` 实现环境变量配置模块
-  - [ ] 接入 `dotenv`
-  - [ ] 创建 `src/config/env.ts`
-  - [ ] 用 `zod` 校验配置
-  - [ ] 支持 DB 配置
-  - [ ] 支持 LLM provider 配置
-  - [ ] 支持日志配置
-  - [ ] 生成 `.env.example`
+- [x] `T003` 实现环境变量配置模块
+  - [x] 接入 `dotenv`
+  - [x] 创建 `src/config/env.ts`
+  - [x] 用 `zod` 校验配置
+  - [x] 支持 DB 配置
+  - [x] 支持 LLM provider 配置
+  - [x] 支持日志配置
+  - [x] 生成 `.env.example`
 
-- [ ] `T004` 实现日志模块
-  - [ ] 创建 `src/core/logger/index.ts`
-  - [ ] 创建 `src/core/logger/context.ts`
-  - [ ] 创建 `src/core/logger/serializers.ts`
-  - [ ] 接入 `pino`
-  - [ ] 支持 `traceId`
-  - [ ] 支持 `runId`
-  - [ ] 支持 `pretty/json`
-  - [ ] 支持 AI 输入输出日志开关
+- [x] `T004` 实现日志模块
+  - [x] 创建 `src/core/logger/index.ts`
+  - [x] 创建 `src/core/logger/context.ts`
+  - [x] 创建 `src/core/logger/serializers.ts`
+  - [x] 接入 `pino`
+  - [x] 支持 `traceId`
+  - [x] 支持 `runId`
+  - [x] 支持 `pretty/json`
+  - [x] 支持 AI 输入输出日志开关
 
-- [ ] `T005` 实现计时与日志包装工具
-  - [ ] 封装 `withTimingLog`
-  - [ ] 支持成功自动写日志
-  - [ ] 支持失败自动写日志
-  - [ ] 支持 `durationMs`
-  - [ ] 支持错误摘要与脱敏
+- [x] `T005` 实现计时与日志包装工具
+  - [x] 封装 `withTimingLog`
+  - [x] 支持成功自动写日志
+  - [x] 支持失败自动写日志
+  - [x] 支持 `durationMs`
+  - [x] 支持错误摘要与脱敏
 
 ## 2.3 阶段三：数据库与迁移
 
-- [ ] `T006` 接入 SQLite 和 Kysely
-  - [ ] 创建 `src/core/db/client.ts`
-  - [ ] 创建 `src/core/db/dialects/sqlite.ts`
-  - [ ] 预留 `src/core/db/dialects/mysql.ts`
-  - [ ] 接入 `better-sqlite3`
-  - [ ] 接入 `kysely`
-  - [ ] 验证本地可连接 SQLite
+- [x] `T006` 接入 SQLite 和 Kysely
+  - [x] 创建 `src/core/db/client.ts`
+  - [x] 创建 `src/core/db/dialects/sqlite.ts`
+  - [x] 预留 `src/core/db/dialects/mysql.ts`
+  - [x] 接入 `better-sqlite3`
+  - [x] 接入 `kysely`
+  - [x] 验证本地可连接 SQLite
 
-- [ ] `T007` 定义 Database 类型
-  - [ ] 定义 `books`
-  - [ ] 定义 `outlines`
-  - [ ] 定义 `world_settings`
-  - [ ] 定义 `characters`
-  - [ ] 定义 `factions`
-  - [ ] 定义 `relations`
-  - [ ] 定义 `items`
-  - [ ] 定义 `story_hooks`
-  - [ ] 定义 `chapters`
-  - [ ] 定义 `chapter_plans`
-  - [ ] 定义 `chapter_drafts`
-  - [ ] 定义 `chapter_reviews`
-  - [ ] 定义 `chapter_finals`
+- [x] `T007` 定义 Database 类型
+  - [x] 定义 `books`
+  - [x] 定义 `outlines`
+  - [x] 定义 `world_settings`
+  - [x] 定义 `characters`
+  - [x] 定义 `factions`
+  - [x] 定义 `relations`
+  - [x] 定义 `items`
+  - [x] 定义 `story_hooks`
+  - [x] 定义 `chapters`
+  - [x] 定义 `chapter_plans`
+  - [x] 定义 `chapter_drafts`
+  - [x] 定义 `chapter_reviews`
+  - [x] 定义 `chapter_finals`
 
-- [ ] `T008` 编写初始 migration
-  - [ ] 创建所有表
-  - [ ] 创建唯一约束
-  - [ ] 创建索引
-  - [ ] 校验所有带 `book_id` 的核心索引都带上 `book_id`
-  - [ ] 校验表结构与文档一致
+- [x] `T008` 编写初始 migration
+  - [x] 创建所有表
+  - [x] 创建唯一约束
+  - [x] 创建索引
+  - [x] 校验所有带 `book_id` 的核心索引都带上 `book_id`
+  - [x] 校验表结构与文档一致
 
-- [ ] `T009` 实现数据库初始化命令
-  - [ ] 增加 `novel db:init`
-  - [ ] 增加 `novel db:migrate`
-  - [ ] 增加数据库连接检查命令
+- [x] `T009` 实现数据库初始化命令
+  - [x] 增加 `novel db:init`
+  - [x] 增加 `novel db:migrate`
+  - [x] 增加数据库连接检查命令
 
 ## 2.4 阶段四：Repository 与 CRUD 服务
 
@@ -288,7 +288,7 @@
 
 ## 3. 建议执行顺序
 
-- [ ] 第一轮基础设施：`T001-T009`
+- [x] 第一轮基础设施：`T001-T009`
 - [ ] 第二轮资源层：`T010-T012`
 - [ ] 第三轮模型层：`T013-T015`
 - [ ] 第四轮检索与 Prompt：`T016-T018`
@@ -297,14 +297,14 @@
 
 ## 4. 第一批建议先做
 
-- [ ] `T001` 初始化工程
-- [ ] `T002` 初始化 CLI
-- [ ] `T003` 配置模块
-- [ ] `T004` 日志模块
-- [ ] `T006` SQLite + Kysely
-- [ ] `T007` Database 类型
-- [ ] `T008` migration
-- [ ] `T009` db:init / db:migrate
+- [x] `T001` 初始化工程
+- [x] `T002` 初始化 CLI
+- [x] `T003` 配置模块
+- [x] `T004` 日志模块
+- [x] `T006` SQLite + Kysely
+- [x] `T007` Database 类型
+- [x] `T008` migration
+- [x] `T009` db:init / db:migrate
 - [ ] `T010` repository
 - [ ] `T014` mock provider
 - [ ] `T019` plan
