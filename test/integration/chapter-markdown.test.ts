@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createTestEnv, runCli, runCliJson } from "../helpers/cli.js";
+import { createTestEnv, runCli, runCliJson, runInlineModule } from "../helpers/cli.js";
 
 test("chapter markdown export/import creates new versions instead of overwriting", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-markdown-"));
@@ -133,6 +133,32 @@ test("chapter markdown export/import creates new versions instead of overwriting
   assert.equal(chapterAfterPlanImport.status, "planned");
   assert.ok(chapterAfterPlanImport.current_plan_id > plan.planId);
 
+  const importedPlan = await runInlineModule<{
+    authorIntent: string | null;
+    manualEntityRefs: string | null;
+    retrievedContext: string | null;
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "try {",
+      `  const row = await manager.getClient().selectFrom('chapter_plans').select(['author_intent', 'manual_entity_refs', 'retrieved_context']).where('id', '=', ${chapterAfterPlanImport.current_plan_id}).executeTakeFirstOrThrow();`,
+      "  console.log(JSON.stringify({",
+      "    authorIntent: row.author_intent,",
+      "    manualEntityRefs: row.manual_entity_refs,",
+      "    retrievedContext: row.retrieved_context,",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+  assert.equal(importedPlan.authorIntent, "推进主角开局并埋下黑铁令线索。");
+  assert.ok(importedPlan.manualEntityRefs);
+  assert.ok(importedPlan.retrievedContext);
+
   await runCliJson(["draft", "--book", String(book.id), "--chapter", "1", "--provider", "mock"], env);
   await runCliJson(["review", "--book", String(book.id), "--chapter", "1", "--provider", "mock"], env);
   await runCliJson(["repair", "--book", String(book.id), "--chapter", "1", "--provider", "mock"], env);
@@ -162,4 +188,10 @@ test("chapter markdown export/import creates new versions instead of overwriting
   assert.ok(chapterAfterFinalImport.current_final_id > approve.finalId);
   assert.equal(chapterAfterFinalImport.summary, "手工调整后的正式稿摘要。");
   assert.ok(chapterAfterFinalImport.word_count > 0);
+
+  const bookState = await runCliJson<{ current_chapter_count: number }>(
+    ["book", "get", "--id", String(book.id)],
+    env,
+  );
+  assert.equal(bookState.current_chapter_count, 1);
 });

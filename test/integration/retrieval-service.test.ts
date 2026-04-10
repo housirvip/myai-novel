@@ -15,6 +15,7 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   const result = await runInlineModule<{
     recentChapters: Array<{ chapterNo: number; summary: string | null }>;
     character: { content: string };
+    abilityMatchedCharacter: { content: string } | null;
     faction: { content: string };
     item: { content: string };
     relation: { content: string };
@@ -65,9 +66,16 @@ test("retrieval service skips placeholder chapters and returns richer entity con
       "    keywords: ['林夜', '青岳宗', '黑铁令'],",
       "    manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] },",
       "  });",
+      "  const abilityContext = await service.retrievePlanContext({",
+      "    bookId: 1,",
+      "    chapterNo: 5,",
+      "    keywords: ['感知增强'],",
+      "    manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] },",
+      "  });",
       "  console.log(JSON.stringify({",
       "    recentChapters: context.recentChapters,",
       "    character: context.characters[0],",
+      "    abilityMatchedCharacter: abilityContext.characters[0] ?? null,",
       "    faction: context.factions[0],",
       "    item: context.items[0],",
       "    relation: context.relations[0],",
@@ -89,6 +97,7 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.match(result.character.content, /personality=冷静谨慎/);
   assert.match(result.character.content, /currencies=/);
   assert.match(result.character.content, /abilities=/);
+  assert.ok(result.abilityMatchedCharacter);
   assert.match(result.faction.content, /description=东境大宗门/);
   assert.match(result.faction.content, /headquarter=青岳山/);
   assert.match(result.item.content, /description=可用于特殊身份核验/);

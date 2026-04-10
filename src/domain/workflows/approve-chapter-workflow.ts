@@ -169,8 +169,16 @@ export class ApproveChapterWorkflow {
             const currentDraft = await chapterDraftRepository.getById(chapter.current_draft_id);
             const currentReview = await chapterReviewRepository.getById(chapter.current_review_id);
 
-            if (!currentPlan || !currentDraft || !currentReview) {
-              throw new Error("Current workflow pointers are invalid");
+            if (!currentPlan || currentPlan.chapter_id !== chapter.id || currentPlan.book_id !== payload.bookId) {
+              throw new Error("Current plan pointer is invalid");
+            }
+
+            if (!currentDraft || currentDraft.chapter_id !== chapter.id || currentDraft.book_id !== payload.bookId) {
+              throw new Error("Current draft pointer is invalid");
+            }
+
+            if (!currentReview || currentReview.chapter_id !== chapter.id || currentReview.book_id !== payload.bookId) {
+              throw new Error("Current review pointer is invalid");
             }
 
             const finalResponse = await llmClient.generate({

@@ -11,6 +11,7 @@ import {
   ChapterFinalRepository,
   type ChapterFinalRow,
 } from "../../core/db/repositories/chapter-final-repository.js";
+import { BookRepository } from "../../core/db/repositories/book-repository.js";
 import {
   ChapterPlanRepository,
   type ChapterPlanRow,
@@ -256,6 +257,7 @@ export class ChapterService {
         }
 
         return db.transaction().execute(async (trx) => {
+          const bookRepository = new BookRepository(trx);
           const chapterRepository = new ChapterRepository(trx);
           const chapter = await this.requireChapter(trx, payload.bookId, payload.chapterNo);
           const timestamp = nowIso();
@@ -274,6 +276,9 @@ export class ChapterService {
 
           if (payload.stage === "plan") {
             const repository = new ChapterPlanRepository(trx);
+            const previousPlan = chapter.current_plan_id
+              ? await repository.getById(chapter.current_plan_id)
+              : undefined;
             const versionNo = (await repository.getLatestVersionNo(chapter.id)) + 1;
             const created = await repository.create({
               book_id: chapter.book_id,
@@ -281,14 +286,35 @@ export class ChapterService {
               chapter_no: chapter.chapter_no,
               version_no: versionNo,
               status: "imported",
-              author_intent: null,
-              intent_source: "manual_import",
-              intent_keywords: null,
-              manual_entity_refs: null,
-              retrieved_context: null,
+              author_intent:
+                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
+                  ? previousPlan.author_intent
+                  : null,
+              intent_source:
+                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
+                  ? previousPlan.intent_source
+                  : "manual_import",
+              intent_keywords:
+                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
+                  ? previousPlan.intent_keywords
+                  : null,
+              manual_entity_refs:
+                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
+                  ? previousPlan.manual_entity_refs
+                  : null,
+              retrieved_context:
+                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
+                  ? previousPlan.retrieved_context
+                  : null,
               content: parsed.content,
-              model: null,
-              provider: null,
+              model:
+                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
+                  ? previousPlan.model
+                  : null,
+              provider:
+                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
+                  ? previousPlan.provider
+                  : null,
               source_type: "imported",
               created_at: timestamp,
               updated_at: timestamp,
@@ -359,6 +385,18 @@ export class ChapterService {
           if (!updated) {
             throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
           }
+
+          const approvedCountRow = await trx
+            .selectFrom("chapters")
+            .select((expressionBuilder) => expressionBuilder.fn.count<number>("id").as("approved_count"))
+            .where("book_id", "=", payload.bookId)
+            .where("status", "=", "approved")
+            .executeTakeFirstOrThrow();
+
+          await bookRepository.updateById(payload.bookId, {
+            current_chapter_count: Number(approvedCountRow.approved_count),
+            updated_at: timestamp,
+          });
 
           return updated;
         });
