@@ -84,7 +84,7 @@ cp .env.example .env
 
 ## 配置
 
-完整示例见 [`.env.example`](/Users/housirvip/codex/myai-novel/.env.example)。
+完整示例见 [`.env.example`](./.env.example)。
 
 最常用的最小配置如下：
 
@@ -107,37 +107,22 @@ LOG_LLM_CONTENT_ENABLED=false
 - `LOG_LLM_CONTENT_ENABLED=true` 时会把 AI 输入输出内容写入日志，默认关闭
 - 使用 `openai`、`anthropic`、`custom` 时，分别补齐对应 API 配置
 
-## 初始化数据库
+## 快速开始
+
+初始化数据库：
 
 ```bash
 npm run dev -- db init
 npm run dev -- db check
 ```
 
-如需显式执行迁移：
-
-```bash
-npm run dev -- db migrate
-```
-
-## 5 分钟快速开始
-
-### 方案 A：直接写入一套最小示例数据
-
-仓库自带脚本：[examples/minimal-seed.sh](/Users/housirvip/codex/myai-novel/examples/minimal-seed.sh)
+使用最小示例数据：
 
 ```bash
 bash ./examples/minimal-seed.sh
 ```
 
-它会自动完成：
-
-- 初始化数据库
-- 创建一本书
-- 创建一章
-- 创建最小可用的大纲、世界设定、人物、势力、关系、物品、钩子
-
-跑完后可以直接继续：
+然后执行一遍章节工作流：
 
 ```bash
 npm run dev -- plan --book 1 --chapter 1 --provider mock --authorIntent "让林夜带着黑铁令入宗，并引出宗门旧案线索。"
@@ -147,132 +132,13 @@ npm run dev -- repair --book 1 --chapter 1 --provider mock
 npm run dev -- approve --book 1 --chapter 1 --provider mock
 ```
 
-### 方案 B：手动建一套最小资源
+## 命令行文档
 
-```bash
-npm run dev -- book create --title "青岳入门录" --targetChapters 200
-npm run dev -- chapter create --book 1 --chapter 1 --title "黑铁令"
-npm run dev -- outline create --book 1 --title "入宗篇" --chapterStart 1 --chapterEnd 10 --storyCore "主角带着异常令牌进入宗门"
-npm run dev -- world create --book 1 --title "宗门制度" --category "势力规则" --content "外门弟子通过令牌登记入门" --keywords "宗门,外门,令牌"
-npm run dev -- character create --book 1 --name "林夜" --background "出身寒门" --keywords "林夜,主角"
-npm run dev -- faction create --book 1 --name "青岳宗" --keywords "青岳宗,外门"
-npm run dev -- relation create --book 1 --sourceType character --sourceId 1 --targetType faction --targetId 1 --relationType member --keywords "林夜,外门"
-npm run dev -- item create --book 1 --name "黑铁令" --ownerType none --keywords "黑铁令,令牌"
-npm run dev -- hook create --book 1 --title "黑铁令异常" --hookType mystery --keywords "黑铁令,异常"
-```
+更完整的命令行使用方式、参数说明和示例，请查阅：
 
-## 工作流说明
-
-### `plan`
-
-作用：
-
-- 读取作者意图
-- 如果没提供作者意图，则基于近期大纲和前文章节自动生成意图草案
-- 用 AI 提取关键词
-- 根据关键词和手工指定实体 ID 召回强相关上下文
-- 生成结构化章节规划，并写入 `chapter_plans`
-
-示例：
-
-```bash
-npm run dev -- plan \
-  --book 1 \
-  --chapter 12 \
-  --provider mock \
-  --authorIntent "本章要让主角借黑铁令撬开外门局势" \
-  --characterIds 1,2 \
-  --factionIds 1 \
-  --relationIds 3 \
-  --itemIds 1 \
-  --hookIds 1,4 \
-  --worldSettingIds 2,5 \
-  --json
-```
-
-### `draft`
-
-作用：
-
-- 基于当前 plan 和召回上下文生成草稿
-- 写入 `chapter_drafts`
-
-```bash
-npm run dev -- draft --book 1 --chapter 12 --provider mock
-```
-
-### `review`
-
-作用：
-
-- 检查草稿的设定一致性、人物行为、节奏、逻辑漏洞和钩子推进
-- 写入 `chapter_reviews`
-
-```bash
-npm run dev -- review --book 1 --chapter 12 --provider mock
-```
-
-### `repair`
-
-作用：
-
-- 根据当前 draft + 当前 review 生成新 draft 版本
-- 保留修稿链路来源
-
-```bash
-npm run dev -- repair --book 1 --chapter 12 --provider mock
-```
-
-### `approve`
-
-作用：
-
-- 生成正式稿版本 `chapter_finals`
-- 更新 `chapters.current_final_id`
-- 抽取结构化事实 diff
-- 回写人物、势力、关系、物品、钩子、世界设定的更新
-- 更新章节实际关联实体信息
-
-```bash
-npm run dev -- approve --book 1 --chapter 12 --provider mock
-```
-
-## Markdown 导出与导入
-
-### 导出
-
-```bash
-npm run dev -- chapter export --book 1 --chapter 12 --stage plan --output ./exports/ch12-plan.md
-npm run dev -- chapter export --book 1 --chapter 12 --stage draft --output ./exports/ch12-draft.md
-npm run dev -- chapter export --book 1 --chapter 12 --stage final --output ./exports/ch12-final.md
-```
-
-### 导入
-
-```bash
-npm run dev -- chapter import --book 1 --chapter 12 --stage plan --input ./exports/ch12-plan.md
-npm run dev -- chapter import --book 1 --chapter 12 --stage draft --input ./exports/ch12-draft.md
-npm run dev -- chapter import --book 1 --chapter 12 --stage final --input ./exports/ch12-final.md
-```
-
-关于正式稿导入，有两个关键点：
-
-- 默认只有章节状态已经是 `approved` 时，才允许导入 `final`
-- 如需跳过状态保护，可以追加 `--force`
-
-```bash
-npm run dev -- chapter import --book 1 --chapter 12 --stage final --input ./exports/ch12-final.md --force
-```
-
-## 常用查询命令
-
-```bash
-npm run dev -- chapter get --book 1 --chapter 12 --json
-npm run dev -- character list --book 1 --json
-npm run dev -- relation list --book 1 --json
-npm run dev -- hook list --book 1 --json
-npm run dev -- world list --book 1 --json
-```
+- [`docs/cli-usage-guide.md`](docs/cli-usage-guide.md)
+- [`docs/prompt-retrieval-relationship.md`](docs/prompt-retrieval-relationship.md)
+- [`docs/retrieval-scoring-rules.md`](docs/retrieval-scoring-rules.md)
 
 ## 日志
 
