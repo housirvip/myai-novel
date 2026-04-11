@@ -122,7 +122,7 @@ export function buildDraftPrompt(input: {
         section("章节规划", input.planContent),
         buildIntentConstraintsSection(input.intentConstraints),
         input.retrievedContext
-          ? jsonSection("召回上下文（硬约束优先，软参考辅助）", input.retrievedContext)
+          ? jsonSection("召回上下文（必须严格参考）", input.retrievedContext)
           : null,
         input.targetWords ? section("目标字数", String(input.targetWords)) : null,
         section("写作要求", [

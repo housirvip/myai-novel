@@ -50,6 +50,12 @@ export interface PlanRetrievedContext {
   };
   outlines: RetrievedOutline[];
   recentChapters: RetrievedChapterSummary[];
+  hooks: RetrievedEntity[];
+  characters: RetrievedEntity[];
+  factions: RetrievedEntity[];
+  items: RetrievedEntity[];
+  relations: RetrievedEntity[];
+  worldSettings: RetrievedEntity[];
   hardConstraints: PlanRetrievedContextEntityGroups;
   softReferences: {
     outlines: RetrievedOutline[];

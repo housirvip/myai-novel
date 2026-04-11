@@ -96,6 +96,13 @@ export class RetrievalQueryService {
           },
           outlines,
           recentChapters,
+          // 兼容层：保留旧顶层字段，避免现有工作流、测试和历史导入逻辑一次性全部被打断。
+          hooks,
+          characters,
+          factions,
+          items,
+          relations,
+          worldSettings,
           // V2 开始把召回内容显式拆成“硬约束”和“软参考”：
           // 硬约束优先承载容易写错、且一旦出错会破坏连续性的实体信息；
           // 软参考则保留更完整的召回结果，供不同阶段视图继续裁剪。
