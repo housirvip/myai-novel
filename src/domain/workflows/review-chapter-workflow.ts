@@ -11,6 +11,7 @@ import type { AppLogger } from "../../core/logger/index.js";
 import { withTimingLog } from "../../core/logger/index.js";
 import { parseLooseJson } from "../../shared/utils/json.js";
 import { nowIso } from "../../shared/utils/time.js";
+import { buildReviewContextView } from "../planning/context-views.js";
 import { buildReviewPrompt } from "../planning/prompts.js";
 import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS } from "../shared/constants.js";
 import { assertChapterPointersUnchanged, parseStoredJson } from "./shared.js";
@@ -94,12 +95,13 @@ export class ReviewChapterWorkflow {
           }
 
           const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
+          const reviewContextView = buildReviewContextView(retrievedContext as import("../planning/types.js").PlanRetrievedContext);
           const reviewResponse = await llmClient.generate({
             model: payload.model,
             messages: buildReviewPrompt({
               planContent: currentPlan.content,
               draftContent: currentDraft.content,
-              retrievedContext,
+              retrievedContext: reviewContextView,
             }),
             responseFormat: "json",
           });

@@ -190,11 +190,11 @@ export class PlanChapterWorkflow {
 }
 
 function formatOutlines(context: PlanRetrievedContext): string {
-  if (context.outlines.length === 0) {
+  if (context.softReferences.outlines.length === 0) {
     return "暂无命中大纲。";
   }
 
-  return context.outlines.map((outline) => `- ${outline.content}`).join("\n");
+  return context.softReferences.outlines.map((outline) => `- ${outline.content}`).join("\n");
 }
 
 function formatRecentChapters(context: PlanRetrievedContext): string {
@@ -212,15 +212,18 @@ function formatRecentChapters(context: PlanRetrievedContext): string {
 
 function formatManualFocus(context: PlanRetrievedContext): string {
   const sections = [
-    formatEntityNames("人物", context.characters.map((entity) => entity.name ?? `ID:${entity.id}`)),
-    formatEntityNames("势力", context.factions.map((entity) => entity.name ?? `ID:${entity.id}`)),
-    formatEntityNames("物品", context.items.map((entity) => entity.name ?? `ID:${entity.id}`)),
-    formatEntityNames("钩子", context.hooks.map((entity) => entity.title ?? `ID:${entity.id}`)),
+    formatEntityNames("人物", context.hardConstraints.characters.map((entity) => entity.name ?? `ID:${entity.id}`)),
+    formatEntityNames("势力", context.hardConstraints.factions.map((entity) => entity.name ?? `ID:${entity.id}`)),
+    formatEntityNames("物品", context.hardConstraints.items.map((entity) => entity.name ?? `ID:${entity.id}`)),
+    formatEntityNames("钩子", context.hardConstraints.hooks.map((entity) => entity.title ?? `ID:${entity.id}`)),
     formatEntityNames(
       "关系",
-      context.relations.map((entity) => entity.content.split("\n").slice(0, 2).join(" / ")),
+      context.hardConstraints.relations.map((entity) => entity.content.split("\n").slice(0, 2).join(" / ")),
     ),
-    formatEntityNames("世界设定", context.worldSettings.map((entity) => entity.title ?? `ID:${entity.id}`)),
+    formatEntityNames(
+      "世界设定",
+      context.hardConstraints.worldSettings.map((entity) => entity.title ?? `ID:${entity.id}`),
+    ),
   ].filter(Boolean);
 
   return sections.length > 0 ? sections.join("\n") : "无";

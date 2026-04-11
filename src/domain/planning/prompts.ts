@@ -69,7 +69,8 @@ export function buildPlanPrompt(input: {
         [
           "你是一名长篇网文策划助手。",
           "请基于作者意图、召回上下文和最近章节状态，输出可直接用于写作的章节规划。",
-          "召回上下文中的人物、势力、关系、物品、钩子、世界规则默认都应视为有效约束。",
+          "召回上下文中的 hardConstraints 默认都应视为有效约束。",
+          "softReferences 用于补充背景，不应覆盖 hardConstraints。",
           "规划必须优先保证连续性、设定一致性、人物动机成立和钩子推进清晰。",
         ].join(""),
     },
@@ -86,7 +87,7 @@ export function buildPlanPrompt(input: {
         section("输出要求", [
           "请输出章节规划。",
           "至少包含：本章目标、主线、支线、出场角色、出场势力、关键道具、钩子推进、节奏分段、风险提醒。",
-          "如果召回上下文里存在风险提醒、未回收钩子、关键关系或世界规则，规划中必须显式承接。",
+          "如果 hardConstraints、riskReminders 中存在明确限制，规划中必须显式承接。",
           "如果存在必须包含或必须避免的意图约束，规划中必须显式满足。",
         ]),
       ]),
@@ -107,7 +108,8 @@ export function buildDraftPrompt(input: {
         [
           "你是一名长篇网络小说写作助手。",
           "请根据章节规划创作完整、自然、连贯的章节草稿。",
-          "召回上下文中的人物状态、关系、势力信息、物品归属、钩子状态、世界规则，默认都应视为硬约束。",
+          "召回上下文中的 hardConstraints 默认都应视为硬约束。",
+          "recentChapters、supportingOutlines 和 riskReminders 用于帮助承接上下文，但不能推翻 hardConstraints。",
           "如果章节规划与召回上下文有细微冲突，优先保证设定一致和前后连续，再在正文里自然化处理。",
           "不要为了推进剧情而随意改写人物性格、能力边界、世界规则、货币体系、战力体系。",
           "若必须引入新信息，请保持克制，并避免与已召回设定直接冲突。",
@@ -120,7 +122,7 @@ export function buildDraftPrompt(input: {
         section("章节规划", input.planContent),
         buildIntentConstraintsSection(input.intentConstraints),
         input.retrievedContext
-          ? jsonSection("召回上下文（必须严格参考）", input.retrievedContext)
+          ? jsonSection("召回上下文（硬约束优先，软参考辅助）", input.retrievedContext)
           : null,
         input.targetWords ? section("目标字数", String(input.targetWords)) : null,
         section("写作要求", [
@@ -151,7 +153,8 @@ export function buildReviewPrompt(input: {
         [
           "你是一名长篇小说审校助手。",
           "请检查草稿在设定一致性、人物行为、节奏、逻辑链路、关系演变和钩子推进上的问题。",
-          "召回上下文中的事实默认都应视为核对基准。",
+          "召回上下文中的 hardConstraints 和 recentChapters 默认都应视为核对基准。",
+          "riskReminders 用于提醒你优先关注连续性高风险项。",
           "输出应聚焦真正影响正文质量和连续性的关键问题，不要泛泛而谈。",
         ].join(""),
     },
@@ -183,7 +186,12 @@ export function buildRepairPrompt(input: {
     {
       role: "system",
       content:
-        "你是一名小说修稿助手。请根据章节规划、召回上下文和审阅意见修复章节草稿，尽量少破坏已有可用内容，并保持主线、设定和人物行为一致。",
+        [
+          "你是一名小说修稿助手。",
+          "请根据章节规划、召回上下文和审阅意见修复章节草稿，尽量少破坏已有可用内容，并保持主线、设定和人物行为一致。",
+          "召回上下文中的 hardConstraints 默认都应视为硬约束。",
+          "supportingOutlines 和 recentChapters 用于帮助修稿时保持承接，但不应覆盖硬约束。",
+        ].join(""),
     },
     {
       role: "user",
@@ -221,7 +229,8 @@ export function buildApprovePrompt(input: {
           "你是一名长篇小说定稿助手。",
           "请基于章节规划、当前草稿、审阅结果和召回上下文，输出可直接作为正式稿保存的最终章节文稿。",
           "你必须修复审阅里指出的问题，同时保留章节原本应推进的主线、支线、人物关系和钩子。",
-          "召回上下文中的设定与事实默认都应视为正式约束，不要为了润色而改坏连续性。",
+          "召回上下文中的 hardConstraints 默认都应视为正式约束。",
+          "supportingOutlines、recentChapters 和 riskReminders 用于辅助你承接语境，但不能覆盖硬约束。",
           "输出时只给最终正文，不要附带说明、批注、总结或解释。",
         ].join(""),
     },
@@ -256,7 +265,11 @@ export function buildApproveDiffPrompt(input: {
     {
       role: "system",
       content:
-        "你是一名小说事实整理助手。请根据最终文稿、章节规划和审阅结果，输出结构化 JSON，用于更新设定数据库。",
+        [
+          "你是一名小说事实整理助手。",
+          "请根据最终文稿、章节规划和审阅结果，输出结构化 JSON，用于更新设定数据库。",
+          "召回上下文中的 hardConstraints 和 recentChapters 主要用于校对事实变更，不用于自由补写新事实。",
+        ].join(""),
     },
     {
       role: "user",

@@ -5,6 +5,7 @@ import type { DatabaseSchema } from "../../core/db/schema/database.js";
 import type {
   ManualEntityRefs,
   PlanRetrievedContext,
+  PlanRetrievedContextEntityGroups,
   RetrievedChapterSummary,
   RetrievedEntity,
   RetrievedOutline,
@@ -76,6 +77,14 @@ export class RetrievalQueryService {
         const hooks = await this.loadHooks(db, params);
         const relations = await this.loadRelations(db, params);
         const worldSettings = await this.loadWorldSettings(db, params);
+        const entityGroups = {
+          hooks,
+          characters,
+          factions,
+          items,
+          relations,
+          worldSettings,
+        } satisfies PlanRetrievedContextEntityGroups;
 
         return {
           book: {
@@ -87,12 +96,15 @@ export class RetrievalQueryService {
           },
           outlines,
           recentChapters,
-          hooks,
-          characters,
-          factions,
-          items,
-          relations,
-          worldSettings,
+          // V2 开始把召回内容显式拆成“硬约束”和“软参考”：
+          // 硬约束优先承载容易写错、且一旦出错会破坏连续性的实体信息；
+          // 软参考则保留更完整的召回结果，供不同阶段视图继续裁剪。
+          hardConstraints: buildHardConstraints(entityGroups),
+          softReferences: {
+            outlines,
+            recentChapters,
+            entities: entityGroups,
+          },
           // riskReminders 是面向后续 prompt 的补充提醒，
           // 用来显式提示未回收钩子、章节连续性风险等信息，但它本身不参与实体打分排序。
           riskReminders: buildRiskReminders({
@@ -663,6 +675,17 @@ function resolveRelationEndpointName(
   }
 
   return `${entityType}:${entityId}`;
+}
+
+function buildHardConstraints(groups: PlanRetrievedContextEntityGroups): PlanRetrievedContextEntityGroups {
+  return {
+    hooks: groups.hooks.slice(0, 5),
+    characters: groups.characters.slice(0, 6),
+    factions: groups.factions.slice(0, 4),
+    items: groups.items.slice(0, 4),
+    relations: groups.relations.slice(0, 6),
+    worldSettings: groups.worldSettings.slice(0, 4),
+  };
 }
 
 function buildRiskReminders(input: {

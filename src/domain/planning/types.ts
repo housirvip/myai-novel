@@ -31,6 +31,15 @@ export interface RetrievedChapterSummary {
   status: string;
 }
 
+export interface PlanRetrievedContextEntityGroups {
+  hooks: RetrievedEntity[];
+  characters: RetrievedEntity[];
+  factions: RetrievedEntity[];
+  items: RetrievedEntity[];
+  relations: RetrievedEntity[];
+  worldSettings: RetrievedEntity[];
+}
+
 export interface PlanRetrievedContext {
   book: {
     id: number;
@@ -41,12 +50,12 @@ export interface PlanRetrievedContext {
   };
   outlines: RetrievedOutline[];
   recentChapters: RetrievedChapterSummary[];
-  hooks: RetrievedEntity[];
-  characters: RetrievedEntity[];
-  factions: RetrievedEntity[];
-  items: RetrievedEntity[];
-  relations: RetrievedEntity[];
-  worldSettings: RetrievedEntity[];
+  hardConstraints: PlanRetrievedContextEntityGroups;
+  softReferences: {
+    outlines: RetrievedOutline[];
+    recentChapters: RetrievedChapterSummary[];
+    entities: PlanRetrievedContextEntityGroups;
+  };
   riskReminders: string[];
 }
 

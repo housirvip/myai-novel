@@ -11,6 +11,7 @@ import type { AppLogger } from "../../core/logger/index.js";
 import { withTimingLog } from "../../core/logger/index.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
+import { buildRepairContextView } from "../planning/context-views.js";
 import { buildRepairPrompt } from "../planning/prompts.js";
 import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS } from "../shared/constants.js";
 import { assertChapterPointersUnchanged, parseStoredJson, readPlanIntentConstraints } from "./shared.js";
@@ -95,6 +96,8 @@ export class RepairChapterWorkflow {
             throw new Error("Current review pointer is invalid");
           }
 
+          const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
+          const repairContextView = buildRepairContextView(retrievedContext as import("../planning/types.js").PlanRetrievedContext);
           const repairResult = await llmClient.generate({
             model: payload.model,
             messages: buildRepairPrompt({
@@ -102,7 +105,7 @@ export class RepairChapterWorkflow {
               draftContent: currentDraft.content,
               reviewContent: currentReview.raw_result,
               intentConstraints: readPlanIntentConstraints(currentPlan),
-              retrievedContext: parseStoredJson(currentPlan.retrieved_context),
+              retrievedContext: repairContextView,
             }),
           });
 

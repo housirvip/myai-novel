@@ -10,6 +10,7 @@ import type { AppLogger } from "../../core/logger/index.js";
 import { withTimingLog } from "../../core/logger/index.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
+import { buildDraftContextView } from "../planning/context-views.js";
 import { buildDraftPrompt } from "../planning/prompts.js";
 import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS } from "../shared/constants.js";
 import { assertChapterPointersUnchanged, parseStoredJson, readPlanIntentConstraints } from "./shared.js";
@@ -78,12 +79,13 @@ export class DraftChapterWorkflow {
           }
 
           const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
+          const draftContextView = buildDraftContextView(retrievedContext as import("../planning/types.js").PlanRetrievedContext);
           const draftResult = await llmClient.generate({
             model: payload.model,
             messages: buildDraftPrompt({
               planContent: currentPlan.content,
               intentConstraints: readPlanIntentConstraints(currentPlan),
-              retrievedContext,
+              retrievedContext: draftContextView,
               targetWords: payload.targetWords,
             }),
           });

@@ -21,7 +21,9 @@ import { withTimingLog } from "../../core/logger/index.js";
 import { parseLooseJson } from "../../shared/utils/json.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
+import { buildApproveContextView, buildApproveDiffContextView } from "../planning/context-views.js";
 import { buildApproveDiffPrompt, buildApprovePrompt } from "../planning/prompts.js";
+
 import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS } from "../shared/constants.js";
 import {
   appendChapterNote,
@@ -183,6 +185,10 @@ export class ApproveChapterWorkflow {
           }
 
           const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
+          // approve 正文与 approve diff 对上下文的消费重点不同：
+          // 正文阶段仍需要少量支撑性背景，而 diff 阶段更强调硬约束与事实核对基准。
+          const approveContextView = buildApproveContextView(retrievedContext as import("../planning/types.js").PlanRetrievedContext);
+          const approveDiffContextView = buildApproveDiffContextView(retrievedContext as import("../planning/types.js").PlanRetrievedContext);
           const finalResponse = await llmClient.generate({
             model: payload.model,
             messages: buildApprovePrompt({
@@ -190,7 +196,7 @@ export class ApproveChapterWorkflow {
               draftContent: currentDraft.content,
               reviewContent: currentReview.raw_result,
               intentConstraints: readPlanIntentConstraints(currentPlan),
-              retrievedContext,
+              retrievedContext: approveContextView,
             }),
           });
 
@@ -203,7 +209,7 @@ export class ApproveChapterWorkflow {
               finalContent: finalResponse.content,
               planContent: currentPlan.content,
               reviewContent: currentReview.raw_result,
-              retrievedContext,
+              retrievedContext: approveDiffContextView,
             }),
             responseFormat: "json",
           });
