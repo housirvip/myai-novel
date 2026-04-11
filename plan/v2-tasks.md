@@ -23,46 +23,46 @@
 
 ### P0-2. 设计新的 `retrievedContext` 结构
 - [ ] 盘点当前 `PlanRetrievedContext` 的字段与使用位置
-- [ ] 设计新的分层结构：`hardConstraints` / `softReferences` / `riskReminders`
-- [ ] 明确哪些实体进入硬约束层
-- [ ] 明确哪些内容只作为软参考
-- [ ] 评估新结构对 `chapter_plans.retrieved_context` 的兼容策略
+- [x] 设计新的分层结构：`hardConstraints` / `softReferences` / `riskReminders`
+- [x] 明确哪些实体进入硬约束层
+- [x] 明确哪些内容只作为软参考
+- [x] 评估新结构对 `chapter_plans.retrieved_context` 的兼容策略
 
 **验收**
-- [ ] 有明确的 TypeScript 类型定义草案
-- [ ] 有旧数据兼容策略说明
+- [x] 有明确的 TypeScript 类型定义草案
+- [x] 有旧数据兼容策略说明
 
 ### P0-3. 调整召回输出构造逻辑
-- [ ] 修改 `src/domain/planning/retrieval-service.ts` 的输出结构
-- [ ] 保留 explainability 信息：`reason`、`score`
+- [x] 修改 `src/domain/planning/retrieval-service.ts` 的输出结构
+- [x] 保留 explainability 信息：`reason`、`score`
 - [ ] 如有必要，补充 `matchedFields` / `matchedKeywords`
-- [ ] 确保 `riskReminders` 不与实体召回结果混淆
+- [x] 确保 `riskReminders` 不与实体召回结果混淆
 
 **验收**
-- [ ] 召回结果结构可被序列化并保存到 `chapter_plans`
-- [ ] 现有 `plan` 工作流可读取新结构
+- [x] 召回结果结构可被序列化并保存到 `chapter_plans`
+- [x] 现有 `plan` 工作流可读取新结构
 
 ### P0-4. 新增阶段化上下文裁剪层
-- [ ] 新建 `src/domain/planning/context-views.ts`
-- [ ] 实现 `buildDraftContextView()`
-- [ ] 实现 `buildReviewContextView()`
-- [ ] 实现 `buildApproveDiffContextView()`
-- [ ] 明确每种视图保留哪些字段、丢弃哪些字段
+- [x] 新建 `src/domain/planning/context-views.ts`
+- [x] 实现 `buildDraftContextView()`
+- [x] 实现 `buildReviewContextView()`
+- [x] 实现 `buildApproveDiffContextView()`
+- [x] 明确每种视图保留哪些字段、丢弃哪些字段
 
 **依赖**
-- [ ] 依赖 P0-2 / P0-3 完成
+- [x] 依赖 P0-2 / P0-3 完成
 
 ### P0-5. Prompt 与 Workflow 适配新上下文结构
-- [ ] 更新 `src/domain/planning/prompts.ts`
-- [ ] `buildPlanPrompt()` 支持新结构
-- [ ] `buildDraftPrompt()` 消费 draft 视图
-- [ ] `buildReviewPrompt()` 消费 review 视图
-- [ ] `buildRepairPrompt()` 评估是否需要单独 repair 视图
-- [ ] `buildApprovePrompt()` 与 approve diff prompt 消费裁剪后的上下文
-- [ ] 更新 `plan/draft/review/repair/approve` workflow 接入新结构
+- [x] 更新 `src/domain/planning/prompts.ts`
+- [x] `buildPlanPrompt()` 支持新结构
+- [x] `buildDraftPrompt()` 消费 draft 视图
+- [x] `buildReviewPrompt()` 消费 review 视图
+- [x] `buildRepairPrompt()` 评估是否需要单独 repair 视图
+- [x] `buildApprovePrompt()` 与 approve diff prompt 消费裁剪后的上下文
+- [x] 更新 `plan/draft/review/repair/approve` workflow 接入新结构
 
 **依赖**
-- [ ] 依赖 P0-4 完成
+- [x] 依赖 P0-4 完成
 
 ### P0-6. SQLite 回归验证
 - [ ] 运行 `npm run check`
@@ -71,9 +71,9 @@
 - [ ] 跑通最小 CLI 工作流
 
 **完成定义**
-- [ ] `retrievedContext` 已完成分层
-- [ ] `draft / review / approve diff` 已使用阶段化上下文视图
-- [ ] 不重新做数据库召回
+- [x] `retrievedContext` 已完成分层
+- [x] `draft / review / approve diff` 已使用阶段化上下文视图
+- [x] 不重新做数据库召回
 - [ ] SQLite 默认行为无回退
 
 ---
@@ -83,25 +83,25 @@
 > 目标：在结构稳定后，再提升召回质量与连续性约束能力。
 
 ### P1-1. 拆分打分逻辑
-- [ ] 从 `retrieval-service.ts` 中抽出独立 ranking/score 模块
-- [ ] 新建 `src/domain/planning/retrieval-ranking.ts`
+- [x] 从 `retrieval-service.ts` 中抽出独立 ranking/score 模块
+- [x] 新建 `src/domain/planning/retrieval-ranking.ts`
 - [ ] 先做到“结构拆分但默认行为不变”
 
 ### P1-2. 差异化权重
-- [ ] 人物：提高 `name` / `alias` 权重
-- [ ] 势力：区分 `name` / `category` / `core_goal` 权重
-- [ ] 物品：区分 `name` / `description` / `rarity` 权重
-- [ ] 关系：提高关系两端实体与 `relationType` 权重
-- [ ] 世界设定：提高 `title` / `category` 权重
-- [ ] 评估钩子邻近性权重是否继续沿用或细化
+- [x] 人物：提高 `name` / `alias` 权重
+- [x] 势力：区分 `name` / `category` / `core_goal` 权重
+- [x] 物品：区分 `name` / `description` / `rarity` 权重
+- [x] 关系：提高关系两端实体与 `relationType` 权重
+- [x] 世界设定：提高 `title` / `category` 权重
+- [x] 评估钩子邻近性权重是否继续沿用或细化
 
 ### P1-3. 高风险连续性实体优先
 - [ ] 定义“高风险连续性实体”判定规则
-- [ ] 人物当前地点加入连续性优先判断
+- [x] 人物当前地点加入连续性优先判断
 - [ ] 关键物品持有状态加入连续性优先判断
 - [ ] 未回收重要钩子加入连续性优先判断
-- [ ] 世界规则加入连续性优先判断
-- [ ] 将这些内容显式提升到 `hardConstraints` 或高优先 `riskReminders`
+- [x] 世界规则加入连续性优先判断
+- [x] 将这些内容显式提升到 `hardConstraints` 或高优先 `riskReminders`
 
 ### P1-4. 召回质量验证
 - [ ] 抽样比对 V1 与 V2 的召回结果差异
@@ -110,12 +110,12 @@
 - [ ] 检查 `review` 与 `approve diff` 的上下文噪声是否下降
 
 **依赖**
-- [ ] 依赖 P0 完成
+- [x] 依赖 P0 完成
 
 **完成定义**
-- [ ] 强约束实体排序更靠前
+- [x] 强约束实体排序更靠前
 - [ ] 连续性高风险项可稳定进入上下文
-- [ ] 召回结果仍可解释
+- [x] 召回结果仍可解释
 
 ---
 
@@ -195,10 +195,10 @@
 
 ### P3-2. 文档更新
 - [ ] 更新 `README.md`
-- [ ] 更新 `docs/env-config-guide.md`
-- [ ] 更新 `docs/prompt-retrieval-relationship.md`
-- [ ] 更新 `docs/retrieval-scoring-rules.md`
-- [ ] 更新 `docs/engineering-overview.md`
+- [x] 更新 `docs/env-config-guide.md`
+- [x] 更新 `docs/prompt-retrieval-relationship.md`
+- [x] 更新 `docs/retrieval-scoring-rules.md`
+- [x] 更新 `docs/engineering-overview.md`
 - [ ] 在 `docs` 中补充 MySQL 使用说明（如有必要）
 
 ### P3-3. 注释与维护性收尾
@@ -207,20 +207,20 @@
 - [ ] 避免逐行翻译式注释
 
 **完成定义**
-- [ ] 默认规则式召回行为仍可用，不依赖 rerank / embedding
+- [x] 默认规则式召回行为仍可用，不依赖 rerank / embedding
 - [ ] 文档已覆盖新配置、新流程和新约束
-- [ ] 核心新增逻辑已有必要中文注释
+- [x] 核心新增逻辑已有必要中文注释
 
 ---
 
 ## 全量完成定义（DoD）
 
-- [ ] `retrievedContext` 已完成分层
-- [ ] `draft / review / approve diff` 已使用阶段化上下文视图
+- [x] `retrievedContext` 已完成分层
+- [x] `draft / review / approve diff` 已使用阶段化上下文视图
 - [ ] 高风险连续性项能稳定进入约束层
 - [ ] `DB_CLIENT=mysql` 可正常初始化、迁移、运行 workflow
 - [ ] SQLite 与 MySQL 下核心链路行为一致
 - [ ] 默认 SQLite 开发体验不变
-- [ ] 默认规则式召回行为仍可用，不依赖 rerank / embedding
+- [x] 默认规则式召回行为仍可用，不依赖 rerank / embedding
 - [ ] 文档已覆盖新配置、新流程和新约束
-- [ ] 核心新增逻辑已有必要中文注释
+- [x] 核心新增逻辑已有必要中文注释
