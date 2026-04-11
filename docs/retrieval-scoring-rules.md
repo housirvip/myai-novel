@@ -830,6 +830,138 @@ myai-novel plan \
 请输出章节规划...
 ```
 
+### 11.7 retrievedContext JSON 示例
+
+下面给一个更接近当前代码实际结构的 `retrievedContext` 示例。
+
+```json
+{
+  "book": {
+    "id": 1,
+    "title": "青岳入门录",
+    "summary": "寒门少年林夜因一枚黑铁令卷入宗门暗流。",
+    "targetChapterCount": 300,
+    "currentChapterCount": 7
+  },
+  "outlines": [
+    {
+      "id": 3,
+      "title": "内门试炼开启",
+      "reason": "outline_hit",
+      "content": "title=内门试炼开启\nstory_core=林夜借黑铁令进入内门试炼\nmain_plot=推进宗门旧案支线\nsub_plot=顾沉舟开始关注林夜\nforeshadowing=黑铁令来历异常\nexpected_payoff=旧案调查线正式展开"
+    }
+  ],
+  "recentChapters": [
+    {
+      "id": 5,
+      "chapterNo": 7,
+      "title": "山门夜讯",
+      "summary": "林夜确认黑铁令会引发宗门高层异常反应，并决定继续隐藏来历。",
+      "status": "approved"
+    },
+    {
+      "id": 4,
+      "chapterNo": 6,
+      "title": "执事失语",
+      "summary": "顾沉舟第一次注意到黑铁令，并怀疑林夜身份并不普通。",
+      "status": "approved"
+    }
+  ],
+  "hooks": [
+    {
+      "id": 5,
+      "title": "黑铁令与宗门旧案",
+      "reason": "manual_id+keyword_hit+chapter_proximity",
+      "content": "title=黑铁令与宗门旧案\nhook_type=mystery\nstatus=open\nsource_chapter_no=2\ntarget_chapter_no=8\ndescription=黑铁令可能与宗门旧案相关，后续需要追查来源。\nappend_notes=[Chapter 7] 顾沉舟开始怀疑黑铁令与旧案有关",
+      "score": 190
+    },
+    {
+      "id": 8,
+      "title": "顾沉舟身份疑点",
+      "reason": "keyword_hit",
+      "content": "title=顾沉舟身份疑点\nhook_type=suspense\nstatus=progressing\nsource_chapter_no=6\ndescription=顾沉舟似乎知道部分宗门旧案内幕。\nappend_notes=[Chapter 7] 顾沉舟对林夜的关注明显提高",
+      "score": 50
+    }
+  ],
+  "characters": [
+    {
+      "id": 12,
+      "name": "林夜",
+      "reason": "manual_id+keyword_hit",
+      "content": "name=林夜\npersonality=冷静谨慎\nbackground=寒门出身，因黑铁令进入青岳宗视线\ncurrent_location=青岳宗外门\nprofessions=外门弟子\nlevels=炼体三重\ncurrencies={\"宗门贡献\":12,\"银两\":38}\nabilities=感知增强,危机预判\nstatus=alive\ngoal=查清黑铁令来历\nappend_notes=[Chapter 7] 决定借试炼机会接近内门",
+      "score": 150
+    },
+    {
+      "id": 18,
+      "name": "顾沉舟",
+      "reason": "manual_id+keyword_hit",
+      "content": "name=顾沉舟\npersonality=克制敏锐\nbackground=内门执事弟子，对宗门旧案有所耳闻\ncurrent_location=青岳宗内门\nprofessions=内门执事\nlevels=聚气境\nabilities=观察入微\nstatus=alive\ngoal=确认林夜与黑铁令的关系\nappend_notes=[Chapter 7] 对林夜保持暗中观察",
+      "score": 125
+    }
+  ],
+  "factions": [
+    {
+      "id": 7,
+      "name": "青岳宗",
+      "reason": "manual_id+keyword_hit",
+      "content": "name=青岳宗\ncategory=宗门\ncore_goal=维持宗门秩序并压制旧案余波\ndescription=东境大宗门，内部派系复杂\nheadquarter=青岳山\nstatus=active\nappend_notes=[Chapter 6] 内门对黑铁令出现异常关注",
+      "score": 150
+    }
+  ],
+  "items": [
+    {
+      "id": 3,
+      "name": "黑铁令",
+      "reason": "manual_id+keyword_hit",
+      "content": "name=黑铁令\ncategory=身份凭证\ndescription=可用于特殊身份核验，疑似与旧案有关\nowner_type=character\nowner_id=12\nrarity=rare\nstatus=active\nappend_notes=[Chapter 7] 进入内门试炼可能需要再次出示",
+      "score": 150
+    }
+  ],
+  "relations": [
+    {
+      "id": 11,
+      "reason": "manual_entity_link+keyword_hit",
+      "content": "source=林夜 (character:12)\ntarget=青岳宗 (faction:7)\nrelation_type=member\nstatus=active\ndescription=林夜正式以外门弟子身份进入青岳宗。\nappend_notes=[Chapter 2] 林夜完成入宗登记",
+      "score": 85
+    },
+    {
+      "id": 17,
+      "reason": "manual_entity_link+keyword_hit",
+      "content": "source=顾沉舟 (character:18)\ntarget=青岳宗 (faction:7)\nrelation_type=observer\nstatus=active\ndescription=顾沉舟以内门执事身份关注林夜动向。\nappend_notes=[Chapter 7] 关注强度上升",
+      "score": 60
+    }
+  ],
+  "worldSettings": [
+    {
+      "id": 4,
+      "title": "内门试炼规则",
+      "reason": "keyword_hit",
+      "content": "title=内门试炼规则\ncategory=宗门规则\ncontent=外门弟子若持特殊通行凭证，可破格参与部分内门试炼，但必须接受额外审查。\nappend_notes=[Chapter 5] 黑铁令可能触发破格资格",
+      "score": 50
+    },
+    {
+      "id": 6,
+      "title": "宗门等级制度",
+      "reason": "keyword_hit",
+      "content": "title=宗门等级制度\ncategory=职业体系\ncontent=青岳宗分外门、内门、真传三级，跨级接触需有明确理由。\nappend_notes=[Chapter 3] 越级接触通常会引发审查",
+      "score": 25
+    }
+  ],
+  "riskReminders": [
+    "存在接近回收章节的故事钩子，避免遗漏推进。",
+    "注意承接最近 2 章的状态延续和人物位置变化。",
+    "注意不要违反已激活的世界规则、职业体系或货币体系。"
+  ]
+}
+```
+
+这个结构和当前代码中的 `PlanRetrievedContext` 一致，主要特点是：
+
+- 每类实体都带 `reason`
+- 每类实体都带 `score`
+- 真实喂给模型的关键信息在 `content`
+- `content` 不是原始 JSON 行，而是压缩后的多行文本
+
 ### 11.7 Draft 为什么不重新召回
 
 继续以上例子。
@@ -878,7 +1010,268 @@ myai-novel plan \
 - `PLANNING_INTENT_MUST_INCLUDE_LIMIT`
 - `PLANNING_INTENT_MUST_AVOID_LIMIT`
 
-## 13. 一句话结论
+## 13. Prompt 拼接示例
+
+下面给出两组更贴近实际代码的 prompt 示例，分别对应：
+
+- `plan` 阶段的章节规划请求
+- `draft` 阶段的正文生成请求
+
+注意：
+
+- 这里展示的是业务层传给 LLM 的 `messages`
+- 如果请求的是 JSON 输出，provider 层还会额外追加一条“只返回合法 JSON”的约束
+- 文中内容做了适度缩写，但结构与当前代码一致
+
+### 13.1 Plan Prompt 示例
+
+对应代码：
+
+- `src/domain/planning/prompts.ts`
+- `buildPlanPrompt()`
+
+最终传给 LLM 的 `messages` 结构大致如下：
+
+```json
+[
+  {
+    "role": "system",
+    "content": "你是一名长篇网文策划助手。请基于作者意图、召回上下文和最近章节状态，输出可直接用于写作的章节规划。召回上下文中的人物、势力、关系、物品、钩子、世界规则默认都应视为有效约束。规划必须优先保证连续性、设定一致性、人物动机成立和钩子推进清晰。"
+  },
+  {
+    "role": "user",
+    "content": "章节信息：\n书名：青岳入门录\n章节号：第 8 章\n\n作者意图：\n让林夜借黑铁令进入内门试炼，同时让顾沉舟察觉异常，并推进宗门旧案钩子。\n\n召回上下文（必须严格参考）：\n{\n  \"book\": {\n    \"id\": 1,\n    \"title\": \"青岳入门录\",\n    \"summary\": \"寒门少年林夜因一枚黑铁令卷入宗门暗流。\",\n    \"targetChapterCount\": 300,\n    \"currentChapterCount\": 7\n  },\n  \"recentChapters\": [\n    {\n      \"id\": 5,\n      \"chapterNo\": 7,\n      \"title\": \"山门夜讯\",\n      \"summary\": \"林夜确认黑铁令会引发宗门高层异常反应，并决定继续隐藏来历。\",\n      \"status\": \"approved\"\n    }\n  ],\n  \"characters\": [\n    {\n      \"id\": 12,\n      \"name\": \"林夜\",\n      \"reason\": \"manual_id+keyword_hit\",\n      \"content\": \"name=林夜\\npersonality=冷静谨慎\\ncurrent_location=青岳宗外门\\nprofessions=外门弟子\\nlevels=炼体三重\\nabilities=感知增强,危机预判\\nstatus=alive\\ngoal=查清黑铁令来历\",\n      \"score\": 150\n    },\n    {\n      \"id\": 18,\n      \"name\": \"顾沉舟\",\n      \"reason\": \"manual_id+keyword_hit\",\n      \"content\": \"name=顾沉舟\\npersonality=克制敏锐\\ncurrent_location=青岳宗内门\\nprofessions=内门执事\\nstatus=alive\\ngoal=确认林夜与黑铁令的关系\",\n      \"score\": 125\n    }\n  ],\n  \"hooks\": [\n    {\n      \"id\": 5,\n      \"title\": \"黑铁令与宗门旧案\",\n      \"reason\": \"manual_id+keyword_hit+chapter_proximity\",\n      \"content\": \"title=黑铁令与宗门旧案\\nhook_type=mystery\\nstatus=open\\ntarget_chapter_no=8\\ndescription=黑铁令可能与宗门旧案相关，后续需要追查来源。\",\n      \"score\": 190\n    }\n  ],\n  \"worldSettings\": [\n    {\n      \"id\": 4,\n      \"title\": \"内门试炼规则\",\n      \"reason\": \"keyword_hit\",\n      \"content\": \"title=内门试炼规则\\ncategory=宗门规则\\ncontent=外门弟子若持特殊通行凭证，可破格参与部分内门试炼，但必须接受额外审查。\",\n      \"score\": 50\n    }\n  ],\n  \"riskReminders\": [\n    \"存在接近回收章节的故事钩子，避免遗漏推进。\",\n    \"注意承接最近 2 章的状态延续和人物位置变化。\",\n    \"注意不要违反已激活的世界规则、职业体系或货币体系。\"\n  ]\n}\n\n输出要求：\n请输出章节规划。\n至少包含：本章目标、主线、支线、出场角色、出场势力、关键道具、钩子推进、节奏分段、风险提醒。\n如果召回上下文里存在风险提醒、未回收钩子、关键关系或世界规则，规划中必须显式承接。"
+  }
+]
+```
+
+这个 prompt 的要点是：
+
+- `system` 负责定义“这是规划任务”以及“召回内容是约束”
+- `user` 负责把章节信息、作者意图和完整 `retrievedContext` 全部塞进去
+- 最后再显式给出输出格式要求
+
+### 13.2 Draft Prompt 示例
+
+对应代码：
+
+- `src/domain/planning/prompts.ts`
+- `buildDraftPrompt()`
+
+`draft` 阶段不会重新召回，而是直接复用 `plan` 保存下来的 `retrievedContext`。  
+因此它发给 LLM 的 `messages` 通常长这样：
+
+```json
+[
+  {
+    "role": "system",
+    "content": "你是一名长篇网络小说写作助手。请根据章节规划创作完整、自然、连贯的章节草稿。召回上下文中的人物状态、关系、势力信息、物品归属、钩子状态、世界规则，默认都应视为硬约束。如果章节规划与召回上下文有细微冲突，优先保证设定一致和前后连续，再在正文里自然化处理。不要为了推进剧情而随意改写人物性格、能力边界、世界规则、货币体系、战力体系。若必须引入新信息，请保持克制，并避免与已召回设定直接冲突。输出时只给正文，不要附解释、标题清单或额外说明。"
+  },
+  {
+    "role": "user",
+    "content": "章节规划：\n本章目标：让林夜借黑铁令进入内门试炼，并让顾沉舟确认其异常价值。\n主线：林夜在进入试炼前遭遇审查，通过黑铁令获得破格资格。\n支线：顾沉舟对林夜的关注升级，并开始主动试探。\n出场角色：林夜、顾沉舟、周执事。\n出场势力：青岳宗、内门执事堂。\n关键道具：黑铁令。\n钩子推进：明确黑铁令与宗门旧案关联更深，但暂不揭晓真相。\n节奏分段：入场审查、资格争议、顾沉舟试探、试炼开启前悬念收束。\n风险提醒：避免让主角无代价通关；保持宗门等级规则成立。\n\n召回上下文（必须严格参考）：\n{\n  \"characters\": [\n    {\n      \"id\": 12,\n      \"name\": \"林夜\",\n      \"reason\": \"manual_id+keyword_hit\",\n      \"content\": \"name=林夜\\npersonality=冷静谨慎\\ncurrent_location=青岳宗外门\\nprofessions=外门弟子\\nlevels=炼体三重\\nabilities=感知增强,危机预判\\nstatus=alive\\ngoal=查清黑铁令来历\",\n      \"score\": 150\n    },\n    {\n      \"id\": 18,\n      \"name\": \"顾沉舟\",\n      \"reason\": \"manual_id+keyword_hit\",\n      \"content\": \"name=顾沉舟\\npersonality=克制敏锐\\ncurrent_location=青岳宗内门\\nprofessions=内门执事\\nstatus=alive\\ngoal=确认林夜与黑铁令的关系\",\n      \"score\": 125\n    }\n  ],\n  \"items\": [\n    {\n      \"id\": 3,\n      \"name\": \"黑铁令\",\n      \"reason\": \"manual_id+keyword_hit\",\n      \"content\": \"name=黑铁令\\ndescription=可用于特殊身份核验，疑似与旧案有关\\nowner_type=character\\nowner_id=12\\nstatus=active\",\n      \"score\": 150\n    }\n  ],\n  \"hooks\": [\n    {\n      \"id\": 5,\n      \"title\": \"黑铁令与宗门旧案\",\n      \"reason\": \"manual_id+keyword_hit+chapter_proximity\",\n      \"content\": \"title=黑铁令与宗门旧案\\nstatus=open\\ntarget_chapter_no=8\\ndescription=黑铁令可能与宗门旧案相关，后续需要追查来源。\",\n      \"score\": 190\n    }\n  ],\n  \"worldSettings\": [\n    {\n      \"id\": 4,\n      \"title\": \"内门试炼规则\",\n      \"reason\": \"keyword_hit\",\n      \"content\": \"title=内门试炼规则\\ncategory=宗门规则\\ncontent=外门弟子若持特殊通行凭证，可破格参与部分内门试炼，但必须接受额外审查。\",\n      \"score\": 50\n    }\n  ],\n  \"riskReminders\": [\n    \"存在接近回收章节的故事钩子，避免遗漏推进。\",\n    \"注意不要违反已激活的世界规则、职业体系或货币体系。\"\n  ]\n}\n\n目标字数：\n3500\n\n写作要求：\n1. 必须覆盖章节规划中的主线推进、支线推进和钩子推进。\n2. 人物行为要符合已召回的人设、目标、位置、能力和关系。\n3. 世界设定、势力状态、物品状态、关系状态不能自相矛盾。\n4. 节奏上要像小说正文，不要写成大纲复述。\n5. 如果上下文里有风险提醒，正文中要主动规避对应问题。\n6. 只输出完整章节草稿正文。"
+  }
+]
+```
+
+这个 prompt 的要点是：
+
+- `planContent` 决定本章怎么写
+- `retrievedContext` 决定本章不能写错什么
+- `riskReminders` 相当于额外的高层约束
+
+### 13.3 JSON 类请求的额外补充
+
+如果是 `review`、`approve diff`、`关键词提取` 这类要求 JSON 输出的请求，provider 层还会自动补一句类似：
+
+```text
+Return valid JSON only. Do not include markdown fences or extra explanation.
+```
+
+补充位置：
+
+- OpenAI / Custom：追加为一条 `system`
+- Anthropic：追加为一条 `user`
+
+所以在排查“为什么模型返回了不规范 JSON”时，要同时看：
+
+- 业务层 prompt 模板
+- provider 层是否成功追加了 JSON 限制语句
+
+### 13.4 Review Prompt 示例
+
+对应代码：
+
+- `src/domain/planning/prompts.ts`
+- `buildReviewPrompt()`
+
+`review` 阶段的职责不是继续创作，而是用同一套规划和召回事实去反向检查草稿是否出错。  
+它发给 LLM 的 `messages` 大致如下：
+
+```json
+[
+  {
+    "role": "system",
+    "content": "你是一名长篇小说审校助手。请检查草稿在设定一致性、人物行为、节奏、逻辑链路、关系演变和钩子推进上的问题。召回上下文中的事实默认都应视为核对基准。输出应聚焦真正影响正文质量和连续性的关键问题，不要泛泛而谈。"
+  },
+  {
+    "role": "user",
+    "content": "章节规划：\n本章目标：让林夜借黑铁令进入内门试炼，并让顾沉舟确认其异常价值。\n主线：林夜在进入试炼前遭遇审查，通过黑铁令获得破格资格。\n支线：顾沉舟对林夜的关注升级，并开始主动试探。\n\n章节草稿：\n晨雾压在山门石阶上，林夜握着黑铁令走向内门执事堂......\n\n召回上下文（作为核对基准）：\n{\n  \"characters\": [\n    {\n      \"id\": 12,\n      \"name\": \"林夜\",\n      \"content\": \"name=林夜\\npersonality=冷静谨慎\\ncurrent_location=青岳宗外门\\nlevels=炼体三重\\nabilities=感知增强,危机预判\\nstatus=alive\"\n    },\n    {\n      \"id\": 18,\n      \"name\": \"顾沉舟\",\n      \"content\": \"name=顾沉舟\\npersonality=克制敏锐\\ncurrent_location=青岳宗内门\\nprofessions=内门执事\\nstatus=alive\"\n    }\n  ],\n  \"hooks\": [\n    {\n      \"id\": 5,\n      \"title\": \"黑铁令与宗门旧案\",\n      \"content\": \"title=黑铁令与宗门旧案\\nstatus=open\\ntarget_chapter_no=8\\ndescription=黑铁令可能与宗门旧案相关，后续需要追查来源。\"\n    }\n  ],\n  \"worldSettings\": [\n    {\n      \"id\": 4,\n      \"title\": \"内门试炼规则\",\n      \"content\": \"title=内门试炼规则\\ncontent=外门弟子若持特殊通行凭证，可破格参与部分内门试炼，但必须接受额外审查。\"\n    }\n  ]\n}\n\n输出要求：\n请输出：总结、问题列表、风险列表、连续性检查、修复建议。\n优先指出会导致后续章节连锁出错的问题。\n如果没有问题，也要明确说明连续性是否稳定。"
+  }
+]
+```
+
+这个 prompt 的要点是：
+
+- `planContent` 是本章应达到的目标基线
+- `draftContent` 是待检查对象
+- `retrievedContext` 是设定与连续性核对基准
+- 输出目标是结构化审查结果，而不是文学评论
+
+### 13.5 Repair Prompt 示例
+
+对应代码：
+
+- `src/domain/planning/prompts.ts`
+- `buildRepairPrompt()`
+
+`repair` 阶段会同时带上：
+
+- 原始 `plan`
+- 当前 `draft`
+- `review` 结果
+- 原始 `retrievedContext`
+
+示例如下：
+
+```json
+[
+  {
+    "role": "system",
+    "content": "你是一名小说修稿助手。请根据章节规划、召回上下文和审阅意见修复章节草稿，尽量少破坏已有可用内容，并保持主线、设定和人物行为一致。"
+  },
+  {
+    "role": "user",
+    "content": "章节规划：\n本章目标：让林夜借黑铁令进入内门试炼，并让顾沉舟确认其异常价值。\n主线：林夜在进入试炼前遭遇审查，通过黑铁令获得破格资格。\n支线：顾沉舟对林夜的关注升级，并开始主动试探。\n\n当前草稿：\n晨雾压在山门石阶上，林夜握着黑铁令走向内门执事堂......\n\n审阅结果：\n{\"summary\":\"主线成立，但审查流程略显轻飘。\",\"issues\":[\"顾沉舟出场过晚，支线承接偏弱。\",\"试炼资格放行过快，削弱世界规则约束。\"],\"risks\":[\"若不强化审查阻力，主角会显得推进过顺。\"],\"continuity_checks\":[\"黑铁令仍归林夜持有。\"],\"repair_suggestions\":[\"增加执事与顾沉舟的双重确认环节。\"]}\n\n召回上下文（必须保持一致）：\n{\n  \"characters\": [\n    {\n      \"id\": 12,\n      \"name\": \"林夜\",\n      \"content\": \"name=林夜\\npersonality=冷静谨慎\\ncurrent_location=青岳宗外门\\nlevels=炼体三重\\nstatus=alive\"\n    },\n    {\n      \"id\": 18,\n      \"name\": \"顾沉舟\",\n      \"content\": \"name=顾沉舟\\npersonality=克制敏锐\\ncurrent_location=青岳宗内门\\nprofessions=内门执事\\nstatus=alive\"\n    }\n  ],\n  \"items\": [\n    {\n      \"id\": 3,\n      \"name\": \"黑铁令\",\n      \"content\": \"name=黑铁令\\nowner_type=character\\nowner_id=12\\nstatus=active\"\n    }\n  ],\n  \"worldSettings\": [\n    {\n      \"id\": 4,\n      \"title\": \"内门试炼规则\",\n      \"content\": \"title=内门试炼规则\\ncontent=外门弟子若持特殊通行凭证，可破格参与部分内门试炼，但必须接受额外审查。\"\n    }\n  ]\n}\n\n修稿要求：\n优先修复审阅问题，同时不要偏离既有规划和召回设定。\n如果草稿已有可用段落，尽量保留其节奏、气氛和信息密度。\n只输出修复后的完整草稿正文。"
+  }
+]
+```
+
+这个 prompt 的要点是：
+
+- `repair` 不是重新自由创作
+- `review` 只是问题清单，不能替代原始 `plan` 与事实约束
+- 修稿优先级是“修问题”，但边界条件仍然是 `plan + retrievedContext`
+
+### 13.6 Approve Prompt 示例
+
+对应代码：
+
+- `src/domain/planning/prompts.ts`
+- `buildApprovePrompt()`
+
+`approve` 阶段会把“当前最优草稿”进一步整理成正式稿。  
+它和 `repair` 很像，但目标更偏向“最终可保存版本”。
+
+```json
+[
+  {
+    "role": "system",
+    "content": "你是一名长篇小说定稿助手。请基于章节规划、当前草稿、审阅结果和召回上下文，输出可直接作为正式稿保存的最终章节文稿。你必须修复审阅里指出的问题，同时保留章节原本应推进的主线、支线、人物关系和钩子。召回上下文中的设定与事实默认都应视为正式约束，不要为了润色而改坏连续性。输出时只给最终正文，不要附带说明、批注、总结或解释。"
+  },
+  {
+    "role": "user",
+    "content": "章节规划：\n本章目标：让林夜借黑铁令进入内门试炼，并让顾沉舟确认其异常价值。\n主线：林夜在进入试炼前遭遇审查，通过黑铁令获得破格资格。\n支线：顾沉舟对林夜的关注升级，并开始主动试探。\n\n当前草稿：\n晨雾压在山门石阶上，林夜握着黑铁令走向内门执事堂......\n\n审阅结果：\n{\"summary\":\"主线成立，但审查流程略显轻飘。\",\"issues\":[\"顾沉舟出场过晚，支线承接偏弱。\",\"试炼资格放行过快，削弱世界规则约束。\"],\"risks\":[\"若不强化审查阻力，主角会显得推进过顺。\"],\"continuity_checks\":[\"黑铁令仍归林夜持有。\"],\"repair_suggestions\":[\"增加执事与顾沉舟的双重确认环节。\"]}\n\n召回上下文（必须保持一致）：\n{\n  \"characters\": [\n    {\n      \"id\": 12,\n      \"name\": \"林夜\",\n      \"content\": \"name=林夜\\npersonality=冷静谨慎\\ncurrent_location=青岳宗外门\\nlevels=炼体三重\\nstatus=alive\"\n    },\n    {\n      \"id\": 18,\n      \"name\": \"顾沉舟\",\n      \"content\": \"name=顾沉舟\\npersonality=克制敏锐\\ncurrent_location=青岳宗内门\\nprofessions=内门执事\\nstatus=alive\"\n    }\n  ],\n  \"hooks\": [\n    {\n      \"id\": 5,\n      \"title\": \"黑铁令与宗门旧案\",\n      \"content\": \"title=黑铁令与宗门旧案\\nstatus=open\\ntarget_chapter_no=8\\ndescription=黑铁令可能与宗门旧案相关，后续需要追查来源。\"\n    }\n  ],\n  \"worldSettings\": [\n    {\n      \"id\": 4,\n      \"title\": \"内门试炼规则\",\n      \"content\": \"title=内门试炼规则\\ncontent=外门弟子若持特殊通行凭证，可破格参与部分内门试炼，但必须接受额外审查。\"\n    }\n  ]\n}\n\n定稿要求：\n1. 修复审阅中提到的问题。\n2. 不要丢失原计划中的关键剧情推进和钩子推进。\n3. 不要违背召回出的设定、人物状态、关系和世界规则。\n4. 尽量继承当前草稿中已经写得好的段落和气氛。\n5. 只输出最终文稿正文。"
+  }
+]
+```
+
+这个 prompt 的要点是：
+
+- `approve` 比 `repair` 更强调“可落库的正式稿”
+- 它并不是简单把当前草稿标记为 final，而是允许模型再整理一次
+- 但整理空间仍然受 `plan`、`review`、`retrievedContext` 三重约束
+
+### 13.7 Approve Diff Prompt 示例
+
+对应代码：
+
+- `src/domain/planning/prompts.ts`
+- `buildApproveDiffPrompt()`
+
+这是 `approve` 阶段的第二次模型调用，用来从最终正文里抽取结构化事实变更。  
+它不是写正文，而是做“事实整理”。
+
+```json
+[
+  {
+    "role": "system",
+    "content": "你是一名小说事实整理助手。请根据最终文稿、章节规划和审阅结果，输出结构化 JSON，用于更新设定数据库。"
+  },
+  {
+    "role": "user",
+    "content": "最终文稿：\n晨雾压在山门石阶上，林夜握着黑铁令走向内门执事堂......\n\n章节规划：\n本章目标：让林夜借黑铁令进入内门试炼，并让顾沉舟确认其异常价值。\n主线：林夜在进入试炼前遭遇审查，通过黑铁令获得破格资格。\n支线：顾沉舟对林夜的关注升级，并开始主动试探。\n\n审阅结果：\n{\"summary\":\"主线成立，但审查流程略显轻飘。\",\"issues\":[\"顾沉舟出场过晚，支线承接偏弱。\"],\"risks\":[\"若不强化审查阻力，主角会显得推进过顺。\"],\"continuity_checks\":[\"黑铁令仍归林夜持有。\"],\"repair_suggestions\":[\"增加执事与顾沉舟的双重确认环节。\"]}\n\n召回上下文（用于校对事实变更）：\n{\n  \"characters\": [\n    {\n      \"id\": 12,\n      \"name\": \"林夜\",\n      \"content\": \"name=林夜\\nstatus=alive\\ngoal=查清黑铁令来历\"\n    },\n    {\n      \"id\": 18,\n      \"name\": \"顾沉舟\",\n      \"content\": \"name=顾沉舟\\nstatus=alive\\ngoal=确认林夜与黑铁令的关系\"\n    }\n  ],\n  \"items\": [\n    {\n      \"id\": 3,\n      \"name\": \"黑铁令\",\n      \"content\": \"name=黑铁令\\nowner_type=character\\nowner_id=12\\nstatus=active\"\n    }\n  ],\n  \"hooks\": [\n    {\n      \"id\": 5,\n      \"title\": \"黑铁令与宗门旧案\",\n      \"content\": \"title=黑铁令与宗门旧案\\nstatus=open\\ndescription=黑铁令可能与宗门旧案相关，后续需要追查来源。\"\n    }\n  ]\n}\n\n输出要求：\n请返回 JSON。\n字段包含：chapterSummary, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, newRelations, updates。\nnewRelations 用于新增关系，字段包含 sourceType, sourceId, targetType, targetId, relationType, intensity, status, description, keywords。\nupdates 中的 entityType 支持 character, faction, relation, item, story_hook, world_setting；action 支持 update_fields, append_notes, status_change。\nactual*Ids 应只保留本章真实出场或真实产生影响的实体。"
+  }
+]
+```
+
+示例输出可能长这样：
+
+```json
+{
+  "chapterSummary": "林夜借黑铁令通过额外审查，进入内门试炼，顾沉舟也正式确认他与宗门旧案有关。",
+  "actualCharacterIds": [12, 18],
+  "actualFactionIds": [7],
+  "actualItemIds": [3],
+  "actualHookIds": [5],
+  "actualWorldSettingIds": [4],
+  "newCharacters": [],
+  "newFactions": [],
+  "newItems": [],
+  "newHooks": [],
+  "newWorldSettings": [],
+  "newRelations": [],
+  "updates": [
+    {
+      "entityType": "story_hook",
+      "entityId": 5,
+      "action": "append_notes",
+      "payload": {
+        "note": "第8章中顾沉舟已明确确认黑铁令与宗门旧案存在强关联。"
+      }
+    },
+    {
+      "entityType": "character",
+      "entityId": 18,
+      "action": "append_notes",
+      "payload": {
+        "note": "第8章起顾沉舟从被动观察转为主动试探林夜。"
+      }
+    }
+  ]
+}
+```
+
+这个 prompt 的要点是：
+
+- 第一轮 `approve` 负责产出最终正文
+- 第二轮 `approve diff` 负责把正文里的事实变化抽成结构化更新
+- 它是“写作闭环”中数据库回写的关键一环
+
+## 14. 阶段关系小结
+
+如果把这几个 prompt 放在一起看，它们分别承担的是：
+
+- `plan`：决定这章要怎么写
+- `draft`：在规划和召回约束内写出正文
+- `review`：检查正文是否违背规划与设定
+- `repair`：在原规划和事实边界内修草稿
+- `approve`：输出最终可保存的正文版本
+- `approve diff`：把最终正文里的事实变化抽取出来，回写数据库
+
+因此它们不是独立的 6 个请求，而是一条共享上下文的工作流链路。
+
+## 15. 一句话结论
 
 如果只用一句话描述当前机制，可以写成：
 
