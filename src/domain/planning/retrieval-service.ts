@@ -645,13 +645,49 @@ function resolveRelationEndpointName(
 
 function buildHardConstraints(groups: PlanRetrievedContextEntityGroups): PlanRetrievedContextEntityGroups {
   return {
-    hooks: groups.hooks.slice(0, 5),
-    characters: groups.characters.slice(0, 6),
-    factions: groups.factions.slice(0, 4),
-    items: groups.items.slice(0, 4),
-    relations: groups.relations.slice(0, 6),
-    worldSettings: groups.worldSettings.slice(0, 4),
+    hooks: selectPriorityEntities(groups.hooks, 5, (entity) =>
+      entity.reason.includes("chapter_proximity") || entity.reason.includes("manual_id"),
+    ),
+    // 人物如果是手工指定、关键词强命中，或文本里带当前位置/状态信息，优先进入硬约束。
+    characters: selectPriorityEntities(groups.characters, 6, (entity) =>
+      entity.reason.includes("manual_id") ||
+      entity.content.includes("current_location=") ||
+      entity.content.includes("status=") ||
+      entity.score >= 130,
+    ),
+    factions: selectPriorityEntities(groups.factions, 4, (entity) =>
+      entity.reason.includes("manual_id") || entity.score >= 125,
+    ),
+    // 物品归属和状态最容易造成连续性错误，因此优先保留带 owner/status 信息的高分项。
+    items: selectPriorityEntities(groups.items, 4, (entity) =>
+      entity.reason.includes("manual_id") ||
+      entity.content.includes("owner_type=") ||
+      entity.content.includes("status=") ||
+      entity.score >= 125,
+    ),
+    relations: selectPriorityEntities(groups.relations, 6, (entity) =>
+      entity.reason.includes("manual_id") ||
+      entity.reason.includes("manual_entity_link") ||
+      entity.score >= 130,
+    ),
+    // 世界规则类内容即使不是最高分，只要是活跃规则也值得优先保留在硬约束层。
+    worldSettings: selectPriorityEntities(groups.worldSettings, 4, (entity) =>
+      entity.reason.includes("manual_id") ||
+      entity.content.includes("category=") ||
+      entity.score >= 125,
+    ),
   };
+}
+
+function selectPriorityEntities(
+  entities: RetrievedEntity[],
+  limit: number,
+  isPriority: (entity: RetrievedEntity) => boolean,
+): RetrievedEntity[] {
+  const prioritized = entities.filter(isPriority);
+  const fallback = entities.filter((entity) => !isPriority(entity));
+
+  return [...prioritized, ...fallback].slice(0, limit);
 }
 
 function buildRiskReminders(input: {
