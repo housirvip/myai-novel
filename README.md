@@ -8,6 +8,7 @@
 
 ## 文档导航
 
+- [文档索引](docs/README.md)
 - [命令行使用指南](docs/cli-usage-guide.md)
 - [Prompt 与召回关系说明](docs/prompt-retrieval-relationship.md)
 - [召回与打分规则说明](docs/retrieval-scoring-rules.md)
@@ -142,64 +143,11 @@ npm run dev -- approve --book 1 --chapter 1 --provider mock
 
 更完整的命令行使用方式、参数说明和示例，请查阅：
 
+- [`docs/README.md`](docs/README.md)
 - [`docs/cli-usage-guide.md`](docs/cli-usage-guide.md)
 - [`docs/prompt-retrieval-relationship.md`](docs/prompt-retrieval-relationship.md)
 - [`docs/retrieval-scoring-rules.md`](docs/retrieval-scoring-rules.md)
-
-## 日志
-
-日志默认会：
-
-- 输出到终端
-- 写入 `LOG_DIR` 指定目录
-
-重点配置：
-
-- `LOG_LEVEL`
-- `LOG_FORMAT`
-- `LOG_LLM_CONTENT_ENABLED`
-- `LOG_LLM_CONTENT_MAX_CHARS`
-
-系统会记录：
-
-- 所有数据表增删改查日志
-- `plan / draft / review / repair / approve` 工作流耗时
-- LLM 调用的 provider、model、耗时、成功与否
-
-## 测试
-
-```bash
-npm run check
-npm run build
-npm test
-```
-
-当前测试覆盖：
-
-- 配置解析
-- logger 内容开关
-- CLI 参数与关键词校验
-- `RelationRepository` CRUD
-- LLM factory
-- `parseLooseJson`
-- mock 工作流全链路
-- Markdown 导入导出版本化
-
-## 项目结构
-
-```text
-src/
-  cli/                CLI 命令入口
-  config/             环境变量配置
-  core/db/            DB client、dialect、migration、repository
-  core/llm/           LLM 抽象、provider、日志
-  core/logger/        日志系统
-  domain/             业务 service、planning、workflow
-  shared/utils/       公共工具
-test/                 单元测试与集成测试
-plan/                 V1 方案与 checklist
-examples/             示例脚本
-```
+- [`docs/engineering-overview.md`](docs/engineering-overview.md)
 
 ## 当前状态
 
@@ -213,7 +161,7 @@ V1 已完成核心目标：
 - Markdown 导入导出
 - 测试基线
 
-如果你想继续往下扩展，下一阶段比较自然的方向通常是：
+下一阶段比较自然的方向通常是：
 
 - 向量召回 / RAG
 - 更强的关系演化建模

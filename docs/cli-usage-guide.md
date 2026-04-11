@@ -526,3 +526,9 @@ npm run dev -- hook create --book 1 --title "黑铁令异常" --hookType mystery
 
 - `docs/prompt-retrieval-relationship.md`
 - `docs/retrieval-scoring-rules.md`
+
+## 相关阅读
+
+- [`README.md`](../README.md)
+- [`docs/prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+- [`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)

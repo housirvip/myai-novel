@@ -1,5 +1,19 @@
 # Prompt 与召回关系说明
 
+## 目录
+
+- [1. 总体流程](#1-总体流程)
+- [2. Prompt 的统一构建规则](#2-prompt-的统一构建规则)
+- [3. Provider 层对 Prompt 的附加规则](#3-provider-层对-prompt-的附加规则)
+- [4. Plan 阶段的 Prompt 关系](#4-plan-阶段的-prompt-关系)
+- [5. Draft / Review / Repair / Approve 的 Prompt 关系](#5-draft--review--repair--approve-的-prompt-关系)
+- [6. 召回内容包含什么](#6-召回内容包含什么)
+- [7. 召回规则与排序规则](#7-召回规则与排序规则)
+- [8. Prompt 与召回之间的关系](#8-prompt-与召回之间的关系)
+- [9. 当前实现中的已知特点](#9-当前实现中的已知特点)
+- [10. 后续可优化方向](#10-后续可优化方向)
+- [相关阅读](#相关阅读)
+
 本文说明当前 AI 小说工具中，`plan / draft / review / repair / approve` 相关 AI 请求的 prompt 是如何构建的、召回内容包含什么、召回是按什么规则命中的，以及这些信息是如何在工作流中串联起来的。
 
 ## 1. 总体流程
@@ -682,4 +696,10 @@ Prompt 约束重点：
 3. 对 `approve diff` 增加更强的“仅依据 final 明示信息抽取”的约束，减少脑补。
 4. 在规则召回之外，后续可考虑补充 embedding 或 rerank 方案，提高弱相关内容的召回能力。
 5. 将 review 的部分规则固化为程序校验，减少完全依赖模型判断。
+
+## 相关阅读
+
+- [`README.md`](../README.md)
+- [`docs/cli-usage-guide.md`](./cli-usage-guide.md)
+- [`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
 
