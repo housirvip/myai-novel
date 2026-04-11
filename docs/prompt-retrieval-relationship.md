@@ -55,16 +55,73 @@ Prompt 模板统一定义在：
 
 ```mermaid
 flowchart TD
-    A["plan: 初始上下文"] --> B["生成 authorIntent（可选）"]
-    B --> C["提取关键词"]
-    C --> D["生成 retrievedContext"]
-    D --> E["生成章节 plan"]
-    E --> F["draft: 依据 plan + retrievedContext 写草稿"]
-    F --> G["review: 依据 plan + draft + retrievedContext 审阅"]
-    G --> H["repair: 依据 plan + draft + review + retrievedContext 修稿"]
-    H --> I["approve: 生成 final 正文"]
-    I --> J["approve diff: 从 final 抽取结构化事实变更"]
-```
+    subgraph Inputs[输入源]
+        A1["book / chapter 基础信息"]
+        A2["近期相关大纲"]
+        A3["最近章节摘要"]
+        A4["手工指定实体 ID"]
+        A5["用户 authorIntent\n可选"]
+    end
+
+    subgraph PlanFlow[plan 阶段]
+        B1["初始上下文准备"]
+        B2{"是否传入\nauthorIntent?"}
+        B3["生成 authorIntent 草案"]
+        B4["关键词提取\n输出 intentSummary / keywords / mustInclude / mustAvoid"]
+        B5["生成 retrievedContext"]
+        B6["生成章节 plan"]
+        P1[("chapter_plans\ncontent + retrieved_context")]
+    end
+
+    subgraph WritingFlow[后续工作流]
+        C1["draft\n输入: plan + retrievedContext"]
+        C2[("chapter_drafts")]
+        C3["review\n输入: plan + draft + retrievedContext"]
+        C4[("chapter_reviews")]
+        C5["repair\n输入: plan + draft + review + retrievedContext"]
+        C6[("新的 chapter_drafts")]
+        C7["approve\n步骤1: 生成 final 正文"]
+        C8[("chapter_finals")]
+        C9["approve diff\n步骤2: 抽取结构化事实变更"]
+        C10["人物 / 势力 / 关系 / 物品 / 钩子 / 世界设定回写"]
+    end
+
+    A1 --> B1
+    A2 --> B1
+    A3 --> B1
+    A4 --> B1
+    A5 --> B2
+    B1 --> B2
+    B2 -- "否" --> B3
+    B2 -- "是" --> B4
+    B3 --> B4
+    A4 --> B5
+    B4 --> B5
+    B5 --> B6
+    B6 --> P1
+
+    P1 --> C1
+    C1 --> C2
+    P1 --> C3
+    C2 --> C3
+    C3 --> C4
+    P1 --> C5
+    C2 --> C5
+    C4 --> C5
+    C5 --> C6
+    P1 --> C7
+    C6 --> C7
+    C7 --> C8
+    C8 --> C9
+    C9 --> C10
+``` 
+
+这个流程图可以这样读：
+
+- 左侧是 `plan` 阶段依赖的输入源
+- 中间是 `plan` 内部 prompt 链路和落库产物
+- 右侧是 `draft / review / repair / approve` 如何复用 `chapter_plans.retrieved_context`
+- `approve` 不是单一步骤，而是“生成 final 正文”后，再做一次结构化事实抽取与回写
 
 ## 3. Prompt 的统一构建规则
 
