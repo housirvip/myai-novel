@@ -9,6 +9,11 @@ export interface RetrievalScoredRow {
   content: string;
 }
 
+interface WeightedTextSource {
+  text: string | null;
+  weight: number;
+}
+
 export function rankRows(rows: RetrievalScoredRow[], limit: number): RetrievedEntity[] {
   return rows
     .filter((row) => row.score > 0)
@@ -28,11 +33,24 @@ export function scoreEntity(input: {
   manualIds: number[];
   entityId: number;
   keywords: string[];
-  textSources: Array<string | null>;
+  textSources?: Array<string | null>;
+  weightedTextSources?: WeightedTextSource[];
 }): number {
   let score = input.manualIds.includes(input.entityId) ? 100 : 0;
-  const haystack = input.textSources.filter(Boolean).join("\n").toLowerCase();
 
+  if (input.weightedTextSources && input.weightedTextSources.length > 0) {
+    for (const keyword of input.keywords) {
+      const normalizedKeyword = keyword.toLowerCase();
+      for (const source of input.weightedTextSources) {
+        if (source.text?.toLowerCase().includes(normalizedKeyword)) {
+          score += source.weight;
+        }
+      }
+    }
+    return score;
+  }
+
+  const haystack = (input.textSources ?? []).filter(Boolean).join("\n").toLowerCase();
   for (const keyword of input.keywords) {
     if (haystack.includes(keyword.toLowerCase())) {
       score += 25;
@@ -46,7 +64,8 @@ export function buildReasons(input: {
   manualIds: number[];
   entityId: number;
   keywords: string[];
-  textSources: Array<string | null>;
+  textSources?: Array<string | null>;
+  weightedTextSources?: WeightedTextSource[];
   extraReasons?: string[];
 }): string[] {
   const reasons = [...(input.extraReasons ?? [])];
@@ -55,7 +74,10 @@ export function buildReasons(input: {
     reasons.push("manual_id");
   }
 
-  const haystack = input.textSources.filter(Boolean).join("\n").toLowerCase();
+  const haystack = input.weightedTextSources && input.weightedTextSources.length > 0
+    ? input.weightedTextSources.map((item) => item.text).filter(Boolean).join("\n").toLowerCase()
+    : (input.textSources ?? []).filter(Boolean).join("\n").toLowerCase();
+
   if (input.keywords.some((keyword) => haystack.includes(keyword.toLowerCase()))) {
     reasons.push("keyword_hit");
   }

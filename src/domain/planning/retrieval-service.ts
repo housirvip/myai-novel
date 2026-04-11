@@ -256,42 +256,44 @@ export class RetrievalQueryService {
       rows.map((row) => ({
         id: row.id,
         name: row.name,
+        // 人物召回里，姓名/别名比长文本背景更容易决定“本章到底是不是在写这个人”，
+        // 因此先提高 name/alias/goal/current_location 这类字段的权重。
         score: scoreEntity({
           manualIds: params.manualRefs.characterIds,
           entityId: row.id,
           keywords: params.keywords,
-          textSources: [
-            row.name,
-            row.alias,
-            row.background,
-            row.current_location,
-            row.personality,
-            row.professions,
-            row.levels,
-            row.currencies,
-            row.abilities,
-            row.goal,
-            row.append_notes,
-            row.keywords,
+          weightedTextSources: [
+            { text: row.name, weight: 35 },
+            { text: row.alias, weight: 30 },
+            { text: row.goal, weight: 28 },
+            { text: row.current_location, weight: 26 },
+            { text: row.background, weight: 18 },
+            { text: row.personality, weight: 16 },
+            { text: row.professions, weight: 12 },
+            { text: row.levels, weight: 12 },
+            { text: row.currencies, weight: 10 },
+            { text: row.abilities, weight: 14 },
+            { text: row.append_notes, weight: 8 },
+            { text: row.keywords, weight: 18 },
           ],
         }),
         reason: buildReasons({
           manualIds: params.manualRefs.characterIds,
           entityId: row.id,
           keywords: params.keywords,
-          textSources: [
-            row.name,
-            row.alias,
-            row.background,
-            row.current_location,
-            row.personality,
-            row.professions,
-            row.levels,
-            row.currencies,
-            row.abilities,
-            row.goal,
-            row.append_notes,
-            row.keywords,
+          weightedTextSources: [
+            { text: row.name, weight: 35 },
+            { text: row.alias, weight: 30 },
+            { text: row.goal, weight: 28 },
+            { text: row.current_location, weight: 26 },
+            { text: row.background, weight: 18 },
+            { text: row.personality, weight: 16 },
+            { text: row.professions, weight: 12 },
+            { text: row.levels, weight: 12 },
+            { text: row.currencies, weight: 10 },
+            { text: row.abilities, weight: 14 },
+            { text: row.append_notes, weight: 8 },
+            { text: row.keywords, weight: 18 },
           ],
         }),
         content: compactLines([
@@ -334,13 +336,27 @@ export class RetrievalQueryService {
           manualIds: params.manualRefs.factionIds,
           entityId: row.id,
           keywords: params.keywords,
-          textSources: [row.name, row.category, row.core_goal, row.append_notes, row.keywords],
+          weightedTextSources: [
+            { text: row.name, weight: 34 },
+            { text: row.category, weight: 22 },
+            { text: row.core_goal, weight: 24 },
+            { text: row.description, weight: 14 },
+            { text: row.append_notes, weight: 8 },
+            { text: row.keywords, weight: 18 },
+          ],
         }),
         reason: buildReasons({
           manualIds: params.manualRefs.factionIds,
           entityId: row.id,
           keywords: params.keywords,
-          textSources: [row.name, row.core_goal, row.append_notes, row.keywords],
+          weightedTextSources: [
+            { text: row.name, weight: 34 },
+            { text: row.category, weight: 22 },
+            { text: row.core_goal, weight: 24 },
+            { text: row.description, weight: 14 },
+            { text: row.append_notes, weight: 8 },
+            { text: row.keywords, weight: 18 },
+          ],
         }),
         content: compactLines([
           `name=${row.name}`,
@@ -508,31 +524,33 @@ export class RetrievalQueryService {
 
         return {
           id: row.id,
+          // 关系是否相关，优先看两端实体和 relationType，
+          // 描述性长文本只作为补充命中来源。
           score:
             scoreEntity({
               manualIds: params.manualRefs.relationIds,
               entityId: row.id,
               keywords: params.keywords,
-              textSources: [
-                sourceLabel,
-                targetLabel,
-                row.relation_type,
-                row.description,
-                row.append_notes,
-                row.keywords,
+              weightedTextSources: [
+                { text: sourceLabel, weight: 30 },
+                { text: targetLabel, weight: 30 },
+                { text: row.relation_type, weight: 26 },
+                { text: row.description, weight: 14 },
+                { text: row.append_notes, weight: 8 },
+                { text: row.keywords, weight: 18 },
               ],
             }) + (relatedToManualEntity ? 35 : 0),
           reason: buildReasons({
             manualIds: params.manualRefs.relationIds,
             entityId: row.id,
             keywords: params.keywords,
-            textSources: [
-              sourceLabel,
-              targetLabel,
-              row.relation_type,
-              row.description,
-              row.append_notes,
-              row.keywords,
+            weightedTextSources: [
+              { text: sourceLabel, weight: 30 },
+              { text: targetLabel, weight: 30 },
+              { text: row.relation_type, weight: 26 },
+              { text: row.description, weight: 14 },
+              { text: row.append_notes, weight: 8 },
+              { text: row.keywords, weight: 18 },
             ],
             extraReasons: relatedToManualEntity ? ["manual_entity_link"] : [],
           }),
@@ -566,17 +584,31 @@ export class RetrievalQueryService {
       rows.map((row) => ({
         id: row.id,
         title: row.title,
+        // 世界设定里 title/category 往往比长正文更能代表“当前这一章正在引用哪条规则”，
+        // 因此优先提高它们的命中权重。
         score: scoreEntity({
           manualIds: params.manualRefs.worldSettingIds,
           entityId: row.id,
           keywords: params.keywords,
-          textSources: [row.title, row.category, row.content, row.append_notes, row.keywords],
+          weightedTextSources: [
+            { text: row.title, weight: 34 },
+            { text: row.category, weight: 28 },
+            { text: row.content, weight: 16 },
+            { text: row.append_notes, weight: 8 },
+            { text: row.keywords, weight: 18 },
+          ],
         }),
         reason: buildReasons({
           manualIds: params.manualRefs.worldSettingIds,
           entityId: row.id,
           keywords: params.keywords,
-          textSources: [row.title, row.category, row.content, row.append_notes, row.keywords],
+          weightedTextSources: [
+            { text: row.title, weight: 34 },
+            { text: row.category, weight: 28 },
+            { text: row.content, weight: 16 },
+            { text: row.append_notes, weight: 8 },
+            { text: row.keywords, weight: 18 },
+          ],
         }),
         content: compactLines([
           `title=${row.title}`,
