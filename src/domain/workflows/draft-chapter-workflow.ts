@@ -11,7 +11,7 @@ import { withTimingLog } from "../../core/logger/index.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
 import { buildDraftPrompt } from "../planning/prompts.js";
-import { parseStoredJson } from "./shared.js";
+import { parseStoredJson, readPlanIntentConstraints } from "./shared.js";
 
 const runDraftWorkflowSchema = z.object({
   bookId: z.number().int().positive(),
@@ -74,6 +74,7 @@ export class DraftChapterWorkflow {
               model: payload.model,
               messages: buildDraftPrompt({
                 planContent: currentPlan.content,
+                intentConstraints: readPlanIntentConstraints(currentPlan),
                 retrievedContext,
                 targetWords: payload.targetWords,
               }),

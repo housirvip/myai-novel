@@ -161,7 +161,10 @@ export interface ChapterPlansTable {
   status: string;
   author_intent: string | null;
   intent_source: string;
+  intent_summary: string | null;
   intent_keywords: string | null;
+  intent_must_include: string | null;
+  intent_must_avoid: string | null;
   manual_entity_refs: string | null;
   retrieved_context: string | null;
   content: string;

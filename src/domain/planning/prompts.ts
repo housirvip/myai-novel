@@ -1,11 +1,12 @@
 import type { LlmMessage } from "../../core/llm/types.js";
-import type { PlanRetrievedContext } from "./types.js";
+import type { PlanIntentConstraints, PlanRetrievedContext } from "./types.js";
 
 export function buildIntentGenerationPrompt(input: {
   bookTitle: string;
   chapterNo: number;
   outlinesText: string;
   recentChapterText: string;
+  manualFocusText?: string;
 }): LlmMessage[] {
   return [
     {
@@ -24,9 +25,14 @@ export function buildIntentGenerationPrompt(input: {
         "",
         "近期章节：",
         input.recentChapterText,
+        input.manualFocusText?.trim()
+          ? ["", "用户显式指定的重点实体：", input.manualFocusText].join("\n")
+          : null,
         "",
         "请输出本章作者意图草案，聚焦本章要推进的主线、冲突和钩子。",
-      ].join("\n"),
+      ]
+        .filter(Boolean)
+        .join("\n"),
     },
   ];
 }
@@ -51,6 +57,7 @@ export function buildPlanPrompt(input: {
   bookTitle: string;
   chapterNo: number;
   authorIntent: string;
+  intentConstraints?: PlanIntentConstraints;
   retrievedContext: PlanRetrievedContext;
 }): LlmMessage[] {
   return [
@@ -72,11 +79,13 @@ export function buildPlanPrompt(input: {
           `章节号：第 ${input.chapterNo} 章`,
         ]),
         section("作者意图", input.authorIntent),
+        buildIntentConstraintsSection(input.intentConstraints),
         jsonSection("召回上下文（必须严格参考）", input.retrievedContext),
         section("输出要求", [
           "请输出章节规划。",
           "至少包含：本章目标、主线、支线、出场角色、出场势力、关键道具、钩子推进、节奏分段、风险提醒。",
           "如果召回上下文里存在风险提醒、未回收钩子、关键关系或世界规则，规划中必须显式承接。",
+          "如果存在必须包含或必须避免的意图约束，规划中必须显式满足。",
         ]),
       ]),
     },
@@ -85,6 +94,7 @@ export function buildPlanPrompt(input: {
 
 export function buildDraftPrompt(input: {
   planContent: string;
+  intentConstraints?: PlanIntentConstraints;
   retrievedContext?: unknown;
   targetWords?: number;
 }): LlmMessage[] {
@@ -106,6 +116,7 @@ export function buildDraftPrompt(input: {
       role: "user",
       content: buildStructuredPrompt([
         section("章节规划", input.planContent),
+        buildIntentConstraintsSection(input.intentConstraints),
         input.retrievedContext
           ? jsonSection("召回上下文（必须严格参考）", input.retrievedContext)
           : null,
@@ -116,7 +127,8 @@ export function buildDraftPrompt(input: {
           "3. 世界设定、势力状态、物品状态、关系状态不能自相矛盾。",
           "4. 节奏上要像小说正文，不要写成大纲复述。",
           "5. 如果上下文里有风险提醒，正文中要主动规避对应问题。",
-          "6. 只输出完整章节草稿正文。",
+          "6. 如果存在必须包含或必须避免的意图约束，正文必须遵守。",
+          "7. 只输出完整章节草稿正文。",
         ]),
       ]),
     },
@@ -146,7 +158,8 @@ export function buildReviewPrompt(input: {
         section("章节草稿", input.draftContent),
         input.retrievedContext ? jsonSection("召回上下文（作为核对基准）", input.retrievedContext) : null,
         section("输出要求", [
-          "请输出：总结、问题列表、风险列表、连续性检查、修复建议。",
+          "请严格返回 JSON 对象，字段必须为 summary, issues, risks, continuity_checks, repair_suggestions。",
+          "不要输出中文键名、Markdown 代码块或额外解释。",
           "优先指出会导致后续章节连锁出错的问题。",
           "如果没有问题，也要明确说明连续性是否稳定。",
         ]),
@@ -159,6 +172,7 @@ export function buildRepairPrompt(input: {
   planContent: string;
   draftContent: string;
   reviewContent: string;
+  intentConstraints?: PlanIntentConstraints;
   retrievedContext?: unknown;
 }): LlmMessage[] {
   return [
@@ -173,9 +187,11 @@ export function buildRepairPrompt(input: {
         section("章节规划", input.planContent),
         section("当前草稿", input.draftContent),
         section("审阅结果", input.reviewContent),
+        buildIntentConstraintsSection(input.intentConstraints),
         input.retrievedContext ? jsonSection("召回上下文（必须保持一致）", input.retrievedContext) : null,
         section("修稿要求", [
           "优先修复审阅问题，同时不要偏离既有规划和召回设定。",
+          "如果存在必须包含或必须避免的意图约束，修稿后必须继续满足。",
           "如果草稿已有可用段落，尽量保留其节奏、气氛和信息密度。",
           "只输出修复后的完整草稿正文。",
         ]),
@@ -188,6 +204,7 @@ export function buildApprovePrompt(input: {
   planContent: string;
   draftContent: string;
   reviewContent: string;
+  intentConstraints?: PlanIntentConstraints;
   retrievedContext?: unknown;
 }): LlmMessage[] {
   return [
@@ -208,13 +225,15 @@ export function buildApprovePrompt(input: {
         section("章节规划", input.planContent),
         section("当前草稿", input.draftContent),
         section("审阅结果", input.reviewContent),
+        buildIntentConstraintsSection(input.intentConstraints),
         input.retrievedContext ? jsonSection("召回上下文（必须保持一致）", input.retrievedContext) : null,
         section("定稿要求", [
           "1. 修复审阅中提到的问题。",
           "2. 不要丢失原计划中的关键剧情推进和钩子推进。",
           "3. 不要违背召回出的设定、人物状态、关系和世界规则。",
           "4. 尽量继承当前草稿中已经写得好的段落和气氛。",
-          "5. 只输出最终文稿正文。",
+          "5. 如果存在必须包含或必须避免的意图约束，最终文稿必须满足。",
+          "6. 只输出最终文稿正文。",
         ]),
       ]),
     },
@@ -263,4 +282,26 @@ function section(title: string, content: string | string[]): string {
 
 function jsonSection(title: string, content: unknown): string {
   return section(title, JSON.stringify(content, null, 2));
+}
+
+function buildIntentConstraintsSection(input?: PlanIntentConstraints): string | null {
+  if (!input) {
+    return null;
+  }
+
+  const lines = [
+    input.intentSummary ? `意图摘要：${input.intentSummary}` : null,
+    input.mustInclude && input.mustInclude.length > 0
+      ? `必须包含：${input.mustInclude.join("；")}`
+      : null,
+    input.mustAvoid && input.mustAvoid.length > 0
+      ? `必须避免：${input.mustAvoid.join("；")}`
+      : null,
+  ].filter(Boolean) as string[];
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  return section("意图约束", lines);
 }

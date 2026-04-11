@@ -25,6 +25,7 @@ export async function migrateToLatest(
       await createStoryHooksTable(database);
       await createChaptersTable(database);
       await createChapterPlansTable(database);
+      await ensureChapterPlanColumns(database);
       await createChapterDraftsTable(database);
       await createChapterReviewsTable(database);
       await createChapterFinalsTable(database);
@@ -292,7 +293,10 @@ async function createChapterPlansTable(database: Kysely<DatabaseSchema>): Promis
     .addColumn("status", "text", (column) => column.notNull())
     .addColumn("author_intent", "text")
     .addColumn("intent_source", "text", (column) => column.notNull())
+    .addColumn("intent_summary", "text")
     .addColumn("intent_keywords", "text")
+    .addColumn("intent_must_include", "text")
+    .addColumn("intent_must_avoid", "text")
     .addColumn("manual_entity_refs", "text")
     .addColumn("retrieved_context", "text")
     .addColumn("content", "text", (column) => column.notNull())
@@ -307,6 +311,12 @@ async function createChapterPlansTable(database: Kysely<DatabaseSchema>): Promis
     )
     .addUniqueConstraint("uniq_chapter_plans_chapter_version", ["chapter_id", "version_no"])
     .execute();
+}
+
+async function ensureChapterPlanColumns(database: Kysely<DatabaseSchema>): Promise<void> {
+  await addColumnIfMissing(database, "chapter_plans", "intent_summary", "text");
+  await addColumnIfMissing(database, "chapter_plans", "intent_must_include", "text");
+  await addColumnIfMissing(database, "chapter_plans", "intent_must_avoid", "text");
 }
 
 async function createChapterDraftsTable(database: Kysely<DatabaseSchema>): Promise<void> {
@@ -659,4 +669,21 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .on("chapter_finals")
     .columns(["book_id", "status"])
     .execute();
+}
+
+async function addColumnIfMissing(
+  database: Kysely<DatabaseSchema>,
+  tableName: string,
+  columnName: string,
+  columnType: string,
+): Promise<void> {
+  try {
+    await sql.raw(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`).execute(database);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes(`duplicate column name: ${columnName}`)) {
+      return;
+    }
+
+    throw error;
+  }
 }

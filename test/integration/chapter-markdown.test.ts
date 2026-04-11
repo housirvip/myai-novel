@@ -135,6 +135,9 @@ test("chapter markdown export/import creates new versions instead of overwriting
 
   const importedPlan = await runInlineModule<{
     authorIntent: string | null;
+    intentSummary: string | null;
+    intentMustInclude: string | null;
+    intentMustAvoid: string | null;
     manualEntityRefs: string | null;
     retrievedContext: string | null;
   }>(
@@ -143,9 +146,12 @@ test("chapter markdown export/import creates new versions instead of overwriting
       "const logger = { info() {}, error() {}, debug() {} };",
       "const manager = createDatabaseManager(logger);",
       "try {",
-      `  const row = await manager.getClient().selectFrom('chapter_plans').select(['author_intent', 'manual_entity_refs', 'retrieved_context']).where('id', '=', ${chapterAfterPlanImport.current_plan_id}).executeTakeFirstOrThrow();`,
+      `  const row = await manager.getClient().selectFrom('chapter_plans').select(['author_intent', 'intent_summary', 'intent_must_include', 'intent_must_avoid', 'manual_entity_refs', 'retrieved_context']).where('id', '=', ${chapterAfterPlanImport.current_plan_id}).executeTakeFirstOrThrow();`,
       "  console.log(JSON.stringify({",
       "    authorIntent: row.author_intent,",
+      "    intentSummary: row.intent_summary,",
+      "    intentMustInclude: row.intent_must_include,",
+      "    intentMustAvoid: row.intent_must_avoid,",
       "    manualEntityRefs: row.manual_entity_refs,",
       "    retrievedContext: row.retrieved_context,",
       "  }));",
@@ -156,6 +162,9 @@ test("chapter markdown export/import creates new versions instead of overwriting
     env,
   );
   assert.equal(importedPlan.authorIntent, "推进主角开局并埋下黑铁令线索。");
+  assert.ok(importedPlan.intentSummary);
+  assert.ok(importedPlan.intentMustInclude);
+  assert.ok(importedPlan.intentMustAvoid);
   assert.ok(importedPlan.manualEntityRefs);
   assert.ok(importedPlan.retrievedContext);
 

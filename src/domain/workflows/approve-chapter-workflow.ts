@@ -22,7 +22,7 @@ import { parseLooseJson } from "../../shared/utils/json.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
 import { buildApproveDiffPrompt, buildApprovePrompt } from "../planning/prompts.js";
-import { appendChapterNote, dedupeNumberList, parseStoredJson } from "./shared.js";
+import { appendChapterNote, dedupeNumberList, parseStoredJson, readPlanIntentConstraints } from "./shared.js";
 
 const approveDiffSchema = z.object({
   chapterSummary: z.string().min(1),
@@ -188,6 +188,7 @@ export class ApproveChapterWorkflow {
                 planContent: currentPlan.content,
                 draftContent: currentDraft.content,
                 reviewContent: currentReview.raw_result,
+                intentConstraints: readPlanIntentConstraints(currentPlan),
                 retrievedContext: parseStoredJson(currentPlan.retrieved_context),
               }),
             });

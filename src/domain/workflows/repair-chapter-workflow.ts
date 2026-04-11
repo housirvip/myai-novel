@@ -12,7 +12,7 @@ import { withTimingLog } from "../../core/logger/index.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
 import { buildRepairPrompt } from "../planning/prompts.js";
-import { parseStoredJson } from "./shared.js";
+import { parseStoredJson, readPlanIntentConstraints } from "./shared.js";
 
 const runRepairWorkflowSchema = z.object({
   bookId: z.number().int().positive(),
@@ -87,6 +87,7 @@ export class RepairChapterWorkflow {
                 planContent: currentPlan.content,
                 draftContent: currentDraft.content,
                 reviewContent: currentReview.raw_result,
+                intentConstraints: readPlanIntentConstraints(currentPlan),
                 retrievedContext: parseStoredJson(currentPlan.retrieved_context),
               }),
             });

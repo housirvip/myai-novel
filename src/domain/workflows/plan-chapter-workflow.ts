@@ -16,7 +16,12 @@ import {
   buildPlanPrompt,
 } from "../planning/prompts.js";
 import { RetrievalQueryService } from "../planning/retrieval-service.js";
-import type { ManualEntityRefs, PlanRetrievedContext } from "../planning/types.js";
+import type {
+  ExtractedIntentPayload,
+  ManualEntityRefs,
+  PlanIntentConstraints,
+  PlanRetrievedContext,
+} from "../planning/types.js";
 
 const runPlanWorkflowSchema = planInputSchema.extend({
   provider: z.enum(["mock", "openai", "anthropic", "custom"]).optional(),
@@ -34,6 +39,9 @@ export class PlanChapterWorkflow {
     authorIntent: string;
     intentSource: string;
     intentKeywords: string[];
+    intentSummary: string;
+    mustInclude: string[];
+    mustAvoid: string[];
     retrievedContext: PlanRetrievedContext;
     content: string;
   }> {
@@ -67,6 +75,7 @@ export class PlanChapterWorkflow {
                 chapterNo: payload.chapterNo,
                 outlinesText: formatOutlines(initialContext),
                 recentChapterText: formatRecentChapters(initialContext),
+                manualFocusText: formatManualFocus(initialContext),
               }),
             })
           ).content;
@@ -78,6 +87,7 @@ export class PlanChapterWorkflow {
           responseFormat: "json",
         });
         const extractedIntent = extractedIntentSchema.parse(parseLooseJson(keywordResult.content));
+        const intentConstraints = toIntentConstraints(extractedIntent);
 
         const retrievedContext = await retrievalService.retrievePlanContext({
           bookId: payload.bookId,
@@ -88,13 +98,14 @@ export class PlanChapterWorkflow {
 
         const planResult = await llmClient.generate({
           model: payload.model,
-          messages: buildPlanPrompt({
-            bookTitle: retrievedContext.book.title,
-            chapterNo: payload.chapterNo,
-            authorIntent,
-            retrievedContext,
-          }),
-        });
+            messages: buildPlanPrompt({
+              bookTitle: retrievedContext.book.title,
+              chapterNo: payload.chapterNo,
+              authorIntent,
+              intentConstraints,
+              retrievedContext,
+            }),
+          });
 
         const manager = createDatabaseManager(this.logger);
 
@@ -118,7 +129,10 @@ export class PlanChapterWorkflow {
               status: "active",
               author_intent: authorIntent,
               intent_source: intentSource,
+              intent_summary: extractedIntent.intentSummary,
               intent_keywords: JSON.stringify(extractedIntent.keywords),
+              intent_must_include: JSON.stringify(extractedIntent.mustInclude),
+              intent_must_avoid: JSON.stringify(extractedIntent.mustAvoid),
               manual_entity_refs: JSON.stringify(payload.manualEntityRefs),
               retrieved_context: JSON.stringify(retrievedContext),
               content: planResult.content,
@@ -149,6 +163,9 @@ export class PlanChapterWorkflow {
               authorIntent,
               intentSource,
               intentKeywords: extractedIntent.keywords,
+              intentSummary: extractedIntent.intentSummary,
+              mustInclude: extractedIntent.mustInclude,
+              mustAvoid: extractedIntent.mustAvoid,
               retrievedContext,
               content: planResult.content,
             };
@@ -180,6 +197,38 @@ function formatRecentChapters(context: PlanRetrievedContext): string {
         `- 第${chapter.chapterNo}章 ${chapter.title ?? "未命名"}：${chapter.summary ?? "无摘要"}`,
     )
     .join("\n");
+}
+
+function formatManualFocus(context: PlanRetrievedContext): string {
+  const sections = [
+    formatEntityNames("人物", context.characters.map((entity) => entity.name ?? `ID:${entity.id}`)),
+    formatEntityNames("势力", context.factions.map((entity) => entity.name ?? `ID:${entity.id}`)),
+    formatEntityNames("物品", context.items.map((entity) => entity.name ?? `ID:${entity.id}`)),
+    formatEntityNames("钩子", context.hooks.map((entity) => entity.title ?? `ID:${entity.id}`)),
+    formatEntityNames(
+      "关系",
+      context.relations.map((entity) => entity.content.split("\n").slice(0, 2).join(" / ")),
+    ),
+    formatEntityNames("世界设定", context.worldSettings.map((entity) => entity.title ?? `ID:${entity.id}`)),
+  ].filter(Boolean);
+
+  return sections.length > 0 ? sections.join("\n") : "无";
+}
+
+function formatEntityNames(label: string, values: string[]): string | null {
+  const normalized = values.map((value) => value.trim()).filter(Boolean);
+  if (normalized.length === 0) {
+    return null;
+  }
+  return `${label}：${normalized.join("；")}`;
+}
+
+function toIntentConstraints(extractedIntent: ExtractedIntentPayload): PlanIntentConstraints {
+  return {
+    intentSummary: extractedIntent.intentSummary,
+    mustInclude: extractedIntent.mustInclude,
+    mustAvoid: extractedIntent.mustAvoid,
+  };
 }
 
 export function createEmptyManualEntityRefs(): ManualEntityRefs {

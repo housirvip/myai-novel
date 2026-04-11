@@ -294,9 +294,21 @@ export class ChapterService {
                 previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
                   ? previousPlan.intent_source
                   : "manual_import",
+              intent_summary:
+                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
+                  ? previousPlan.intent_summary
+                  : null,
               intent_keywords:
                 previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
                   ? previousPlan.intent_keywords
+                  : null,
+              intent_must_include:
+                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
+                  ? previousPlan.intent_must_include
+                  : null,
+              intent_must_avoid:
+                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
+                  ? previousPlan.intent_must_avoid
                   : null,
               manual_entity_refs:
                 previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id

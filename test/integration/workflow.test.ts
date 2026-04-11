@@ -143,7 +143,13 @@ test("mock workflow chain updates chapter facts and related entities", async () 
     env,
   );
 
-  const plan = await runCliJson<{ intentSource: string; retrievedContext: { relations: unknown[] } }>(
+  const plan = await runCliJson<{
+    intentSource: string;
+    intentSummary: string;
+    mustInclude: string[];
+    mustAvoid: string[];
+    retrievedContext: { relations: unknown[] };
+  }>(
     [
       "plan",
       "--book",
@@ -170,7 +176,36 @@ test("mock workflow chain updates chapter facts and related entities", async () 
     env,
   );
   assert.equal(plan.intentSource, "user_input");
+  assert.ok(plan.intentSummary.length > 0);
+  assert.ok(plan.mustInclude.length > 0);
+  assert.ok(plan.mustAvoid.length > 0);
   assert.ok(plan.retrievedContext.relations.length >= 1);
+
+  const storedPlan = await runInlineModule<{
+    intentSummary: string | null;
+    mustInclude: string | null;
+    mustAvoid: string | null;
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "try {",
+      `  const row = await manager.getClient().selectFrom('chapter_plans').select(['intent_summary', 'intent_must_include', 'intent_must_avoid']).where('chapter_no', '=', 2).executeTakeFirstOrThrow();`,
+      "  console.log(JSON.stringify({",
+      "    intentSummary: row.intent_summary,",
+      "    mustInclude: row.intent_must_include,",
+      "    mustAvoid: row.intent_must_avoid,",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+  assert.equal(storedPlan.intentSummary, plan.intentSummary);
+  assert.ok(storedPlan.mustInclude);
+  assert.ok(storedPlan.mustAvoid);
 
   await runCliJson(["draft", "--book", String(book.id), "--chapter", "2", "--provider", "mock"], env);
   await runCliJson(["review", "--book", String(book.id), "--chapter", "2", "--provider", "mock"], env);

@@ -56,3 +56,9 @@ export interface ExtractedIntentPayload {
   mustInclude: string[];
   mustAvoid: string[];
 }
+
+export interface PlanIntentConstraints {
+  intentSummary?: string | null;
+  mustInclude?: string[];
+  mustAvoid?: string[];
+}
