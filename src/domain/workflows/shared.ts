@@ -1,4 +1,5 @@
 import type { ChapterPlanRow } from "../../core/db/repositories/chapter-plan-repository.js";
+import type { ChapterRow } from "../../core/db/repositories/chapter-repository.js";
 import type { PlanIntentConstraints } from "../planning/types.js";
 
 export function parseStoredJson(value: string | null): unknown {
@@ -56,4 +57,34 @@ export function readPlanIntentConstraints(plan: ChapterPlanRow): PlanIntentConst
     mustInclude: parseStoredStringArray(plan.intent_must_include),
     mustAvoid: parseStoredStringArray(plan.intent_must_avoid),
   };
+}
+
+export function assertChapterPointersUnchanged(
+  chapter: ChapterRow,
+  expected: {
+    currentPlanId?: number | null;
+    currentDraftId?: number | null;
+    currentReviewId?: number | null;
+  },
+): void {
+  if (
+    expected.currentPlanId !== undefined &&
+    chapter.current_plan_id !== expected.currentPlanId
+  ) {
+    throw new Error("Current plan pointer changed before commit");
+  }
+
+  if (
+    expected.currentDraftId !== undefined &&
+    chapter.current_draft_id !== expected.currentDraftId
+  ) {
+    throw new Error("Current draft pointer changed before commit");
+  }
+
+  if (
+    expected.currentReviewId !== undefined &&
+    chapter.current_review_id !== expected.currentReviewId
+  ) {
+    throw new Error("Current review pointer changed before commit");
+  }
 }

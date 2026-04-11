@@ -246,20 +246,18 @@ test("mock workflow chain updates chapter facts and related entities", async () 
   assert.equal(bookState.current_chapter_count, 1);
 });
 
-test("approve rejects mismatched workflow pointers", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-approve-pointer-"));
-  const env = createTestEnv(tempDir);
+
+test("approve rejects pointer changes before commit", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-approve-stale-pointer-"));
+  const env = createTestEnv(tempDir, {
+    LLM_PROVIDER: "openai",
+    OPENAI_API_KEY: "test-key",
+    OPENAI_MODEL: "test-model",
+  });
 
   await runCli(["db", "init"], env);
 
-  await runCli([
-    "book",
-    "create",
-    "--title",
-    "指针校验测试书",
-  ], env);
-
-  const errorMessage = await runInlineModule<{ errorMessage: string }>(
+  const result = await runInlineModule<{ errorMessage: string }>(
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
       "import { ApproveChapterWorkflow } from './src/domain/workflows/approve-chapter-workflow.ts';",
@@ -267,35 +265,38 @@ test("approve rejects mismatched workflow pointers", async () => {
       "const manager = createDatabaseManager(logger);",
       "const db = manager.getClient();",
       "const now = '2026-04-11T00:00:00.000Z';",
+      "const originalFetch = globalThis.fetch;",
+      "let callCount = 0;",
+      "globalThis.fetch = async () => {",
+      "  callCount += 1;",
+      "  if (callCount === 1) {",
+      "    await db.updateTable('chapters').set({ current_draft_id: 2, updated_at: now }).where('id', '=', 1).execute();",
+      "    return new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content: '定稿内容' } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });",
+      "  }",
+      "  return new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content: '{\"chapterSummary\":\"摘要\",\"actualCharacterIds\":[],\"actualFactionIds\":[],\"actualItemIds\":[],\"actualHookIds\":[],\"actualWorldSettingIds\":[],\"newCharacters\":[],\"newFactions\":[],\"newItems\":[],\"newHooks\":[],\"newWorldSettings\":[],\"newRelations\":[],\"updates\":[]}' } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });",
+      "};",
       "try {",
-      "  await db.insertInto('chapters').values([",
-      "    { id: 1, book_id: 1, chapter_no: 1, title: '第一章', summary: null, word_count: null, status: 'reviewed', current_plan_id: 1, current_draft_id: 1, current_review_id: 1, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now },",
-      "    { id: 2, book_id: 1, chapter_no: 2, title: '第二章', summary: null, word_count: null, status: 'reviewed', current_plan_id: 1, current_draft_id: 2, current_review_id: 2, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now },",
-      "  ]).execute();",
-      "  await db.insertInto('chapter_plans').values([",
-      "    { id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, version_no: 1, status: 'active', author_intent: '第一章意图', intent_source: 'user_input', intent_keywords: '[]', manual_entity_refs: '{}', retrieved_context: '{}', content: '第一章计划', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now },",
-      "    { id: 2, book_id: 1, chapter_id: 2, chapter_no: 2, version_no: 1, status: 'active', author_intent: '第二章意图', intent_source: 'user_input', intent_keywords: '[]', manual_entity_refs: '{}', retrieved_context: '{}', content: '第二章计划', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now },",
-      "  ]).execute();",
+      "  await db.insertInto('books').values({ id: 1, title: '事务边界测试', current_chapter_count: 0, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values({ id: 1, book_id: 1, chapter_no: 1, title: '第一章', summary: null, word_count: null, status: 'reviewed', current_plan_id: 1, current_draft_id: 1, current_review_id: 1, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapter_plans').values({ id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, version_no: 1, status: 'active', author_intent: '意图', intent_source: 'user_input', intent_keywords: '[]', manual_entity_refs: '{}', retrieved_context: '{}', content: '计划', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now }).execute();",
       "  await db.insertInto('chapter_drafts').values([",
-      "    { id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, version_no: 1, based_on_plan_id: 1, based_on_draft_id: null, based_on_review_id: null, status: 'active', content: '第一章草稿', summary: null, word_count: 1000, model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now },",
-      "    { id: 2, book_id: 1, chapter_id: 2, chapter_no: 2, version_no: 1, based_on_plan_id: 2, based_on_draft_id: null, based_on_review_id: null, status: 'active', content: '第二章草稿', summary: null, word_count: 1000, model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now },",
+      "    { id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, version_no: 1, based_on_plan_id: 1, based_on_draft_id: null, based_on_review_id: null, status: 'active', content: '旧草稿', summary: null, word_count: 1000, model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_id: 1, chapter_no: 1, version_no: 2, based_on_plan_id: 1, based_on_draft_id: 1, based_on_review_id: 1, status: 'active', content: '新草稿', summary: null, word_count: 1000, model: null, provider: null, source_type: 'repaired', created_at: now, updated_at: now },",
       "  ]).execute();",
-      "  await db.insertInto('chapter_reviews').values([",
-      "    { id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, draft_id: 1, version_no: 1, status: 'active', summary: 'ok', issues: '[]', risks: '[]', continuity_checks: '[]', repair_suggestions: '[]', raw_result: '{\"summary\":\"ok\"}', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now },",
-      "    { id: 2, book_id: 1, chapter_id: 2, chapter_no: 2, draft_id: 2, version_no: 1, status: 'active', summary: 'ok', issues: '[]', risks: '[]', continuity_checks: '[]', repair_suggestions: '[]', raw_result: '{\"summary\":\"ok\"}', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now },",
-      "  ]).execute();",
+      "  await db.insertInto('chapter_reviews').values({ id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, draft_id: 1, version_no: 1, status: 'active', summary: 'ok', issues: '[]', risks: '[]', continuity_checks: '[]', repair_suggestions: '[]', raw_result: '{\"summary\":\"ok\"}', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now }).execute();",
       "  try {",
-      "    await new ApproveChapterWorkflow(logger).run({ bookId: 1, chapterNo: 2, provider: 'mock' });",
+      "    await new ApproveChapterWorkflow(logger).run({ bookId: 1, chapterNo: 1, provider: 'openai', model: 'test-model' });",
       "    console.log(JSON.stringify({ errorMessage: 'NO_ERROR' }));",
       "  } catch (error) {",
       "    console.log(JSON.stringify({ errorMessage: error instanceof Error ? error.message : String(error) }));",
       "  }",
       "} finally {",
+      "  globalThis.fetch = originalFetch;",
       "  await manager.destroy();",
       "}",
     ].join("\n"),
     env,
   );
 
-  assert.equal(errorMessage.errorMessage, "Current plan pointer is invalid");
+  assert.equal(result.errorMessage, "Current draft pointer changed before commit");
 });

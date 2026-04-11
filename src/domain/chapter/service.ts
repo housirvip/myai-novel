@@ -30,6 +30,7 @@ import {
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
 import { executeDbAction } from "../shared/service-helpers.js";
+import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS, PLAN_INTENT_SOURCE } from "../shared/constants.js";
 
 const createChapterSchema = z.object({
   bookId: z.number().int().positive(),
@@ -37,7 +38,7 @@ const createChapterSchema = z.object({
   title: z.string().nullable().optional(),
   summary: z.string().nullable().optional(),
   wordCount: z.number().int().positive().nullable().optional(),
-  status: z.string().min(1).default("todo"),
+  status: z.string().min(1).default(CHAPTER_STATUS.TODO),
   actualCharacterIds: z.string().nullable().optional(),
   actualFactionIds: z.string().nullable().optional(),
   actualItemIds: z.string().nullable().optional(),
@@ -265,7 +266,7 @@ export class ChapterService {
           const title = parsed.title ?? chapter.title;
           const summary = parsed.summary ?? chapter.summary;
 
-          if (payload.stage === "final" && chapter.status !== "approved" && !payload.force) {
+          if (payload.stage === "final" && chapter.status !== CHAPTER_STATUS.APPROVED && !payload.force) {
             throw new Error("Importing final content requires approved chapter status or --force");
           }
 
@@ -285,15 +286,12 @@ export class ChapterService {
               chapter_id: chapter.id,
               chapter_no: chapter.chapter_no,
               version_no: versionNo,
-              status: "imported",
+              status: CHAPTER_SOURCE_TYPE.IMPORTED,
               author_intent:
                 previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
                   ? previousPlan.author_intent
                   : null,
-              intent_source:
-                previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
-                  ? previousPlan.intent_source
-                  : "manual_import",
+              intent_source: PLAN_INTENT_SOURCE.MANUAL_IMPORT,
               intent_summary:
                 previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
                   ? previousPlan.intent_summary
@@ -327,13 +325,13 @@ export class ChapterService {
                 previousPlan && previousPlan.chapter_id === chapter.id && previousPlan.book_id === chapter.book_id
                   ? previousPlan.provider
                   : null,
-              source_type: "imported",
+              source_type: CHAPTER_SOURCE_TYPE.IMPORTED,
               created_at: timestamp,
               updated_at: timestamp,
             });
             currentPlanId = created.id;
-            if (chapter.status === "todo") {
-              nextStatus = "planned";
+            if (chapter.status === CHAPTER_STATUS.TODO) {
+              nextStatus = CHAPTER_STATUS.PLANNED;
             }
           }
 
@@ -348,18 +346,18 @@ export class ChapterService {
               based_on_plan_id: chapter.current_plan_id,
               based_on_draft_id: chapter.current_draft_id,
               based_on_review_id: chapter.current_review_id,
-              status: "imported",
+              status: CHAPTER_SOURCE_TYPE.IMPORTED,
               content: parsed.content,
               summary,
               word_count: wordCount,
               model: null,
               provider: null,
-              source_type: "imported",
+              source_type: CHAPTER_SOURCE_TYPE.IMPORTED,
               created_at: timestamp,
               updated_at: timestamp,
             });
             currentDraftId = created.id;
-            nextStatus = "drafted";
+            nextStatus = CHAPTER_STATUS.DRAFTED;
           }
 
           if (payload.stage === "final") {
@@ -371,16 +369,16 @@ export class ChapterService {
               chapter_no: chapter.chapter_no,
               version_no: versionNo,
               based_on_draft_id: chapter.current_draft_id,
-              status: "imported",
+              status: CHAPTER_SOURCE_TYPE.IMPORTED,
               content: parsed.content,
               summary,
               word_count: wordCount,
-              source_type: "imported",
+              source_type: CHAPTER_SOURCE_TYPE.IMPORTED,
               created_at: timestamp,
               updated_at: timestamp,
             });
             currentFinalId = created.id;
-            nextStatus = "approved";
+            nextStatus = CHAPTER_STATUS.APPROVED;
           }
 
           const updated = await chapterRepository.updateByBookAndChapterNo(payload.bookId, payload.chapterNo, {
@@ -402,7 +400,7 @@ export class ChapterService {
             .selectFrom("chapters")
             .select((expressionBuilder) => expressionBuilder.fn.count<number>("id").as("approved_count"))
             .where("book_id", "=", payload.bookId)
-            .where("status", "=", "approved")
+            .where("status", "=", CHAPTER_STATUS.APPROVED)
             .executeTakeFirstOrThrow();
 
           await bookRepository.updateById(payload.bookId, {

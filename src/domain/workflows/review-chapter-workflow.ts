@@ -12,7 +12,8 @@ import { withTimingLog } from "../../core/logger/index.js";
 import { parseLooseJson } from "../../shared/utils/json.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { buildReviewPrompt } from "../planning/prompts.js";
-import { parseStoredJson } from "./shared.js";
+import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS } from "../shared/constants.js";
+import { assertChapterPointersUnchanged, parseStoredJson } from "./shared.js";
 
 const reviewResultSchema = z.object({
   summary: z.string().min(1),
@@ -53,48 +54,74 @@ export class ReviewChapterWorkflow {
           bookId: payload.bookId,
           chapterNo: payload.chapterNo,
         },
-        async () =>
-          manager.getClient().transaction().execute(async (trx) => {
-            const chapterRepository = new ChapterRepository(trx);
-            const chapterPlanRepository = new ChapterPlanRepository(trx);
-            const chapterDraftRepository = new ChapterDraftRepository(trx);
-            const chapterReviewRepository = new ChapterReviewRepository(trx);
-            const chapter = await chapterRepository.getByBookAndChapterNo(payload.bookId, payload.chapterNo);
+        async () => {
+          const chapter = await manager.getClient()
+            .selectFrom("chapters")
+            .selectAll()
+            .where("book_id", "=", payload.bookId)
+            .where("chapter_no", "=", payload.chapterNo)
+            .executeTakeFirst();
 
-            if (!chapter) {
+          if (!chapter) {
+            throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
+          }
+
+          if (!chapter.current_plan_id || !chapter.current_draft_id) {
+            throw new Error(
+              `Chapter needs both current plan and draft before review: book=${payload.bookId}, chapter=${payload.chapterNo}`,
+            );
+          }
+
+          const currentPlan = await manager.getClient()
+            .selectFrom("chapter_plans")
+            .selectAll()
+            .where("id", "=", chapter.current_plan_id)
+            .executeTakeFirst();
+          const currentDraft = await manager.getClient()
+            .selectFrom("chapter_drafts")
+            .selectAll()
+            .where("id", "=", chapter.current_draft_id)
+            .executeTakeFirst();
+
+          if (!currentPlan || currentPlan.chapter_id !== chapter.id || currentPlan.book_id !== payload.bookId) {
+            throw new Error("Current plan pointer is invalid");
+          }
+
+          if (!currentDraft || currentDraft.chapter_id !== chapter.id || currentDraft.book_id !== payload.bookId) {
+            throw new Error("Current draft pointer is invalid");
+          }
+
+          const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
+          const reviewResponse = await llmClient.generate({
+            model: payload.model,
+            messages: buildReviewPrompt({
+              planContent: currentPlan.content,
+              draftContent: currentDraft.content,
+              retrievedContext,
+            }),
+            responseFormat: "json",
+          });
+          const parsedReview = reviewResultSchema.parse(parseLooseJson(reviewResponse.content));
+
+          const timestamp = nowIso();
+
+          return manager.getClient().transaction().execute(async (trx) => {
+            const chapterRepository = new ChapterRepository(trx);
+            const chapterReviewRepository = new ChapterReviewRepository(trx);
+            const chapterBeforeCommit = await chapterRepository.getByBookAndChapterNo(
+              payload.bookId,
+              payload.chapterNo,
+            );
+
+            if (!chapterBeforeCommit) {
               throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
             }
 
-            if (!chapter.current_plan_id || !chapter.current_draft_id) {
-              throw new Error(
-                `Chapter needs both current plan and draft before review: book=${payload.bookId}, chapter=${payload.chapterNo}`,
-              );
-            }
-
-            const currentPlan = await chapterPlanRepository.getById(chapter.current_plan_id);
-            const currentDraft = await chapterDraftRepository.getById(chapter.current_draft_id);
-
-            if (!currentPlan || currentPlan.chapter_id !== chapter.id || currentPlan.book_id !== payload.bookId) {
-              throw new Error("Current plan pointer is invalid");
-            }
-
-            if (!currentDraft || currentDraft.chapter_id !== chapter.id || currentDraft.book_id !== payload.bookId) {
-              throw new Error("Current draft pointer is invalid");
-            }
-
-            const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
-            const reviewResponse = await llmClient.generate({
-              model: payload.model,
-              messages: buildReviewPrompt({
-                planContent: currentPlan.content,
-                draftContent: currentDraft.content,
-                retrievedContext,
-              }),
-              responseFormat: "json",
+            assertChapterPointersUnchanged(chapterBeforeCommit, {
+              currentPlanId: chapter.current_plan_id,
+              currentDraftId: chapter.current_draft_id,
             });
-            const parsedReview = reviewResultSchema.parse(parseLooseJson(reviewResponse.content));
 
-            const timestamp = nowIso();
             const versionNo = (await chapterReviewRepository.getLatestVersionNo(chapter.id)) + 1;
             const created = await chapterReviewRepository.create({
               book_id: payload.bookId,
@@ -111,7 +138,7 @@ export class ReviewChapterWorkflow {
               raw_result: JSON.stringify(parsedReview),
               model: reviewResponse.model,
               provider: reviewResponse.provider,
-              source_type: "ai_generated",
+              source_type: CHAPTER_SOURCE_TYPE.AI_GENERATED,
               created_at: timestamp,
               updated_at: timestamp,
             });
@@ -121,7 +148,7 @@ export class ReviewChapterWorkflow {
               payload.chapterNo,
               {
                 current_review_id: created.id,
-                status: "reviewed",
+                status: CHAPTER_STATUS.REVIEWED,
                 updated_at: timestamp,
               },
             );
@@ -136,7 +163,9 @@ export class ReviewChapterWorkflow {
               draftId: currentDraft.id,
               rawResult: parsedReview,
             };
-          }),
+          });
+        },
+
       );
     } finally {
       await manager.destroy();

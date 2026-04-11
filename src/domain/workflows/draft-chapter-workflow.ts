@@ -11,7 +11,8 @@ import { withTimingLog } from "../../core/logger/index.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
 import { buildDraftPrompt } from "../planning/prompts.js";
-import { parseStoredJson, readPlanIntentConstraints } from "./shared.js";
+import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS } from "../shared/constants.js";
+import { assertChapterPointersUnchanged, parseStoredJson, readPlanIntentConstraints } from "./shared.js";
 
 const runDraftWorkflowSchema = z.object({
   bookId: z.number().int().positive(),
@@ -46,42 +47,66 @@ export class DraftChapterWorkflow {
           bookId: payload.bookId,
           chapterNo: payload.chapterNo,
         },
-        async () =>
-          manager.getClient().transaction().execute(async (trx) => {
-            const chapterRepository = new ChapterRepository(trx);
-            const chapterPlanRepository = new ChapterPlanRepository(trx);
-            const chapterDraftRepository = new ChapterDraftRepository(trx);
-            const chapter = await chapterRepository.getByBookAndChapterNo(payload.bookId, payload.chapterNo);
+        async () => {
+          const chapter = await manager.getClient()
+            .selectFrom("chapters")
+            .selectAll()
+            .where("book_id", "=", payload.bookId)
+            .where("chapter_no", "=", payload.chapterNo)
+            .executeTakeFirst();
 
-            if (!chapter) {
+          if (!chapter) {
+            throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
+          }
+
+          if (!chapter.current_plan_id) {
+            throw new Error(
+              `Chapter does not have a current plan: book=${payload.bookId}, chapter=${payload.chapterNo}`,
+            );
+          }
+
+          const currentPlan = await manager.getClient()
+            .selectFrom("chapter_plans")
+            .selectAll()
+            .where("id", "=", chapter.current_plan_id)
+            .executeTakeFirst();
+
+          if (!currentPlan || currentPlan.chapter_id !== chapter.id || currentPlan.book_id !== payload.bookId) {
+            throw new Error("Current plan pointer is invalid");
+          }
+
+          const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
+          const draftResult = await llmClient.generate({
+            model: payload.model,
+            messages: buildDraftPrompt({
+              planContent: currentPlan.content,
+              intentConstraints: readPlanIntentConstraints(currentPlan),
+              retrievedContext,
+              targetWords: payload.targetWords,
+            }),
+          });
+
+          const timestamp = nowIso();
+          const wordCount = estimateWordCount(draftResult.content);
+
+          return manager.getClient().transaction().execute(async (trx) => {
+            const chapterRepository = new ChapterRepository(trx);
+            const chapterDraftRepository = new ChapterDraftRepository(trx);
+            const chapterBeforeCommit = await chapterRepository.getByBookAndChapterNo(
+              payload.bookId,
+              payload.chapterNo,
+            );
+
+            if (!chapterBeforeCommit) {
               throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
             }
 
-            if (!chapter.current_plan_id) {
-              throw new Error(
-                `Chapter does not have a current plan: book=${payload.bookId}, chapter=${payload.chapterNo}`,
-              );
-            }
-
-            const currentPlan = await chapterPlanRepository.getById(chapter.current_plan_id);
-
-            if (!currentPlan || currentPlan.chapter_id !== chapter.id || currentPlan.book_id !== payload.bookId) {
-              throw new Error("Current plan pointer is invalid");
-            }
-
-            const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
-            const draftResult = await llmClient.generate({
-              model: payload.model,
-              messages: buildDraftPrompt({
-                planContent: currentPlan.content,
-                intentConstraints: readPlanIntentConstraints(currentPlan),
-                retrievedContext,
-                targetWords: payload.targetWords,
-              }),
+            assertChapterPointersUnchanged(chapterBeforeCommit, {
+              currentPlanId: chapter.current_plan_id,
+              currentDraftId: chapter.current_draft_id,
+              currentReviewId: chapter.current_review_id,
             });
 
-            const timestamp = nowIso();
-            const wordCount = estimateWordCount(draftResult.content);
             const versionNo = (await chapterDraftRepository.getLatestVersionNo(chapter.id)) + 1;
             const created = await chapterDraftRepository.create({
               book_id: payload.bookId,
@@ -97,7 +122,9 @@ export class DraftChapterWorkflow {
               word_count: wordCount,
               model: draftResult.model,
               provider: draftResult.provider,
-              source_type: chapter.current_review_id ? "repaired" : "ai_generated",
+              source_type: chapter.current_review_id
+                ? CHAPTER_SOURCE_TYPE.REPAIRED
+                : CHAPTER_SOURCE_TYPE.AI_GENERATED,
               created_at: timestamp,
               updated_at: timestamp,
             });
@@ -108,7 +135,7 @@ export class DraftChapterWorkflow {
               {
                 current_draft_id: created.id,
                 word_count: wordCount,
-                status: "drafted",
+                status: CHAPTER_STATUS.DRAFTED,
                 updated_at: timestamp,
               },
             );
@@ -124,7 +151,8 @@ export class DraftChapterWorkflow {
               wordCount,
               content: draftResult.content,
             };
-          }),
+          });
+        },
       );
     } finally {
       await manager.destroy();

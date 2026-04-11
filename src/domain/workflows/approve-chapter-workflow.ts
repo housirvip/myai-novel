@@ -22,7 +22,14 @@ import { parseLooseJson } from "../../shared/utils/json.js";
 import { nowIso } from "../../shared/utils/time.js";
 import { estimateWordCount } from "../../shared/utils/word-count.js";
 import { buildApproveDiffPrompt, buildApprovePrompt } from "../planning/prompts.js";
-import { appendChapterNote, dedupeNumberList, parseStoredJson, readPlanIntentConstraints } from "./shared.js";
+import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS } from "../shared/constants.js";
+import {
+  appendChapterNote,
+  assertChapterPointersUnchanged,
+  dedupeNumberList,
+  parseStoredJson,
+  readPlanIntentConstraints,
+} from "./shared.js";
 
 const approveDiffSchema = z.object({
   chapterSummary: z.string().min(1),
@@ -139,12 +146,89 @@ export class ApproveChapterWorkflow {
           chapterNo: payload.chapterNo,
           dryRun: payload.dryRun,
         },
-        async () =>
-          manager.getClient().transaction().execute(async (trx) => {
+        async () => {
+          const chapterRepository = new ChapterRepository(manager.getClient());
+          const chapterDraftRepository = new ChapterDraftRepository(manager.getClient());
+          const chapterPlanRepository = new ChapterPlanRepository(manager.getClient());
+          const chapterReviewRepository = new ChapterReviewRepository(manager.getClient());
+
+          const chapter = await chapterRepository.getByBookAndChapterNo(payload.bookId, payload.chapterNo);
+
+          if (!chapter) {
+            throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
+          }
+
+          if (!chapter.current_plan_id || !chapter.current_draft_id || !chapter.current_review_id) {
+            throw new Error(
+              `Chapter needs current plan, draft and review before approve: book=${payload.bookId}, chapter=${payload.chapterNo}`,
+            );
+          }
+
+          const currentPlan = await chapterPlanRepository.getById(chapter.current_plan_id);
+          const currentDraft = await chapterDraftRepository.getById(chapter.current_draft_id);
+          const currentReview = await chapterReviewRepository.getById(chapter.current_review_id);
+
+          if (!currentPlan || currentPlan.chapter_id !== chapter.id || currentPlan.book_id !== payload.bookId) {
+            throw new Error("Current plan pointer is invalid");
+          }
+
+          if (!currentDraft || currentDraft.chapter_id !== chapter.id || currentDraft.book_id !== payload.bookId) {
+            throw new Error("Current draft pointer is invalid");
+          }
+
+          if (!currentReview || currentReview.chapter_id !== chapter.id || currentReview.book_id !== payload.bookId) {
+            throw new Error("Current review pointer is invalid");
+          }
+
+          const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
+          const finalResponse = await llmClient.generate({
+            model: payload.model,
+            messages: buildApprovePrompt({
+              planContent: currentPlan.content,
+              draftContent: currentDraft.content,
+              reviewContent: currentReview.raw_result,
+              intentConstraints: readPlanIntentConstraints(currentPlan),
+              retrievedContext,
+            }),
+          });
+
+          const diffResponse = await llmClient.generate({
+            model: payload.model,
+            messages: buildApproveDiffPrompt({
+              finalContent: finalResponse.content,
+              planContent: currentPlan.content,
+              reviewContent: currentReview.raw_result,
+              retrievedContext,
+            }),
+            responseFormat: "json",
+          });
+          const diff = approveDiffSchema.parse(parseLooseJson(diffResponse.content));
+
+          const createdEntities: Record<string, number[]> = {
+            characters: [],
+            factions: [],
+            items: [],
+            hooks: [],
+            worldSettings: [],
+            relations: [],
+          };
+
+          const timestamp = nowIso();
+          const finalWordCount = estimateWordCount(finalResponse.content);
+
+          if (payload.dryRun) {
+            return {
+              chapterId: chapter.id,
+              finalContent: finalResponse.content,
+              diff,
+              createdEntities,
+              updatedCount: diff.updates.length,
+            };
+          }
+
+          return manager.getClient().transaction().execute(async (trx) => {
             const chapterRepository = new ChapterRepository(trx);
             const chapterDraftRepository = new ChapterDraftRepository(trx);
-            const chapterPlanRepository = new ChapterPlanRepository(trx);
-            const chapterReviewRepository = new ChapterReviewRepository(trx);
             const chapterFinalRepository = new ChapterFinalRepository(trx);
             const bookRepository = new BookRepository(trx);
             const characterRepository = new CharacterRepository(trx);
@@ -154,78 +238,17 @@ export class ApproveChapterWorkflow {
             const hookRepository = new StoryHookRepository(trx);
             const worldSettingRepository = new WorldSettingRepository(trx);
 
-            const chapter = await chapterRepository.getByBookAndChapterNo(payload.bookId, payload.chapterNo);
+            const chapterBeforeCommit = await chapterRepository.getByBookAndChapterNo(payload.bookId, payload.chapterNo);
 
-            if (!chapter) {
+            if (!chapterBeforeCommit) {
               throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
             }
 
-            if (!chapter.current_plan_id || !chapter.current_draft_id || !chapter.current_review_id) {
-              throw new Error(
-                `Chapter needs current plan, draft and review before approve: book=${payload.bookId}, chapter=${payload.chapterNo}`,
-              );
-            }
-
-            const currentPlan = await chapterPlanRepository.getById(chapter.current_plan_id);
-            const currentDraft = await chapterDraftRepository.getById(chapter.current_draft_id);
-            const currentReview = await chapterReviewRepository.getById(chapter.current_review_id);
-
-            if (!currentPlan || currentPlan.chapter_id !== chapter.id || currentPlan.book_id !== payload.bookId) {
-              throw new Error("Current plan pointer is invalid");
-            }
-
-            if (!currentDraft || currentDraft.chapter_id !== chapter.id || currentDraft.book_id !== payload.bookId) {
-              throw new Error("Current draft pointer is invalid");
-            }
-
-            if (!currentReview || currentReview.chapter_id !== chapter.id || currentReview.book_id !== payload.bookId) {
-              throw new Error("Current review pointer is invalid");
-            }
-
-            const finalResponse = await llmClient.generate({
-              model: payload.model,
-              messages: buildApprovePrompt({
-                planContent: currentPlan.content,
-                draftContent: currentDraft.content,
-                reviewContent: currentReview.raw_result,
-                intentConstraints: readPlanIntentConstraints(currentPlan),
-                retrievedContext: parseStoredJson(currentPlan.retrieved_context),
-              }),
+            assertChapterPointersUnchanged(chapterBeforeCommit, {
+              currentPlanId: chapter.current_plan_id,
+              currentDraftId: chapter.current_draft_id,
+              currentReviewId: chapter.current_review_id,
             });
-
-            const diffResponse = await llmClient.generate({
-              model: payload.model,
-              messages: buildApproveDiffPrompt({
-                finalContent: finalResponse.content,
-                planContent: currentPlan.content,
-                reviewContent: currentReview.raw_result,
-                retrievedContext: parseStoredJson(currentPlan.retrieved_context),
-              }),
-              responseFormat: "json",
-            });
-            const diff = approveDiffSchema.parse(parseLooseJson(diffResponse.content));
-
-            const createdEntities: Record<string, number[]> = {
-              characters: [],
-              factions: [],
-              items: [],
-              hooks: [],
-              worldSettings: [],
-              relations: [],
-            };
-
-            const timestamp = nowIso();
-            const finalWordCount = estimateWordCount(finalResponse.content);
-
-            if (payload.dryRun) {
-              return {
-                chapterId: chapter.id,
-                finalContent: finalResponse.content,
-                diff,
-                createdEntities,
-                updatedCount: diff.updates.length,
-              };
-            }
 
             for (const item of diff.newCharacters) {
               const existing = await trx
@@ -501,18 +524,23 @@ export class ApproveChapterWorkflow {
               }
             }
 
-            const versionNo = (await chapterFinalRepository.getLatestVersionNo(chapter.id)) + 1;
+            const finalDraft = await chapterDraftRepository.getById(chapterBeforeCommit.current_draft_id!);
+            if (!finalDraft || finalDraft.chapter_id !== chapterBeforeCommit.id || finalDraft.book_id !== payload.bookId) {
+              throw new Error("Current draft pointer is invalid");
+            }
+
+            const versionNo = (await chapterFinalRepository.getLatestVersionNo(chapterBeforeCommit.id)) + 1;
             const finalRecord = await chapterFinalRepository.create({
               book_id: payload.bookId,
-              chapter_id: chapter.id,
+              chapter_id: chapterBeforeCommit.id,
               chapter_no: payload.chapterNo,
               version_no: versionNo,
-              based_on_draft_id: currentDraft.id,
+              based_on_draft_id: finalDraft.id,
               status: "active",
               content: finalResponse.content,
               summary: diff.chapterSummary,
               word_count: finalWordCount,
-              source_type: "approved",
+              source_type: CHAPTER_SOURCE_TYPE.APPROVED,
               created_at: timestamp,
               updated_at: timestamp,
             });
@@ -543,7 +571,7 @@ export class ApproveChapterWorkflow {
               payload.chapterNo,
               {
                 current_final_id: finalRecord.id,
-                title: chapter.title,
+                title: chapterBeforeCommit.title,
                 summary: diff.chapterSummary,
                 word_count: finalWordCount,
                 actual_character_ids: JSON.stringify(actualCharacterIds),
@@ -551,7 +579,7 @@ export class ApproveChapterWorkflow {
                 actual_item_ids: JSON.stringify(actualItemIds),
                 actual_hook_ids: JSON.stringify(actualHookIds),
                 actual_world_setting_ids: JSON.stringify(actualWorldSettingIds),
-                status: "approved",
+                status: CHAPTER_STATUS.APPROVED,
                 updated_at: timestamp,
               },
             );
@@ -564,7 +592,7 @@ export class ApproveChapterWorkflow {
               .selectFrom("chapters")
               .select((expressionBuilder) => expressionBuilder.fn.count<number>("id").as("approved_count"))
               .where("book_id", "=", payload.bookId)
-              .where("status", "=", "approved")
+              .where("status", "=", CHAPTER_STATUS.APPROVED)
               .executeTakeFirstOrThrow();
 
             await bookRepository.updateById(payload.bookId, {
@@ -580,7 +608,8 @@ export class ApproveChapterWorkflow {
               createdEntities,
               updatedCount,
             };
-          }),
+          });
+        },
       );
     } finally {
       await manager.destroy();

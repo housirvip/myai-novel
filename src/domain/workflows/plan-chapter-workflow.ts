@@ -16,6 +16,7 @@ import {
   buildPlanPrompt,
 } from "../planning/prompts.js";
 import { RetrievalQueryService } from "../planning/retrieval-service.js";
+import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS, PLAN_INTENT_SOURCE } from "../shared/constants.js";
 import type {
   ExtractedIntentPayload,
   ManualEntityRefs,
@@ -80,7 +81,9 @@ export class PlanChapterWorkflow {
             })
           ).content;
 
-        const intentSource = payload.authorIntent ? "user_input" : "ai_generated";
+        const intentSource = payload.authorIntent
+          ? PLAN_INTENT_SOURCE.USER_INPUT
+          : PLAN_INTENT_SOURCE.AI_GENERATED;
         const keywordResult = await llmClient.generate({
           model: payload.model,
           messages: buildKeywordExtractionPrompt({ authorIntent }),
@@ -138,7 +141,7 @@ export class PlanChapterWorkflow {
               content: planResult.content,
               model: planResult.model,
               provider: planResult.provider,
-              source_type: "ai_generated",
+              source_type: CHAPTER_SOURCE_TYPE.AI_GENERATED,
               created_at: timestamp,
               updated_at: timestamp,
             });
@@ -148,7 +151,7 @@ export class PlanChapterWorkflow {
               payload.chapterNo,
               {
                 current_plan_id: created.id,
-                status: "planned",
+              status: CHAPTER_STATUS.PLANNED,
                 updated_at: timestamp,
               },
             );
