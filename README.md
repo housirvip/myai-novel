@@ -16,7 +16,7 @@
 
 - [文档索引](docs/README.md)
 - [命令行使用指南](docs/cli-usage-guide.md)
-- [Prompt 与召回关系说明](docs/prompt-retrieval-relationship.md)
+- [Prompt 与工作流关系说明](docs/prompt-retrieval-relationship.md)
 - [召回与打分规则说明](docs/retrieval-scoring-rules.md)
 
 ## 为什么做这个
