@@ -14,6 +14,10 @@
   - 命令行使用指南
   - 适合查安装、配置、数据库初始化、资源管理、章节工作流、Markdown 导入导出
 
+- [`env-config-guide.md`](./env-config-guide.md)
+  - 环境变量配置指南
+  - 适合查 `.env` 字段用途、provider 配置、日志配置、数据库配置与召回限制配置
+
 - [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
   - Prompt 与工作流关系说明
   - 适合查 `plan / draft / review / repair / approve` 的阶段链路、Prompt 结构和共享上下文角色
@@ -31,9 +35,10 @@
 如果你是第一次接触这个项目，建议按下面顺序阅读：
 
 1. [`cli-usage-guide.md`](./cli-usage-guide.md)
-2. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
-3. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
-4. [`engineering-overview.md`](./engineering-overview.md)
+2. [`env-config-guide.md`](./env-config-guide.md)
+3. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+4. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
+5. [`engineering-overview.md`](./engineering-overview.md)
 
 ## 与根文档的关系
 

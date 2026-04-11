@@ -11,11 +11,13 @@
 - [快速开始](#快速开始)
 - [文档索引](docs/README.md)
 - [命令行指南](docs/cli-usage-guide.md)
+- [环境变量配置](docs/env-config-guide.md)
 
 ## 文档导航
 
 - [文档索引](docs/README.md)
 - [命令行使用指南](docs/cli-usage-guide.md)
+- [环境变量配置指南](docs/env-config-guide.md)
 - [Prompt 与工作流关系说明](docs/prompt-retrieval-relationship.md)
 - [召回与打分规则说明](docs/retrieval-scoring-rules.md)
 
@@ -97,28 +99,20 @@ cp .env.example .env
 
 ## 配置
 
-完整示例见 [`.env.example`](./.env.example)。
+完整环境变量模板见 [`.env.example`](./.env.example)。
 
-最常用的最小配置如下：
+更完整的字段说明、provider 配置、日志配置、数据库配置和召回限制配置，请查阅：
 
-```dotenv
-DB_CLIENT=sqlite
-DB_SQLITE_PATH=./data/novel.db
+- [`docs/env-config-guide.md`](docs/env-config-guide.md)
 
-LLM_PROVIDER=mock
-MOCK_LLM_MODE=echo
+如果你只是想本地快速跑通，优先使用：
 
-LOG_LEVEL=info
-LOG_FORMAT=pretty
-LOG_LLM_CONTENT_ENABLED=false
-```
-
-配置说明：
-
-- `DB_CLIENT` 当前支持 `sqlite`，并为未来 `mysql` 预留了接口
-- `LLM_PROVIDER=mock` 适合本地联调、测试、演示
-- `LOG_LLM_CONTENT_ENABLED=true` 时会把 AI 输入输出内容写入日志，默认关闭
-- 使用 `openai`、`anthropic`、`custom` 时，分别补齐对应 API 配置
+- `DB_CLIENT=sqlite`
+- `LLM_PROVIDER=mock`
+- `MOCK_LLM_MODE=echo`
+- `LOG_LEVEL=info`
+- `LOG_FORMAT=pretty`
+- `LOG_LLM_CONTENT_ENABLED=false`
 
 ## 快速开始
 
