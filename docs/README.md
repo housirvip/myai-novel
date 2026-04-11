@@ -15,12 +15,12 @@
   - 适合查安装、配置、数据库初始化、资源管理、章节工作流、Markdown 导入导出
 
 - [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
-  - Prompt 与召回关系说明
-  - 适合查 `plan / draft / review / repair / approve` 的 prompt 结构、召回内容和工作流串联方式
+  - Prompt 与工作流关系说明
+  - 适合查 `plan / draft / review / repair / approve` 的阶段链路、Prompt 结构和共享上下文角色
 
 - [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
   - 召回与打分规则说明
-  - 适合查 `plan` 阶段的召回策略、打分细则、排序规则、示例与相关配置项
+  - 适合查 `plan` 阶段的召回策略、打分细则、排序规则、实体匹配字段与相关配置项
 
 - [`engineering-overview.md`](./engineering-overview.md)
   - 日志、测试与项目结构
