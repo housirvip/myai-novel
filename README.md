@@ -6,6 +6,12 @@
 
 当前 V1 基于 TypeScript、Node.js、SQLite、dotenv 构建，支持 `mock`、`openai`、`anthropic`、`custom` 四种 LLM provider。
 
+## 快速入口
+
+- [快速开始](#快速开始)
+- [文档索引](docs/README.md)
+- [命令行指南](docs/cli-usage-guide.md)
+
 ## 文档导航
 
 - [文档索引](docs/README.md)
