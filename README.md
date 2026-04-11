@@ -6,6 +6,12 @@
 
 当前 V1 基于 TypeScript、Node.js、SQLite、dotenv 构建，支持 `mock`、`openai`、`anthropic`、`custom` 四种 LLM provider。
 
+## 文档导航
+
+- [命令行使用指南](docs/cli-usage-guide.md)
+- [Prompt 与召回关系说明](docs/prompt-retrieval-relationship.md)
+- [召回与打分规则说明](docs/retrieval-scoring-rules.md)
+
 ## 为什么做这个
 
 长篇小说写作里，最容易失控的往往不是“写不出来”，而是：
