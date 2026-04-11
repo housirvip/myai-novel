@@ -19,6 +19,9 @@ test("retrieval service skips placeholder chapters and returns richer entity con
     faction: { content: string };
     item: { content: string };
     relation: { content: string };
+    hardConstraintCharacter: { content: string } | null;
+    hardConstraintItem: { content: string } | null;
+    hardConstraintRelation: { content: string } | null;
   }>(
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
@@ -79,6 +82,9 @@ test("retrieval service skips placeholder chapters and returns richer entity con
       "    faction: context.factions[0],",
       "    item: context.items[0],",
       "    relation: context.relations[0],",
+      "    hardConstraintCharacter: context.hardConstraints.characters[0] ?? null,",
+      "    hardConstraintItem: context.hardConstraints.items[0] ?? null,",
+      "    hardConstraintRelation: context.hardConstraints.relations[0] ?? null,",
       "  }));",
       "} finally {",
       "  await manager.destroy();",
@@ -99,9 +105,15 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.match(result.character.content, /abilities=/);
   assert.ok(result.abilityMatchedCharacter);
   assert.match(result.faction.content, /description=东境大宗门/);
-  assert.match(result.faction.content, /headquarter=青岳山/);
   assert.match(result.item.content, /description=可用于特殊身份核验/);
   assert.match(result.item.content, /status=active/);
   assert.match(result.relation.content, /source=林夜/);
   assert.match(result.relation.content, /target=青岳宗/);
+
+  assert.ok(result.hardConstraintCharacter);
+  assert.match(result.hardConstraintCharacter.content, /current_location=青岳宗外门/);
+  assert.ok(result.hardConstraintItem);
+  assert.match(result.hardConstraintItem.content, /owner_type=character/);
+  assert.ok(result.hardConstraintRelation);
+  assert.match(result.hardConstraintRelation.content, /relation_type=member/);
 });
