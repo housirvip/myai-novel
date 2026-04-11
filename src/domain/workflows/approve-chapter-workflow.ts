@@ -122,6 +122,8 @@ const runApproveWorkflowSchema = z.object({
 export class ApproveChapterWorkflow {
   constructor(private readonly logger: AppLogger) {}
 
+  // approve 是章节工作流的收口阶段：
+  // 先产出可保存的 final 正文，再把正文里的新增/变化事实抽成结构化 diff，最后统一回写数据库。
   async run(
     input: z.input<typeof runApproveWorkflowSchema>,
   ): Promise<{
@@ -192,6 +194,9 @@ export class ApproveChapterWorkflow {
             }),
           });
 
+          // 这里刻意拆成两次模型调用：
+          // 第一次只负责产出最终正文，第二次再基于 final 抽取结构化 diff。
+          // 这样可以把“写作质量”与“结构化回写”分开约束，减少一个 prompt 同时承担两种任务带来的漂移。
           const diffResponse = await llmClient.generate({
             model: payload.model,
             messages: buildApproveDiffPrompt({
@@ -226,6 +231,8 @@ export class ApproveChapterWorkflow {
             };
           }
 
+          // dryRun 只验证模型输出与 diff 结构，不触碰数据库；
+          // 正式提交时才进入事务，确保 final 版本、实体创建/更新、章节指针切换要么一起成功，要么一起回滚。
           return manager.getClient().transaction().execute(async (trx) => {
             const chapterRepository = new ChapterRepository(trx);
             const chapterDraftRepository = new ChapterDraftRepository(trx);
@@ -244,6 +251,8 @@ export class ApproveChapterWorkflow {
               throw new Error(`Chapter not found: book=${payload.bookId}, chapter=${payload.chapterNo}`);
             }
 
+            // 重新读取并校验 current_* pointer，避免在模型生成期间别的操作已经切换了 plan/draft/review。
+            // 一旦 pointer 漂移，这次 approve 就不应继续提交到旧上下文之上。
             assertChapterPointersUnchanged(chapterBeforeCommit, {
               currentPlanId: chapter.current_plan_id,
               currentDraftId: chapter.current_draft_id,

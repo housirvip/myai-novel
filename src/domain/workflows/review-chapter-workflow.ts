@@ -33,6 +33,8 @@ const runReviewWorkflowSchema = z.object({
 export class ReviewChapterWorkflow {
   constructor(private readonly logger: AppLogger) {}
 
+  // review 负责把“草稿是否违反规划和事实边界”转成结构化结果，
+  // 其输出会直接被 repair 使用，因此这里必须维持稳定的 JSON 协议。
   async run(
     input: z.input<typeof runReviewWorkflowSchema>,
   ): Promise<{
@@ -105,6 +107,8 @@ export class ReviewChapterWorkflow {
 
           const timestamp = nowIso();
 
+          // review 版本落库与 current_review_id 切换必须同步提交，
+          // 否则 repair 可能读取到“章节已指向新 review，但 review 行还未落库完成”的中间态。
           return manager.getClient().transaction().execute(async (trx) => {
             const chapterRepository = new ChapterRepository(trx);
             const chapterReviewRepository = new ChapterReviewRepository(trx);

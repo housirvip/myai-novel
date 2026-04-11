@@ -38,12 +38,16 @@ const KEYWORD_LIMITS = {
 } as const;
 
 const ENTITY_SCAN_LIMIT = env.PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT;
+// 实体类召回会先扫一批候选，再做打分与截断；
+// 因此 scan limit 决定的是“候选池大小”，不是最终塞进 prompt 的条数。
 const RECENT_CHAPTER_SCAN_LIMIT =
   env.PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT * env.PLANNING_RETRIEVAL_RECENT_CHAPTER_SCAN_MULTIPLIER;
 
 export class RetrievalQueryService {
   constructor(private readonly logger: AppLogger) {}
 
+  // 这里产出的不是只给 plan 自己看的临时检索结果，
+  // 而是会被固化进 chapter_plans.retrieved_context、并被后续 draft/review/repair/approve 复用的共享上下文。
   async retrievePlanContext(params: RetrievePlanContextParams): Promise<PlanRetrievedContext> {
     return executeDbAction(
       this.logger,
@@ -89,6 +93,8 @@ export class RetrievalQueryService {
           items,
           relations,
           worldSettings,
+          // riskReminders 是面向后续 prompt 的补充提醒，
+          // 用来显式提示未回收钩子、章节连续性风险等信息，但它本身不参与实体打分排序。
           riskReminders: buildRiskReminders({
             hooks,
             recentChapters,

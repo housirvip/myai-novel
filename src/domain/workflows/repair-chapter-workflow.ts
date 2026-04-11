@@ -25,6 +25,7 @@ const runRepairWorkflowSchema = z.object({
 export class RepairChapterWorkflow {
   constructor(private readonly logger: AppLogger) {}
 
+  // repair 不是重新自由创作，而是在既有 plan、当前 draft、当前 review 的共同边界内修复问题。
   async run(
     input: z.input<typeof runRepairWorkflowSchema>,
   ): Promise<{
@@ -108,6 +109,8 @@ export class RepairChapterWorkflow {
           const timestamp = nowIso();
           const wordCount = estimateWordCount(repairResult.content);
 
+          // repair 会生成一个新的 draft 版本，并把章节 current_draft_id 切到新版本；
+          // 因此也需要在提交前确认依赖的 plan/draft/review pointers 没有被并发修改。
           return manager.getClient().transaction().execute(async (trx) => {
             const chapterRepository = new ChapterRepository(trx);
             const chapterDraftRepository = new ChapterDraftRepository(trx);

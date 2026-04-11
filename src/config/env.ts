@@ -5,6 +5,8 @@ import { z } from "zod";
 
 dotenv.config();
 
+// 用 zod 在进程启动阶段一次性完成环境变量校验与默认值填充，
+// 可以把 provider、日志、planning limit 的错误尽早暴露，而不是拖到运行时某个工作流里才报错。
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
@@ -52,6 +54,7 @@ const parsedEnv = envSchema.parse(process.env);
 
 export const env = {
   ...parsedEnv,
+  // 统一在配置层把相对路径转成绝对路径，避免后续 logger、db、fixture 读取时受当前工作目录影响。
   LOG_DIR: path.resolve(parsedEnv.LOG_DIR),
   DB_SQLITE_PATH: path.resolve(parsedEnv.DB_SQLITE_PATH),
   MOCK_LLM_FIXTURE_PATH: parsedEnv.MOCK_LLM_FIXTURE_PATH

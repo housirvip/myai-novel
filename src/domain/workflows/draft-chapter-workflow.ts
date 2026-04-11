@@ -25,6 +25,8 @@ const runDraftWorkflowSchema = z.object({
 export class DraftChapterWorkflow {
   constructor(private readonly logger: AppLogger) {}
 
+  // draft 不会重新做数据库召回，而是直接复用 current plan 中已经固化的 retrieved_context。
+  // 这样可以保证 plan 与 draft 使用同一套事实边界，避免多次生成时上下文漂移。
   async run(
     input: z.input<typeof runDraftWorkflowSchema>,
   ): Promise<{
@@ -89,6 +91,8 @@ export class DraftChapterWorkflow {
           const timestamp = nowIso();
           const wordCount = estimateWordCount(draftResult.content);
 
+          // 在真正写入新 draft 前再次校验章节 pointers，
+          // 防止模型生成期间 plan/draft/review 已被其他操作切换。
           return manager.getClient().transaction().execute(async (trx) => {
             const chapterRepository = new ChapterRepository(trx);
             const chapterDraftRepository = new ChapterDraftRepository(trx);

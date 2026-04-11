@@ -72,6 +72,8 @@ function buildOpenAiMessages(
   messages: LlmMessage[],
   responseFormat: LlmGenerateParams["responseFormat"],
 ): Array<{ role: string; content: string }> {
+  // OpenAI 兼容接口通常更稳定地遵循 system 指令，
+  // 因此这里把 JSON 约束附加到 system message。
   if (responseFormat !== "json") {
     return messages;
   }

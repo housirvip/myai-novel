@@ -10,6 +10,8 @@ export function parseStoredJson(value: string | null): unknown {
   try {
     return JSON.parse(value);
   } catch {
+    // 历史数据或异常写入不应直接让后续工作流在解析阶段崩溃；
+    // 对调用方来说，无法解析时按“无可用结构化上下文”处理更安全。
     return undefined;
   }
 }
@@ -67,6 +69,8 @@ export function assertChapterPointersUnchanged(
     currentReviewId?: number | null;
   },
 ): void {
+  // 模型生成和事务提交之间存在时间窗口；
+  // 如果章节 current_* pointer 在这段时间里被别的操作切换，就必须中止提交，避免把新版本叠在旧上下文上。
   if (
     expected.currentPlanId !== undefined &&
     chapter.current_plan_id !== expected.currentPlanId

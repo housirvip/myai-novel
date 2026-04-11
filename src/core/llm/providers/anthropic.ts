@@ -26,6 +26,8 @@ export class AnthropicLlmClient implements LlmClient {
     }
 
     return withLlmLogging(this.logger, "anthropic", model, params, async () => {
+      // Anthropic 接口把 system 与 messages 明确拆开，
+      // 为了尽量贴近真实对话上下文，这里把 JSON 约束追加到 conversation messages 末尾，而不是并入统一 system 文本。
       const systemMessages = params.messages.filter((message) => message.role === "system");
       const conversationMessages = appendJsonInstruction(
         params.messages.filter((message) => message.role !== "system"),
@@ -92,6 +94,8 @@ function appendJsonInstruction(
     return messages;
   }
 
+  // 这里使用 user message 而不是 system message，
+  // 是为了与上面的 Anthropic 请求结构保持一致：system 单独聚合，输出格式约束则作为会话末尾的显式要求追加。
   return [
     ...messages,
     {

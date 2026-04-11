@@ -74,6 +74,8 @@ function buildCustomMessages(
   messages: LlmMessage[],
   responseFormat: LlmGenerateParams["responseFormat"],
 ): Array<{ role: string; content: string }> {
+  // custom provider 走的是 OpenAI 兼容 chat/completions 形态，
+  // 因此这里沿用与 OpenAI 相同的策略：把 JSON 输出约束追加到 system message。
   if (responseFormat !== "json") {
     return messages;
   }

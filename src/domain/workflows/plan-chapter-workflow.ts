@@ -32,6 +32,8 @@ const runPlanWorkflowSchema = planInputSchema.extend({
 export class PlanChapterWorkflow {
   constructor(private readonly logger: AppLogger) {}
 
+  // plan 阶段会先准备一份轻量上下文，再决定是否需要让模型补全作者意图。
+  // 这样做的目的不是提前做完整召回，而是避免模型在毫无上下文的情况下生成偏题意图。
   async run(
     input: z.input<typeof runPlanWorkflowSchema>,
   ): Promise<{
@@ -66,6 +68,8 @@ export class PlanChapterWorkflow {
           manualRefs: payload.manualEntityRefs,
         });
 
+        // 如果用户已经明确给出 authorIntent，就直接沿用用户输入；
+        // 否则才用“轻量上下文”生成一版意图草案，避免无关设定过早干扰意图提炼。
         const authorIntent =
           payload.authorIntent ??
           (
@@ -92,6 +96,8 @@ export class PlanChapterWorkflow {
         const extractedIntent = extractedIntentSchema.parse(parseLooseJson(keywordResult.content));
         const intentConstraints = toIntentConstraints(extractedIntent);
 
+        // 第二次召回才是后续写作阶段真正共享的事实边界：
+        // 这里把意图提取出的 keywords 和手工指定实体一起纳入，生成会被固化到 plan 的 retrievedContext。
         const retrievedContext = await retrievalService.retrievePlanContext({
           bookId: payload.bookId,
           chapterNo: payload.chapterNo,
@@ -124,6 +130,8 @@ export class PlanChapterWorkflow {
 
             const versionNo = (await chapterPlanRepository.getLatestVersionNo(chapter.id)) + 1;
             const timestamp = nowIso();
+            // plan 内容、retrieved_context 和 current_plan_id 必须在同一事务里提交，
+            // 否则后续 draft/review 可能读到“章节指针已切换，但 plan 正文或上下文未落库完成”的中间态。
             const created = await chapterPlanRepository.create({
               book_id: payload.bookId,
               chapter_id: chapter.id,
