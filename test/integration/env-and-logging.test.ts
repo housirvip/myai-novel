@@ -111,7 +111,7 @@ test("database manager creates mysql client and destroys pool", async () => {
     connectionLimit: number;
   }>(
     [
-      "const mysql = await import('mysql2/promise');",
+      "const mysql = await import('mysql2');",
       "const mysqlModule = mysql.default ?? mysql;",
       "const originalCreatePool = mysqlModule.createPool;",
       "let capturedConfig = null;",

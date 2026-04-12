@@ -164,7 +164,7 @@
 ### P2-7. MySQL 测试环境与验证
 - [x] 准备本地或 CI MySQL 实例
 - [x] 定义测试数据库初始化方式
-- [ ] 定义测试后清理方式
+- [x] 定义测试后清理方式
 - [x] 增加 MySQL 配置解析测试
 - [x] 增加 MySQL client 创建测试
 - [x] 增加 MySQL migration 测试
@@ -177,7 +177,7 @@
 **完成定义**
 - [x] `DB_CLIENT=mysql` 可正常初始化、迁移、运行 workflow
 - [~] SQLite 与 MySQL 下核心链路行为一致
-- [ ] 默认 SQLite 开发体验不变
+- [x] 默认 SQLite 开发体验不变
 
 ---
 
@@ -220,7 +220,7 @@
 - [ ] 高风险连续性项能稳定进入约束层
 - [x] `DB_CLIENT=mysql` 可正常初始化、迁移、运行 workflow
 - [~] SQLite 与 MySQL 下核心链路行为一致
-- [ ] 默认 SQLite 开发体验不变
+- [x] 默认 SQLite 开发体验不变
 - [x] 默认规则式召回行为仍可用，不依赖 rerank / embedding
 - [ ] 文档已覆盖新配置、新流程和新约束
 - [x] 核心新增逻辑已有必要中文注释

@@ -1,4 +1,4 @@
-import { Kysely, MysqlDialect } from "kysely";
+import { Kysely, MysqlDialect, type Dialect } from "kysely";
 import mysql from "mysql2";
 
 import { env } from "../../../config/env.js";
@@ -19,7 +19,7 @@ export function createMysqlDb(): Kysely<DatabaseSchema> {
 
   return new Kysely<DatabaseSchema>({
     dialect: new MysqlDialect({
-      pool,
-    }),
+      pool: pool as any,
+    }) as unknown as Dialect,
   });
 }
