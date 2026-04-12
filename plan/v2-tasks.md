@@ -194,7 +194,7 @@
 - [x] 记录未来实验需要的输入输出格式
 
 ### P3-2. 文档更新
-- [ ] 更新 `README.md`
+- [x] 更新 `README.md`
 - [x] 更新 `docs/env-config-guide.md`
 - [x] 更新 `docs/prompt-retrieval-relationship.md`
 - [x] 更新 `docs/retrieval-scoring-rules.md`
@@ -202,13 +202,13 @@
 - [x] 在 `docs` 中补充 MySQL 使用说明（如有必要）
 
 ### P3-3. 注释与维护性收尾
-- [ ] 保持已补充中文注释的文件风格一致
-- [ ] 新增 V2 代码时同步补充关键中文注释
-- [ ] 避免逐行翻译式注释
+- [x] 保持已补充中文注释的文件风格一致
+- [x] 新增 V2 代码时同步补充关键中文注释
+- [x] 避免逐行翻译式注释
 
 **完成定义**
 - [x] 默认规则式召回行为仍可用，不依赖 rerank / embedding
-- [ ] 文档已覆盖新配置、新流程和新约束
+- [x] 文档已覆盖新配置、新流程和新约束
 - [x] 核心新增逻辑已有必要中文注释
 
 ---
@@ -217,10 +217,10 @@
 
 - [x] `retrievedContext` 已完成分层
 - [x] `draft / review / approve diff` 已使用阶段化上下文视图
-- [ ] 高风险连续性项能稳定进入约束层
+- [x] 高风险连续性项能稳定进入约束层
 - [x] `DB_CLIENT=mysql` 可正常初始化、迁移、运行 workflow
 - [~] SQLite 与 MySQL 下核心链路行为一致
 - [x] 默认 SQLite 开发体验不变
 - [x] 默认规则式召回行为仍可用，不依赖 rerank / embedding
-- [ ] 文档已覆盖新配置、新流程和新约束
+- [x] 文档已覆盖新配置、新流程和新约束
 - [x] 核心新增逻辑已有必要中文注释

@@ -50,6 +50,11 @@ npm test
 - `parseLooseJson`
 - mock 工作流全链路
 - Markdown 导入导出版本化
+- MySQL 配置解析与 client 创建
+- MySQL `db init` / `db check`
+- MySQL `plan -> draft -> review -> repair -> approve` 全链路
+- MySQL `chapter export/import`
+- 召回质量与阶段化 prompt 长度回归
 
 ## 3. 项目结构
 
@@ -63,25 +68,45 @@ src/
   domain/             业务 service、planning、workflow
   shared/utils/       公共工具
 test/                 单元测试与集成测试
-plan/                 V1 方案与 checklist
+plan/                 V2 方案与 checklist
 examples/             示例脚本
 ```
 
+其中与 V2 最相关的目录包括：
+
+- `src/domain/planning/`
+  - `prompts.ts`：各阶段 prompt 构建
+  - `context-views.ts`：阶段化上下文视图
+  - `retrieval-ranking.ts`：规则打分与 explainability
+  - `retrieval-pipeline.ts`：候选提供与 rerank 预留接口
+  - `retrieval-service.ts`：当前默认规则召回主链
+- `src/core/db/`
+  - `dialects/sqlite.ts`
+  - `dialects/mysql.ts`
+  - `migrations/initial.ts`
+- `test/integration/`
+  - SQLite 章节工作流与 Markdown 测试
+  - MySQL 真实端到端 workflow 测试
+
 ## 4. 当前状态
 
-V1 已完成核心目标：
+V2 当前状态：
 
 - 核心表结构与迁移
 - 资源 CRUD CLI
 - 章节工作流全链路
+- 分层召回与阶段化上下文视图
 - 正式稿版本化
 - 结构化事实回写
 - Markdown 导入导出
-- 测试基线
+- SQLite / MySQL 双方言主链验证
+- rerank / embedding 接口预留
+- 自动化测试基线
 
 如果你想继续往下扩展，下一阶段比较自然的方向通常是：
 
-- 向量召回 / RAG
+- embedding 候选召回 / RAG
+- 业务层 rerank 实验
 - 更强的关系演化建模
 - 冲突检测与设定一致性审计
 - 批量章节工作流

@@ -4,7 +4,7 @@
 
 它把“设定管理 + 章节工作流 + 事实回写”放进一套本地优先的命令行系统里，适合用来持续维护长篇、网文、系列小说的写作上下文。
 
-当前 V1 基于 TypeScript、Node.js、SQLite、dotenv 构建，支持 `mock`、`openai`、`anthropic`、`custom` 四种 LLM provider。
+当前 V2 基于 TypeScript、Node.js、SQLite / MySQL、dotenv 构建，支持 `mock`、`openai`、`anthropic`、`custom` 四种 LLM provider。
 
 ## 快速入口
 
@@ -20,6 +20,7 @@
 - [环境变量配置指南](docs/env-config-guide.md)
 - [Prompt 与工作流关系说明](docs/prompt-retrieval-relationship.md)
 - [召回与打分规则说明](docs/retrieval-scoring-rules.md)
+- [工程总览](docs/engineering-overview.md)
 
 ## 为什么做这个
 
@@ -36,10 +37,57 @@
 
 - 资源管理：`book`、`outline`、`world`、`character`、`faction`、`relation`、`item`、`hook`、`chapter`
 - 章节流水线：`plan -> draft -> review -> repair -> approve`
-- 召回机制：基于作者意图、近期大纲、前文章节、手工指定实体 ID 做上下文召回
+- 召回机制：基于作者意图、近期大纲、前文章节、手工指定实体 ID 做规则式上下文召回
+- 阶段化上下文：`retrievedContext` 拆分为 `hardConstraints`、`softReferences`、`riskReminders`
 - 事实回写：`approve` 后把人物、势力、关系、物品、钩子、世界设定的变更回灌到设定库
 - Markdown 编辑：支持导出 `plan / draft / final` 为 Markdown，再导入生成新版本
+- 数据库支持：默认 SQLite，本地开发体验不变；同时支持 `DB_CLIENT=mysql`
+- 扩展预留：已为 `RetrievalCandidateProvider` / `RetrievalReranker` 留出接口，不改变默认规则召回行为
 - 日志体系：记录数据表 CRUD、工作流耗时、LLM 调用耗时、成功与否，AI 输入输出可选记录
+
+## V2 重点变化
+
+### 1. `retrievedContext` 不再是扁平召回结果
+
+V2 把章节规划阶段保存的上下文拆成三层：
+
+- `hardConstraints`：容易写错且会直接破坏连续性的硬约束
+- `softReferences`：可供不同阶段继续裁剪的完整召回结果
+- `riskReminders`：提示模型优先关注连续性高风险点
+
+这意味着：
+
+- `draft` 会优先消费强约束上下文
+- `review` 和 `approve` 会用更轻量的上下文视图减少噪声
+- `plan` 固化下来的上下文仍然是全流程共享基线
+
+### 2. MySQL 已成为正式支持目标
+
+V2 不是只在配置里预留 `mysql`，而是已经支持：
+
+- `DB_CLIENT=mysql` 启动
+- `db init` / `db check`
+- `plan -> draft -> review -> repair -> approve`
+- `chapter export/import`
+
+默认本地开发仍建议使用：
+
+- `DB_CLIENT=sqlite`
+- `LLM_PROVIDER=mock`
+
+### 3. 召回扩展接口已预留，但默认行为不变
+
+当前默认仍是：
+
+- 规则式候选召回
+- 直接按现有业务规则排序与截断
+
+但 `src/domain/planning/retrieval-pipeline.ts` 已预留：
+
+- `RetrievalCandidateProvider`
+- `RetrievalReranker`
+
+后续如果要接 embedding 或 rerank 实验，可以在不重写 workflow 的前提下挂到这两层接口。
 
 ## V1 里最重要的设计
 
@@ -114,6 +162,19 @@ cp .env.example .env
 - `LOG_FORMAT=pretty`
 - `LOG_LLM_CONTENT_ENABLED=false`
 
+如果你要切到 MySQL，至少需要：
+
+- `DB_CLIENT=mysql`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USER`
+- `DB_PASSWORD`
+
+完整字段说明见：
+
+- [`docs/env-config-guide.md`](docs/env-config-guide.md)
+
 ## 快速开始
 
 初始化数据库：
@@ -151,19 +212,21 @@ npm run dev -- approve --book 1 --chapter 1 --provider mock
 
 ## 当前状态
 
-V1 已完成核心目标：
+V2 当前已完成的主线能力：
 
 - 核心表结构与迁移
 - 资源 CRUD CLI
 - 章节工作流全链路
+- 分层召回与阶段化上下文视图
 - 正式稿版本化
 - 结构化事实回写
 - Markdown 导入导出
-- 测试基线
+- SQLite 与 MySQL 主链验证
+- 自动化测试基线
 
 下一阶段比较自然的方向通常是：
 
-- 向量召回 / RAG
+- embedding 候选召回 / rerank 实验
 - 更强的关系演化建模
 - 冲突检测与设定一致性审计
 - 批量章节工作流
