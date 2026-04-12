@@ -60,7 +60,13 @@ test("draft prompt treats retrieved context as hard constraints", () => {
       mustAvoid: ["主角无代价通关"],
     },
     retrievedContext: {
-      riskReminders: ["注意不要违反宗门制度"],
+      hardConstraints: {
+        characters: [{ id: 1, name: "林夜", content: "current_location=青岳宗外门" }],
+      },
+      riskReminders: [
+        "注意人物当前位置连续性，避免人物在没有过渡的情况下突然更换场景。",
+        "注意关键物品的持有者与状态连续性，避免无交代易主、失踪或突然恢复。",
+      ],
       characters: [{ id: 1, name: "林夜", content: "personality=冷静谨慎" }],
     },
   });
@@ -69,7 +75,8 @@ test("draft prompt treats retrieved context as hard constraints", () => {
   assert.match(messages[1]?.content ?? "", /召回上下文（必须严格参考）/);
   assert.match(messages[1]?.content ?? "", /意图约束：/);
   assert.match(messages[1]?.content ?? "", /黑铁令异常反应/);
-  assert.match(messages[1]?.content ?? "", /风险提醒/);
+  assert.match(messages[1]?.content ?? "", /人物当前位置连续性/);
+  assert.match(messages[1]?.content ?? "", /关键物品的持有者与状态连续性/);
   assert.match(messages[1]?.content ?? "", /只输出完整章节草稿正文/);
 });
 

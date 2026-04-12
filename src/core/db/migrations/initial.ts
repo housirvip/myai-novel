@@ -1,5 +1,6 @@
 import { sql, type Kysely } from "kysely";
 
+import { env } from "../../../config/env.js";
 import type { AppLogger } from "../../logger/index.js";
 import { withTimingLog } from "../../logger/index.js";
 import type { DatabaseSchema } from "../schema/database.js";
@@ -680,10 +681,26 @@ async function addColumnIfMissing(
   try {
     await sql.raw(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`).execute(database);
   } catch (error) {
-    if (error instanceof Error && error.message.includes(`duplicate column name: ${columnName}`)) {
+    if (isDuplicateColumnError(error, columnName)) {
       return;
     }
 
     throw error;
   }
+}
+
+function isDuplicateColumnError(error: unknown, columnName: string): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (error.message.includes(`duplicate column name: ${columnName}`)) {
+    return true;
+  }
+
+  if (env.DB_CLIENT === "mysql") {
+    return error.message.includes("Duplicate column name") || error.message.includes("ER_DUP_FIELDNAME");
+  }
+
+  return false;
 }

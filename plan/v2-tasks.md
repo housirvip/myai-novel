@@ -19,7 +19,7 @@
 ### P0-1. 冻结 V2 主线范围
 - [ ] 确认 V2 主优先级为“召回升级 > MySQL 支持 > rerank 预留”
 - [ ] 确认 V2 暂不纳入 Web UI、多用户、权限系统
-- [ ] 记录当前 SQLite 全链路回归命令
+- [x] 记录当前 SQLite 全链路回归命令
 
 ### P0-2. 设计新的 `retrievedContext` 结构
 - [ ] 盘点当前 `PlanRetrievedContext` 的字段与使用位置
@@ -65,16 +65,16 @@
 - [x] 依赖 P0-4 完成
 
 ### P0-6. SQLite 回归验证
-- [ ] 运行 `npm run check`
-- [ ] 运行 `npm run build`
-- [ ] 运行 `npm test`
-- [ ] 跑通最小 CLI 工作流
+- [x] 运行 `npm run check`
+- [x] 运行 `npm run build`
+- [x] 运行 `npm test`
+- [x] 跑通最小 CLI 工作流
 
 **完成定义**
 - [x] `retrievedContext` 已完成分层
 - [x] `draft / review / approve diff` 已使用阶段化上下文视图
 - [x] 不重新做数据库召回
-- [ ] SQLite 默认行为无回退
+- [x] SQLite 默认行为无回退
 
 ---
 
@@ -124,49 +124,49 @@
 > 目标：让当前 SQLite 业务链路在 MySQL 下等价可运行，而不是引入 MySQL 专属能力。
 
 ### P2-1. MySQL 技术选型
-- [ ] 确认 Kysely MySQL 方案
-- [ ] 确认驱动库
-- [ ] 确认连接池关闭策略
-- [ ] 确认 migration 在 MySQL 下的运行方式
+- [x] 确认 Kysely MySQL 方案
+- [x] 确认驱动库
+- [x] 确认连接池关闭策略
+- [~] 确认 migration 在 MySQL 下的运行方式
 
 ### P2-2. 环境变量与配置扩展
-- [ ] 更新 `.env.example`
-- [ ] 更新 `src/config/env.ts`
-- [ ] 增加 MySQL 连接项：`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`
-- [ ] 增加连接池配置：`DB_POOL_MIN`、`DB_POOL_MAX`
-- [ ] 明确 SQLite / MySQL 的默认行为
+- [x] 更新 `.env.example`
+- [x] 更新 `src/config/env.ts`
+- [x] 增加 MySQL 连接项：`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`
+- [x] 增加连接池配置：`DB_POOL_MIN`、`DB_POOL_MAX`
+- [x] 明确 SQLite / MySQL 的默认行为
 
 ### P2-3. 实现 MySQL dialect
-- [ ] 完成 `src/core/db/dialects/mysql.ts`
-- [ ] 创建 Kysely MySQL dialect
-- [ ] 支持连接池释放
-- [ ] 保持与 `createSqliteDb()` 一致的接口形态
+- [x] 完成 `src/core/db/dialects/mysql.ts`
+- [x] 创建 Kysely MySQL dialect
+- [x] 支持连接池释放
+- [x] 保持与 `createSqliteDb()` 一致的接口形态
 
 ### P2-4. 扩展 DatabaseManager
-- [ ] 更新 `src/core/db/client.ts`
-- [ ] 根据 `env.DB_CLIENT` 路由到 sqlite / mysql
-- [ ] 保留 sqlite 作为默认本地方案
-- [ ] MySQL 下输出必要连接日志
+- [x] 更新 `src/core/db/client.ts`
+- [x] 根据 `env.DB_CLIENT` 路由到 sqlite / mysql
+- [x] 保留 sqlite 作为默认本地方案
+- [x] MySQL 下输出必要连接日志
 
 ### P2-5. Migration 兼容性检查
-- [ ] 检查所有 migration 是否依赖 SQLite 特性
-- [ ] 检查主键、自增、默认值、时间字段兼容性
+- [x] 检查所有 migration 是否依赖 SQLite 特性
+- [~] 检查主键、自增、默认值、时间字段兼容性
 - [ ] 检查唯一约束与索引在 MySQL 下的可用性
-- [ ] 检查 JSON 文本字段策略是否仍然成立
-- [ ] 必要时修正 migration 写法
+- [x] 检查 JSON 文本字段策略是否仍然成立
+- [x] 必要时修正 migration 写法
 
 ### P2-6. Repository / Workflow 方言兼容性核查
-- [ ] 检查 Repository 查询是否使用 SQLite 特有语法
+- [x] 检查 Repository 查询是否使用 SQLite 特有语法
 - [ ] 检查 transaction 语义是否在 MySQL 下保持一致
-- [ ] 检查版本号生成与 pointer 更新逻辑是否稳定
-- [ ] 检查 JSON 序列化/反序列化路径是否无方言耦合
+- [x] 检查版本号生成与 pointer 更新逻辑是否稳定
+- [x] 检查 JSON 序列化/反序列化路径是否无方言耦合
 
 ### P2-7. MySQL 测试环境与验证
 - [ ] 准备本地或 CI MySQL 实例
 - [ ] 定义测试数据库初始化方式
 - [ ] 定义测试后清理方式
-- [ ] 增加 MySQL 配置解析测试
-- [ ] 增加 MySQL client 创建测试
+- [x] 增加 MySQL 配置解析测试
+- [x] 增加 MySQL client 创建测试
 - [ ] 增加 MySQL migration 测试
 - [ ] 增加 MySQL 下 `plan -> draft -> review -> repair -> approve` 端到端测试
 - [ ] 增加 MySQL 下 `chapter export/import` 测试
@@ -199,7 +199,7 @@
 - [x] 更新 `docs/prompt-retrieval-relationship.md`
 - [x] 更新 `docs/retrieval-scoring-rules.md`
 - [x] 更新 `docs/engineering-overview.md`
-- [ ] 在 `docs` 中补充 MySQL 使用说明（如有必要）
+- [x] 在 `docs` 中补充 MySQL 使用说明（如有必要）
 
 ### P3-3. 注释与维护性收尾
 - [ ] 保持已补充中文注释的文件风格一致

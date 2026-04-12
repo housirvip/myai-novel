@@ -1,6 +1,7 @@
 import type { Insertable, Kysely, Selectable, Updateable } from "kysely";
 
 import type { DatabaseSchema } from "../schema/database.js";
+import { insertAndFetchById, updateAndFetchById } from "./helpers.js";
 
 export type WorldSettingRow = Selectable<DatabaseSchema["world_settings"]>;
 export type NewWorldSettingRow = Insertable<DatabaseSchema["world_settings"]>;
@@ -10,11 +11,11 @@ export class WorldSettingRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
 
   async create(input: NewWorldSettingRow): Promise<WorldSettingRow> {
-    return this.db
-      .insertInto("world_settings")
-      .values(input)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    return insertAndFetchById({
+      db: this.db,
+      table: "world_settings",
+      values: input,
+    });
   }
 
   async listByBookId(
@@ -46,12 +47,12 @@ export class WorldSettingRepository {
     id: number,
     input: WorldSettingUpdateRow,
   ): Promise<WorldSettingRow | undefined> {
-    return this.db
-      .updateTable("world_settings")
-      .set(input)
-      .where("id", "=", id)
-      .returningAll()
-      .executeTakeFirst();
+    return updateAndFetchById({
+      db: this.db,
+      table: "world_settings",
+      id,
+      values: input,
+    });
   }
 
   async deleteById(id: number): Promise<boolean> {

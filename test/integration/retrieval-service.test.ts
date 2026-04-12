@@ -19,9 +19,12 @@ test("retrieval service skips placeholder chapters and returns richer entity con
     faction: { content: string };
     item: { content: string };
     relation: { content: string };
+    hardConstraintHook: { content: string } | null;
     hardConstraintCharacter: { content: string } | null;
     hardConstraintItem: { content: string } | null;
     hardConstraintRelation: { content: string } | null;
+    hardConstraintWorldSetting: { content: string } | null;
+    riskReminders: string[];
   }>(
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
@@ -59,6 +62,9 @@ test("retrieval service skips placeholder chapters and returns richer entity con
       "  await db.insertInto('relations').values({",
       "    id: 1, book_id: 1, source_type: 'character', source_id: 1, target_type: 'faction', target_id: 1, relation_type: 'member', intensity: 60, status: 'active', description: '林夜已经进入青岳宗外门', append_notes: '关系刚建立', keywords: '[\"林夜\",\"青岳宗\",\"外门\"]', created_at: now, updated_at: now,",
       "  }).execute();",
+      "  await db.insertInto('story_hooks').values({",
+      "    id: 1, book_id: 1, title: '黑铁令身份核验', hook_type: '伏笔', description: '执事会对黑铁令来源起疑', source_chapter_no: 2, target_chapter_no: 5, status: 'open', importance: 'high', append_notes: '第五章必须承接', keywords: '[\"黑铁令\",\"执事\"]', created_at: now, updated_at: now,",
+      "  }).execute();",
       "  await db.insertInto('world_settings').values({",
       "    id: 1, book_id: 1, title: '宗门制度', category: '规则', content: '外门弟子凭令牌登记入门', status: 'active', append_notes: null, keywords: '[\"宗门\",\"令牌\"]', created_at: now, updated_at: now,",
       "  }).execute();",
@@ -66,7 +72,7 @@ test("retrieval service skips placeholder chapters and returns richer entity con
       "  const context = await service.retrievePlanContext({",
       "    bookId: 1,",
       "    chapterNo: 5,",
-      "    keywords: ['林夜', '青岳宗', '黑铁令'],",
+      "    keywords: ['林夜', '青岳宗', '黑铁令', '令牌'],",
       "    manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] },",
       "  });",
       "  const abilityContext = await service.retrievePlanContext({",
@@ -82,9 +88,12 @@ test("retrieval service skips placeholder chapters and returns richer entity con
       "    faction: context.factions[0],",
       "    item: context.items[0],",
       "    relation: context.relations[0],",
+      "    hardConstraintHook: context.hardConstraints.hooks[0] ?? null,",
       "    hardConstraintCharacter: context.hardConstraints.characters[0] ?? null,",
       "    hardConstraintItem: context.hardConstraints.items[0] ?? null,",
       "    hardConstraintRelation: context.hardConstraints.relations[0] ?? null,",
+      "    hardConstraintWorldSetting: context.hardConstraints.worldSettings[0] ?? null,",
+      "    riskReminders: context.riskReminders,",
       "  }));",
       "} finally {",
       "  await manager.destroy();",
@@ -110,10 +119,19 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.match(result.relation.content, /source=林夜/);
   assert.match(result.relation.content, /target=青岳宗/);
 
+  assert.ok(result.hardConstraintHook);
+  assert.match(result.hardConstraintHook.content, /target_chapter_no=5/);
   assert.ok(result.hardConstraintCharacter);
   assert.match(result.hardConstraintCharacter.content, /current_location=青岳宗外门/);
   assert.ok(result.hardConstraintItem);
   assert.match(result.hardConstraintItem.content, /owner_type=character/);
   assert.ok(result.hardConstraintRelation);
   assert.match(result.hardConstraintRelation.content, /relation_type=member/);
+  assert.ok(result.hardConstraintWorldSetting);
+  assert.match(result.hardConstraintWorldSetting.content, /category=规则/);
+
+  assert.ok(result.riskReminders.some((item) => item.includes("接近回收节点的重要钩子")));
+  assert.ok(result.riskReminders.some((item) => item.includes("人物当前位置连续性")));
+  assert.ok(result.riskReminders.some((item) => item.includes("关键物品的持有者与状态连续性")));
+  assert.ok(result.riskReminders.some((item) => item.includes("已激活的世界规则")));
 });

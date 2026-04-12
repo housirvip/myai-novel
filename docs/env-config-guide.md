@@ -146,7 +146,7 @@ DB_CLIENT=sqlite
 - `sqlite`
 - `mysql`
 
-但从当前项目文档和用法看，主要使用的是 `sqlite`。
+当前默认仍然是 `sqlite`，但 V2 已补齐 MySQL 的基础配置入口、dialect 创建和 client 路由。
 
 ### `DB_SQLITE_PATH`
 
@@ -157,6 +157,37 @@ DB_SQLITE_PATH=./data/novel.db
 ```
 
 本地开发建议保持默认相对路径，便于直接运行。
+
+### MySQL 连接配置
+
+当 `DB_CLIENT=mysql` 时，使用以下配置：
+
+```dotenv
+DB_CLIENT=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=myai_novel
+DB_USER=root
+DB_PASSWORD=
+DB_POOL_MIN=0
+DB_POOL_MAX=10
+```
+
+含义：
+
+- `DB_HOST`：MySQL 主机地址
+- `DB_PORT`：MySQL 端口
+- `DB_NAME`：数据库名
+- `DB_USER`：用户名
+- `DB_PASSWORD`：密码
+- `DB_POOL_MIN`：预留的最小连接池配置项
+- `DB_POOL_MAX`：连接池最大连接数
+
+说明：
+
+- 本地开发默认仍建议先用 `sqlite`
+- MySQL 主要用于部署或验证跨方言兼容性
+- 当前已支持 `db check` 和 client 创建；完整 migration / workflow 端到端验证仍建议结合真实 MySQL 实例执行
 
 ## 6. LLM provider 配置
 

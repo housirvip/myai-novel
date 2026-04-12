@@ -1,6 +1,7 @@
 import { sql, type Insertable, type Kysely, type Selectable } from "kysely";
 
 import type { DatabaseSchema } from "../schema/database.js";
+import { insertAndFetchById } from "./helpers.js";
 
 export type ChapterPlanRow = Selectable<DatabaseSchema["chapter_plans"]>;
 export type NewChapterPlanRow = Insertable<DatabaseSchema["chapter_plans"]>;
@@ -9,11 +10,11 @@ export class ChapterPlanRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
 
   async create(input: NewChapterPlanRow): Promise<ChapterPlanRow> {
-    return this.db
-      .insertInto("chapter_plans")
-      .values(input)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    return insertAndFetchById({
+      db: this.db,
+      table: "chapter_plans",
+      values: input,
+    });
   }
 
   async getById(id: number): Promise<ChapterPlanRow | undefined> {

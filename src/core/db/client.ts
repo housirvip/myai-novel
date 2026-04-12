@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 
 import { env } from "../../config/env.js";
 import type { AppLogger } from "../logger/index.js";
+import { createMysqlDb } from "./dialects/mysql.js";
 import { createSqliteDb } from "./dialects/sqlite.js";
 import { migrateToLatest } from "./migrations/initial.js";
 import type { DatabaseSchema } from "./schema/database.js";
@@ -21,16 +22,28 @@ export function createDatabaseManager(logger: AppLogger): DatabaseManager {
         return client;
       }
 
-      if (env.DB_CLIENT !== "sqlite") {
-        throw new Error(`Unsupported DB client for now: ${env.DB_CLIENT}`);
+      if (env.DB_CLIENT === "sqlite") {
+        client = createSqliteDb();
+        logger.debug(
+          {
+            event: "db.client.created",
+            dbClient: env.DB_CLIENT,
+            sqlitePath: env.DB_SQLITE_PATH,
+          },
+          "Database client created",
+        );
+        return client;
       }
 
-      client = createSqliteDb();
+      client = createMysqlDb();
       logger.debug(
         {
           event: "db.client.created",
           dbClient: env.DB_CLIENT,
-          sqlitePath: env.DB_SQLITE_PATH,
+          mysqlHost: env.DB_HOST,
+          mysqlPort: env.DB_PORT,
+          mysqlDatabase: env.DB_NAME,
+          mysqlUser: env.DB_USER,
         },
         "Database client created",
       );

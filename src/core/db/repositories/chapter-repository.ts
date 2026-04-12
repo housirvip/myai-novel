@@ -1,6 +1,7 @@
 import type { Insertable, Kysely, Selectable, Updateable } from "kysely";
 
 import type { DatabaseSchema } from "../schema/database.js";
+import { insertAndFetchById } from "./helpers.js";
 
 export type ChapterRow = Selectable<DatabaseSchema["chapters"]>;
 export type NewChapterRow = Insertable<DatabaseSchema["chapters"]>;
@@ -10,11 +11,11 @@ export class ChapterRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
 
   async create(input: NewChapterRow): Promise<ChapterRow> {
-    return this.db
-      .insertInto("chapters")
-      .values(input)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    return insertAndFetchById({
+      db: this.db,
+      table: "chapters",
+      values: input,
+    });
   }
 
   async listByBookId(bookId: number, limit = 50, status?: string): Promise<ChapterRow[]> {
@@ -51,13 +52,18 @@ export class ChapterRepository {
     chapterNo: number,
     input: ChapterUpdateRow,
   ): Promise<ChapterRow | undefined> {
-    return this.db
+    const result = await this.db
       .updateTable("chapters")
       .set(input)
       .where("book_id", "=", bookId)
       .where("chapter_no", "=", chapterNo)
-      .returningAll()
       .executeTakeFirst();
+
+    if (Number(result.numUpdatedRows) === 0) {
+      return undefined;
+    }
+
+    return this.getByBookAndChapterNo(bookId, chapterNo);
   }
 
   async deleteByBookAndChapterNo(bookId: number, chapterNo: number): Promise<boolean> {

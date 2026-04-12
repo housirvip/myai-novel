@@ -41,6 +41,113 @@ test("env config resolves paths and keeps defaults", async () => {
   assert.match(result.sqlitePath, /tmp-db\/novel\.sqlite$/);
 });
 
+test("env config resolves mysql settings", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-env-mysql-"));
+  const env = createTestEnv(tempDir, {
+    DB_CLIENT: "mysql",
+    DB_HOST: "db.internal",
+    DB_PORT: "3307",
+    DB_NAME: "novel_v2",
+    DB_USER: "writer",
+    DB_PASSWORD: "secret",
+    DB_POOL_MIN: "1",
+    DB_POOL_MAX: "12",
+  });
+
+  const result = await runInlineModule<{
+    client: string;
+    host: string;
+    port: number;
+    name: string;
+    user: string;
+    password: string;
+    poolMin: number;
+    poolMax: number;
+  }>(
+    [
+      "import { env } from './src/config/env.ts';",
+      "console.log(JSON.stringify({",
+      "  client: env.DB_CLIENT,",
+      "  host: env.DB_HOST,",
+      "  port: env.DB_PORT,",
+      "  name: env.DB_NAME,",
+      "  user: env.DB_USER,",
+      "  password: env.DB_PASSWORD,",
+      "  poolMin: env.DB_POOL_MIN,",
+      "  poolMax: env.DB_POOL_MAX,",
+      "}));",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.client, "mysql");
+  assert.equal(result.host, "db.internal");
+  assert.equal(result.port, 3307);
+  assert.equal(result.name, "novel_v2");
+  assert.equal(result.user, "writer");
+  assert.equal(result.password, "secret");
+  assert.equal(result.poolMin, 1);
+  assert.equal(result.poolMax, 12);
+});
+
+test("database manager creates mysql client and destroys pool", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-mysql-client-"));
+  const env = createTestEnv(tempDir, {
+    DB_CLIENT: "mysql",
+    DB_HOST: "mysql.test",
+    DB_PORT: "3308",
+    DB_NAME: "myai_novel_test",
+    DB_USER: "tester",
+    DB_PASSWORD: "pw",
+    DB_POOL_MAX: "7",
+  });
+
+  const result = await runInlineModule<{
+    constructorName: string;
+    host: string;
+    port: number;
+    database: string;
+    user: string;
+    connectionLimit: number;
+  }>(
+    [
+      "const mysql = await import('mysql2/promise');",
+      "const mysqlModule = mysql.default ?? mysql;",
+      "const originalCreatePool = mysqlModule.createPool;",
+      "let capturedConfig = null;",
+      "mysqlModule.createPool = (config) => {",
+      "  capturedConfig = config;",
+      "  return { end: async () => {} };",
+      "};",
+      "try {",
+      "  const { createDatabaseManager } = await import('./src/core/db/client.ts');",
+      "  const logger = { info() {}, error() {}, debug() {} };",
+      "  const manager = createDatabaseManager(logger);",
+      "  const client = manager.getClient();",
+      "  await manager.destroy();",
+      "  console.log(JSON.stringify({",
+      "    constructorName: client.constructor.name,",
+      "    host: capturedConfig.host,",
+      "    port: capturedConfig.port,",
+      "    database: capturedConfig.database,",
+      "    user: capturedConfig.user,",
+      "    connectionLimit: capturedConfig.connectionLimit,",
+      "  }));",
+      "} finally {",
+      "  mysqlModule.createPool = originalCreatePool;",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.constructorName, "Kysely");
+  assert.equal(result.host, "mysql.test");
+  assert.equal(result.port, 3308);
+  assert.equal(result.database, "myai_novel_test");
+  assert.equal(result.user, "tester");
+  assert.equal(result.connectionLimit, 7);
+});
+
 test("llm logging hides or shows content based on env switch", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-llm-log-"));
 

@@ -1,6 +1,7 @@
 import type { Insertable, Kysely, Selectable, Updateable } from "kysely";
 
 import type { DatabaseSchema } from "../schema/database.js";
+import { insertAndFetchById, updateAndFetchById } from "./helpers.js";
 
 export type ItemRow = Selectable<DatabaseSchema["items"]>;
 export type NewItemRow = Insertable<DatabaseSchema["items"]>;
@@ -10,11 +11,11 @@ export class ItemRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
 
   async create(input: NewItemRow): Promise<ItemRow> {
-    return this.db
-      .insertInto("items")
-      .values(input)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    return insertAndFetchById({
+      db: this.db,
+      table: "items",
+      values: input,
+    });
   }
 
   async listByBookId(bookId: number, limit = 50, status?: string): Promise<ItemRow[]> {
@@ -35,12 +36,12 @@ export class ItemRepository {
   }
 
   async updateById(id: number, input: ItemUpdateRow): Promise<ItemRow | undefined> {
-    return this.db
-      .updateTable("items")
-      .set(input)
-      .where("id", "=", id)
-      .returningAll()
-      .executeTakeFirst();
+    return updateAndFetchById({
+      db: this.db,
+      table: "items",
+      id,
+      values: input,
+    });
   }
 
   async deleteById(id: number): Promise<boolean> {
