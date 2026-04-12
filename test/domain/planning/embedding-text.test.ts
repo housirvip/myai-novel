@@ -3,7 +3,10 @@ import test from "node:test";
 
 import {
   buildCharacterEmbeddingText,
+  buildFactionEmbeddingText,
   buildHookEmbeddingText,
+  buildItemEmbeddingText,
+  buildRelationEmbeddingText,
   buildWorldSettingEmbeddingText,
 } from "../../../src/domain/planning/embedding-text.js";
 
@@ -44,6 +47,57 @@ test("hook embedding text keeps foreshadowing and payoff readable", () => {
   assert.match(text, /铺垫：多位高层看见令牌后反应异常/);
   assert.match(text, /预期兑现：主角因此被卷入内门调查/);
   assert.match(text, /当前推进：状态=active；目标章节=12/);
+});
+
+test("faction embedding text keeps goal and continuity risk readable", () => {
+  const text = buildFactionEmbeddingText({
+    id: 9,
+    name: "青岳宗",
+    category: "宗门",
+    summary: "掌控外门秩序的修行组织。",
+    core_goal: "维持山门稳定并筛选可用弟子。",
+    status: "对黑铁令异常保持警惕",
+    notes: "不能突然放松登记制度。",
+  });
+
+  assert.match(text, /势力：青岳宗/);
+  assert.match(text, /核心目标：维持山门稳定并筛选可用弟子/);
+  assert.match(text, /连续性风险：不能突然放松登记制度/);
+});
+
+test("item embedding text keeps usage and holder summary readable", () => {
+  const text = buildItemEmbeddingText({
+    id: 7,
+    name: "黑铁令",
+    summary: "进入内门调查线的关键凭证。",
+    description: "与主角真实身份秘密相关。",
+    ability: "可触发高层识别反应",
+    status: "active",
+    ownerSummary: "林夜",
+    notes: "不能无交代易主。",
+  });
+
+  assert.match(text, /物品：黑铁令/);
+  assert.match(text, /用途：进入内门调查线的关键凭证/);
+  assert.match(text, /当前状态：状态=active；持有=林夜/);
+});
+
+test("relation embedding text keeps tension and change summary readable", () => {
+  const text = buildRelationEmbeddingText({
+    id: 4,
+    sourceName: "林夜",
+    targetName: "顾沉舟",
+    relationType: "ally",
+    relationSummary: "表面合作，但互相试探。",
+    status: "互信不足",
+    description: "近期因黑铁令线索被迫联手。",
+    notes: "关系不能突然完全和解。",
+  });
+
+  assert.match(text, /关系：林夜 -> 顾沉舟/);
+  assert.match(text, /关系类型：ally/);
+  assert.match(text, /当前张力：互信不足/);
+  assert.match(text, /风险提醒：关系不能突然完全和解/);
 });
 
 test("world setting embedding text keeps rule summary readable", () => {

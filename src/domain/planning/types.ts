@@ -16,6 +16,43 @@ export interface RetrievedEntity {
   score: number;
 }
 
+export type RetrievedFactEntityType =
+  | "character"
+  | "faction"
+  | "item"
+  | "relation"
+  | "hook"
+  | "world_setting"
+  | "chapter";
+
+export interface RetrievedFactPacket {
+  entityType: RetrievedFactEntityType;
+  entityId: number;
+  displayName: string;
+  identity: string[];
+  currentState: string[];
+  coreConflictOrGoal: string[];
+  recentChanges: string[];
+  continuityRisk: string[];
+  relevanceReasons: string[];
+  scores: {
+    matchScore: number;
+    importanceScore: number;
+    continuityRiskScore: number;
+    recencyScore: number;
+    manualPriorityScore: number;
+    semanticScore?: number;
+    finalScore: number;
+  };
+}
+
+export interface RetrievedPriorityContext {
+  blockingConstraints: RetrievedFactPacket[];
+  decisionContext: RetrievedFactPacket[];
+  supportingContext: RetrievedFactPacket[];
+  backgroundNoise: RetrievedFactPacket[];
+}
+
 export interface RetrievedOutline {
   id: number;
   title: string;
