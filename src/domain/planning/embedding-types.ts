@@ -12,6 +12,7 @@ export interface EmbeddingDocument {
   entityId: number;
   chunkKey: string;
   model: string;
+  displayName: string;
   text: string;
 }
 
@@ -25,7 +26,7 @@ export interface EmbeddingMatch {
   chunkKey: string;
   semanticScore: number;
   text: string;
-  displayName?: string;
+  displayName: string;
 }
 
 export interface EmbeddingProvider {

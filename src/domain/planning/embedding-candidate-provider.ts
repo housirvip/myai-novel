@@ -69,8 +69,8 @@ function mergeEntities(
 
     byId.set(match.entityId, {
       id: match.entityId,
-      name: shouldUseNameField(entityType) ? extractDisplayName(match) : undefined,
-      title: shouldUseNameField(entityType) ? undefined : extractDisplayName(match),
+      name: shouldUseNameField(entityType) ? match.displayName : undefined,
+      title: shouldUseNameField(entityType) ? undefined : match.displayName,
       reason: "embedding_match",
       content: match.text,
       score: Math.round(match.semanticScore * 100),
@@ -82,18 +82,4 @@ function mergeEntities(
 
 function shouldUseNameField(entityType: EmbeddingMatch["entityType"]): boolean {
   return entityType !== "hook" && entityType !== "world_setting" && entityType !== "chapter";
-}
-
-function extractDisplayName(match: EmbeddingMatch): string | undefined {
-  if (match.displayName) {
-    return match.displayName;
-  }
-
-  const firstLine = match.text.split("\n", 1)[0]?.trim();
-  if (!firstLine) {
-    return undefined;
-  }
-
-  const separatorIndex = firstLine.indexOf("：");
-  return separatorIndex === -1 ? firstLine : firstLine.slice(separatorIndex + 1).trim() || undefined;
 }

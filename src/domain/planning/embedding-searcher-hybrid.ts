@@ -43,6 +43,7 @@ export class HybridEmbeddingSearcher implements EmbeddingCandidateSearcher {
           entityId: document.entityId,
           chunkKey: document.chunkKey,
           semanticScore: combinedScore,
+          displayName: document.displayName,
           text: document.text,
         } satisfies EmbeddingMatch;
       })

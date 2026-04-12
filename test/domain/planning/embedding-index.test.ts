@@ -22,6 +22,10 @@ test("buildEmbeddingDocuments creates summary documents for MVP entity types", (
     documents.map((item) => item.chunkKey),
     ["character:1:summary", "hook:2:summary", "world_setting:3:summary"],
   );
+  assert.deepEqual(
+    documents.map((item) => item.displayName),
+    ["林夜", "黑铁令身份核验", "宗门制度"],
+  );
   assert.match(documents[0]?.text ?? "", /林夜/);
   assert.match(documents[2]?.text ?? "", /宗门制度/);
 });

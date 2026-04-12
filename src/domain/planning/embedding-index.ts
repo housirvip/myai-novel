@@ -51,6 +51,7 @@ export function buildEmbeddingDocuments(input: {
       entityId: character.id,
       chunkKey: `character:${character.id}:summary`,
       model: input.model,
+      displayName: character.name,
       text: buildCharacterEmbeddingText(character),
     });
   }
@@ -61,6 +62,7 @@ export function buildEmbeddingDocuments(input: {
       entityId: hook.id,
       chunkKey: `hook:${hook.id}:summary`,
       model: input.model,
+      displayName: hook.title,
       text: buildHookEmbeddingText(hook),
     });
   }
@@ -71,6 +73,7 @@ export function buildEmbeddingDocuments(input: {
       entityId: setting.id,
       chunkKey: `world_setting:${setting.id}:summary`,
       model: input.model,
+      displayName: setting.title,
       text: buildWorldSettingEmbeddingText(setting),
     });
   }
