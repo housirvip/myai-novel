@@ -424,7 +424,7 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
             { text: row.append_notes, weight: 8 },
             { text: row.keywords, weight: 18 },
           ],
-        }),
+        }) + institutionalFactionBoost(row.category, params.keywords),
         reason: buildReasons({
           manualIds: params.manualRefs.factionIds,
           entityId: row.id,
@@ -437,6 +437,7 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
             { text: row.append_notes, weight: 8 },
             { text: row.keywords, weight: 18 },
           ],
+          extraReasons: institutionalFactionBoost(row.category, params.keywords) > 0 ? ["institution_context"] : [],
         }),
         content: compactLines([
           `name=${row.name}`,
@@ -452,6 +453,8 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
       KEYWORD_LIMITS.factions,
     );
   }
+
+  
 
   private async loadItems(
     db: import("kysely").Kysely<DatabaseSchema>,
@@ -768,6 +771,20 @@ function selectPriorityEntities(
   const fallback = entities.filter((entity) => !isPriority(entity));
 
   return [...prioritized, ...fallback].slice(0, limit);
+}
+
+function institutionalFactionBoost(category: string | null, keywords: string[]): number {
+  const normalizedCategory = (category ?? "").toLowerCase();
+  if (!normalizedCategory.includes("宗门")) {
+    return 0;
+  }
+
+  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+  const hasInstitutionalCue = normalizedKeywords.some((keyword) =>
+    ["执事", "长老", "内门", "外门", "宗门", "入宗", "成员", "关系"].some((token) => keyword.includes(token)),
+  );
+
+  return hasInstitutionalCue ? 18 : 0;
 }
 
 function buildRiskReminders(input: {

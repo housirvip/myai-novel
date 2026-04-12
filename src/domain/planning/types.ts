@@ -29,6 +29,7 @@ export interface RetrievedFactPacket {
   entityType: RetrievedFactEntityType;
   entityId: number;
   displayName: string;
+  relatedDisplayNames?: string[];
   identity: string[];
   currentState: string[];
   coreConflictOrGoal: string[];

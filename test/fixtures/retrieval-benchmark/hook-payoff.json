@@ -1,6 +1,5 @@
 {
   "name": "hook-payoff",
-  "expectationMode": "baseline_gap",
   "query": {
     "keywords": ["伏笔", "兑现", "执事"]
   },

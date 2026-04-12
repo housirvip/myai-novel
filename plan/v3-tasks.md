@@ -235,7 +235,7 @@
 - `strict`
   - `continuity-baseline`
   - `character-motivation`
-- `baseline_gap`
   - `hook-payoff`
+- `baseline_gap`
   - `world-rule`
   - `relation-shift`
