@@ -5,10 +5,15 @@ import path from "node:path";
 import test from "node:test";
 
 import { createTestEnv } from "../helpers/cli.js";
-import { createMysqlTestContext } from "../helpers/mysql.js";
+import { createMysqlTestContext, hasMysqlTestConfig } from "../helpers/mysql.js";
 import { runWorkflowFixture } from "../helpers/workflow-fixture.js";
 
-test("sqlite and mysql keep core workflow results aligned", async () => {
+test("sqlite and mysql keep core workflow results aligned", async (t) => {
+  if (!hasMysqlTestConfig()) {
+    t.skip("MYSQL_TEST_* is not configured");
+    return;
+  }
+
   const sqliteTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-sqlite-parity-"));
   const sqliteEnv = createTestEnv(sqliteTempDir);
   const mysqlContext = await createMysqlTestContext("myai-novel-mysql-parity");

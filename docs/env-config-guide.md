@@ -189,6 +189,25 @@ DB_POOL_MAX=10
 - MySQL 主要用于部署或验证跨方言兼容性
 - 当前已支持 `db check` 和 client 创建；完整 migration / workflow 端到端验证仍建议结合真实 MySQL 实例执行
 
+### MySQL 集成测试专用变量
+
+默认 `npm test` 不要求你本地一定存在 MySQL。只有在你显式提供下面这些变量时，MySQL 集成测试才会真正执行：
+
+```dotenv
+MYSQL_TEST_HOST=127.0.0.1
+MYSQL_TEST_PORT=3306
+MYSQL_TEST_USER=root
+MYSQL_TEST_PASSWORD=
+MYSQL_TEST_DATABASE=myai_novel
+```
+
+说明：
+
+- 这组变量只用于测试辅助逻辑创建临时测试库
+- 不建议把它们写进公开共享的 `.env.example`
+- 运行 MySQL 集成测试时使用：`npm run test:mysql`
+- 可参考模板：[`../.env.mysql.test.example`](../.env.mysql.test.example)
+
 ## 6. LLM provider 配置
 
 ### `LLM_PROVIDER`

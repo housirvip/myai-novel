@@ -4,9 +4,14 @@ import path from "node:path";
 import test from "node:test";
 
 import { runCli, runCliJson } from "../helpers/cli.js";
-import { createMysqlTestContext } from "../helpers/mysql.js";
+import { createMysqlTestContext, hasMysqlTestConfig } from "../helpers/mysql.js";
 
-test("mysql workflow chain and markdown import/export work end-to-end", async () => {
+test("mysql workflow chain and markdown import/export work end-to-end", async (t) => {
+  if (!hasMysqlTestConfig()) {
+    t.skip("MYSQL_TEST_* is not configured");
+    return;
+  }
+
   const context = await createMysqlTestContext("myai-novel-mysql-workflow");
   const { env, tempDir, cleanup } = context;
   const finalPath = path.join(tempDir, "mysql-final.md");

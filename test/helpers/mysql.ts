@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { parse } from "dotenv";
 import mysql from "mysql2/promise";
 
 import { createTestEnv } from "./cli.js";
@@ -14,6 +13,10 @@ interface MysqlTestConfig {
   user: string;
   password: string;
   database: string;
+}
+
+export function hasMysqlTestConfig(): boolean {
+  return Boolean(process.env.MYSQL_TEST_HOST && process.env.MYSQL_TEST_USER && process.env.MYSQL_TEST_DATABASE);
 }
 
 export async function createMysqlTestContext(prefix: string): Promise<{
@@ -54,19 +57,16 @@ export async function createMysqlTestContext(prefix: string): Promise<{
 }
 
 async function loadMysqlTestConfig(): Promise<MysqlTestConfig> {
-  const envExamplePath = path.resolve(process.cwd(), ".env.example");
-  const parsed = parse(await fs.readFile(envExamplePath, "utf8"));
+  const host = process.env.MYSQL_TEST_HOST?.trim();
+  const port = Number(process.env.MYSQL_TEST_PORT ?? "3306");
+  const user = process.env.MYSQL_TEST_USER?.trim();
+  const password = process.env.MYSQL_TEST_PASSWORD ?? "";
+  const database = process.env.MYSQL_TEST_DATABASE?.trim();
 
-  const host = parsed.DB_HOST?.trim();
-  const port = Number(parsed.DB_PORT ?? "3306");
-  const user = parsed.DB_USER?.trim();
-  const password = parsed.DB_PASSWORD ?? "";
-  const database = parsed.DB_NAME?.trim();
-
-  assert.ok(host, "Expected DB_HOST in .env.example for MySQL integration tests");
-  assert.ok(user, "Expected DB_USER in .env.example for MySQL integration tests");
-  assert.ok(database, "Expected DB_NAME in .env.example for MySQL integration tests");
-  assert.ok(Number.isFinite(port), "Expected DB_PORT in .env.example to be a valid number");
+  assert.ok(host, "Expected MYSQL_TEST_HOST for MySQL integration tests");
+  assert.ok(user, "Expected MYSQL_TEST_USER for MySQL integration tests");
+  assert.ok(database, "Expected MYSQL_TEST_DATABASE for MySQL integration tests");
+  assert.ok(Number.isFinite(port), "Expected MYSQL_TEST_PORT to be a valid number");
 
   return {
     host,

@@ -145,6 +145,8 @@ npm install
 cp .env.example .env
 ```
 
+`.env.example` 是运行时模板，不应该承载真实 MySQL 测试凭据。
+
 ## 配置
 
 完整环境变量模板见 [`.env.example`](./.env.example)。
@@ -174,6 +176,24 @@ cp .env.example .env
 完整字段说明见：
 
 - [`docs/env-config-guide.md`](docs/env-config-guide.md)
+
+MySQL 集成测试默认不会依赖 `.env.example`。如果你要显式运行真实 MySQL 测试，请单独提供：
+
+- `MYSQL_TEST_HOST`
+- `MYSQL_TEST_PORT`
+- `MYSQL_TEST_USER`
+- `MYSQL_TEST_PASSWORD`
+- `MYSQL_TEST_DATABASE`
+
+然后执行：
+
+```bash
+npm run test:mysql
+```
+
+也可以先参考模板：
+
+- [`.env.mysql.test.example`](./.env.mysql.test.example)
 
 ## 快速开始
 
