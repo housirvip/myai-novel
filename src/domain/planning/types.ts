@@ -53,6 +53,13 @@ export interface RetrievedPriorityContext {
   backgroundNoise: RetrievedFactPacket[];
 }
 
+export interface RetrievedRecentChange {
+  source: "chapter_summary" | "risk_reminder" | "entity_state";
+  label: string;
+  detail: string;
+  priority: number;
+}
+
 export interface RetrievedOutline {
   id: number;
   title: string;

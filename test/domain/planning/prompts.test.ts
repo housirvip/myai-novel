@@ -162,6 +162,7 @@ test("review prompt uses retrieved context as validation baseline", () => {
   assert.match(messages[1]?.content ?? "", /章节草稿：/);
   assert.match(messages[1]?.content ?? "", /召回上下文（作为核对基准）/);
   assert.match(messages[1]?.content ?? "", /最近承接的变化：/);
+  assert.match(messages[1]?.content ?? "", /高风险提醒/);
   assert.match(messages[1]?.content ?? "", /输出要求：/);
   assert.match(messages[1]?.content ?? "", /summary, issues, risks, continuity_checks, repair_suggestions/);
 });

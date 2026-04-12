@@ -1,0 +1,46 @@
+import type { RetrievedChapterSummary, RetrievedEntity, RetrievedRecentChange } from "./types.js";
+
+export function buildRecentChanges(input: {
+  recentChapters?: RetrievedChapterSummary[];
+  riskReminders?: string[];
+  entities?: RetrievedEntity[];
+}): RetrievedRecentChange[] {
+  const chapterChanges = (input.recentChapters ?? []).slice(0, 3).map((chapter) => ({
+    source: "chapter_summary" as const,
+    label: `第${chapter.chapterNo}章承接`,
+    detail: normalizeInline(chapter.summary) || chapter.title || "已发生关键承接",
+    priority: 80 - chapter.chapterNo,
+  }));
+
+  const riskChanges = (input.riskReminders ?? []).slice(0, 4).map((risk, index) => ({
+    source: "risk_reminder" as const,
+    label: `高风险提醒${index + 1}`,
+    detail: normalizeInline(risk),
+    priority: 100 - index,
+  }));
+
+  const entityChanges = (input.entities ?? [])
+    .filter((entity) => hasStatefulChangeHint(entity.content))
+    .slice(0, 4)
+    .map((entity, index) => ({
+      source: "entity_state" as const,
+      label: entity.name ?? entity.title ?? `实体#${entity.id}`,
+      detail: normalizeInline(entity.content),
+      priority: 70 - index,
+    }));
+
+  return [...riskChanges, ...entityChanges, ...chapterChanges]
+    .sort((left, right) => right.priority - left.priority)
+    .slice(0, 6);
+}
+
+function hasStatefulChangeHint(content: string): boolean {
+  const text = (content ?? "").toLowerCase();
+  return ["current_location", "status", "owner", "relation", "target_chapter", "active"].some((token) =>
+    text.includes(token),
+  );
+}
+
+function normalizeInline(value?: string | null): string {
+  return (value ?? "").replace(/\s+/g, " ").replace(/\n+/g, "；").trim();
+}

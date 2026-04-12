@@ -5,6 +5,7 @@ import type {
   RetrievedFactPacket,
   RetrievedPriorityContext,
 } from "./types.js";
+import { prioritizeFactPackets } from "./retrieval-priorities.js";
 
 const ENTITY_TYPE_MAP = {
   characters: "character",
@@ -17,8 +18,11 @@ const ENTITY_TYPE_MAP = {
 
 export function buildFactPacket(entityType: RetrievedFactEntityType, entity: RetrievedEntity): RetrievedFactPacket {
   const displayName = entity.name ?? entity.title ?? `#${entity.id}`;
-  const normalizedContent = normalizeContent(entity.content);
-  const continuityRisk = inferContinuityRisk(entity.content, entity.reason);
+  const content = entity.content ?? "";
+  const reason = entity.reason ?? "";
+  const score = entity.score ?? 0;
+  const normalizedContent = normalizeContent(content);
+  const continuityRisk = inferContinuityRisk(content, reason);
 
   return {
     entityType,
@@ -29,14 +33,14 @@ export function buildFactPacket(entityType: RetrievedFactEntityType, entity: Ret
     coreConflictOrGoal: [],
     recentChanges: [],
     continuityRisk,
-    relevanceReasons: entity.reason.split("+").filter(Boolean),
+    relevanceReasons: reason.split("+").filter(Boolean),
     scores: {
-      matchScore: entity.score,
+      matchScore: score,
       importanceScore: 0,
       continuityRiskScore: continuityRisk.length > 0 ? 1 : 0,
       recencyScore: 0,
-      manualPriorityScore: entity.reason.includes("manual_id") ? 1 : 0,
-      finalScore: entity.score,
+      manualPriorityScore: reason.includes("manual_id") ? 1 : 0,
+      finalScore: score,
     },
   };
 }
@@ -59,16 +63,19 @@ export function buildPriorityContext(input: {
   hardConstraints?: Partial<PlanRetrievedContextEntityGroups>;
   softReferences?: Partial<PlanRetrievedContextEntityGroups>;
 }): RetrievedPriorityContext {
-  const blockingConstraints = buildFactPacketsFromGroups(input.hardConstraints ?? {});
-  const decisionContext = buildFactPacketsFromGroups(input.softReferences ?? {}).filter(
-    (packet) => !blockingConstraints.some((blocking) => samePacket(blocking, packet)),
+  const hardPackets = buildFactPacketsFromGroups(input.hardConstraints ?? {});
+  const softPackets = buildFactPacketsFromGroups(input.softReferences ?? {}).filter(
+    (packet) => !hardPackets.some((blocking) => samePacket(blocking, packet)),
   );
 
+  const prioritizedHard = prioritizeFactPackets(hardPackets);
+  const prioritizedSoft = prioritizeFactPackets(softPackets);
+
   return {
-    blockingConstraints,
-    decisionContext,
-    supportingContext: [],
-    backgroundNoise: [],
+    blockingConstraints: prioritizedHard.blockingConstraints,
+    decisionContext: [...prioritizedHard.decisionContext, ...prioritizedSoft.blockingConstraints, ...prioritizedSoft.decisionContext],
+    supportingContext: [...prioritizedHard.supportingContext, ...prioritizedSoft.supportingContext],
+    backgroundNoise: [...prioritizedHard.backgroundNoise, ...prioritizedSoft.backgroundNoise],
   };
 }
 
