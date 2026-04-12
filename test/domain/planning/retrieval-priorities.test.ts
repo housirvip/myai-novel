@@ -49,3 +49,57 @@ test("prioritizeFactPackets keeps manual and risky packets in blocking constrain
   assert.equal(prioritized.blockingConstraints[0]?.displayName, "林夜");
   assert.equal(prioritized.supportingContext.length, 1);
 });
+
+test("prioritizeFactPackets upgrades motivation-relevant character hits into decision context", () => {
+  const prioritized = prioritizeFactPackets([
+    {
+      entityType: "character",
+      entityId: 2,
+      displayName: "顾沉舟",
+      identity: ["顾沉舟"],
+      currentState: ["background=曾目睹同门背叛\ngoal=暗中观察黑铁令持有者"],
+      coreConflictOrGoal: [],
+      recentChanges: [],
+      continuityRisk: [],
+      relevanceReasons: ["keyword_hit"],
+      scores: {
+        matchScore: 25,
+        importanceScore: 0,
+        continuityRiskScore: 0,
+        recencyScore: 0,
+        manualPriorityScore: 0,
+        finalScore: 25,
+      },
+    },
+  ]);
+
+  assert.equal(prioritized.decisionContext.length, 1);
+  assert.equal(prioritized.decisionContext[0]?.displayName, "顾沉舟");
+});
+
+test("prioritizeFactPackets upgrades rule-relevant factions into decision context", () => {
+  const prioritized = prioritizeFactPackets([
+    {
+      entityType: "faction",
+      entityId: 1,
+      displayName: "青岳宗",
+      identity: ["青岳宗"],
+      currentState: ["category=宗门\ncore_goal=维持宗门秩序\ndescription=东境大宗门"],
+      coreConflictOrGoal: [],
+      recentChanges: [],
+      continuityRisk: [],
+      relevanceReasons: ["keyword_hit"],
+      scores: {
+        matchScore: 25,
+        importanceScore: 0,
+        continuityRiskScore: 0,
+        recencyScore: 0,
+        manualPriorityScore: 0,
+        finalScore: 25,
+      },
+    },
+  ]);
+
+  assert.equal(prioritized.decisionContext.length, 1);
+  assert.equal(prioritized.decisionContext[0]?.displayName, "青岳宗");
+});

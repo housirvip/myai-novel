@@ -1,0 +1,12 @@
+{
+  "name": "relation-shift",
+  "expectationMode": "baseline_gap",
+  "query": {
+    "keywords": ["关系", "入宗", "成员"]
+  },
+  "expected": {
+    "blockingNames": ["林夜", "黑铁令", "宗门制度"],
+    "decisionNames": ["青岳宗"],
+    "maxNoiseRatio": 0.75
+  }
+}

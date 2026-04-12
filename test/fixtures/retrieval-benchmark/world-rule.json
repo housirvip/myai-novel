@@ -1,0 +1,12 @@
+{
+  "name": "world-rule",
+  "expectationMode": "baseline_gap",
+  "query": {
+    "keywords": ["规则", "令牌", "登记"]
+  },
+  "expected": {
+    "blockingNames": ["宗门制度", "黑铁令"],
+    "decisionNames": ["青岳宗"],
+    "maxNoiseRatio": 0.7
+  }
+}

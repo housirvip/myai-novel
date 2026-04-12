@@ -190,6 +190,146 @@ test("retrieval service keeps default rule-based behavior when reranker is pass-
   assert.equal(result.sameRiskReminders, true);
 });
 
+test("retrieval service can apply heuristic reranker to promote continuity-heavy candidates", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-heuristic-"));
+  const env = createTestEnv(tempDir);
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{ topCharacterName: string | null; topHookTitle: string | null }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "import { HeuristicReranker } from './src/domain/planning/retrieval-reranker-heuristic.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 10, current_chapter_count: 4, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values({ id: 1, book_id: 1, chapter_no: 4, title: '第四章', summary: '黑铁令异动', word_count: 1000, status: 'approved', current_plan_id: null, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('characters').values([",
+      "    { id: 1, book_id: 1, name: '顾沉舟', alias: null, gender: '男', age: 22, personality: '谨慎', background: '宗门弟子', current_location: '内门', status: 'alive', professions: null, levels: null, currencies: null, abilities: null, goal: '观望局势', append_notes: null, keywords: '[\"黑铁令\"]', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, name: '林夜', alias: null, gender: '男', age: 18, personality: '冷静', background: '寒门', current_location: '青岳宗外门', status: 'alive', professions: null, levels: null, currencies: null, abilities: null, goal: '调查黑铁令', append_notes: null, keywords: '[\"林夜\",\"黑铁令\"]', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('story_hooks').values([",
+      "    { id: 1, book_id: 1, title: '远期伏笔', hook_type: '伏笔', description: '后续再触发', source_chapter_no: 2, target_chapter_no: 9, status: 'open', importance: 'high', append_notes: null, keywords: '[\"黑铁令\"]', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, title: '临近伏笔', hook_type: '伏笔', description: '本章触发', source_chapter_no: 4, target_chapter_no: 5, status: 'open', importance: 'high', append_notes: '即将兑现', keywords: '[\"黑铁令\"]', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  const service = new RetrievalQueryService(logger, { reranker: new HeuristicReranker() });",
+      "  const context = await service.retrievePlanContext({",
+      "    bookId: 1,",
+      "    chapterNo: 5,",
+      "    keywords: ['黑铁令', '林夜'],",
+      "    manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] },",
+      "  });",
+      "  console.log(JSON.stringify({",
+      "    topCharacterName: context.characters[0]?.name ?? null,",
+      "    topHookTitle: context.hooks[0]?.title ?? null,",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.topCharacterName, "林夜");
+  assert.equal(result.topHookTitle, "临近伏笔");
+});
+
+test("retrieval service can enable embedding candidate provider via config with injected searcher", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-embedding-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_EMBEDDING_ENABLED: "true",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{ worldSettingCount: number; topWorldSettingReason: string | null }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 10, current_chapter_count: 1, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  const service = new RetrievalQueryService(logger, {",
+      "    embeddingSearcher: {",
+      "      async search() {",
+      "        return [",
+      "          { entityType: 'world_setting', entityId: 9, chunkKey: 'world:9:summary', semanticScore: 0.88, text: '设定：宗门制度\\n规则摘要：外门弟子凭令牌登记入门' },",
+      "        ];",
+      "      },",
+      "    },",
+      "  });",
+      "  const context = await service.retrievePlanContext({",
+      "    bookId: 1,",
+      "    chapterNo: 2,",
+      "    keywords: ['令牌', '入门'],",
+      "    manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] },",
+      "  });",
+      "  console.log(JSON.stringify({",
+      "    worldSettingCount: context.worldSettings.length,",
+      "    topWorldSettingReason: context.worldSettings[0]?.reason ?? null,",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.worldSettingCount, 1);
+  assert.equal(result.topWorldSettingReason, "embedding_match");
+});
+
+test("retrieval service honors hybrid embedding mode with injected searcher", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-hybrid-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_EMBEDDING_ENABLED: "true",
+    PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE: "hybrid",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{ worldSettingCount: number; topReason: string | null }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "import { DeterministicHashEmbeddingProvider } from './src/domain/planning/embedding-provider.ts';",
+      "import { HybridEmbeddingSearcher } from './src/domain/planning/embedding-searcher-hybrid.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 10, current_chapter_count: 1, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  const searcher = new HybridEmbeddingSearcher(new DeterministicHashEmbeddingProvider());",
+      "  await searcher.index([",
+      `    { entityType: 'world_setting', entityId: 9, chunkKey: 'world_setting:9:summary', model: 'test-embed-v1', text: ${JSON.stringify("设定：宗门制度\n规则摘要：外门弟子凭令牌登记入门")} },`,
+      "  ]);",
+      "  const service = new RetrievalQueryService(logger, { embeddingSearcher: searcher, embeddingSearchMode: 'hybrid' });",
+      "  const context = await service.retrievePlanContext({",
+      "    bookId: 1,",
+      "    chapterNo: 2,",
+      "    keywords: ['规则', '令牌', '登记'],",
+      "    manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] },",
+      "  });",
+      "  console.log(JSON.stringify({ worldSettingCount: context.worldSettings.length, topReason: context.worldSettings[0]?.reason ?? null }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.worldSettingCount, 1);
+  assert.equal(result.topReason, "embedding_match");
+});
+
 test("retrieval ranking prefers stronger weighted hits and keeps continuity entities in hard constraints", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-weighted-"));
   const env = createTestEnv(tempDir);

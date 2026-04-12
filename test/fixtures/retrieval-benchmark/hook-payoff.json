@@ -1,0 +1,12 @@
+{
+  "name": "hook-payoff",
+  "expectationMode": "baseline_gap",
+  "query": {
+    "keywords": ["伏笔", "兑现", "执事"]
+  },
+  "expected": {
+    "blockingNames": ["黑铁令身份核验"],
+    "decisionNames": ["青岳宗"],
+    "maxNoiseRatio": 0.8
+  }
+}

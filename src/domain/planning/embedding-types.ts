@@ -15,6 +15,10 @@ export interface EmbeddingDocument {
   text: string;
 }
 
+export interface IndexedEmbeddingDocument extends EmbeddingDocument {
+  vector: number[];
+}
+
 export interface EmbeddingMatch {
   entityType: EmbeddingEntityType;
   entityId: number;

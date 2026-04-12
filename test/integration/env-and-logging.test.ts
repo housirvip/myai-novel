@@ -12,6 +12,9 @@ test("env config resolves paths and keeps defaults", async () => {
     LOG_DIR: "./tmp-logs",
     DB_SQLITE_PATH: "./tmp-db/novel.sqlite",
     PLANNING_RETRIEVAL_CHARACTER_LIMIT: "9",
+    PLANNING_RETRIEVAL_RERANKER: "heuristic",
+    PLANNING_RETRIEVAL_EMBEDDING_ENABLED: "true",
+    PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE: "hybrid",
   });
 
   const result = await runInlineModule<{
@@ -20,16 +23,22 @@ test("env config resolves paths and keeps defaults", async () => {
     provider: string;
     planningCharacterLimit: number;
     llmDefaultMaxTokens: number;
+    planningReranker: string;
+    planningEmbeddingEnabled: boolean;
+    planningEmbeddingSearchMode: string;
   }>(
     [
       "import { env } from './src/config/env.ts';",
       "console.log(JSON.stringify({",
       "  logDir: env.LOG_DIR,",
       "  sqlitePath: env.DB_SQLITE_PATH,",
-      "  provider: env.LLM_PROVIDER,",
-      "  planningCharacterLimit: env.PLANNING_RETRIEVAL_CHARACTER_LIMIT,",
-      "  llmDefaultMaxTokens: env.LLM_DEFAULT_MAX_TOKENS,",
-      "}));",
+        "  provider: env.LLM_PROVIDER,",
+        "  planningCharacterLimit: env.PLANNING_RETRIEVAL_CHARACTER_LIMIT,",
+        "  llmDefaultMaxTokens: env.LLM_DEFAULT_MAX_TOKENS,",
+        "  planningReranker: env.PLANNING_RETRIEVAL_RERANKER,",
+        "  planningEmbeddingEnabled: env.PLANNING_RETRIEVAL_EMBEDDING_ENABLED,",
+        "  planningEmbeddingSearchMode: env.PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE,",
+        "}));",
     ].join("\n"),
     env,
   );
@@ -37,6 +46,9 @@ test("env config resolves paths and keeps defaults", async () => {
   assert.equal(result.provider, "mock");
   assert.equal(result.planningCharacterLimit, 9);
   assert.equal(result.llmDefaultMaxTokens, 2048);
+  assert.equal(result.planningReranker, "heuristic");
+  assert.equal(result.planningEmbeddingEnabled, true);
+  assert.equal(result.planningEmbeddingSearchMode, "hybrid");
   assert.match(result.logDir, /tmp-logs$/);
   assert.match(result.sqlitePath, /tmp-db\/novel\.sqlite$/);
 });

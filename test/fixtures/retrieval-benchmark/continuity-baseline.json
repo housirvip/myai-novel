@@ -1,0 +1,11 @@
+{
+  "name": "continuity-baseline",
+  "query": {
+    "keywords": ["林夜", "黑铁令", "青岳宗", "令牌"]
+  },
+  "expected": {
+    "blockingNames": ["林夜", "黑铁令", "宗门制度", "黑铁令身份核验"],
+    "decisionNames": ["青岳宗"],
+    "maxNoiseRatio": 0.6
+  }
+}

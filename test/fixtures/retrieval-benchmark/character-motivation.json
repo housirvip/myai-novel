@@ -1,0 +1,11 @@
+{
+  "name": "character-motivation",
+  "query": {
+    "keywords": ["怀疑", "背叛", "黑铁令"]
+  },
+  "expected": {
+    "blockingNames": ["林夜", "黑铁令"],
+    "decisionNames": ["顾沉舟"],
+    "maxNoiseRatio": 0.75
+  }
+}

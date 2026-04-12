@@ -11,6 +11,8 @@ import {
 } from "./retrieval-ranking.js";
 import { buildRecentChanges } from "./recent-changes.js";
 import { buildPriorityContext } from "./retrieval-facts.js";
+import { EmbeddingCandidateProvider, type EmbeddingCandidateSearcher } from "./embedding-candidate-provider.js";
+import { HeuristicReranker } from "./retrieval-reranker-heuristic.js";
 
 import type {
   ManualEntityRefs,
@@ -55,10 +57,20 @@ export class RetrievalQueryService {
     options?: {
       candidateProvider?: RetrievalCandidateProvider;
       reranker?: RetrievalReranker;
+      embeddingSearcher?: EmbeddingCandidateSearcher;
+      embeddingSearchMode?: "basic" | "hybrid";
     },
   ) {
-    this.candidateProvider = options?.candidateProvider ?? new RuleBasedCandidateProvider();
-    this.reranker = options?.reranker ?? new DirectPassThroughReranker();
+    const baseProvider = options?.candidateProvider ?? new RuleBasedCandidateProvider();
+    const embeddingSearchMode = options?.embeddingSearchMode ?? env.PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE;
+    const shouldEnableEmbedding = env.PLANNING_RETRIEVAL_EMBEDDING_ENABLED && options?.embeddingSearcher;
+
+    this.candidateProvider = shouldEnableEmbedding
+      ? new EmbeddingCandidateProvider(baseProvider, options.embeddingSearcher!, {
+          limit: embeddingSearchMode === "hybrid" ? 12 : 10,
+        })
+      : baseProvider;
+    this.reranker = options?.reranker ?? createConfiguredReranker();
   }
 
   // 这里产出的不是只给 plan 自己看的临时检索结果，
@@ -151,6 +163,16 @@ export class RetrievalQueryService {
     );
   }
 
+}
+
+function createConfiguredReranker(): RetrievalReranker {
+  switch (env.PLANNING_RETRIEVAL_RERANKER) {
+    case "heuristic":
+      return new HeuristicReranker();
+    case "none":
+    default:
+      return new DirectPassThroughReranker();
+  }
 }
 
 class RuleBasedCandidateProvider implements RetrievalCandidateProvider {

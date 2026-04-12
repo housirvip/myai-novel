@@ -47,7 +47,10 @@ function isBlockingConstraint(packet: RetrievedFactPacket): boolean {
 }
 
 function isDecisionContext(packet: RetrievedFactPacket): boolean {
-  return packet.scores.matchScore >= 50 || packet.scores.finalScore >= 50;
+  return packet.scores.matchScore >= 50
+    || packet.scores.finalScore >= 50
+    || isMotivationRelevantCharacter(packet)
+    || isRuleRelevantFaction(packet);
 }
 
 function isSupportingContext(packet: RetrievedFactPacket): boolean {
@@ -58,4 +61,28 @@ function sortPackets(packets: RetrievedFactPacket[]): RetrievedFactPacket[] {
   return [...packets].sort(
     (left, right) => right.scores.finalScore - left.scores.finalScore || left.entityId - right.entityId,
   );
+}
+
+function isMotivationRelevantCharacter(packet: RetrievedFactPacket): boolean {
+  if (packet.entityType !== "character") {
+    return false;
+  }
+
+  if (!packet.relevanceReasons.includes("keyword_hit")) {
+    return false;
+  }
+
+  const text = packet.currentState.join("\n").toLowerCase();
+  return ["background=", "goal=", "personality=", "append_notes="]
+    .some((token) => text.includes(token));
+}
+
+function isRuleRelevantFaction(packet: RetrievedFactPacket): boolean {
+  if (packet.entityType !== "faction") {
+    return false;
+  }
+
+  const text = packet.currentState.join("\n").toLowerCase();
+  return ["category=宗门", "core_goal=维持", "description=", "status=active"]
+    .some((token) => text.includes(token));
 }

@@ -54,6 +54,12 @@ const envSchema = z.object({
   PLANNING_RETRIEVAL_RELATION_LIMIT: z.coerce.number().int().positive().default(10),
   PLANNING_RETRIEVAL_WORLD_SETTING_LIMIT: z.coerce.number().int().positive().default(8),
   PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT: z.coerce.number().int().positive().default(200),
+  PLANNING_RETRIEVAL_RERANKER: z.enum(["none", "heuristic"]).default("none"),
+  PLANNING_RETRIEVAL_EMBEDDING_ENABLED: z
+    .string()
+    .optional()
+    .transform((value) => value === "true"),
+  PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE: z.enum(["basic", "hybrid"]).default("basic"),
 });
 
 const parsedEnv = envSchema.parse(process.env);
