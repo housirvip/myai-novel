@@ -24,7 +24,6 @@ const envSchema = z.object({
   DB_NAME: z.string().default("myai_novel"),
   DB_USER: z.string().default("root"),
   DB_PASSWORD: z.string().default(""),
-  DB_POOL_MIN: z.coerce.number().int().min(0).default(0),
   DB_POOL_MAX: z.coerce.number().int().positive().default(10),
   LLM_PROVIDER: z.enum(["mock", "openai", "anthropic", "custom"]).default("mock"),
   MOCK_LLM_MODE: z.enum(["echo", "fixture", "json"]).default("echo"),

@@ -39,7 +39,6 @@ export async function createMysqlTestContext(prefix: string): Promise<{
     DB_NAME: database,
     DB_USER: config.user,
     DB_PASSWORD: config.password,
-    DB_POOL_MIN: "0",
     DB_POOL_MAX: "10",
   });
 

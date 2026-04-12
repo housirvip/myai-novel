@@ -133,7 +133,7 @@
 - [x] 更新 `.env.example`
 - [x] 更新 `src/config/env.ts`
 - [x] 增加 MySQL 连接项：`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`
-- [x] 增加连接池配置：`DB_POOL_MIN`、`DB_POOL_MAX`
+- [x] 增加连接池配置：`DB_POOL_MAX`
 - [x] 明确 SQLite / MySQL 的默认行为
 
 ### P2-3. 实现 MySQL dialect

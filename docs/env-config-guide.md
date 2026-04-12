@@ -169,7 +169,6 @@ DB_PORT=3306
 DB_NAME=myai_novel
 DB_USER=root
 DB_PASSWORD=
-DB_POOL_MIN=0
 DB_POOL_MAX=10
 ```
 
@@ -180,7 +179,6 @@ DB_POOL_MAX=10
 - `DB_NAME`：数据库名
 - `DB_USER`：用户名
 - `DB_PASSWORD`：密码
-- `DB_POOL_MIN`：预留的最小连接池配置项
 - `DB_POOL_MAX`：连接池最大连接数
 
 说明：

@@ -172,6 +172,7 @@ cp .env.example .env
 - `DB_NAME`
 - `DB_USER`
 - `DB_PASSWORD`
+- `DB_POOL_MAX`
 
 完整字段说明见：
 

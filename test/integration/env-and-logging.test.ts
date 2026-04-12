@@ -50,7 +50,6 @@ test("env config resolves mysql settings", async () => {
     DB_NAME: "novel_v2",
     DB_USER: "writer",
     DB_PASSWORD: "secret",
-    DB_POOL_MIN: "1",
     DB_POOL_MAX: "12",
   });
 
@@ -61,7 +60,6 @@ test("env config resolves mysql settings", async () => {
     name: string;
     user: string;
     password: string;
-    poolMin: number;
     poolMax: number;
   }>(
     [
@@ -73,7 +71,6 @@ test("env config resolves mysql settings", async () => {
       "  name: env.DB_NAME,",
       "  user: env.DB_USER,",
       "  password: env.DB_PASSWORD,",
-      "  poolMin: env.DB_POOL_MIN,",
       "  poolMax: env.DB_POOL_MAX,",
       "}));",
     ].join("\n"),
@@ -86,7 +83,6 @@ test("env config resolves mysql settings", async () => {
   assert.equal(result.name, "novel_v2");
   assert.equal(result.user, "writer");
   assert.equal(result.password, "secret");
-  assert.equal(result.poolMin, 1);
   assert.equal(result.poolMax, 12);
 });
 

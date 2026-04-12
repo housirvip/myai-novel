@@ -5,6 +5,12 @@ import type { AppLogger } from "../../logger/index.js";
 import { withTimingLog } from "../../logger/index.js";
 import type { DatabaseSchema } from "../schema/database.js";
 
+const TYPE_STATUS = "varchar(32)";
+const TYPE_ENTITY_TYPE = "varchar(32)";
+const TYPE_CATEGORY = "varchar(64)";
+const TYPE_NAME = "varchar(255)";
+const TYPE_RELATION = "varchar(64)";
+
 export async function migrateToLatest(
   database: Kysely<DatabaseSchema>,
   logger: AppLogger,
@@ -46,7 +52,7 @@ async function createBooksTable(database: Kysely<DatabaseSchema>): Promise<void>
     .addColumn("current_chapter_count", "integer", (column) =>
       column.notNull().defaultTo(0),
     )
-    .addColumn("status", "text", (column) => column.notNull().defaultTo("planning"))
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull().defaultTo("planning"))
     .addColumn("metadata", "text")
     .addColumn("created_at", "text", (column) =>
       column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
@@ -69,8 +75,8 @@ async function createOutlinesTable(database: Kysely<DatabaseSchema>): Promise<vo
     .addColumn("volume_title", "text")
     .addColumn("chapter_start_no", "integer")
     .addColumn("chapter_end_no", "integer")
-    .addColumn("outline_level", "text", (column) => column.notNull())
-    .addColumn("title", "text", (column) => column.notNull())
+    .addColumn("outline_level", TYPE_ENTITY_TYPE, (column) => column.notNull())
+    .addColumn("title", TYPE_NAME, (column) => column.notNull())
     .addColumn("story_core", "text")
     .addColumn("main_plot", "text")
     .addColumn("sub_plot", "text")
@@ -94,10 +100,10 @@ async function createWorldSettingsTable(database: Kysely<DatabaseSchema>): Promi
     .addColumn("book_id", "integer", (column) =>
       column.notNull().references("books.id").onDelete("cascade"),
     )
-    .addColumn("title", "text", (column) => column.notNull())
-    .addColumn("category", "text", (column) => column.notNull())
+    .addColumn("title", TYPE_NAME, (column) => column.notNull())
+    .addColumn("category", TYPE_CATEGORY, (column) => column.notNull())
     .addColumn("content", "text", (column) => column.notNull())
-    .addColumn("status", "text", (column) => column.notNull())
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull())
     .addColumn("append_notes", "text")
     .addColumn("keywords", "text")
     .addColumn("created_at", "text", (column) =>
@@ -117,14 +123,14 @@ async function createCharactersTable(database: Kysely<DatabaseSchema>): Promise<
     .addColumn("book_id", "integer", (column) =>
       column.notNull().references("books.id").onDelete("cascade"),
     )
-    .addColumn("name", "text", (column) => column.notNull())
+    .addColumn("name", TYPE_NAME, (column) => column.notNull())
     .addColumn("alias", "text")
     .addColumn("gender", "text")
     .addColumn("age", "integer")
     .addColumn("personality", "text")
     .addColumn("background", "text")
     .addColumn("current_location", "text")
-    .addColumn("status", "text", (column) => column.notNull())
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull())
     .addColumn("professions", "text")
     .addColumn("levels", "text")
     .addColumn("currencies", "text")
@@ -149,13 +155,13 @@ async function createFactionsTable(database: Kysely<DatabaseSchema>): Promise<vo
     .addColumn("book_id", "integer", (column) =>
       column.notNull().references("books.id").onDelete("cascade"),
     )
-    .addColumn("name", "text", (column) => column.notNull())
-    .addColumn("category", "text")
+    .addColumn("name", TYPE_NAME, (column) => column.notNull())
+    .addColumn("category", TYPE_CATEGORY)
     .addColumn("core_goal", "text")
     .addColumn("description", "text")
     .addColumn("leader_character_id", "integer")
     .addColumn("headquarter", "text")
-    .addColumn("status", "text")
+    .addColumn("status", TYPE_STATUS)
     .addColumn("append_notes", "text")
     .addColumn("keywords", "text")
     .addColumn("created_at", "text", (column) =>
@@ -175,13 +181,13 @@ async function createRelationsTable(database: Kysely<DatabaseSchema>): Promise<v
     .addColumn("book_id", "integer", (column) =>
       column.notNull().references("books.id").onDelete("cascade"),
     )
-    .addColumn("source_type", "text", (column) => column.notNull())
+    .addColumn("source_type", TYPE_ENTITY_TYPE, (column) => column.notNull())
     .addColumn("source_id", "integer", (column) => column.notNull())
-    .addColumn("target_type", "text", (column) => column.notNull())
+    .addColumn("target_type", TYPE_ENTITY_TYPE, (column) => column.notNull())
     .addColumn("target_id", "integer", (column) => column.notNull())
-    .addColumn("relation_type", "text", (column) => column.notNull())
+    .addColumn("relation_type", TYPE_RELATION, (column) => column.notNull())
     .addColumn("intensity", "integer")
-    .addColumn("status", "text")
+    .addColumn("status", TYPE_STATUS)
     .addColumn("description", "text")
     .addColumn("append_notes", "text")
     .addColumn("keywords", "text")
@@ -202,13 +208,13 @@ async function createItemsTable(database: Kysely<DatabaseSchema>): Promise<void>
     .addColumn("book_id", "integer", (column) =>
       column.notNull().references("books.id").onDelete("cascade"),
     )
-    .addColumn("name", "text", (column) => column.notNull())
-    .addColumn("category", "text")
+    .addColumn("name", TYPE_NAME, (column) => column.notNull())
+    .addColumn("category", TYPE_CATEGORY)
     .addColumn("description", "text")
-    .addColumn("owner_type", "text", (column) => column.notNull())
+    .addColumn("owner_type", TYPE_ENTITY_TYPE, (column) => column.notNull())
     .addColumn("owner_id", "integer")
-    .addColumn("rarity", "text")
-    .addColumn("status", "text")
+    .addColumn("rarity", TYPE_STATUS)
+    .addColumn("status", TYPE_STATUS)
     .addColumn("append_notes", "text")
     .addColumn("keywords", "text")
     .addColumn("created_at", "text", (column) =>
@@ -228,13 +234,13 @@ async function createStoryHooksTable(database: Kysely<DatabaseSchema>): Promise<
     .addColumn("book_id", "integer", (column) =>
       column.notNull().references("books.id").onDelete("cascade"),
     )
-    .addColumn("title", "text", (column) => column.notNull())
-    .addColumn("hook_type", "text")
+    .addColumn("title", TYPE_NAME, (column) => column.notNull())
+    .addColumn("hook_type", TYPE_RELATION)
     .addColumn("description", "text")
     .addColumn("source_chapter_no", "integer")
     .addColumn("target_chapter_no", "integer")
-    .addColumn("status", "text", (column) => column.notNull())
-    .addColumn("importance", "text")
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull())
+    .addColumn("importance", TYPE_STATUS)
     .addColumn("append_notes", "text")
     .addColumn("keywords", "text")
     .addColumn("created_at", "text", (column) =>
@@ -258,7 +264,7 @@ async function createChaptersTable(database: Kysely<DatabaseSchema>): Promise<vo
     .addColumn("title", "text")
     .addColumn("summary", "text")
     .addColumn("word_count", "integer")
-    .addColumn("status", "text", (column) => column.notNull())
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull())
     .addColumn("current_plan_id", "integer")
     .addColumn("current_draft_id", "integer")
     .addColumn("current_review_id", "integer")
@@ -291,9 +297,9 @@ async function createChapterPlansTable(database: Kysely<DatabaseSchema>): Promis
     )
     .addColumn("chapter_no", "integer", (column) => column.notNull())
     .addColumn("version_no", "integer", (column) => column.notNull())
-    .addColumn("status", "text", (column) => column.notNull())
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull())
     .addColumn("author_intent", "text")
-    .addColumn("intent_source", "text", (column) => column.notNull())
+    .addColumn("intent_source", TYPE_ENTITY_TYPE, (column) => column.notNull())
     .addColumn("intent_summary", "text")
     .addColumn("intent_keywords", "text")
     .addColumn("intent_must_include", "text")
@@ -303,7 +309,7 @@ async function createChapterPlansTable(database: Kysely<DatabaseSchema>): Promis
     .addColumn("content", "text", (column) => column.notNull())
     .addColumn("model", "text")
     .addColumn("provider", "text")
-    .addColumn("source_type", "text", (column) => column.notNull())
+    .addColumn("source_type", TYPE_ENTITY_TYPE, (column) => column.notNull())
     .addColumn("created_at", "text", (column) =>
       column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
     )
@@ -336,13 +342,13 @@ async function createChapterDraftsTable(database: Kysely<DatabaseSchema>): Promi
     .addColumn("based_on_plan_id", "integer")
     .addColumn("based_on_draft_id", "integer")
     .addColumn("based_on_review_id", "integer")
-    .addColumn("status", "text", (column) => column.notNull())
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull())
     .addColumn("content", "text", (column) => column.notNull())
     .addColumn("summary", "text")
     .addColumn("word_count", "integer")
     .addColumn("model", "text")
     .addColumn("provider", "text")
-    .addColumn("source_type", "text", (column) => column.notNull())
+    .addColumn("source_type", TYPE_ENTITY_TYPE, (column) => column.notNull())
     .addColumn("created_at", "text", (column) =>
       column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
     )
@@ -369,7 +375,7 @@ async function createChapterReviewsTable(database: Kysely<DatabaseSchema>): Prom
       column.notNull().references("chapter_drafts.id").onDelete("cascade"),
     )
     .addColumn("version_no", "integer", (column) => column.notNull())
-    .addColumn("status", "text", (column) => column.notNull())
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull())
     .addColumn("summary", "text")
     .addColumn("issues", "text")
     .addColumn("risks", "text")
@@ -378,7 +384,7 @@ async function createChapterReviewsTable(database: Kysely<DatabaseSchema>): Prom
     .addColumn("raw_result", "text", (column) => column.notNull())
     .addColumn("model", "text")
     .addColumn("provider", "text")
-    .addColumn("source_type", "text", (column) => column.notNull())
+    .addColumn("source_type", TYPE_ENTITY_TYPE, (column) => column.notNull())
     .addColumn("created_at", "text", (column) =>
       column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
     )
@@ -403,11 +409,11 @@ async function createChapterFinalsTable(database: Kysely<DatabaseSchema>): Promi
     .addColumn("chapter_no", "integer", (column) => column.notNull())
     .addColumn("version_no", "integer", (column) => column.notNull())
     .addColumn("based_on_draft_id", "integer")
-    .addColumn("status", "text", (column) => column.notNull())
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull())
     .addColumn("content", "text", (column) => column.notNull())
     .addColumn("summary", "text")
     .addColumn("word_count", "integer")
-    .addColumn("source_type", "text", (column) => column.notNull())
+    .addColumn("source_type", TYPE_ENTITY_TYPE, (column) => column.notNull())
     .addColumn("created_at", "text", (column) =>
       column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
     )
@@ -451,14 +457,14 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_world_settings_book_category")
     .ifNotExists()
     .on("world_settings")
-    .columns(mysqlCompatibleColumns("book_id", "category"))
+    .columns(["book_id", "category"])
     .execute();
 
   await database.schema
     .createIndex("idx_world_settings_book_status")
     .ifNotExists()
     .on("world_settings")
-    .columns(mysqlCompatibleColumns("book_id", "status"))
+    .columns(["book_id", "status"])
     .execute();
 
   await database.schema
@@ -472,14 +478,14 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_characters_book_name")
     .ifNotExists()
     .on("characters")
-    .columns(mysqlCompatibleColumns("book_id", "name"))
+    .columns(["book_id", "name"])
     .execute();
 
   await database.schema
     .createIndex("idx_characters_book_status")
     .ifNotExists()
     .on("characters")
-    .columns(mysqlCompatibleColumns("book_id", "status"))
+    .columns(["book_id", "status"])
     .execute();
 
   await database.schema
@@ -493,14 +499,14 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_factions_book_name")
     .ifNotExists()
     .on("factions")
-    .columns(mysqlCompatibleColumns("book_id", "name"))
+    .columns(["book_id", "name"])
     .execute();
 
   await database.schema
     .createIndex("idx_factions_book_status")
     .ifNotExists()
     .on("factions")
-    .columns(mysqlCompatibleColumns("book_id", "status"))
+    .columns(["book_id", "status"])
     .execute();
 
   await database.schema
@@ -514,14 +520,14 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_relations_book_source")
     .ifNotExists()
     .on("relations")
-    .columns(mysqlCompatibleColumns("book_id", "source_type", "source_id"))
+    .columns(["book_id", "source_type", "source_id"])
     .execute();
 
   await database.schema
     .createIndex("idx_relations_book_target")
     .ifNotExists()
     .on("relations")
-    .columns(mysqlCompatibleColumns("book_id", "target_type", "target_id"))
+    .columns(["book_id", "target_type", "target_id"])
     .execute();
 
   await database.schema
@@ -535,14 +541,14 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_items_book_owner")
     .ifNotExists()
     .on("items")
-    .columns(mysqlCompatibleColumns("book_id", "owner_type", "owner_id"))
+    .columns(["book_id", "owner_type", "owner_id"])
     .execute();
 
   await database.schema
     .createIndex("idx_items_book_name")
     .ifNotExists()
     .on("items")
-    .columns(mysqlCompatibleColumns("book_id", "name"))
+    .columns(["book_id", "name"])
     .execute();
 
   await database.schema
@@ -556,7 +562,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_story_hooks_book_status")
     .ifNotExists()
     .on("story_hooks")
-    .columns(mysqlCompatibleColumns("book_id", "status"))
+    .columns(["book_id", "status"])
     .execute();
 
   await database.schema
@@ -570,7 +576,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_chapters_book_status")
     .ifNotExists()
     .on("chapters")
-    .columns(mysqlCompatibleColumns("book_id", "status"))
+    .columns(["book_id", "status"])
     .execute();
 
   await database.schema
@@ -591,7 +597,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_chapter_plans_book_status")
     .ifNotExists()
     .on("chapter_plans")
-    .columns(mysqlCompatibleColumns("book_id", "status"))
+    .columns(["book_id", "status"])
     .execute();
 
   await database.schema
@@ -626,7 +632,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_chapter_drafts_book_status")
     .ifNotExists()
     .on("chapter_drafts")
-    .columns(mysqlCompatibleColumns("book_id", "status"))
+    .columns(["book_id", "status"])
     .execute();
 
   await database.schema
@@ -647,7 +653,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_chapter_reviews_book_status")
     .ifNotExists()
     .on("chapter_reviews")
-    .columns(mysqlCompatibleColumns("book_id", "status"))
+    .columns(["book_id", "status"])
     .execute();
 
   await database.schema
@@ -668,7 +674,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_chapter_finals_book_status")
     .ifNotExists()
     .on("chapter_finals")
-    .columns(mysqlCompatibleColumns("book_id", "status"))
+    .columns(["book_id", "status"])
     .execute();
 }
 
@@ -677,9 +683,8 @@ function mysqlCompatibleColumns(...columns: string[]): string[] {
     return columns;
   }
 
-  // MySQL 对 TEXT 列建立普通索引时会命中 key length 限制。
-  // 当前 migration 保持“同一份 schema 尽量跨方言可运行”的目标，
-  // 因此在 MySQL 下优先保留安全的整数列索引，避免初始化直接失败。
+  // 只有仍然保留为长文本类型的列，才在 MySQL 下回退到安全的整数列索引。
+  // 短状态/类型/名称字段已经改成 varchar，可继续保留原组合索引。
   const safeColumns = columns.filter(
     (column) =>
       column.endsWith("_id") ||
