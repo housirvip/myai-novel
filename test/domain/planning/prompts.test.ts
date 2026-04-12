@@ -159,3 +159,63 @@ test("review prompt uses retrieved context as validation baseline", () => {
   assert.match(messages[1]?.content ?? "", /输出要求：/);
   assert.match(messages[1]?.content ?? "", /summary, issues, risks, continuity_checks, repair_suggestions/);
 });
+
+test("stage-specific context views keep review and approve prompts smaller than draft prompt", () => {
+  const retrievedContext = {
+    hardConstraints: {
+      characters: [{ id: 1, name: "林夜", content: "current_location=青岳宗外门" }],
+      items: [{ id: 2, name: "黑铁令", content: "owner_type=character owner_id=1" }],
+      hooks: [{ id: 3, title: "黑铁令旧案", content: "target_chapter_no=8" }],
+      factions: [],
+      relations: [],
+      worldSettings: [{ id: 4, title: "宗门制度", content: "外门弟子凭令牌登记" }],
+    },
+    riskReminders: [
+      "注意人物当前位置连续性，避免人物在没有过渡的情况下突然更换场景。",
+      "注意关键物品的持有者与状态连续性，避免无交代易主、失踪或突然恢复。",
+      "注意已激活的世界规则，避免直接违反既有制度与限制。",
+    ],
+    characters: [
+      { id: 1, name: "林夜", content: "personality=冷静 goal=调查黑铁令" },
+      { id: 2, name: "顾沉舟", content: "personality=审慎 background=内门弟子" },
+    ],
+    factions: [{ id: 1, name: "青岳宗", content: "category=宗门 core_goal=维持秩序" }],
+    items: [{ id: 2, name: "黑铁令", content: "rarity=rare description=身份凭证" }],
+    relations: [{ id: 1, content: "source=林夜 target=青岳宗 relation_type=member" }],
+    worldSettings: [{ id: 4, title: "宗门制度", content: "外门弟子凭令牌登记" }],
+  };
+
+  const draftMessages = buildDraftPrompt({
+    planContent: "本章推进黑铁令线索。",
+    targetWords: 2800,
+    intentConstraints: {
+      mustInclude: ["黑铁令异常反应"],
+      mustAvoid: ["直接揭晓真相"],
+    },
+    retrievedContext,
+  });
+
+  const reviewMessages = buildReviewPrompt({
+    planContent: "本章推进黑铁令线索。",
+    draftContent: "草稿正文",
+    retrievedContext,
+  });
+
+  const approveMessages = buildApprovePrompt({
+    planContent: "本章推进黑铁令线索。",
+    draftContent: "草稿正文",
+    reviewContent: '{"issues":["节奏偏快"]}',
+    intentConstraints: {
+      mustInclude: ["黑铁令异常反应"],
+      mustAvoid: ["直接揭晓真相"],
+    },
+    retrievedContext,
+  });
+
+  const draftLength = `${draftMessages[0]?.content ?? ""}\n${draftMessages[1]?.content ?? ""}`.length;
+  const reviewLength = `${reviewMessages[0]?.content ?? ""}\n${reviewMessages[1]?.content ?? ""}`.length;
+  const approveLength = `${approveMessages[0]?.content ?? ""}\n${approveMessages[1]?.content ?? ""}`.length;
+
+  assert.ok(reviewLength < draftLength);
+  assert.ok(approveLength < draftLength);
+});

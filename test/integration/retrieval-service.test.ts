@@ -135,3 +135,79 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.ok(result.riskReminders.some((item) => item.includes("关键物品的持有者与状态连续性")));
   assert.ok(result.riskReminders.some((item) => item.includes("已激活的世界规则")));
 });
+
+test("retrieval ranking prefers stronger weighted hits and keeps continuity entities in hard constraints", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-weighted-"));
+  const env = createTestEnv(tempDir);
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    topCharacterName: string | null;
+    secondCharacterName: string | null;
+    topFactionName: string | null;
+    secondFactionName: string | null;
+    hardConstraintCharacterIds: number[];
+    hardConstraintItemIds: number[];
+    hardConstraintWorldSettingIds: number[];
+    riskReminders: string[];
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 50, current_chapter_count: 4, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values([",
+      "    { id: 1, book_id: 1, chapter_no: 4, title: '第四章', summary: '黑铁令异动', word_count: 1200, status: 'approved', current_plan_id: null, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_no: 5, title: '第五章', summary: null, word_count: null, status: 'todo', current_plan_id: null, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('characters').values([",
+      "    { id: 1, book_id: 1, name: '林夜', alias: '黑铁令主', gender: '男', age: 18, personality: '冷静', background: '寒门', current_location: '青岳宗外门', status: 'alive', professions: null, levels: null, currencies: null, abilities: null, goal: '调查黑铁令', append_notes: null, keywords: '[\"主角\"]', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, name: '顾沉舟', alias: '旁观者', gender: '男', age: 22, personality: '谨慎', background: '宗门弟子', current_location: '演武场', status: 'alive', professions: null, levels: null, currencies: null, abilities: '[\"黑铁令鉴定\"]', goal: '观望局势', append_notes: null, keywords: '[\"黑铁令\"]', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('factions').values([",
+      "    { id: 1, book_id: 1, name: '黑铁盟', category: '组织', core_goal: '争夺黑铁令', description: '围绕黑铁令活动', leader_character_id: null, headquarter: null, status: 'active', append_notes: null, keywords: '[\"外围势力\"]', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, name: '青岳宗', category: '宗门', core_goal: '维持秩序', description: '常规宗门势力', leader_character_id: null, headquarter: null, status: 'active', append_notes: null, keywords: '[\"黑铁令\"]', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('items').values({ id: 1, book_id: 1, name: '黑铁令', category: '令牌', description: '身份凭证', owner_type: 'character', owner_id: 1, rarity: 'rare', status: 'active', append_notes: '仍由林夜持有', keywords: '[\"黑铁令\"]', created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('world_settings').values({ id: 1, book_id: 1, title: '黑铁令规则', category: '规则', content: '黑铁令必须登记后方可使用', status: 'active', append_notes: null, keywords: '[\"黑铁令\"]', created_at: now, updated_at: now }).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({",
+      "    bookId: 1,",
+      "    chapterNo: 5,",
+      "    keywords: ['黑铁令', '黑铁盟', '林夜'],",
+      "    manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] },",
+      "  });",
+      "  console.log(JSON.stringify({",
+      "    topCharacterName: context.characters[0]?.name ?? null,",
+      "    secondCharacterName: context.characters[1]?.name ?? null,",
+      "    topFactionName: context.factions[0]?.name ?? null,",
+      "    secondFactionName: context.factions[1]?.name ?? null,",
+      "    hardConstraintCharacterIds: context.hardConstraints.characters.map((item) => item.id),",
+      "    hardConstraintItemIds: context.hardConstraints.items.map((item) => item.id),",
+      "    hardConstraintWorldSettingIds: context.hardConstraints.worldSettings.map((item) => item.id),",
+      "    riskReminders: context.riskReminders,",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.topCharacterName, "林夜");
+  assert.equal(result.secondCharacterName, "顾沉舟");
+  assert.equal(result.topFactionName, "黑铁盟");
+  assert.equal(result.secondFactionName, "青岳宗");
+  assert.equal(result.hardConstraintCharacterIds[0], 1);
+  assert.ok(result.hardConstraintCharacterIds.includes(1));
+  assert.deepEqual(result.hardConstraintItemIds, [1]);
+  assert.deepEqual(result.hardConstraintWorldSettingIds, [1]);
+  assert.ok(result.riskReminders.some((item) => item.includes("人物当前位置连续性")));
+  assert.ok(result.riskReminders.some((item) => item.includes("关键物品的持有者与状态连续性")));
+  assert.ok(result.riskReminders.some((item) => item.includes("已激活的世界规则")));
+});
