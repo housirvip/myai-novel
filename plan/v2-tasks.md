@@ -176,7 +176,7 @@
 
 **完成定义**
 - [x] `DB_CLIENT=mysql` 可正常初始化、迁移、运行 workflow
-- [~] SQLite 与 MySQL 下核心链路行为一致
+ - [x] SQLite 与 MySQL 下核心链路行为一致
 - [x] 默认 SQLite 开发体验不变
 
 ---
