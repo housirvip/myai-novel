@@ -186,12 +186,12 @@
 > 目标：为未来能力预留接口，并完成文档与维护性收口。
 
 ### P3-1. 为 rerank / embedding 预留接口
-- [ ] 设计 `RetrievalCandidateProvider`
-- [ ] 设计 `RetrievalReranker`
-- [ ] 明确默认实现仍为“规则召回 + 直接排序”
-- [ ] 定义 rerank 插口但默认不启用
-- [ ] 保持 embedding 仍为未来扩展项，不强行接入 V2 主链路
-- [ ] 记录未来实验需要的输入输出格式
+- [x] 设计 `RetrievalCandidateProvider`
+- [x] 设计 `RetrievalReranker`
+- [x] 明确默认实现仍为“规则召回 + 直接排序”
+- [x] 定义 rerank 插口但默认不启用
+- [x] 保持 embedding 仍为未来扩展项，不强行接入 V2 主链路
+- [x] 记录未来实验需要的输入输出格式
 
 ### P3-2. 文档更新
 - [ ] 更新 `README.md`

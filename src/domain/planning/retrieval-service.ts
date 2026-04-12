@@ -18,13 +18,13 @@ import type {
   RetrievedEntity,
   RetrievedOutline,
 } from "./types.js";
-
-interface RetrievePlanContextParams {
-  bookId: number;
-  chapterNo: number;
-  keywords: string[];
-  manualRefs: ManualEntityRefs;
-}
+import {
+  DirectPassThroughReranker,
+  type RetrievalCandidateBundle,
+  type RetrievalCandidateProvider,
+  type RetrievalReranker,
+  type RetrievePlanContextParams,
+} from "./retrieval-pipeline.js";
 
 const KEYWORD_LIMITS = {
   outlines: env.PLANNING_RETRIEVAL_OUTLINE_LIMIT,
@@ -44,7 +44,20 @@ const RECENT_CHAPTER_SCAN_LIMIT =
   env.PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT * env.PLANNING_RETRIEVAL_RECENT_CHAPTER_SCAN_MULTIPLIER;
 
 export class RetrievalQueryService {
-  constructor(private readonly logger: AppLogger) {}
+  private readonly candidateProvider: RetrievalCandidateProvider;
+
+  private readonly reranker: RetrievalReranker;
+
+  constructor(
+    private readonly logger: AppLogger,
+    options?: {
+      candidateProvider?: RetrievalCandidateProvider;
+      reranker?: RetrievalReranker;
+    },
+  ) {
+    this.candidateProvider = options?.candidateProvider ?? new RuleBasedCandidateProvider();
+    this.reranker = options?.reranker ?? new DirectPassThroughReranker();
+  }
 
   // 这里产出的不是只给 plan 自己看的临时检索结果，
   // 而是会被固化进 chapter_plans.retrieved_context、并被后续 draft/review/repair/approve 复用的共享上下文。
@@ -68,22 +81,16 @@ export class RetrievalQueryService {
           throw new Error(`Book not found: ${params.bookId}`);
         }
 
-        const outlines = await this.loadOutlines(db, params.bookId, params.chapterNo);
-        const recentChapters = await this.loadRecentChapters(db, params.bookId, params.chapterNo);
-        const characters = await this.loadCharacters(db, params);
-        const factions = await this.loadFactions(db, params);
-        const items = await this.loadItems(db, params);
-        const hooks = await this.loadHooks(db, params);
-        const relations = await this.loadRelations(db, params);
-        const worldSettings = await this.loadWorldSettings(db, params);
-        const entityGroups = {
-          hooks,
-          characters,
-          factions,
-          items,
-          relations,
-          worldSettings,
-        } satisfies PlanRetrievedContextEntityGroups;
+        const candidates = await this.candidateProvider.loadCandidates(db, params);
+        const reranked = await this.reranker.rerank({
+          params,
+          candidates,
+        });
+
+        const outlines = reranked.outlines;
+        const recentChapters = reranked.recentChapters;
+        const entityGroups = reranked.entityGroups;
+        const { hooks, characters, factions, items, relations, worldSettings } = entityGroups;
 
         const hardConstraints = buildHardConstraints(entityGroups);
 
@@ -122,6 +129,36 @@ export class RetrievalQueryService {
         };
       },
     );
+  }
+
+}
+
+class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
+  async loadCandidates(
+    db: import("kysely").Kysely<DatabaseSchema>,
+    params: RetrievePlanContextParams,
+  ): Promise<RetrievalCandidateBundle> {
+    const outlines = await this.loadOutlines(db, params.bookId, params.chapterNo);
+    const recentChapters = await this.loadRecentChapters(db, params.bookId, params.chapterNo);
+    const characters = await this.loadCharacters(db, params);
+    const factions = await this.loadFactions(db, params);
+    const items = await this.loadItems(db, params);
+    const hooks = await this.loadHooks(db, params);
+    const relations = await this.loadRelations(db, params);
+    const worldSettings = await this.loadWorldSettings(db, params);
+
+    return {
+      outlines,
+      recentChapters,
+      entityGroups: {
+        hooks,
+        characters,
+        factions,
+        items,
+        relations,
+        worldSettings,
+      },
+    };
   }
 
   private async loadOutlines(

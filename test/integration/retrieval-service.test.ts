@@ -136,6 +136,49 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.ok(result.riskReminders.some((item) => item.includes("已激活的世界规则")));
 });
 
+test("retrieval service keeps default rule-based behavior when reranker is pass-through", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-pipeline-"));
+  const env = createTestEnv(tempDir);
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{ sameCharacterOrder: boolean; sameRiskReminders: boolean }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "import { DirectPassThroughReranker } from './src/domain/planning/retrieval-pipeline.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 10, current_chapter_count: 1, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values({ id: 1, book_id: 1, chapter_no: 1, title: '第一章', summary: '黑铁令出场', word_count: 1000, status: 'approved', current_plan_id: null, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('characters').values([",
+      "    { id: 1, book_id: 1, name: '林夜', alias: '夜哥', gender: '男', age: 18, personality: '冷静', background: '寒门', current_location: '青岳宗外门', status: 'alive', professions: null, levels: null, currencies: null, abilities: null, goal: '调查黑铁令', append_notes: null, keywords: '[\"黑铁令\"]', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, name: '顾沉舟', alias: null, gender: '男', age: 22, personality: '谨慎', background: '宗门弟子', current_location: '内门', status: 'alive', professions: null, levels: null, currencies: null, abilities: null, goal: '观察局势', append_notes: null, keywords: '[\"外门\"]', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('items').values({ id: 1, book_id: 1, name: '黑铁令', category: '令牌', description: '身份凭证', owner_type: 'character', owner_id: 1, rarity: 'rare', status: 'active', append_notes: null, keywords: '[\"黑铁令\"]', created_at: now, updated_at: now }).execute();",
+      "  const baseService = new RetrievalQueryService(logger);",
+      "  const pipelineService = new RetrievalQueryService(logger, { reranker: new DirectPassThroughReranker() });",
+      "  const params = { bookId: 1, chapterNo: 2, keywords: ['黑铁令', '林夜'], manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } };",
+      "  const baseContext = await baseService.retrievePlanContext(params);",
+      "  const pipelineContext = await pipelineService.retrievePlanContext(params);",
+      "  console.log(JSON.stringify({",
+      "    sameCharacterOrder: JSON.stringify(baseContext.characters.map((item) => item.id)) === JSON.stringify(pipelineContext.characters.map((item) => item.id)),",
+      "    sameRiskReminders: JSON.stringify(baseContext.riskReminders) === JSON.stringify(pipelineContext.riskReminders),",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.sameCharacterOrder, true);
+  assert.equal(result.sameRiskReminders, true);
+});
+
 test("retrieval ranking prefers stronger weighted hits and keeps continuity entities in hard constraints", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-weighted-"));
   const env = createTestEnv(tempDir);

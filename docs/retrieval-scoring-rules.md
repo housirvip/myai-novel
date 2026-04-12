@@ -47,9 +47,21 @@
 ## 3. 相关代码位置
 
 - 召回实现：`src/domain/planning/retrieval-service.ts`
+- 候选/重排接口：`src/domain/planning/retrieval-pipeline.ts`
 - `plan` 工作流：`src/domain/workflows/plan-chapter-workflow.ts`
 - `draft` 工作流：`src/domain/workflows/draft-chapter-workflow.ts`
 - 召回结构定义：`src/domain/planning/types.ts`
+
+当前默认实现仍然是：
+
+- `RuleBasedCandidateProvider` 直接用现有规则式查询得到候选集
+- `DirectPassThroughReranker` 不做额外二次重排，直接透传当前结果
+
+这层抽象的作用不是改变 V2 默认行为，而是为后续实验预留稳定挂点：
+
+- 未来可先接 embedding 候选召回源
+- 再接业务层 rerank
+- 同时保持当前 explainability 字段与工作流不需要重写
 
 ## 4. Plan 阶段如何召回
 
