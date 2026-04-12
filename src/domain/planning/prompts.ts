@@ -1,5 +1,6 @@
 import type { LlmMessage } from "../../core/llm/types.js";
 import type { PlanIntentConstraints, PlanRetrievedContext } from "./types.js";
+import { buildPromptContextBlocks } from "./prompt-context-blocks.js";
 
 export function buildIntentGenerationPrompt(input: {
   bookTitle: string;
@@ -60,6 +61,7 @@ export function buildPlanPrompt(input: {
   intentConstraints?: PlanIntentConstraints;
   retrievedContext: PlanRetrievedContext;
 }): LlmMessage[] {
+  const contextBlocks = buildPromptContextBlocks(input.retrievedContext);
   // plan prompt 的职责是把“本章想写什么”和“本章不能写错什么”同时交给模型。
   // 其中 retrievedContext 是后续所有阶段共享的事实边界，因此在 plan 阶段就必须显式固化。
   return [
@@ -83,6 +85,7 @@ export function buildPlanPrompt(input: {
         ]),
         section("作者意图", input.authorIntent),
         buildIntentConstraintsSection(input.intentConstraints),
+        ...buildReadableContextSections(contextBlocks),
         jsonSection("召回上下文（必须严格参考）", input.retrievedContext),
         section("输出要求", [
           "请输出章节规划。",
@@ -101,6 +104,7 @@ export function buildDraftPrompt(input: {
   retrievedContext?: unknown;
   targetWords?: number;
 }): LlmMessage[] {
+  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext) : null;
   return [
     {
       role: "system",
@@ -121,9 +125,8 @@ export function buildDraftPrompt(input: {
       content: buildStructuredPrompt([
         section("章节规划", input.planContent),
         buildIntentConstraintsSection(input.intentConstraints),
-        input.retrievedContext
-          ? jsonSection("召回上下文（必须严格参考）", input.retrievedContext)
-          : null,
+        ...buildReadableContextSections(contextBlocks),
+        input.retrievedContext ? section("召回上下文（必须严格参考）", "以上事实块为本阶段的主要写作约束。") : null,
         input.targetWords ? section("目标字数", String(input.targetWords)) : null,
         section("写作要求", [
           "1. 必须覆盖章节规划中的主线推进、支线推进和钩子推进。",
@@ -144,6 +147,7 @@ export function buildReviewPrompt(input: {
   draftContent: string;
   retrievedContext?: unknown;
 }): LlmMessage[] {
+  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext) : null;
   // review 的输出会直接进入结构化落库和后续 repair，
   // 因此这里要把输出字段约束得足够稳定，避免下游解析依赖自然语言猜测。
   return [
@@ -163,7 +167,8 @@ export function buildReviewPrompt(input: {
       content: buildStructuredPrompt([
         section("章节规划", input.planContent),
         section("章节草稿", input.draftContent),
-        input.retrievedContext ? jsonSection("召回上下文（作为核对基准）", input.retrievedContext) : null,
+        ...buildReadableContextSections(contextBlocks),
+        input.retrievedContext ? section("召回上下文（作为核对基准）", "以上事实块用于核对草稿是否违反已知约束。") : null,
         section("输出要求", [
           "请严格返回 JSON 对象，字段必须为 summary, issues, risks, continuity_checks, repair_suggestions。",
           "不要输出中文键名、Markdown 代码块或额外解释。",
@@ -182,6 +187,7 @@ export function buildRepairPrompt(input: {
   intentConstraints?: PlanIntentConstraints;
   retrievedContext?: unknown;
 }): LlmMessage[] {
+  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext) : null;
   return [
     {
       role: "system",
@@ -200,6 +206,7 @@ export function buildRepairPrompt(input: {
         section("当前草稿", input.draftContent),
         section("审阅结果", input.reviewContent),
         buildIntentConstraintsSection(input.intentConstraints),
+        ...buildReadableContextSections(contextBlocks),
         input.retrievedContext ? jsonSection("召回上下文（必须保持一致）", input.retrievedContext) : null,
         section("修稿要求", [
           "优先修复审阅问题，同时不要偏离既有规划和召回设定。",
@@ -219,6 +226,7 @@ export function buildApprovePrompt(input: {
   intentConstraints?: PlanIntentConstraints;
   retrievedContext?: unknown;
 }): LlmMessage[] {
+  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext) : null;
   // approve prompt 只负责产出最终正文，不承担结构化回写任务；
   // 事实抽取会在 approve diff 的独立 prompt 中完成。
   return [
@@ -241,7 +249,8 @@ export function buildApprovePrompt(input: {
         section("当前草稿", input.draftContent),
         section("审阅结果", input.reviewContent),
         buildIntentConstraintsSection(input.intentConstraints),
-        input.retrievedContext ? jsonSection("召回上下文（必须保持一致）", input.retrievedContext) : null,
+        ...buildReadableContextSections(contextBlocks),
+        input.retrievedContext ? section("召回上下文（必须保持一致）", "以上事实块为正式稿的主要约束与承接基准。") : null,
         section("定稿要求", [
           "1. 修复审阅中提到的问题。",
           "2. 不要丢失原计划中的关键剧情推进和钩子推进。",
@@ -261,6 +270,7 @@ export function buildApproveDiffPrompt(input: {
   reviewContent: string;
   retrievedContext?: unknown;
 }): LlmMessage[] {
+  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext) : null;
   return [
     {
       role: "system",
@@ -277,7 +287,8 @@ export function buildApproveDiffPrompt(input: {
         section("最终文稿", input.finalContent),
         section("章节规划", input.planContent),
         section("审阅结果", input.reviewContent),
-        input.retrievedContext ? jsonSection("召回上下文（用于校对事实变更）", input.retrievedContext) : null,
+        ...buildReadableContextSections(contextBlocks),
+        input.retrievedContext ? section("召回上下文（用于校对事实变更）", "以上事实块用于判断哪些变化属于真实、可回写的结构化事实。") : null,
         section("输出要求", [
           "请返回 JSON。",
           "字段包含：chapterSummary, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, newRelations, updates。",
@@ -301,6 +312,29 @@ function section(title: string, content: string | string[]): string {
 
 function jsonSection(title: string, content: unknown): string {
   return section(title, JSON.stringify(content, null, 2));
+}
+
+function buildReadableContextSections(contextBlocks: ReturnType<typeof buildPromptContextBlocks> | null): Array<string | null> {
+  if (!contextBlocks) {
+    return [];
+  }
+
+  return [
+    buildListSection("本章必须遵守的事实", contextBlocks.mustFollowFacts),
+    buildListSection("最近承接的变化", contextBlocks.recentChanges),
+    buildListSection("本章核心人物/势力/关系", contextBlocks.coreEntities),
+    buildListSection("必须推进的钩子", contextBlocks.requiredHooks),
+    buildListSection("禁止改写与禁止新增", contextBlocks.forbiddenMoves),
+    buildListSection("补充背景", contextBlocks.supportingBackground),
+  ];
+}
+
+function buildListSection(title: string, lines: string[]): string | null {
+  if (lines.length === 0) {
+    return null;
+  }
+
+  return section(title, lines.map((line, index) => `${index + 1}. ${line}`));
 }
 
 function buildIntentConstraintsSection(input?: PlanIntentConstraints): string | null {

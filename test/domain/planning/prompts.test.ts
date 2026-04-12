@@ -47,6 +47,7 @@ test("repair prompt includes plan and retrieved context", () => {
   assert.match(messages[1]?.content ?? "", /必须包含：顾沉舟察觉异常/);
   assert.match(messages[1]?.content ?? "", /必须避免：直接揭晓真相/);
   assert.match(messages[1]?.content ?? "", /召回上下文（必须保持一致）：/);
+  assert.match(messages[1]?.content ?? "", /本章必须遵守的事实：/);
   assert.match(messages[1]?.content ?? "", /林夜/);
   assert.match(messages[1]?.content ?? "", /宗门制度/);
 });
@@ -73,6 +74,8 @@ test("draft prompt treats retrieved context as hard constraints", () => {
 
   assert.match(messages[0]?.content ?? "", /硬约束/);
   assert.match(messages[1]?.content ?? "", /召回上下文（必须严格参考）/);
+  assert.match(messages[1]?.content ?? "", /本章必须遵守的事实：/);
+  assert.match(messages[1]?.content ?? "", /禁止改写与禁止新增：/);
   assert.match(messages[1]?.content ?? "", /意图约束：/);
   assert.match(messages[1]?.content ?? "", /黑铁令异常反应/);
   assert.match(messages[1]?.content ?? "", /人物当前位置连续性/);
@@ -97,6 +100,7 @@ test("approve prompt includes retrieved context and finalization constraints", (
 
   assert.match(messages[0]?.content ?? "", /召回上下文/);
   assert.match(messages[1]?.content ?? "", /召回上下文（必须保持一致）/);
+  assert.match(messages[1]?.content ?? "", /本章核心人物\/势力\/关系：/);
   assert.match(messages[1]?.content ?? "", /意图约束：/);
   assert.match(messages[1]?.content ?? "", /林夜/);
   assert.match(messages[1]?.content ?? "", /定稿要求：/);
@@ -139,6 +143,7 @@ test("plan prompt uses structured sections and explicit recall constraints", () 
   assert.match(messages[1]?.content ?? "", /意图约束：/);
   assert.match(messages[1]?.content ?? "", /必须包含：顾沉舟试探/);
   assert.match(messages[1]?.content ?? "", /召回上下文（必须严格参考）/);
+  assert.match(messages[1]?.content ?? "", /本章必须遵守的事实：/);
   assert.match(messages[1]?.content ?? "", /输出要求：/);
 });
 
@@ -156,6 +161,7 @@ test("review prompt uses retrieved context as validation baseline", () => {
   assert.match(messages[1]?.content ?? "", /章节规划：/);
   assert.match(messages[1]?.content ?? "", /章节草稿：/);
   assert.match(messages[1]?.content ?? "", /召回上下文（作为核对基准）/);
+  assert.match(messages[1]?.content ?? "", /最近承接的变化：/);
   assert.match(messages[1]?.content ?? "", /输出要求：/);
   assert.match(messages[1]?.content ?? "", /summary, issues, risks, continuity_checks, repair_suggestions/);
 });
