@@ -25,6 +25,7 @@ export interface EmbeddingMatch {
   chunkKey: string;
   semanticScore: number;
   text: string;
+  displayName?: string;
 }
 
 export interface EmbeddingProvider {

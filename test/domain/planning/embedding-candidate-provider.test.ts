@@ -37,6 +37,7 @@ test("EmbeddingCandidateProvider merges semantic matches without replacing base 
           entityId: 4,
           chunkKey: "world_setting:4:summary",
           semanticScore: 0.73,
+          displayName: "宗门制度",
           text: "设定：宗门制度\n规则摘要：外门弟子需持令牌登记",
         },
       ];
@@ -60,4 +61,5 @@ test("EmbeddingCandidateProvider merges semantic matches without replacing base 
   assert.equal(result.entityGroups.characters.length, 1);
   assert.equal(result.entityGroups.worldSettings.length, 1);
   assert.equal(result.entityGroups.worldSettings[0]?.reason, "embedding_match");
+  assert.equal(result.entityGroups.worldSettings[0]?.title, "宗门制度");
 });

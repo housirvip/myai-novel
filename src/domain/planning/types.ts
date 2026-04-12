@@ -14,6 +14,11 @@ export interface RetrievedEntity {
   reason: string;
   content: string;
   score: number;
+  relationEndpoints?: Array<{
+    entityType: "character" | "faction";
+    entityId: number;
+    displayName: string;
+  }>;
 }
 
 export type RetrievedFactEntityType =
@@ -30,6 +35,11 @@ export interface RetrievedFactPacket {
   entityId: number;
   displayName: string;
   relatedDisplayNames?: string[];
+  relationEndpoints?: Array<{
+    entityType: "character" | "faction";
+    entityId: number;
+    displayName: string;
+  }>;
   identity: string[];
   currentState: string[];
   coreConflictOrGoal: string[];

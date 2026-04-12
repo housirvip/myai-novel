@@ -28,7 +28,8 @@ export function buildFactPacket(entityType: RetrievedFactEntityType, entity: Ret
     entityType,
     entityId: entity.id,
     displayName,
-    relatedDisplayNames: inferRelatedDisplayNames(entityType, content),
+    relatedDisplayNames: inferRelatedDisplayNames(entityType, entity),
+    relationEndpoints: inferRelationEndpoints(entityType, entity),
     identity: [`${displayName}`],
     currentState: normalizedContent ? [normalizedContent] : [],
     coreConflictOrGoal: [],
@@ -122,22 +123,28 @@ function samePacket(left: RetrievedFactPacket, right: RetrievedFactPacket): bool
   return left.entityType === right.entityType && left.entityId === right.entityId;
 }
 
-function inferRelatedDisplayNames(entityType: RetrievedFactEntityType, content: string): string[] {
+function inferRelatedDisplayNames(entityType: RetrievedFactEntityType, entity: RetrievedEntity): string[] {
+  return inferRelationEndpoints(entityType, entity).map((endpoint) => endpoint.displayName);
+}
+
+function inferRelationEndpoints(entityType: RetrievedFactEntityType, entity: RetrievedEntity): Array<{
+  entityType: "character" | "faction";
+  entityId: number;
+  displayName: string;
+}> {
   if (entityType !== "relation") {
     return [];
   }
 
-  const names: string[] = [];
-  const sourceMatch = content.match(/source=([^;(]+?) \(/);
-  const targetMatch = content.match(/target=([^;(]+?) \(/);
-  if (sourceMatch?.[1]) {
-    names.push(sourceMatch[1].trim());
-  }
-  if (targetMatch?.[1]) {
-    names.push(targetMatch[1].trim());
+  if (entity.relationEndpoints && entity.relationEndpoints.length > 0) {
+    return entity.relationEndpoints;
   }
 
-  return names;
+  return [parseRelationEndpoint(entity.content ?? "", "source"), parseRelationEndpoint(entity.content ?? "", "target")].filter(Boolean) as Array<{
+    entityType: "character" | "faction";
+    entityId: number;
+    displayName: string;
+  }>;
 }
 
 function propagateRelationContext(input: {
@@ -216,19 +223,15 @@ function enrichEndpointPacketWithRelationContext(
 
 function buildRelationEndpointSummary(displayName: string, relation: RetrievedFactPacket): string | null {
   const content = relation.currentState.join("\n");
-  const sourceMatch = content.match(/source=([^;(]+?) \(/);
-  const targetMatch = content.match(/target=([^;(]+?) \(/);
   const relationTypeMatch = content.match(/relation_type=([^；\n]+)/);
   const statusMatch = content.match(/status=([^；\n]+)/);
   const descriptionMatch = content.match(/description=([^；\n]+)/);
 
-  const sourceName = sourceMatch?.[1]?.trim();
-  const targetName = targetMatch?.[1]?.trim();
-  if (!sourceName || !targetName) {
+  if (!relation.relationEndpoints || relation.relationEndpoints.length < 2) {
     return null;
   }
 
-  const counterpart = sourceName === displayName ? targetName : targetName === displayName ? sourceName : null;
+  const counterpart = relation.relationEndpoints.find((endpoint) => endpoint.displayName !== displayName)?.displayName ?? null;
   if (!counterpart) {
     return null;
   }
@@ -250,6 +253,38 @@ function dedupeStrings(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
 }
 
+function parseRelationEndpoint(content: string, side: "source" | "target"): {
+  entityType: "character" | "faction";
+  entityId: number;
+  displayName: string;
+} | null {
+  const match = content.match(new RegExp(`${side}=([^;(]+?) \\((character|faction):(\\d+)\\)`));
+  if (!match) {
+    return null;
+  }
+
+  const [, displayName, entityType, entityIdText] = match;
+  const entityId = Number(entityIdText);
+  if (!displayName || Number.isNaN(entityId)) {
+    return null;
+  }
+
+  return {
+    displayName: displayName.trim(),
+    entityType: entityType as "character" | "faction",
+    entityId,
+  };
+}
+
+function hasRelatedOwnerId(line: string, relationCharacterIds: Set<number>): boolean {
+  const match = line.match(/owner_id=(\d+)/);
+  if (!match) {
+    return false;
+  }
+
+  return relationCharacterIds.has(Number(match[1]));
+}
+
 function expandHardFactsFromRelations(input: {
   relationPackets: RetrievedFactPacket[];
   hardPackets: RetrievedFactPacket[];
@@ -263,22 +298,22 @@ function expandHardFactsFromRelations(input: {
     return [];
   }
 
-  const hasInstitutionEndpoint = input.candidateEndpoints.some((packet) =>
-    packet.entityType === "faction" && packet.currentState.some((line) => line.includes("category=宗门")),
-  );
-
   const packets = [...input.hardPackets, ...input.softPackets];
   const characterPackets = input.candidateEndpoints.filter((packet) => packet.entityType === "character");
+  const relationCharacterIds = new Set(
+    input.relationPackets.flatMap((packet) =>
+      (packet.relationEndpoints ?? [])
+        .filter((endpoint) => endpoint.entityType === "character")
+        .map((endpoint) => endpoint.entityId),
+    ),
+  );
 
   const relatedItems = packets.filter((packet) =>
-    packet.entityType === "item" && packet.currentState.some((line) => line.includes("owner_type=character") || line.includes("owner_id=")),
+    packet.entityType === "item"
+    && packet.currentState.some((line) => line.includes("owner_type=character"))
+    && packet.currentState.some((line) => hasRelatedOwnerId(line, relationCharacterIds)),
   );
-  const relatedRules = hasInstitutionEndpoint
-    ? packets.filter((packet) =>
-        packet.entityType === "world_setting"
-        && packet.currentState.some((line) => line.includes("规则") || line.includes("制度") || line.includes("category=规则")),
-      )
-    : [];
+  const relatedRules: RetrievedFactPacket[] = [];
 
   return dedupePackets([
     ...characterPackets.filter((packet) => packet.currentState.some((line) => line.includes("current_location="))),

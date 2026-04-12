@@ -19,6 +19,22 @@ test("buildFactPacket keeps explainability and infers continuity risk hints", ()
   assert.equal(packet.scores.finalScore, 125);
 });
 
+test("buildFactPacket prefers structured relation endpoints over content parsing", () => {
+  const packet = buildFactPacket("relation", {
+    id: 9,
+    reason: "keyword_hit",
+    content: "relation_type=member",
+    score: 60,
+    relationEndpoints: [
+      { entityType: "character", entityId: 1, displayName: "林夜" },
+      { entityType: "faction", entityId: 2, displayName: "青岳宗" },
+    ],
+  });
+
+  assert.deepEqual(packet.relatedDisplayNames, ["林夜", "青岳宗"]);
+  assert.equal(packet.relationEndpoints?.[0]?.displayName, "林夜");
+});
+
 test("buildPriorityContext keeps hard constraints ahead of soft references", () => {
   const context = buildPriorityContext({
     hardConstraints: {

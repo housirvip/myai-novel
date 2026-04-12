@@ -645,6 +645,14 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
             row.description ? `description=${row.description}` : undefined,
             row.append_notes ? `append_notes=${row.append_notes}` : undefined,
           ]),
+          relationEndpoints: [
+            row.source_type === "character" || row.source_type === "faction"
+              ? { entityType: row.source_type, entityId: row.source_id, displayName: sourceLabel }
+              : null,
+            row.target_type === "character" || row.target_type === "faction"
+              ? { entityType: row.target_type, entityId: row.target_id, displayName: targetLabel }
+              : null,
+          ].filter(Boolean),
         };
       }),
       KEYWORD_LIMITS.relations,
