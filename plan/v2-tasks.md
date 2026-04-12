@@ -127,7 +127,7 @@
 - [x] 确认 Kysely MySQL 方案
 - [x] 确认驱动库
 - [x] 确认连接池关闭策略
-- [~] 确认 migration 在 MySQL 下的运行方式
+- [x] 确认 migration 在 MySQL 下的运行方式
 
 ### P2-2. 环境变量与配置扩展
 - [x] 更新 `.env.example`
@@ -150,33 +150,33 @@
 
 ### P2-5. Migration 兼容性检查
 - [x] 检查所有 migration 是否依赖 SQLite 特性
-- [~] 检查主键、自增、默认值、时间字段兼容性
-- [ ] 检查唯一约束与索引在 MySQL 下的可用性
+- [x] 检查主键、自增、默认值、时间字段兼容性
+- [x] 检查唯一约束与索引在 MySQL 下的可用性
 - [x] 检查 JSON 文本字段策略是否仍然成立
 - [x] 必要时修正 migration 写法
 
 ### P2-6. Repository / Workflow 方言兼容性核查
 - [x] 检查 Repository 查询是否使用 SQLite 特有语法
-- [ ] 检查 transaction 语义是否在 MySQL 下保持一致
+- [x] 检查 transaction 语义是否在 MySQL 下保持一致
 - [x] 检查版本号生成与 pointer 更新逻辑是否稳定
 - [x] 检查 JSON 序列化/反序列化路径是否无方言耦合
 
 ### P2-7. MySQL 测试环境与验证
-- [ ] 准备本地或 CI MySQL 实例
-- [ ] 定义测试数据库初始化方式
+- [x] 准备本地或 CI MySQL 实例
+- [x] 定义测试数据库初始化方式
 - [ ] 定义测试后清理方式
 - [x] 增加 MySQL 配置解析测试
 - [x] 增加 MySQL client 创建测试
-- [ ] 增加 MySQL migration 测试
-- [ ] 增加 MySQL 下 `plan -> draft -> review -> repair -> approve` 端到端测试
-- [ ] 增加 MySQL 下 `chapter export/import` 测试
+- [x] 增加 MySQL migration 测试
+- [x] 增加 MySQL 下 `plan -> draft -> review -> repair -> approve` 端到端测试
+- [x] 增加 MySQL 下 `chapter export/import` 测试
 
 **依赖**
 - [ ] 建议依赖 P0 完成后再启动
 
 **完成定义**
-- [ ] `DB_CLIENT=mysql` 可正常初始化、迁移、运行 workflow
-- [ ] SQLite 与 MySQL 下核心链路行为一致
+- [x] `DB_CLIENT=mysql` 可正常初始化、迁移、运行 workflow
+- [~] SQLite 与 MySQL 下核心链路行为一致
 - [ ] 默认 SQLite 开发体验不变
 
 ---
@@ -218,8 +218,8 @@
 - [x] `retrievedContext` 已完成分层
 - [x] `draft / review / approve diff` 已使用阶段化上下文视图
 - [ ] 高风险连续性项能稳定进入约束层
-- [ ] `DB_CLIENT=mysql` 可正常初始化、迁移、运行 workflow
-- [ ] SQLite 与 MySQL 下核心链路行为一致
+- [x] `DB_CLIENT=mysql` 可正常初始化、迁移、运行 workflow
+- [~] SQLite 与 MySQL 下核心链路行为一致
 - [ ] 默认 SQLite 开发体验不变
 - [x] 默认规则式召回行为仍可用，不依赖 rerank / embedding
 - [ ] 文档已覆盖新配置、新流程和新约束

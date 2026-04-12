@@ -1,5 +1,5 @@
 import { Kysely, MysqlDialect } from "kysely";
-import mysql from "mysql2/promise";
+import mysql from "mysql2";
 
 import { env } from "../../../config/env.js";
 import type { DatabaseSchema } from "../schema/database.js";
@@ -11,10 +11,9 @@ export function createMysqlDb(): Kysely<DatabaseSchema> {
     database: env.DB_NAME,
     user: env.DB_USER,
     password: env.DB_PASSWORD,
+    connectTimeout: 5_000,
     waitForConnections: true,
     connectionLimit: env.DB_POOL_MAX,
-    maxIdle: env.DB_POOL_MAX,
-    idleTimeout: 60_000,
     queueLimit: 0,
   });
 

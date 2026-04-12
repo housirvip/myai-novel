@@ -451,14 +451,14 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_world_settings_book_category")
     .ifNotExists()
     .on("world_settings")
-    .columns(["book_id", "category"])
+    .columns(mysqlCompatibleColumns("book_id", "category"))
     .execute();
 
   await database.schema
     .createIndex("idx_world_settings_book_status")
     .ifNotExists()
     .on("world_settings")
-    .columns(["book_id", "status"])
+    .columns(mysqlCompatibleColumns("book_id", "status"))
     .execute();
 
   await database.schema
@@ -472,14 +472,14 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_characters_book_name")
     .ifNotExists()
     .on("characters")
-    .columns(["book_id", "name"])
+    .columns(mysqlCompatibleColumns("book_id", "name"))
     .execute();
 
   await database.schema
     .createIndex("idx_characters_book_status")
     .ifNotExists()
     .on("characters")
-    .columns(["book_id", "status"])
+    .columns(mysqlCompatibleColumns("book_id", "status"))
     .execute();
 
   await database.schema
@@ -493,14 +493,14 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_factions_book_name")
     .ifNotExists()
     .on("factions")
-    .columns(["book_id", "name"])
+    .columns(mysqlCompatibleColumns("book_id", "name"))
     .execute();
 
   await database.schema
     .createIndex("idx_factions_book_status")
     .ifNotExists()
     .on("factions")
-    .columns(["book_id", "status"])
+    .columns(mysqlCompatibleColumns("book_id", "status"))
     .execute();
 
   await database.schema
@@ -514,14 +514,14 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_relations_book_source")
     .ifNotExists()
     .on("relations")
-    .columns(["book_id", "source_type", "source_id"])
+    .columns(mysqlCompatibleColumns("book_id", "source_type", "source_id"))
     .execute();
 
   await database.schema
     .createIndex("idx_relations_book_target")
     .ifNotExists()
     .on("relations")
-    .columns(["book_id", "target_type", "target_id"])
+    .columns(mysqlCompatibleColumns("book_id", "target_type", "target_id"))
     .execute();
 
   await database.schema
@@ -535,14 +535,14 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_items_book_owner")
     .ifNotExists()
     .on("items")
-    .columns(["book_id", "owner_type", "owner_id"])
+    .columns(mysqlCompatibleColumns("book_id", "owner_type", "owner_id"))
     .execute();
 
   await database.schema
     .createIndex("idx_items_book_name")
     .ifNotExists()
     .on("items")
-    .columns(["book_id", "name"])
+    .columns(mysqlCompatibleColumns("book_id", "name"))
     .execute();
 
   await database.schema
@@ -556,7 +556,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_story_hooks_book_status")
     .ifNotExists()
     .on("story_hooks")
-    .columns(["book_id", "status"])
+    .columns(mysqlCompatibleColumns("book_id", "status"))
     .execute();
 
   await database.schema
@@ -570,7 +570,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_chapters_book_status")
     .ifNotExists()
     .on("chapters")
-    .columns(["book_id", "status"])
+    .columns(mysqlCompatibleColumns("book_id", "status"))
     .execute();
 
   await database.schema
@@ -591,7 +591,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_chapter_plans_book_status")
     .ifNotExists()
     .on("chapter_plans")
-    .columns(["book_id", "status"])
+    .columns(mysqlCompatibleColumns("book_id", "status"))
     .execute();
 
   await database.schema
@@ -626,7 +626,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_chapter_drafts_book_status")
     .ifNotExists()
     .on("chapter_drafts")
-    .columns(["book_id", "status"])
+    .columns(mysqlCompatibleColumns("book_id", "status"))
     .execute();
 
   await database.schema
@@ -647,7 +647,7 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_chapter_reviews_book_status")
     .ifNotExists()
     .on("chapter_reviews")
-    .columns(["book_id", "status"])
+    .columns(mysqlCompatibleColumns("book_id", "status"))
     .execute();
 
   await database.schema
@@ -668,8 +668,32 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .createIndex("idx_chapter_finals_book_status")
     .ifNotExists()
     .on("chapter_finals")
-    .columns(["book_id", "status"])
+    .columns(mysqlCompatibleColumns("book_id", "status"))
     .execute();
+}
+
+function mysqlCompatibleColumns(...columns: string[]): string[] {
+  if (env.DB_CLIENT !== "mysql") {
+    return columns;
+  }
+
+  // MySQL 对 TEXT 列建立普通索引时会命中 key length 限制。
+  // 当前 migration 保持“同一份 schema 尽量跨方言可运行”的目标，
+  // 因此在 MySQL 下优先保留安全的整数列索引，避免初始化直接失败。
+  const safeColumns = columns.filter(
+    (column) =>
+      column.endsWith("_id") ||
+      column.endsWith("_no") ||
+      column === "id" ||
+      column === "book_id" ||
+      column === "chapter_id" ||
+      column === "draft_id" ||
+      column === "based_on_plan_id" ||
+      column === "based_on_draft_id" ||
+      column === "based_on_review_id",
+  );
+
+  return safeColumns.length > 0 ? safeColumns : [columns[0] as string];
 }
 
 async function addColumnIfMissing(
