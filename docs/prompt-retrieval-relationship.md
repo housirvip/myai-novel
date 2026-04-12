@@ -305,6 +305,76 @@ flowchart TD
 
 `retrievedContext` 是这条链路里最关键的共享上下文之一。
 
+```mermaid
+flowchart TD
+    A1[manualRefs<br/>手工指定实体 ID]
+    A2[keywords<br/>authorIntent 提取关键词]
+    A3[outlines<br/>当前章节覆盖大纲]
+    A4[recent chapters<br/>最近章节摘要]
+
+    B1[RuleBasedCandidateProvider<br/>默认规则召回主链]
+    B2[optional EmbeddingCandidateProvider<br/>实验链路: 补语义候选]
+    B3[optional HeuristicReranker<br/>实验链路: 二次重排]
+
+    C1[hardConstraints<br/>连续性保底约束]
+    C2[softReferences<br/>补充参考实体/大纲/章节]
+    C3[riskReminders<br/>显式风险提醒]
+    C4[priorityContext<br/>blocking/decision/supporting/background]
+    C5[recentChanges<br/>最近承接与状态变化]
+
+    D1[prompt-context-blocks<br/>把 retrievedContext 转成可读事实块]
+
+    E1[plan prompt<br/>生成章节规划]
+    E2[draft prompt<br/>生成章节草稿]
+    E3[review prompt<br/>做缺陷导向审阅]
+    E4[repair prompt<br/>在约束内修稿]
+    E5[approve prompt<br/>生成最终正文]
+    E6[approve diff prompt<br/>抽取结构化事实变更]
+
+    A1 --> B1
+    A2 --> B1
+    A3 --> B1
+    A4 --> B1
+
+    B1 --> B2
+    B2 --> B3
+
+    B3 --> C1
+    B3 --> C2
+    B3 --> C3
+    B3 --> C4
+    B3 --> C5
+
+    C1 --> D1
+    C3 --> D1
+    C4 --> D1
+    C5 --> D1
+
+    D1 --> E1
+    D1 --> E2
+    D1 --> E3
+    D1 --> E4
+    D1 --> E5
+    D1 --> E6
+```
+
+这张图可以这样读：
+
+- 左侧 `A` 区域是召回输入源
+  - `manualRefs` 是显式指定的强信号
+  - `keywords` 来自用户意图或意图提取结果
+  - `outlines / recent chapters` 提供章节承接背景
+- 中间 `B` 区域是候选获取与重排
+  - `RuleBasedCandidateProvider` 是默认主链
+  - `EmbeddingCandidateProvider` 和 `HeuristicReranker` 是可选实验层
+- `C` 区域是最终落入 `retrievedContext` 的结构
+  - 不是单一实体列表，而是多层上下文
+- `D` 区域是 prompt 输入整理层
+  - 负责把结构化上下文变成适合模型阅读的事实块
+- 右侧 `E` 区域是各阶段 prompt
+  - 它们共享同一份 `retrievedContext`
+  - 只是消费的上下文重点不同
+
 它的作用不是“展示召回结果”，而是作为后续所有阶段共同依赖的事实边界：
 
 - `plan` 用它生成章节规划
@@ -331,8 +401,133 @@ flowchart TD
 - `riskReminders`
 
 JSON 原文仍保留，但更多是兜底、核对和调试用途。
+
 - 多个阶段围绕同一份固化上下文协作
 - 这样能减少多次生成时上下文漂移
+
+### 7.1 `hardConstraints`
+
+`hardConstraints` 是最接近“本章不能写错什么”的一层。
+
+当前典型会进入这一层的内容包括：
+
+- 章节邻近的关键钩子
+- 带 `current_location` / `status` 的人物
+- 带 `owner_type / owner_id / status` 的物品
+- 高分或手工指定的关系
+- 活跃的世界规则与制度边界
+
+它的用途是：
+
+- 给 `plan` 提供明确约束
+- 给 `draft` 提供连续性保底
+- 给 `review` 和 `approve` 提供核对基准
+
+### 7.2 `softReferences`
+
+`softReferences` 是补充上下文层。
+
+它通常包含：
+
+- 相关大纲
+- 最近章节摘要
+- 没进入 `hardConstraints` 的实体候选
+
+它的用途不是强制模型逐条遵守，而是：
+
+- 提供补充背景
+- 避免正文只剩硬约束、缺少剧情语境
+
+### 7.3 `riskReminders`
+
+`riskReminders` 不是实体，也不是打分结果，而是面向模型的显式提醒。
+
+当前常见提醒包括：
+
+- 钩子接近回收节点
+- 最近章节状态需要承接
+- 人物位置连续性
+- 关键物品持有者连续性
+- 不要违反已激活规则/制度边界
+
+它的作用是把“容易写错但不一定能从实体列表里一眼看出的问题”直接说给模型听。
+
+### 7.4 `priorityContext`
+
+`priorityContext` 是 V3 新增的中间层，目的是把召回结果再按 prompt 预算和重要性分组。
+
+当前包含四层：
+
+- `blockingConstraints`
+  - 最重要，优先进入 prompt
+- `decisionContext`
+  - 对本章决策和推进有直接帮助
+- `supportingContext`
+  - 有帮助，但不是必须
+- `backgroundNoise`
+  - 命中了，但默认不进入 prompt 主体
+
+这里要特别区分：
+
+- `hardConstraints`
+  - 更偏业务连续性语义
+- `blockingConstraints`
+  - 更偏 prompt 展示优先级
+
+两者相关，但不是同一个概念。
+
+### 7.5 `recentChanges`
+
+`recentChanges` 负责把“最近刚发生的事”单独抽出来，避免被静态设定淹没。
+
+当前来源包括：
+
+- 最近章节摘要
+- 高风险提醒
+- 带状态变化信号的实体
+
+它的作用是减少这类错误：
+
+- 历史设定记住了，但最新状态没承接
+- 人物位置、关系、物品归属刚变过，却在正文里被忽略
+
+### 7.6 Prompt 怎么消费 `retrievedContext`
+
+当前 prompt 不是直接“整包读取 `retrievedContext`”，而是先走：
+
+- `prompt-context-blocks.ts`
+
+把它转成这些可读区块：
+
+- `本章必须遵守的事实`
+- `最近承接的变化`
+- `本章核心人物/势力/关系`
+- `必须推进的钩子`
+- `禁止改写与禁止新增`
+- `补充背景`
+
+这样做的目的有两个：
+
+- 把最重要的信息顶到最前面
+- 减少模型自己从 JSON 里提炼重点的负担
+
+### 7.7 默认链路和实验链路的关系
+
+当前需要明确区分两件事：
+
+- 默认稳定链路
+  - 规则召回
+  - 规则打分排序
+  - 直通 reranker
+- 实验链路
+  - `HeuristicReranker`
+  - `EmbeddingCandidateProvider`
+  - `basic / hybrid` embedding search mode
+
+所以：
+
+- `retrievedContext` 的主结构已经稳定存在
+- 但里面的候选来源和排序细节，仍然可以在实验模式下变化
 
 关于 `retrievedContext` 是如何命中的、如何打分排序、各类实体字段如何参与匹配，请看：[`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
 
