@@ -405,6 +405,131 @@ JSON 原文仍保留，但更多是兜底、核对和调试用途。
 - 多个阶段围绕同一份固化上下文协作
 - 这样能减少多次生成时上下文漂移
 
+### 7.0 实验链路图：Embedding 与 Rerank
+
+```mermaid
+flowchart TD
+    A1[实体摘要构造<br/>embedding-text / embedding-index]
+    A2[EmbeddingDocument<br/>entityType + entityId + displayName + text]
+    A3[EmbeddingProvider<br/>deterministic / future real provider]
+    A4[EmbeddingSearcher<br/>basic memory / hybrid]
+
+    B1[EmbeddingMatch<br/>displayName + semanticScore]
+    B2[EmbeddingCandidateProvider<br/>补充语义候选]
+    B3[RuleBasedCandidateProvider<br/>默认规则候选]
+
+    C1[候选 merge<br/>规则候选 + embedding 候选]
+    C2[DirectPassThroughReranker<br/>默认不重排]
+    C3[HeuristicReranker<br/>实验重排]
+
+    D1[retrievedContext<br/>hardConstraints / priorityContext / recentChanges]
+    D2[benchmark<br/>strict / baseline_gap]
+
+    A1 --> A2
+    A2 --> A3
+    A3 --> A4
+    A4 --> B1
+    B1 --> B2
+
+    B3 --> C1
+    B2 --> C1
+
+    C1 --> C2
+    C1 --> C3
+
+    C2 --> D1
+    C3 --> D1
+
+    D1 --> D2
+```
+
+这张图主要描述默认链路之外的实验层：
+
+- 左侧 `A` 区域是 embedding 预处理与检索准备
+  - 先把实体整理成 embedding 摘要
+  - 再生成 `EmbeddingDocument`
+  - 再交给 provider 与 searcher
+- 中间 `B` 区域是 embedding 候选生成
+  - `EmbeddingMatch` 会带 `displayName`
+  - `EmbeddingCandidateProvider` 只负责补候选，不直接覆盖规则结果
+- `C` 区域是候选合并与可选重排
+  - 默认是 `DirectPassThroughReranker`
+  - 实验模式下可以换成 `HeuristicReranker`
+- 右侧 `D` 区域说明实验结果的去向
+  - 仍然回到统一的 `retrievedContext`
+  - 再由 benchmark 去观察提升还是回退
+
+当前需要特别注意：
+
+- 默认主链路并不依赖 embedding
+- embedding 目前主要用于实验和 gap 样本验证
+- `world-rule` 仍然是 embedding/hybrid 尚未完全收口的典型样本
+
+### 7.0b 实验链路图：Relation Propagation 与 Hard-Fact Expansion
+
+```mermaid
+flowchart TD
+    A1[relation candidate<br/>source / target / relation_type / status]
+    A2[RetrievedEntity.relationEndpoints<br/>结构化端点元数据]
+    A3[RetrievedFactPacket<br/>relation packet]
+
+    B1[relatedDisplayNames<br/>关系两端显示名]
+    B2[endpoint propagation<br/>把人物/势力端点补进 decisionContext]
+    B3[relation_context enrichment<br/>给端点补关系状态摘要]
+
+    C1[member relation detection<br/>识别入宗/成员关系]
+    C2[hard-fact expansion<br/>补人物位置 / 端点人物持有物]
+
+    D1[priorityContext.decisionContext]
+    D2[priorityContext.blockingConstraints]
+    D3[gap benchmark<br/>relation-shift]
+
+    A1 --> A2
+    A2 --> A3
+
+    A3 --> B1
+    B1 --> B2
+    A3 --> B3
+
+    A3 --> C1
+    C1 --> C2
+
+    B2 --> D1
+    B3 --> D1
+    C2 --> D2
+
+    D1 --> D3
+    D2 --> D3
+```
+
+这张图描述的是 relation 命中后的二次整理层，而不是基础打分层。
+
+可以这样理解：
+
+- `A` 区域是 relation 候选本身
+  - 当前 relation 在生成时就会带 `relationEndpoints`
+  - 不再完全依赖 `content` 文本反向解析
+- `B` 区域是关系传播
+  - 命中关系后，会把关系两端的人物/势力补进 `decisionContext`
+  - 同时给端点 packet 补 `relation_context`
+- `C` 区域是更窄的 hard-fact 扩展
+  - 当前只对 `member` 这类关系做
+  - 会补人物位置、端点人物持有物等更像硬约束的事实
+- `D` 区域说明这些结果最终会如何影响 benchmark
+  - `relation-shift` 之所以还在 `baseline_gap`
+  - 主要不是传播链路断了，而是 blocking facts 还不够稳定
+
+当前这条链路已经解决的问题：
+
+- relation 命中后不再只留下“关系实体自己”
+- 端点人物/势力可以进入 `decisionContext`
+- 端点 packet 会带关系状态摘要
+
+当前这条链路还没完全解决的问题：
+
+- relation query 还不能稳定把 `林夜 / 黑铁令 / 宗门制度` 这种关联 hard facts 全部带进 `blockingConstraints`
+- 因此 `relation-shift` 仍然是当前保留的 `baseline_gap` 样本
+
 ### 7.1 `hardConstraints`
 
 `hardConstraints` 是最接近“本章不能写错什么”的一层。
