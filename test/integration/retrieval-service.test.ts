@@ -25,6 +25,9 @@ test("retrieval service skips placeholder chapters and returns richer entity con
     hardConstraintRelation: { content: string } | null;
     hardConstraintWorldSetting: { content: string } | null;
     riskReminders: string[];
+    priorityBlockingCount: number;
+    priorityDecisionCount: number;
+    recentChanges: Array<{ source: string; label: string; detail: string }>;
   }>(
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
@@ -94,6 +97,9 @@ test("retrieval service skips placeholder chapters and returns richer entity con
       "    hardConstraintRelation: context.hardConstraints.relations[0] ?? null,",
       "    hardConstraintWorldSetting: context.hardConstraints.worldSettings[0] ?? null,",
       "    riskReminders: context.riskReminders,",
+      "    priorityBlockingCount: context.priorityContext?.blockingConstraints.length ?? 0,",
+      "    priorityDecisionCount: context.priorityContext?.decisionContext.length ?? 0,",
+      "    recentChanges: context.recentChanges ?? [],",
       "  }));",
       "} finally {",
       "  await manager.destroy();",
@@ -134,6 +140,11 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.ok(result.riskReminders.some((item) => item.includes("人物当前位置连续性")));
   assert.ok(result.riskReminders.some((item) => item.includes("关键物品的持有者与状态连续性")));
   assert.ok(result.riskReminders.some((item) => item.includes("已激活的世界规则")));
+  assert.ok(result.priorityBlockingCount >= 4);
+  assert.ok(result.priorityDecisionCount >= 1);
+  assert.ok(result.recentChanges.length >= 3);
+  assert.ok(result.recentChanges.some((item) => item.source === "risk_reminder"));
+  assert.ok(result.recentChanges.some((item) => item.source === "chapter_summary"));
 });
 
 test("retrieval service keeps default rule-based behavior when reranker is pass-through", async () => {

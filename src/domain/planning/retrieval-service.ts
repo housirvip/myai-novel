@@ -9,6 +9,8 @@ import {
   scoreEntity,
   type RetrievalScoredRow,
 } from "./retrieval-ranking.js";
+import { buildRecentChanges } from "./recent-changes.js";
+import { buildPriorityContext } from "./retrieval-facts.js";
 
 import type {
   ManualEntityRefs,
@@ -93,6 +95,25 @@ export class RetrievalQueryService {
         const { hooks, characters, factions, items, relations, worldSettings } = entityGroups;
 
         const hardConstraints = buildHardConstraints(entityGroups);
+        const riskReminders = buildRiskReminders({
+          hardConstraints,
+          recentChapters,
+        });
+        const priorityContext = buildPriorityContext({
+          hardConstraints,
+          softReferences: entityGroups,
+        });
+        const recentChanges = buildRecentChanges({
+          recentChapters,
+          riskReminders,
+          entities: [
+            ...hardConstraints.characters,
+            ...hardConstraints.items,
+            ...hardConstraints.relations,
+            ...hardConstraints.hooks,
+            ...hardConstraints.worldSettings,
+          ],
+        });
 
         return {
           book: {
@@ -120,12 +141,11 @@ export class RetrievalQueryService {
             recentChapters,
             entities: entityGroups,
           },
+          priorityContext,
+          recentChanges,
           // riskReminders 是面向后续 prompt 的补充提醒，
           // 用来显式提示未回收钩子、章节连续性风险等信息，但它本身不参与实体打分排序。
-          riskReminders: buildRiskReminders({
-            hardConstraints,
-            recentChapters,
-          }),
+          riskReminders,
         };
       },
     );

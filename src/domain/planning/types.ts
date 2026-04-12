@@ -107,6 +107,8 @@ export interface PlanRetrievedContext {
     entities: PlanRetrievedContextEntityGroups;
   };
   riskReminders: string[];
+  priorityContext?: RetrievedPriorityContext;
+  recentChanges?: RetrievedRecentChange[];
 }
 
 export interface ExtractedIntentPayload {

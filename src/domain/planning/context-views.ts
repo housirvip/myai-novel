@@ -1,10 +1,17 @@
-import type { PlanRetrievedContext, PlanRetrievedContextEntityGroups } from "./types.js";
+import type {
+  PlanRetrievedContext,
+  PlanRetrievedContextEntityGroups,
+  RetrievedPriorityContext,
+  RetrievedRecentChange,
+} from "./types.js";
 
 export function buildDraftContextView(context: PlanRetrievedContext | unknown) {
   const normalized = normalizePlanRetrievedContext(context);
   return {
     book: normalized.book,
     hardConstraints: normalized.hardConstraints,
+    priorityContext: normalized.priorityContext,
+    recentChanges: normalized.recentChanges,
     recentChapters: normalized.recentChapters,
     riskReminders: normalized.riskReminders,
     supportingOutlines: normalized.softReferences.outlines,
@@ -16,6 +23,8 @@ export function buildReviewContextView(context: PlanRetrievedContext | unknown) 
   return {
     book: normalized.book,
     hardConstraints: normalized.hardConstraints,
+    priorityContext: normalized.priorityContext,
+    recentChanges: normalized.recentChanges,
     recentChapters: normalized.recentChapters,
     riskReminders: normalized.riskReminders,
   };
@@ -26,6 +35,8 @@ export function buildRepairContextView(context: PlanRetrievedContext | unknown) 
   return {
     book: normalized.book,
     hardConstraints: normalized.hardConstraints,
+    priorityContext: normalized.priorityContext,
+    recentChanges: normalized.recentChanges,
     recentChapters: normalized.recentChapters,
     riskReminders: normalized.riskReminders,
     supportingOutlines: normalized.softReferences.outlines,
@@ -37,6 +48,8 @@ export function buildApproveContextView(context: PlanRetrievedContext | unknown)
   return {
     book: normalized.book,
     hardConstraints: normalized.hardConstraints,
+    priorityContext: normalized.priorityContext,
+    recentChanges: normalized.recentChanges,
     recentChapters: normalized.recentChapters,
     riskReminders: normalized.riskReminders,
     supportingOutlines: normalized.softReferences.outlines,
@@ -48,6 +61,8 @@ export function buildApproveDiffContextView(context: PlanRetrievedContext | unkn
   return {
     book: normalized.book,
     hardConstraints: normalized.hardConstraints,
+    priorityContext: normalized.priorityContext,
+    recentChanges: normalized.recentChanges,
     recentChapters: normalized.recentChapters,
     riskReminders: normalized.riskReminders,
   };
@@ -61,6 +76,8 @@ function normalizePlanRetrievedContext(context: unknown): PlanRetrievedContext {
       recentChapters?: PlanRetrievedContext["recentChapters"];
       entities?: Partial<PlanRetrievedContextEntityGroups>;
     };
+    priorityContext?: RetrievedPriorityContext;
+    recentChanges?: RetrievedRecentChange[];
   };
 
   const fallbackGroups = {
@@ -109,5 +126,7 @@ function normalizePlanRetrievedContext(context: unknown): PlanRetrievedContext {
       },
     },
     riskReminders: value.riskReminders ?? [],
+    priorityContext: value.priorityContext,
+    recentChanges: value.recentChanges ?? [],
   };
 }
