@@ -36,9 +36,98 @@ export async function migrateToLatest(
       await createChapterDraftsTable(database);
       await createChapterReviewsTable(database);
       await createChapterFinalsTable(database);
+      await ensureMysqlCompatibleColumnTypes(database);
+      await rebuildMysqlCompatibleIndexes(database);
       await createIndexes(database);
     },
   );
+}
+
+async function ensureMysqlCompatibleColumnTypes(database: Kysely<DatabaseSchema>): Promise<void> {
+  if (env.DB_CLIENT !== "mysql") {
+    return;
+  }
+
+  const alterTargets: Array<{ table: string; column: string; definition: string }> = [
+    { table: "books", column: "status", definition: `${TYPE_STATUS} NOT NULL DEFAULT 'planning'` },
+    { table: "outlines", column: "outline_level", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "outlines", column: "title", definition: `${TYPE_NAME} NOT NULL` },
+    { table: "world_settings", column: "title", definition: `${TYPE_NAME} NOT NULL` },
+    { table: "world_settings", column: "category", definition: `${TYPE_CATEGORY} NOT NULL` },
+    { table: "world_settings", column: "status", definition: `${TYPE_STATUS} NOT NULL` },
+    { table: "characters", column: "name", definition: `${TYPE_NAME} NOT NULL` },
+    { table: "characters", column: "status", definition: `${TYPE_STATUS} NOT NULL` },
+    { table: "factions", column: "name", definition: `${TYPE_NAME} NOT NULL` },
+    { table: "factions", column: "category", definition: TYPE_CATEGORY },
+    { table: "factions", column: "status", definition: TYPE_STATUS },
+    { table: "relations", column: "source_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "relations", column: "target_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "relations", column: "relation_type", definition: `${TYPE_RELATION} NOT NULL` },
+    { table: "relations", column: "status", definition: TYPE_STATUS },
+    { table: "items", column: "name", definition: `${TYPE_NAME} NOT NULL` },
+    { table: "items", column: "category", definition: TYPE_CATEGORY },
+    { table: "items", column: "owner_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "items", column: "rarity", definition: TYPE_STATUS },
+    { table: "items", column: "status", definition: TYPE_STATUS },
+    { table: "story_hooks", column: "title", definition: `${TYPE_NAME} NOT NULL` },
+    { table: "story_hooks", column: "hook_type", definition: TYPE_RELATION },
+    { table: "story_hooks", column: "status", definition: `${TYPE_STATUS} NOT NULL` },
+    { table: "story_hooks", column: "importance", definition: TYPE_STATUS },
+    { table: "chapters", column: "status", definition: `${TYPE_STATUS} NOT NULL` },
+    { table: "chapter_plans", column: "status", definition: `${TYPE_STATUS} NOT NULL` },
+    { table: "chapter_plans", column: "intent_source", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "chapter_plans", column: "source_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "chapter_drafts", column: "status", definition: `${TYPE_STATUS} NOT NULL` },
+    { table: "chapter_drafts", column: "source_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "chapter_reviews", column: "status", definition: `${TYPE_STATUS} NOT NULL` },
+    { table: "chapter_reviews", column: "source_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "chapter_finals", column: "status", definition: `${TYPE_STATUS} NOT NULL` },
+    { table: "chapter_finals", column: "source_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+  ];
+
+  for (const target of alterTargets) {
+    await sql.raw(`ALTER TABLE ${target.table} MODIFY COLUMN ${target.column} ${target.definition}`).execute(database);
+  }
+}
+
+async function rebuildMysqlCompatibleIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
+  if (env.DB_CLIENT !== "mysql") {
+    return;
+  }
+
+  const targets = [
+    ["world_settings", "idx_world_settings_book_category"],
+    ["world_settings", "idx_world_settings_book_status"],
+    ["characters", "idx_characters_book_name"],
+    ["characters", "idx_characters_book_status"],
+    ["factions", "idx_factions_book_name"],
+    ["factions", "idx_factions_book_status"],
+    ["relations", "idx_relations_book_source"],
+    ["relations", "idx_relations_book_target"],
+    ["items", "idx_items_book_owner"],
+    ["items", "idx_items_book_name"],
+    ["story_hooks", "idx_story_hooks_book_status"],
+    ["chapters", "idx_chapters_book_status"],
+    ["chapter_plans", "idx_chapter_plans_book_status"],
+    ["chapter_drafts", "idx_chapter_drafts_book_status"],
+    ["chapter_reviews", "idx_chapter_reviews_book_status"],
+    ["chapter_finals", "idx_chapter_finals_book_status"],
+  ] as const;
+
+  for (const [tableName, indexName] of targets) {
+    const existingIndex = await sql<{ index_present: number }>`
+      select 1 as index_present
+      from information_schema.statistics
+      where table_schema = database()
+        and table_name = ${tableName}
+        and index_name = ${indexName}
+      limit 1
+    `.execute(database);
+
+    if (existingIndex.rows.length > 0) {
+      await sql.raw(`DROP INDEX ${indexName} ON ${tableName}`).execute(database);
+    }
+  }
 }
 
 async function createBooksTable(database: Kysely<DatabaseSchema>): Promise<void> {
