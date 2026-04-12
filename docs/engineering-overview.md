@@ -55,6 +55,10 @@ npm test
 - MySQL `plan -> draft -> review -> repair -> approve` 全链路
 - MySQL `chapter export/import`
 - 召回质量与阶段化 prompt 长度回归
+- `priorityContext / recentChanges / relation propagation`
+- `HeuristicReranker`
+- embedding indexing / memory search / hybrid search
+- retrieval benchmark 与 gap 样本实验
 
 ## 3. 项目结构
 
@@ -72,14 +76,20 @@ plan/                 V2 方案与 checklist
 examples/             示例脚本
 ```
 
-其中与 V2 最相关的目录包括：
+其中当前与 V3 最相关的目录包括：
 
 - `src/domain/planning/`
   - `prompts.ts`：各阶段 prompt 构建
+  - `prompt-context-blocks.ts`：可读事实块构造
   - `context-views.ts`：阶段化上下文视图
   - `retrieval-ranking.ts`：规则打分与 explainability
   - `retrieval-pipeline.ts`：候选提供与 rerank 预留接口
   - `retrieval-service.ts`：当前默认规则召回主链
+  - `retrieval-facts.ts`：fact packet、关系传播、hard-fact 扩展
+  - `retrieval-priorities.ts`：priorityContext 分层
+  - `recent-changes.ts`：recentChanges 聚合
+  - `retrieval-reranker-heuristic.ts`：启发式 rerank
+  - `embedding-*.ts`：embedding 文档、provider、searcher、candidate provider
 - `src/core/db/`
   - `dialects/sqlite.ts`
   - `dialects/mysql.ts`
@@ -90,23 +100,27 @@ examples/             示例脚本
 
 ## 4. 当前状态
 
-V2 当前状态：
+当前状态：
 
 - 核心表结构与迁移
 - 资源 CRUD CLI
 - 章节工作流全链路
 - 分层召回与阶段化上下文视图
+- `priorityContext` / `recentChanges`
+- 可读 prompt 事实块
 - 正式稿版本化
 - 结构化事实回写
 - Markdown 导入导出
 - SQLite / MySQL 双方言主链验证
-- rerank / embedding 接口预留
+- `HeuristicReranker` 已实现并可配置启用
+- embedding 实验链路已实现：document / provider / memory search / hybrid search / candidate merge
+- retrieval benchmark 已建立，包含 strict 和 baseline_gap 样本
 - 自动化测试基线
 
 如果你想继续往下扩展，下一阶段比较自然的方向通常是：
 
-- embedding 候选召回 / RAG
-- 业务层 rerank 实验
+- 更真实的 embedding provider / 索引刷新流程
+- `world-rule` / `relation-shift` gap 收口
 - 更强的关系演化建模
 - 冲突检测与设定一致性审计
 - 批量章节工作流

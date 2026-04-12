@@ -32,11 +32,12 @@
 
 ## 2. 总结
 
-当前系统的召回不是向量检索，而是“规则式文本匹配 + 手工指定 ID + 业务加权”的优先度打分模型。
+当前系统的默认主链路不是正式向量检索，而是“规则式文本匹配 + 手工指定 ID + 业务加权”的优先度打分模型。
 
 可以概括为：
 
 - `plan`：执行召回，并按分数排序后截断
+- `plan`：再把召回结果整理成 `hardConstraints / softReferences / riskReminders / priorityContext / recentChanges`
 - `draft`：不重新召回，直接复用 `plan` 阶段保存下来的召回结果
 
 所以：
@@ -52,14 +53,16 @@
 - `draft` 工作流：`src/domain/workflows/draft-chapter-workflow.ts`
 - 召回结构定义：`src/domain/planning/types.ts`
 
-当前默认实现仍然是：
+当前默认实现现在分两层：
 
 - `RuleBasedCandidateProvider` 直接用现有规则式查询得到候选集
-- `DirectPassThroughReranker` 不做额外二次重排，直接透传当前结果
+- 默认 `DirectPassThroughReranker` 不做额外二次重排，直接透传当前结果
+- 可选 `HeuristicReranker` 可在显式配置下启用
+- 可选 `EmbeddingCandidateProvider` 可在显式配置并注入 searcher 时补充语义候选
 
-这层抽象的作用不是改变 V2 默认行为，而是为后续实验预留稳定挂点：
+这层抽象的作用不是改变默认稳定行为，而是为后续实验预留稳定挂点：
 
-- 未来可先接 embedding 候选召回源
+- 可先接 embedding 候选召回源
 - 再接业务层 rerank
 - 同时保持当前 explainability 字段与工作流不需要重写
 
@@ -127,7 +130,7 @@
 - 保证 `plan` 和 `draft` 用的是同一套上下文
 - 避免同一章多次生成时召回结果来回漂移
 
-## 6. 通用打分规则
+## 6. 通用打分与优先级规则
 
 当前大多数实体都走同一个基础公式。
 
@@ -367,6 +370,20 @@ npm run dev -- plan \
 - `PLANNING_RETRIEVAL_HOOK_LIMIT`
 - `PLANNING_RETRIEVAL_RELATION_LIMIT`
 - `PLANNING_RETRIEVAL_WORLD_SETTING_LIMIT`
+- `PLANNING_RETRIEVAL_RERANKER`
+- `PLANNING_RETRIEVAL_EMBEDDING_ENABLED`
+- `PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE`
+
+其中新增实验项：
+
+- `PLANNING_RETRIEVAL_RERANKER`
+  - `none`
+  - `heuristic`
+- `PLANNING_RETRIEVAL_EMBEDDING_ENABLED`
+  - `true / false`
+- `PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE`
+  - `basic`
+  - `hybrid`
 
 ## 14. 一句话结论
 

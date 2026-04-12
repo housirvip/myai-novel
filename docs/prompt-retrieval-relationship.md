@@ -131,7 +131,8 @@ flowchart TD
 - 使用 `user` message 提供结构化业务上下文
 - 多段正文通过 `buildStructuredPrompt()` 拼接
 - 每段通过 `section(title, content)` 组织为 `标题：\n内容`
-- 复杂上下文通过 `jsonSection()` 序列化后喂给模型
+- 复杂上下文仍可通过 `jsonSection()` 序列化后喂给模型
+- 但当前默认优先先构造成“可读事实块”再进入 prompt
 
 对应实现位于 `src/domain/planning/prompts.ts`：
 
@@ -143,6 +144,12 @@ flowchart TD
 
 - `system` 负责定义职责与规则
 - `user` 负责提供当前章节上下文
+
+当前还新增了一层：
+
+- `src/domain/planning/prompt-context-blocks.ts`
+
+它会优先把 `retrievedContext` 转成更可读的事实块，而不是直接把整包 JSON 塞给模型。
 
 ## 4. Provider 层对 Prompt 的附加规则
 
@@ -232,6 +239,15 @@ flowchart TD
 - `authorIntent` 决定“本章想写什么”
 - `retrievedContext` 决定“本章不能写错什么”
 
+当前 `buildPlanPrompt()` 里，模型看到的主要上下文块包括：
+
+- `本章必须遵守的事实`
+- `最近承接的变化`
+- `本章核心人物/势力/关系`
+- `必须推进的钩子`
+- `禁止改写与禁止新增`
+- `补充背景`
+
 ## 6. Draft / Review / Repair / Approve 的 Prompt 链路
 
 ### 6.1 Draft Prompt
@@ -245,6 +261,7 @@ flowchart TD
 职责：
 
 - 在既有规划和事实约束内，产出完整章节草稿
+- 当前会优先消费 `blockingConstraints` 与 `recentChanges` 组织出的事实块
 
 ### 6.2 Review Prompt
 
@@ -258,6 +275,8 @@ flowchart TD
 
 - 检查草稿是否违背规划与事实边界
 - 输出结构化审阅结果，便于落库和后续修稿
+
+当前 review prompt 已偏“缺陷导向”，而不是泛泛评价文风。
 
 ### 6.3 Repair Prompt
 
@@ -297,6 +316,21 @@ flowchart TD
 因此，当前链路的核心特征是：
 
 - 工作流各阶段不是各自独立取数
+- 当前 `retrievedContext` 已不只是实体列表，而包含：
+  - `hardConstraints`
+  - `softReferences`
+  - `riskReminders`
+  - `priorityContext`
+  - `recentChanges`
+
+当前 prompt 最优先消费的是：
+
+- `priorityContext.blockingConstraints`
+- `priorityContext.decisionContext`
+- `recentChanges`
+- `riskReminders`
+
+JSON 原文仍保留，但更多是兜底、核对和调试用途。
 - 多个阶段围绕同一份固化上下文协作
 - 这样能减少多次生成时上下文漂移
 
