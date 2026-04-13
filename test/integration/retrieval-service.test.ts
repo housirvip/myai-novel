@@ -330,6 +330,44 @@ test("retrieval service honors hybrid embedding mode with injected searcher", as
   assert.equal(result.topReason, "embedding_match");
 });
 
+test("configured planning retrieval service wires embedding searcher for normal workflow use", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-factory-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_EMBEDDING_ENABLED: "true",
+    PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE: "hybrid",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{ baseWorldSettingCount: number; wiredWorldSettingReason: string | null }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "import { createPlanningRetrievalService } from './src/domain/planning/retrieval-service-factory.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 10, current_chapter_count: 1, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('world_settings').values({ id: 1, book_id: 1, title: '宗门制度', category: '规则', content: '外门弟子凭令牌登记入门', status: 'active', append_notes: '违反后会被逐出山门', keywords: '[\"宗门\",\"令牌\"]', created_at: now, updated_at: now }).execute();",
+      "  const baseService = new RetrievalQueryService(logger);",
+      "  const wiredService = await createPlanningRetrievalService(logger, db, { bookId: 1 });",
+      "  const params = { bookId: 1, chapterNo: 2, keywords: ['执行条件'], manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } };",
+      "  const baseContext = await baseService.retrievePlanContext(params);",
+      "  const wiredContext = await wiredService.retrievePlanContext(params);",
+      "  console.log(JSON.stringify({ baseWorldSettingCount: baseContext.worldSettings.length, wiredWorldSettingReason: wiredContext.worldSettings[0]?.reason ?? null }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.baseWorldSettingCount, 0);
+  assert.equal(result.wiredWorldSettingReason, "embedding_match");
+});
+
 test("retrieval ranking prefers stronger weighted hits and keeps continuity entities in hard constraints", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-weighted-"));
   const env = createTestEnv(tempDir);

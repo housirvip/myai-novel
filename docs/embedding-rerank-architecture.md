@@ -29,6 +29,13 @@
 - 默认主链路：规则召回 + 规则排序 + `DirectPassThroughReranker`
 - 实验链路：规则召回 + embedding candidate merge + `HeuristicReranker`
 
+当前代码层面的模块边界已经进一步收敛为：
+
+- `retrieval-candidate-provider-rule.ts` 负责默认规则候选加载
+- `retrieval-service-factory.ts` 负责 embedding 实验链路初始化与接线
+- `retrieval-reranker-factory.ts` 负责 reranker 配置选择
+- `retrieval-context-builder.ts` 负责最终 `retrievedContext` 装配
+
 这里的设计重点不是把规则召回整体替换掉，而是：
 
 - 让规则召回继续提供稳定、可解释、可控的 baseline
@@ -98,7 +105,7 @@ flowchart TD
 默认情况下：
 
 - 不启用 embedding candidate provider
-- 不启用 heuristic reranker
+- 不启用 heuristic reranker（即使用 `DirectPassThroughReranker`）
 
 这意味着线上主链路仍然尽量保持：
 
@@ -134,11 +141,14 @@ flowchart TD
 
 文档构造入口在 `src/domain/planning/embedding-index.ts`，目前会把实体转换成 summary document。
 
-当前主要覆盖：
+当前已经覆盖：
 
 - `character`
 - `hook`
 - `world_setting`
+- `faction`
+- `item`
+- `relation`
 
 文本模板分散在：
 
@@ -422,6 +432,14 @@ embedding 和 rerank 虽然都影响召回结果，但职责不同。
 - `PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE=basic|hybrid`
 - `PLANNING_RETRIEVAL_RERANKER=none|heuristic`
 
+需要注意，当前正常工作流已经通过 `src/domain/planning/retrieval-service-factory.ts` 接入了 embedding 实验链路。
+
+也就是说：
+
+- 如果只开 `PLANNING_RETRIEVAL_EMBEDDING_ENABLED=true`，workflow 会实际构造 in-memory store、refresh 文档并装载 searcher
+- 如果同时配置 `PLANNING_RETRIEVAL_RERANKER=heuristic`，则会继续在统一 pipeline 中走启发式重排
+- 默认不打开这些配置时，主链路仍保持规则召回 + pass-through rerank
+
 组合关系通常是：
 
 - 默认：embedding 关闭，rerank 为 pass-through
@@ -505,7 +523,7 @@ flowchart LR
 ### 当前优势
 
 - embedding 已经不是一次性 demo，而是完整的 refresh -> store -> load -> search -> merge 链路
-- rerank 已经从 pipeline 层抽象出来，可以独立替换
+- rerank 已经从 pipeline 层抽象出来，并通过 `retrieval-reranker-factory.ts` 独立选择实现
 - semantic 补候选和 heuristic 重排职责明确，不会相互覆盖
 - benchmark 已能用 strict / gap 样本验证增强是否真实有效
 

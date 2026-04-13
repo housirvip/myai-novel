@@ -125,7 +125,7 @@ test("plan prompt uses structured sections and explicit recall constraints", () 
         targetChapterCount: 200,
         currentChapterCount: 11,
       },
-      outlines: [],
+      outlines: [{ id: 9, title: "外门试炼", reason: "outline_hit", content: "外门考核将升级，需承接令牌规则。" }],
       recentChapters: [],
       hooks: [],
       characters: [],
@@ -144,6 +144,8 @@ test("plan prompt uses structured sections and explicit recall constraints", () 
   assert.match(messages[1]?.content ?? "", /必须包含：顾沉舟试探/);
   assert.match(messages[1]?.content ?? "", /召回上下文（必须严格参考）/);
   assert.match(messages[1]?.content ?? "", /本章必须遵守的事实：/);
+  assert.match(messages[1]?.content ?? "", /补充背景：/);
+  assert.match(messages[1]?.content ?? "", /外门试炼：外门考核将升级，需承接令牌规则。/);
   assert.match(messages[1]?.content ?? "", /输出要求：/);
 });
 

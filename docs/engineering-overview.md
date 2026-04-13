@@ -85,7 +85,13 @@ examples/             示例脚本
   - `retrieval-ranking.ts`：规则打分与 explainability
   - `retrieval-features.ts`：priority 与 rerank 共享特征判断
   - `retrieval-pipeline.ts`：候选提供与 rerank 预留接口
-  - `retrieval-service.ts`：当前默认规则召回主链
+  - `retrieval-service.ts`：检索主链 orchestration
+  - `retrieval-candidate-provider-rule.ts`：默认规则式 candidate provider
+  - `retrieval-service-factory.ts`：embedding 实验链路初始化
+  - `retrieval-reranker-factory.ts`：reranker 配置选择
+  - `retrieval-context-builder.ts`：最终 `PlanRetrievedContext` 装配
+  - `retrieval-hard-constraints.ts`：硬约束筛选
+  - `retrieval-risk-reminders.ts`：风险提醒构造
   - `retrieval-facts.ts`：fact packet 入口编排
   - `fact-packet-builder.ts`：fact packet 构造
   - `relation-propagation.ts`：关系传播与 hard-fact 扩展
@@ -121,11 +127,13 @@ examples/             示例脚本
 - `HeuristicReranker` 已实现并可配置启用
 - embedding 实验链路已实现：document / provider / memory search / hybrid search / candidate merge / store / refresh
 - embedding 刷新已支持：全量 refresh / 单一 entityType refresh / 按 model 清理
-- retrieval benchmark 已建立，当前固定 10 个样本已全部收口到 strict
 - retrieval benchmark 当前固定 11 个样本已全部收口到 strict
 - retrieval query-intent helpers 已开始从 `retrieval-service.ts` 收敛到 `retrieval-features.ts`
 - retrieval boost 逻辑已开始从 `retrieval-service.ts` 收敛到 `retrieval-query-boosts.ts`
-- retrieval 模块已完成第一轮技术债拆分：fact packet builder / relation propagation / merge helper / feature layer
+- retrieval 模块已完成两轮技术债拆分：
+  - 第一轮：fact packet builder / relation propagation / merge helper / feature layer
+  - 第二轮：candidate provider / reranker factory / service factory / hard constraints / risk reminders / context builder
+- `retrieval-service.ts` 当前已明显瘦身，主要负责 provider + reranker 选择、retrieve 编排和 context builder 调用
 - 自动化测试基线
 
 如果你想继续往下扩展，下一阶段比较自然的方向通常是：

@@ -22,6 +22,7 @@ type RetrievedContextViewLike = {
   priorityContext?: RetrievedPriorityContext;
   recentChapters?: RetrievedChapterSummary[];
   riskReminders?: string[];
+  outlines?: RetrievedOutline[];
   supportingOutlines?: RetrievedOutline[];
   characters?: RetrievedEntity[];
   factions?: RetrievedEntity[];
@@ -79,7 +80,7 @@ export function buildPromptContextBlocks(context: unknown): PromptContextBlocks 
   const forbiddenMoves = (value.riskReminders ?? []).slice(0, 4);
   const supportingBackground = [
     ...summarizeFactPackets(priorityContext.supportingContext, 3),
-    ...summarizeOutlines(value.supportingOutlines, 2),
+    ...summarizeOutlines(value.supportingOutlines ?? value.outlines, 2),
   ].slice(0, 4);
 
   return {

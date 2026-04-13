@@ -47,9 +47,16 @@
 
 ## 3. 相关代码位置
 
-- 召回实现：`src/domain/planning/retrieval-service.ts`
+- 检索服务编排：`src/domain/planning/retrieval-service.ts`
+- 默认规则候选提供器：`src/domain/planning/retrieval-candidate-provider-rule.ts`
+- embedding 实验链路接线：`src/domain/planning/retrieval-service-factory.ts`
+- reranker 选择：`src/domain/planning/retrieval-reranker-factory.ts`
 - 候选/重排接口：`src/domain/planning/retrieval-pipeline.ts`
 - 共享特征层：`src/domain/planning/retrieval-features.ts`
+- query boost 规则：`src/domain/planning/retrieval-query-boosts.ts`
+- 最终上下文装配：`src/domain/planning/retrieval-context-builder.ts`
+- 硬约束筛选：`src/domain/planning/retrieval-hard-constraints.ts`
+- 风险提醒构造：`src/domain/planning/retrieval-risk-reminders.ts`
 - fact packet 构造：`src/domain/planning/fact-packet-builder.ts`
 - relation 传播：`src/domain/planning/relation-propagation.ts`
 - packet 合并：`src/domain/planning/fact-packet-merge.ts`
@@ -57,12 +64,13 @@
 - `draft` 工作流：`src/domain/workflows/draft-chapter-workflow.ts`
 - 召回结构定义：`src/domain/planning/types.ts`
 
-当前默认实现现在分两层：
+当前默认实现现在分几层：
 
 - `RuleBasedCandidateProvider` 直接用现有规则式查询得到候选集
 - 默认 `DirectPassThroughReranker` 不做额外二次重排，直接透传当前结果
 - 可选 `HeuristicReranker` 可在显式配置下启用
 - 可选 `EmbeddingCandidateProvider` 可在显式配置并注入 searcher 时补充语义候选
+- `buildRetrievedContext()` 统一把 rerank 结果整理为 `hardConstraints / softReferences / riskReminders / priorityContext / recentChanges`
 
 这层抽象的作用不是改变默认稳定行为，而是为后续实验预留稳定挂点：
 
@@ -213,12 +221,12 @@
 | --- | --- | --- | --- | --- |
 | 大纲 | 否 | 按章节范围筛选 | 无 | `PLANNING_RETRIEVAL_OUTLINE_LIMIT` |
 | 最近章节 | 否 | 按章节号倒序筛选并要求存在摘要 | 无 | `PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT` |
-| 人物 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | 无 | `PLANNING_RETRIEVAL_CHARACTER_LIMIT` |
-| 势力 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | 无 | `PLANNING_RETRIEVAL_FACTION_LIMIT` |
-| 物品 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | 无 | `PLANNING_RETRIEVAL_ITEM_LIMIT` |
+| 人物 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | `membership / continuity / observer-immutability` boost | `PLANNING_RETRIEVAL_CHARACTER_LIMIT` |
+| 势力 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | `institution / authority-reaction` boost | `PLANNING_RETRIEVAL_FACTION_LIMIT` |
+| 物品 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | `membership / continuity / source-*` boost | `PLANNING_RETRIEVAL_ITEM_LIMIT` |
 | 钩子 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | 章节邻近加权，最高 `+40` | `PLANNING_RETRIEVAL_HOOK_LIMIT` |
 | 关系 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | 与手工指定人物/势力相连时 `+35` | `PLANNING_RETRIEVAL_RELATION_LIMIT` |
-| 世界设定 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | 无 | `PLANNING_RETRIEVAL_WORLD_SETTING_LIMIT` |
+| 世界设定 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | `rule-world-setting` boost | `PLANNING_RETRIEVAL_WORLD_SETTING_LIMIT` |
 
 补充说明：
 
@@ -349,9 +357,15 @@
 需要特别区分：
 
 - 召回结果：来自检索与打分
-- 风险提醒：通常来自规划阶段的分析输出
+- 风险提醒：来自 `hardConstraints + recentChapters` 的二次整理
 
 两者都可能出现在 `plan` 阶段，但不是同一回事。
+
+当前风险提醒已经独立收敛在：
+
+- `src/domain/planning/retrieval-risk-reminders.ts`
+
+它不会参与实体打分，只负责把高风险连续性边界显式写回 `retrievedContext.riskReminders`。
 
 ## 12. 端到端 CLI 示例
 
@@ -403,7 +417,7 @@ npm run dev -- plan \
 
 如果只用一句话描述当前机制，可以写成：
 
-`plan` 使用“关键词匹配驱动的优先度打分召回”，`draft` 不重新召回，而是直接继承 `plan` 固化下来的召回结果。
+`plan` 使用“规则候选 + query boost + 可选实验 rerank”的优先度打分召回，`draft` 不重新召回，而是直接继承 `plan` 固化下来的召回结果。
 
 ## 相关阅读
 

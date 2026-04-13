@@ -15,7 +15,7 @@ import {
   buildKeywordExtractionPrompt,
   buildPlanPrompt,
 } from "../planning/prompts.js";
-import { RetrievalQueryService } from "../planning/retrieval-service.js";
+import { createPlanningRetrievalService } from "../planning/retrieval-service-factory.js";
 import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS, PLAN_INTENT_SOURCE } from "../shared/constants.js";
 import type {
   ExtractedIntentPayload,
@@ -49,8 +49,8 @@ export class PlanChapterWorkflow {
     content: string;
   }> {
     const payload = runPlanWorkflowSchema.parse(input);
-    const retrievalService = new RetrievalQueryService(this.logger);
     const llmClient = createLlmFactory(this.logger).create(payload.provider as LlmProviderName | undefined);
+    const manager = createDatabaseManager(this.logger);
 
     return withTimingLog(
       this.logger,
@@ -61,52 +61,58 @@ export class PlanChapterWorkflow {
         chapterNo: payload.chapterNo,
       },
       async () => {
-        const initialContext = await retrievalService.retrievePlanContext({
-          bookId: payload.bookId,
-          chapterNo: payload.chapterNo,
-          keywords: [],
-          manualRefs: payload.manualEntityRefs,
-        });
+        try {
+          const retrievalService = await createPlanningRetrievalService(
+            this.logger,
+            manager.getClient(),
+            { bookId: payload.bookId },
+          );
+          const initialContext = await retrievalService.retrievePlanContext({
+            bookId: payload.bookId,
+            chapterNo: payload.chapterNo,
+            keywords: [],
+            manualRefs: payload.manualEntityRefs,
+          });
 
         // 如果用户已经明确给出 authorIntent，就直接沿用用户输入；
         // 否则才用“轻量上下文”生成一版意图草案，避免无关设定过早干扰意图提炼。
-        const authorIntent =
-          payload.authorIntent ??
-          (
-            await llmClient.generate({
-              model: payload.model,
-              messages: buildIntentGenerationPrompt({
-                bookTitle: initialContext.book.title,
-                chapterNo: payload.chapterNo,
-                outlinesText: formatOutlines(initialContext),
-                recentChapterText: formatRecentChapters(initialContext),
-                manualFocusText: formatManualFocus(initialContext),
-              }),
-            })
-          ).content;
+          const authorIntent =
+            payload.authorIntent ??
+            (
+              await llmClient.generate({
+                model: payload.model,
+                messages: buildIntentGenerationPrompt({
+                  bookTitle: initialContext.book.title,
+                  chapterNo: payload.chapterNo,
+                  outlinesText: formatOutlines(initialContext),
+                  recentChapterText: formatRecentChapters(initialContext),
+                  manualFocusText: formatManualFocus(initialContext),
+                }),
+              })
+            ).content;
 
-        const intentSource = payload.authorIntent
-          ? PLAN_INTENT_SOURCE.USER_INPUT
-          : PLAN_INTENT_SOURCE.AI_GENERATED;
-        const keywordResult = await llmClient.generate({
-          model: payload.model,
-          messages: buildKeywordExtractionPrompt({ authorIntent }),
-          responseFormat: "json",
-        });
-        const extractedIntent = extractedIntentSchema.parse(parseLooseJson(keywordResult.content));
-        const intentConstraints = toIntentConstraints(extractedIntent);
+          const intentSource = payload.authorIntent
+            ? PLAN_INTENT_SOURCE.USER_INPUT
+            : PLAN_INTENT_SOURCE.AI_GENERATED;
+          const keywordResult = await llmClient.generate({
+            model: payload.model,
+            messages: buildKeywordExtractionPrompt({ authorIntent }),
+            responseFormat: "json",
+          });
+          const extractedIntent = extractedIntentSchema.parse(parseLooseJson(keywordResult.content));
+          const intentConstraints = toIntentConstraints(extractedIntent);
 
         // 第二次召回才是后续写作阶段真正共享的事实边界：
         // 这里把意图提取出的 keywords 和手工指定实体一起纳入，生成会被固化到 plan 的 retrievedContext。
-        const retrievedContext = await retrievalService.retrievePlanContext({
-          bookId: payload.bookId,
-          chapterNo: payload.chapterNo,
-          keywords: extractedIntent.keywords,
-          manualRefs: payload.manualEntityRefs,
-        });
+          const retrievedContext = await retrievalService.retrievePlanContext({
+            bookId: payload.bookId,
+            chapterNo: payload.chapterNo,
+            keywords: extractedIntent.keywords,
+            manualRefs: payload.manualEntityRefs,
+          });
 
-        const planResult = await llmClient.generate({
-          model: payload.model,
+          const planResult = await llmClient.generate({
+            model: payload.model,
             messages: buildPlanPrompt({
               bookTitle: retrievedContext.book.title,
               chapterNo: payload.chapterNo,
@@ -116,9 +122,6 @@ export class PlanChapterWorkflow {
             }),
           });
 
-        const manager = createDatabaseManager(this.logger);
-
-        try {
           return await manager.getClient().transaction().execute(async (trx) => {
             const chapterRepository = new ChapterRepository(trx);
             const chapterPlanRepository = new ChapterPlanRepository(trx);
@@ -159,7 +162,7 @@ export class PlanChapterWorkflow {
               payload.chapterNo,
               {
                 current_plan_id: created.id,
-              status: CHAPTER_STATUS.PLANNED,
+                status: CHAPTER_STATUS.PLANNED,
                 updated_at: timestamp,
               },
             );

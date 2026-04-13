@@ -367,8 +367,10 @@ flowchart TD
 - 中间 `B` 区域是候选获取与重排
   - `RuleBasedCandidateProvider` 是默认主链
   - `EmbeddingCandidateProvider` 和 `HeuristicReranker` 是可选实验层
+  - 当前 workflow 实际通过 `retrieval-service-factory.ts` 接入 embedding 实验链路，通过 `retrieval-reranker-factory.ts` 选择 reranker
 - `C` 区域是最终落入 `retrievedContext` 的结构
   - 不是单一实体列表，而是多层上下文
+  - 当前这层装配已经收敛到 `retrieval-context-builder.ts`
 - `D` 区域是 prompt 输入整理层
   - 负责把结构化上下文变成适合模型阅读的事实块
 - 右侧 `E` 区域是各阶段 prompt
@@ -401,6 +403,14 @@ flowchart TD
 - `riskReminders`
 
 JSON 原文仍保留，但更多是兜底、核对和调试用途。
+
+从代码结构上看，当前 `retrievedContext` 相关职责已经拆成：
+
+- `retrieval-hard-constraints.ts`
+- `retrieval-risk-reminders.ts`
+- `retrieval-facts.ts`
+- `recent-changes.ts`
+- `retrieval-context-builder.ts`
 
 - 多个阶段围绕同一份固化上下文协作
 - 这样能减少多次生成时上下文漂移

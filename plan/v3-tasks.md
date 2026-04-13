@@ -81,6 +81,13 @@
 ### P1-5. 技术债拆分
 - [x] 将 `retrieval-facts.ts` 拆分为 builder / propagation / merge 三层
 - [x] 新建 `retrieval-features.ts` 统一 priority / rerank 共用判断
+- [x] 新建 `retrieval-hard-constraints.ts` 收敛硬约束筛选规则
+- [x] 新建 `retrieval-risk-reminders.ts` 收敛风险提醒构造逻辑
+- [x] 新建 `retrieval-context-builder.ts` 收敛最终 `PlanRetrievedContext` 装配
+- [x] 新建 `retrieval-reranker-factory.ts` 收敛 reranker 配置选择
+- [x] 新建 `retrieval-candidate-provider-rule.ts` 收敛默认规则式 candidate provider
+- [x] 新建 `retrieval-service-factory.ts` 收敛 embedding 实验链路初始化
+- [x] 为 `retrieval-hard-constraints` / `retrieval-risk-reminders` / `retrieval-context-builder` 补独立单测
 - [ ] 进一步压缩 relation 的 fallback 兼容路径
 
 ---
