@@ -4,6 +4,7 @@ import type {
   RetrievedPriorityContext,
 } from "./types.js";
 import {
+  hasCharacterStateConstraint,
   hasContinuityRisk,
   hasInstitutionContext,
   hasKeywordOrStrongMatch,
@@ -50,7 +51,8 @@ export function prioritizeFactPackets(packets: RetrievedFactPacket[]): Retrieved
 function isBlockingConstraint(packet: RetrievedFactPacket): boolean {
   return BLOCKING_ENTITY_TYPES.has(packet.entityType)
     || hasManualPriority(packet)
-    || hasContinuityRisk(packet);
+    || hasContinuityRisk(packet)
+    || hasCharacterStateConstraint(packet);
 }
 
 function isDecisionContext(packet: RetrievedFactPacket): boolean {

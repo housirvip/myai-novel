@@ -14,16 +14,19 @@ import { buildPriorityContext } from "./retrieval-facts.js";
 import { EmbeddingCandidateProvider, type EmbeddingCandidateSearcher } from "./embedding-candidate-provider.js";
 import { HeuristicReranker } from "./retrieval-reranker-heuristic.js";
 import {
-  hasAnyKeywordCue,
-  hasAuthorityReactionQueryCue,
-  hasInstitutionalQueryCue,
-  hasItemContinuityQueryCue,
-  hasLocationContinuityQueryCue,
-  hasMembershipQueryCue,
-  hasRuleQueryCue,
-  hasSourceImmutabilityQueryCue,
-  hasSourceObservationQueryCue,
 } from "./retrieval-features.js";
+import {
+  authorityReactionFactionBoost,
+  continuityCharacterBoost,
+  continuityItemBoost,
+  institutionalFactionBoost,
+  membershipCharacterBoost,
+  membershipItemBoost,
+  observerImmutabilityCharacterBoost,
+  ruleWorldSettingBoost,
+  sourceImmutabilityItemBoost,
+  sourceObservationItemBoost,
+} from "./retrieval-query-boosts.js";
 
 import type {
   ManualEntityRefs,
@@ -375,6 +378,10 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
           currentLocation: row.current_location,
           appendNotes: row.append_notes,
           status: row.status,
+        }, params.keywords) + observerImmutabilityCharacterBoost({
+          background: row.background,
+          goal: row.goal,
+          appendNotes: row.append_notes,
         }, params.keywords),
         reason: buildReasons({
           manualIds: params.manualRefs.characterIds,
@@ -404,6 +411,11 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
               currentLocation: row.current_location,
               appendNotes: row.append_notes,
               status: row.status,
+            }, params.keywords) > 0 ? "continuity_risk" : null,
+            observerImmutabilityCharacterBoost({
+              background: row.background,
+              goal: row.goal,
+              appendNotes: row.append_notes,
             }, params.keywords) > 0 ? "continuity_risk" : null,
           ].filter(Boolean) as string[],
         }),
@@ -859,10 +871,13 @@ function buildHardConstraints(groups: PlanRetrievedContextEntityGroups): PlanRet
       entity.reason.includes("chapter_proximity") || entity.reason.includes("manual_id"),
     ),
     // 人物如果是手工指定、关键词强命中，或文本里带当前位置/状态信息，优先进入硬约束。
+    // 另外保留少量带 continuity_risk 且具备目标/背景状态的人物，用于承接“不可改写观察者/动机”这类约束查询。
     characters: selectPriorityEntities(groups.characters, 6, (entity) =>
       entity.reason.includes("manual_id") ||
       entity.content.includes("current_location=") ||
       entity.content.includes("status=") ||
+      (entity.reason.includes("continuity_risk")
+        && (entity.content.includes("goal=") || entity.content.includes("background="))) ||
       entity.score >= 130,
     ),
     factions: selectPriorityEntities(groups.factions, 4, (entity) =>
@@ -898,150 +913,6 @@ function selectPriorityEntities(
   const fallback = entities.filter((entity) => !isPriority(entity));
 
   return [...prioritized, ...fallback].slice(0, limit);
-}
-
-function institutionalFactionBoost(input: {
-  category: string | null;
-  coreGoal: string | null;
-  description: string | null;
-  appendNotes: string | null;
-}, keywords: string[]): number {
-  const normalizedCategory = (input.category ?? "").toLowerCase();
-  if (!normalizedCategory.includes("宗门")) {
-    return 0;
-  }
-
-  const normalizedText = [input.coreGoal, input.description, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
-  const hasInstitutionalCue = hasInstitutionalQueryCue(keywords);
-  const hasRuleCue = hasRuleQueryCue(keywords)
-    && ["秩序", "制度", "外门", "入门", "登记", "门规"].some((token) => normalizedText.includes(token));
-
-  return hasInstitutionalCue || hasRuleCue ? 18 : 0;
-}
-
-function authorityReactionFactionBoost(input: {
-  category: string | null;
-  coreGoal: string | null;
-  description: string | null;
-  appendNotes: string | null;
-}, keywords: string[]): number {
-  const normalizedCategory = (input.category ?? "").toLowerCase();
-  if (!normalizedCategory.includes("宗门")) {
-    return 0;
-  }
-
-  if (!hasAuthorityReactionQueryCue(keywords)) {
-    return 0;
-  }
-
-  const normalizedText = [input.coreGoal, input.description, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
-  return ["秩序", "宗门", "外门", "制度", "门规"].some((token) => normalizedText.includes(token)) ? 18 : 0;
-}
-
-function membershipCharacterBoost(input: {
-  currentLocation: string | null;
-  professions: string | null;
-  appendNotes: string | null;
-}, keywords: string[]): number {
-  if (!hasMembershipQueryCue(keywords)) {
-    return 0;
-  }
-
-  const normalizedText = [input.currentLocation, input.professions, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
-  return ["宗", "门", "外门", "内门", "弟子", "入门"].some((token) => normalizedText.includes(token)) ? 18 : 0;
-}
-
-function continuityCharacterBoost(input: {
-  currentLocation: string | null;
-  appendNotes: string | null;
-  status: string | null;
-}, keywords: string[]): number {
-  if (!hasLocationContinuityQueryCue(keywords)) {
-    return 0;
-  }
-
-  if (!input.currentLocation) {
-    return 0;
-  }
-
-  const normalizedText = [input.currentLocation, input.appendNotes, input.status].filter(Boolean).join("\n").toLowerCase();
-  return ["外门", "内门", "回廊", "山", "场", "alive"].some((token) => normalizedText.includes(token)) ? 18 : 0;
-}
-
-function membershipItemBoost(input: {
-  category: string | null;
-  description: string | null;
-  appendNotes: string | null;
-}, keywords: string[]): number {
-  if (!(hasMembershipQueryCue(keywords) || hasRuleQueryCue(keywords))) {
-    return 0;
-  }
-
-  const normalizedText = [input.category, input.description, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
-  return ["令牌", "身份", "凭证", "登记"].some((token) => normalizedText.includes(token)) ? 18 : 0;
-}
-
-function continuityItemBoost(input: {
-  ownerType: string;
-  ownerId: number | null;
-  status: string | null;
-  category: string | null;
-  description: string | null;
-  appendNotes: string | null;
-}, keywords: string[]): number {
-  if (!hasItemContinuityQueryCue(keywords)) {
-    return 0;
-  }
-
-  const hasTrackedOwnership = Boolean(input.ownerType) || input.ownerId !== null || Boolean(input.status);
-  if (!hasTrackedOwnership) {
-    return 0;
-  }
-
-  const normalizedText = [input.category, input.description, input.appendNotes, input.status].filter(Boolean).join("\n").toLowerCase();
-  return ["令牌", "身份", "凭证", "active", "失踪", "持有"].some((token) => normalizedText.includes(token)) ? 18 : 0;
-}
-
-function sourceObservationItemBoost(input: {
-  category: string | null;
-  description: string | null;
-  appendNotes: string | null;
-  status: string | null;
-}, keywords: string[]): number {
-  if (!hasSourceObservationQueryCue(keywords)) {
-    return 0;
-  }
-
-  const normalizedText = [input.category, input.description, input.appendNotes, input.status].filter(Boolean).join("\n").toLowerCase();
-  return ["令牌", "身份", "凭证", "核验", "active"].some((token) => normalizedText.includes(token)) ? 18 : 0;
-}
-
-function sourceImmutabilityItemBoost(input: {
-  category: string | null;
-  description: string | null;
-  appendNotes: string | null;
-  status: string | null;
-}, keywords: string[]): number {
-  if (!hasSourceImmutabilityQueryCue(keywords)) {
-    return 0;
-  }
-
-  const normalizedText = [input.category, input.description, input.appendNotes, input.status].filter(Boolean).join("\n").toLowerCase();
-  return ["令牌", "身份", "凭证", "核验", "active"].some((token) => normalizedText.includes(token)) ? 18 : 0;
-}
-
-function ruleWorldSettingBoost(input: {
-  title: string | null;
-  category: string | null;
-  content: string | null;
-  appendNotes: string | null;
-}, keywords: string[]): number {
-  if (!(hasMembershipQueryCue(keywords) || hasRuleQueryCue(keywords) || hasAnyKeywordCue(keywords, ["制度", "令牌"]))) {
-    return 0;
-  }
-
-  const normalizedText = [input.title, input.category, input.content, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
-  return ["规则", "制度", "登记", "令牌", "入门", "外门", "宗门"].some((token) => normalizedText.includes(token)) ? 18 : 0;
 }
 
 function buildRiskReminders(input: {

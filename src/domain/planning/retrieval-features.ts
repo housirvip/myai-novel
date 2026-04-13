@@ -40,12 +40,30 @@ export function hasSourceImmutabilityQueryCue(keywords: string[]): boolean {
     && hasAnyKeywordCue(keywords, ["来源", "来历"]);
 }
 
+export function hasObserverImmutabilityQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["禁止", "不要", "改写", "覆盖"])
+    && hasAnyKeywordCue(keywords, ["观察者", "观察", "怀疑", "试探"]);
+}
+
 export function hasManualPriority(packet: RetrievedFactPacket): boolean {
   return packet.scores.manualPriorityScore > 0;
 }
 
 export function hasContinuityRisk(packet: RetrievedFactPacket): boolean {
   return packet.scores.continuityRiskScore > 0 || packet.continuityRisk.length > 0;
+}
+
+export function hasCharacterStateConstraint(packet: RetrievedFactPacket): boolean {
+  if (packet.entityType !== "character") {
+    return false;
+  }
+
+  if (!packet.relevanceReasons.includes("continuity_risk")) {
+    return false;
+  }
+
+  const text = packet.currentState.join("\n").toLowerCase();
+  return text.includes("goal=") || text.includes("background=") || text.includes("append_notes=");
 }
 
 export function hasMotivationSignals(packet: RetrievedFactPacket): boolean {

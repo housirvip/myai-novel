@@ -250,5 +250,6 @@
   - `location-drift`
   - `source-observation`
   - `source-immutability`
+  - `observer-immutability`
 
-当前固定 10 个 benchmark fixture 已全部收口到 `strict`。query-intent 特征层已开始落地，下一步要么补新的 `baseline_gap` 样本，要么继续把现有窄规则从 `retrieval-service.ts` 收敛到统一特征层。
+当前固定 11 个 benchmark fixture 已全部收口到 `strict`。下一步要么补新的 `baseline_gap` 样本，要么继续把现有窄规则整理为统一的 query-intent 特征层。

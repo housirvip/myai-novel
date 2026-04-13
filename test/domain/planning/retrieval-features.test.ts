@@ -7,6 +7,7 @@ import {
   hasItemContinuityQueryCue,
   hasLocationContinuityQueryCue,
   hasMembershipQueryCue,
+  hasObserverImmutabilityQueryCue,
   hasRuleQueryCue,
   hasSourceImmutabilityQueryCue,
   hasSourceObservationQueryCue,
@@ -21,10 +22,12 @@ test("retrieval feature helpers detect narrow query intents", () => {
   assert.equal(hasItemContinuityQueryCue(["易主", "失踪"]), true);
   assert.equal(hasSourceObservationQueryCue(["来源", "观察", "宗门"]), true);
   assert.equal(hasSourceImmutabilityQueryCue(["禁止", "改写", "来源"]), true);
+  assert.equal(hasObserverImmutabilityQueryCue(["不要", "改写", "观察者"]), true);
 });
 
 test("retrieval feature helpers keep mixed intents narrow", () => {
   assert.equal(hasSourceObservationQueryCue(["来源", "宗门"]), false);
   assert.equal(hasSourceImmutabilityQueryCue(["改写", "宗门"]), false);
+  assert.equal(hasObserverImmutabilityQueryCue(["改写", "来源"]), false);
   assert.equal(hasLocationContinuityQueryCue(["来源", "观察"]), false);
 });

@@ -27,6 +27,7 @@ export const RETRIEVAL_BENCHMARK_FIXTURE_NAMES = [
   "location-drift",
   "source-observation",
   "source-immutability",
+  "observer-immutability",
 ] as const;
 
 export interface RetrievalBenchmarkResult {

@@ -1,0 +1,11 @@
+{
+  "name": "observer-immutability",
+  "expectationMode": "strict",
+  "query": {
+    "keywords": ["不要", "改写", "观察者"]
+  },
+  "expected": {
+    "blockingNames": ["顾沉舟"],
+    "maxNoiseRatio": 0.7
+  }
+}
