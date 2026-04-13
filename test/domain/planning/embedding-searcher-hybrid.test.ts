@@ -14,6 +14,7 @@ test("HybridEmbeddingSearcher keeps rule-focused world setting near the top", as
       entityId: 1,
       chunkKey: "character:1:summary",
       model: "test-embed-v1",
+      displayName: "林夜",
       text: "人物：林夜\n核心动机：查清黑铁令来历",
     },
     {
@@ -21,6 +22,7 @@ test("HybridEmbeddingSearcher keeps rule-focused world setting near the top", as
       entityId: 2,
       chunkKey: "world_setting:2:summary",
       model: "test-embed-v1",
+      displayName: "宗门制度",
       text: "设定：宗门制度\n规则摘要：外门弟子凭令牌登记入门",
     },
     {
@@ -28,6 +30,7 @@ test("HybridEmbeddingSearcher keeps rule-focused world setting near the top", as
       entityId: 3,
       chunkKey: "faction:3:summary",
       model: "test-embed-v1",
+      displayName: "青岳宗",
       text: "势力：青岳宗\n规则执行：负责外门弟子凭令牌登记入门",
     },
   ]);
