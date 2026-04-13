@@ -150,6 +150,11 @@ flowchart TD
 - `item`
 - `relation`
 
+当前 embedding provider 支持两种实现：
+
+- `hash`：本地 `DeterministicHashEmbeddingProvider`，无远程依赖，适合默认实验链路与测试
+- `custom`：自定义远程 embedding provider，走 OpenAI-compatible `/embeddings` 接口
+
 文本模板分散在：
 
 - `embedding-text-characters.ts`
@@ -428,9 +433,14 @@ embedding 和 rerank 虽然都影响召回结果，但职责不同。
 
 当前相关开关主要包括：
 
+- `PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=hash|custom`
 - `PLANNING_RETRIEVAL_EMBEDDING_ENABLED`
 - `PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE=basic|hybrid`
 - `PLANNING_RETRIEVAL_RERANKER=none|heuristic`
+- `CUSTOM_EMBEDDING_BASE_URL`
+- `CUSTOM_EMBEDDING_API_KEY`
+- `CUSTOM_EMBEDDING_MODEL`
+- `CUSTOM_EMBEDDING_PATH`
 
 需要注意，当前正常工作流已经通过 `src/domain/planning/retrieval-service-factory.ts` 接入了 embedding 实验链路。
 

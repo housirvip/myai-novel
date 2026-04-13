@@ -44,6 +44,7 @@
 - Markdown 编辑：支持导出 `plan / draft / final` 为 Markdown，再导入生成新版本
 - 数据库支持：默认 SQLite，本地开发体验不变；同时支持 `DB_CLIENT=mysql`
 - 实验扩展：已支持 `HeuristicReranker`、embedding candidate provider、basic / hybrid embedding search mode
+- embedding provider：已支持本地 hash provider 与自定义远程 embedding provider（OpenAI-compatible `/embeddings`）
 - retrieval 结构收敛：当前已拆分为 candidate provider、service factory、reranker factory、context builder、hard constraints、risk reminders 等模块
 - 日志体系：记录数据表 CRUD、工作流耗时、LLM 调用耗时、成功与否，AI 输入输出可选记录
 
