@@ -1,5 +1,45 @@
 import type { RetrievedEntity, RetrievedFactEntityType, RetrievedFactPacket } from "./types.js";
 
+export function hasAnyKeywordCue(keywords: string[], cues: string[]): boolean {
+  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+  return normalizedKeywords.some((keyword) => cues.some((token) => keyword.includes(token)));
+}
+
+export function hasInstitutionalQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["执事", "长老", "内门", "外门", "宗门", "入宗", "成员", "关系"]);
+}
+
+export function hasRuleQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["规则", "制度", "登记", "令牌"]);
+}
+
+export function hasAuthorityReactionQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["身份", "异常", "反应", "核验", "执事"]);
+}
+
+export function hasMembershipQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["入宗", "成员", "关系"]);
+}
+
+export function hasLocationContinuityQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["位置", "场景", "承接", "换场", "突然"]);
+}
+
+export function hasItemContinuityQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["易主", "失踪", "连续", "恢复"]);
+}
+
+export function hasSourceObservationQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["来源", "来历"])
+    && hasAnyKeywordCue(keywords, ["观察", "怀疑", "试探"])
+    && hasAnyKeywordCue(keywords, ["宗门", "执事", "核验"]);
+}
+
+export function hasSourceImmutabilityQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["禁止", "不要", "改写", "覆盖"])
+    && hasAnyKeywordCue(keywords, ["来源", "来历"]);
+}
+
 export function hasManualPriority(packet: RetrievedFactPacket): boolean {
   return packet.scores.manualPriorityScore > 0;
 }

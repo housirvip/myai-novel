@@ -13,6 +13,17 @@ import { buildRecentChanges } from "./recent-changes.js";
 import { buildPriorityContext } from "./retrieval-facts.js";
 import { EmbeddingCandidateProvider, type EmbeddingCandidateSearcher } from "./embedding-candidate-provider.js";
 import { HeuristicReranker } from "./retrieval-reranker-heuristic.js";
+import {
+  hasAnyKeywordCue,
+  hasAuthorityReactionQueryCue,
+  hasInstitutionalQueryCue,
+  hasItemContinuityQueryCue,
+  hasLocationContinuityQueryCue,
+  hasMembershipQueryCue,
+  hasRuleQueryCue,
+  hasSourceImmutabilityQueryCue,
+  hasSourceObservationQueryCue,
+} from "./retrieval-features.js";
 
 import type {
   ManualEntityRefs,
@@ -901,8 +912,8 @@ function institutionalFactionBoost(input: {
   }
 
   const normalizedText = [input.coreGoal, input.description, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
-  const hasInstitutionalCue = hasAnyKeywordCue(keywords, ["执事", "长老", "内门", "外门", "宗门", "入宗", "成员", "关系"]);
-  const hasRuleCue = hasAnyKeywordCue(keywords, ["规则", "制度", "登记", "令牌"])
+  const hasInstitutionalCue = hasInstitutionalQueryCue(keywords);
+  const hasRuleCue = hasRuleQueryCue(keywords)
     && ["秩序", "制度", "外门", "入门", "登记", "门规"].some((token) => normalizedText.includes(token));
 
   return hasInstitutionalCue || hasRuleCue ? 18 : 0;
@@ -919,7 +930,7 @@ function authorityReactionFactionBoost(input: {
     return 0;
   }
 
-  if (!hasAnyKeywordCue(keywords, ["身份", "异常", "反应", "核验", "执事"])) {
+  if (!hasAuthorityReactionQueryCue(keywords)) {
     return 0;
   }
 
@@ -932,7 +943,7 @@ function membershipCharacterBoost(input: {
   professions: string | null;
   appendNotes: string | null;
 }, keywords: string[]): number {
-  if (!hasAnyKeywordCue(keywords, ["入宗", "成员", "关系"])) {
+  if (!hasMembershipQueryCue(keywords)) {
     return 0;
   }
 
@@ -945,7 +956,7 @@ function continuityCharacterBoost(input: {
   appendNotes: string | null;
   status: string | null;
 }, keywords: string[]): number {
-  if (!hasAnyKeywordCue(keywords, ["位置", "场景", "承接", "换场", "突然"])) {
+  if (!hasLocationContinuityQueryCue(keywords)) {
     return 0;
   }
 
@@ -962,7 +973,7 @@ function membershipItemBoost(input: {
   description: string | null;
   appendNotes: string | null;
 }, keywords: string[]): number {
-  if (!hasAnyKeywordCue(keywords, ["入宗", "成员", "关系", "规则", "登记"])) {
+  if (!(hasMembershipQueryCue(keywords) || hasRuleQueryCue(keywords))) {
     return 0;
   }
 
@@ -978,7 +989,7 @@ function continuityItemBoost(input: {
   description: string | null;
   appendNotes: string | null;
 }, keywords: string[]): number {
-  if (!hasAnyKeywordCue(keywords, ["易主", "失踪", "连续", "恢复"])) {
+  if (!hasItemContinuityQueryCue(keywords)) {
     return 0;
   }
 
@@ -997,10 +1008,7 @@ function sourceObservationItemBoost(input: {
   appendNotes: string | null;
   status: string | null;
 }, keywords: string[]): number {
-  const hasSourceCue = hasAnyKeywordCue(keywords, ["来源", "来历"]);
-  const hasObserverCue = hasAnyKeywordCue(keywords, ["观察", "怀疑", "试探"]);
-  const hasInstitutionCue = hasAnyKeywordCue(keywords, ["宗门", "执事", "核验"]);
-  if (!(hasSourceCue && hasObserverCue && hasInstitutionCue)) {
+  if (!hasSourceObservationQueryCue(keywords)) {
     return 0;
   }
 
@@ -1014,9 +1022,7 @@ function sourceImmutabilityItemBoost(input: {
   appendNotes: string | null;
   status: string | null;
 }, keywords: string[]): number {
-  const hasImmutabilityCue = hasAnyKeywordCue(keywords, ["禁止", "不要", "改写", "覆盖"]);
-  const hasSourceCue = hasAnyKeywordCue(keywords, ["来源", "来历"]);
-  if (!(hasImmutabilityCue && hasSourceCue)) {
+  if (!hasSourceImmutabilityQueryCue(keywords)) {
     return 0;
   }
 
@@ -1030,17 +1036,12 @@ function ruleWorldSettingBoost(input: {
   content: string | null;
   appendNotes: string | null;
 }, keywords: string[]): number {
-  if (!hasAnyKeywordCue(keywords, ["入宗", "成员", "关系", "规则", "制度", "登记", "令牌"])) {
+  if (!(hasMembershipQueryCue(keywords) || hasRuleQueryCue(keywords) || hasAnyKeywordCue(keywords, ["制度", "令牌"]))) {
     return 0;
   }
 
   const normalizedText = [input.title, input.category, input.content, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
   return ["规则", "制度", "登记", "令牌", "入门", "外门", "宗门"].some((token) => normalizedText.includes(token)) ? 18 : 0;
-}
-
-function hasAnyKeywordCue(keywords: string[], cues: string[]): boolean {
-  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
-  return normalizedKeywords.some((keyword) => cues.some((token) => keyword.includes(token)));
 }
 
 function buildRiskReminders(input: {
