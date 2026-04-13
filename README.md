@@ -20,6 +20,7 @@
 - [环境变量配置指南](docs/env-config-guide.md)
 - [Prompt 与工作流关系说明](docs/prompt-retrieval-relationship.md)
 - [召回与打分规则说明](docs/retrieval-scoring-rules.md)
+- [Embedding 与 Rerank 实现说明](docs/embedding-rerank-architecture.md)
 - [工程总览](docs/engineering-overview.md)
 
 ## 为什么做这个
@@ -236,6 +237,7 @@ npm run dev -- approve --book 1 --chapter 1 --provider mock
 - [`docs/cli-usage-guide.md`](docs/cli-usage-guide.md)
 - [`docs/prompt-retrieval-relationship.md`](docs/prompt-retrieval-relationship.md)
 - [`docs/retrieval-scoring-rules.md`](docs/retrieval-scoring-rules.md)
+- [`docs/embedding-rerank-architecture.md`](docs/embedding-rerank-architecture.md)
 - [`docs/engineering-overview.md`](docs/engineering-overview.md)
 
 ## 当前状态

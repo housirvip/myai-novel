@@ -26,6 +26,10 @@
   - 召回与打分规则说明
   - 适合查 `plan` 阶段的召回策略、打分细则、排序规则、实体匹配字段与相关配置项
 
+- [`embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
+  - embedding 与 rerank 实现说明
+  - 适合查 embedding 文档构造、refresh/store/search 流程、candidate merge、heuristic rerank 与实验链路职责边界
+
 - [`engineering-overview.md`](./engineering-overview.md)
   - 日志、测试与项目结构
   - 适合查工程维护相关信息、测试命令、日志配置与项目概览
@@ -38,7 +42,8 @@
 2. [`env-config-guide.md`](./env-config-guide.md)
 3. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
 4. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
-5. [`engineering-overview.md`](./engineering-overview.md)
+5. [`embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
+6. [`engineering-overview.md`](./engineering-overview.md)
 
 ## 与根文档的关系
 

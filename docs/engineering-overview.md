@@ -142,3 +142,4 @@ examples/             示例脚本
 - [`README.md`](../README.md)
 - [`docs/README.md`](./README.md)
 - [`docs/cli-usage-guide.md`](./cli-usage-guide.md)
+- [`docs/embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
