@@ -360,6 +360,10 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
           currentLocation: row.current_location,
           professions: row.professions,
           appendNotes: row.append_notes,
+        }, params.keywords) + continuityCharacterBoost({
+          currentLocation: row.current_location,
+          appendNotes: row.append_notes,
+          status: row.status,
         }, params.keywords),
         reason: buildReasons({
           manualIds: params.manualRefs.characterIds,
@@ -379,11 +383,18 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
             { text: row.append_notes, weight: 8 },
             { text: row.keywords, weight: 18 },
           ],
-          extraReasons: membershipCharacterBoost({
-            currentLocation: row.current_location,
-            professions: row.professions,
-            appendNotes: row.append_notes,
-          }, params.keywords) > 0 ? ["institution_context"] : [],
+          extraReasons: [
+            membershipCharacterBoost({
+              currentLocation: row.current_location,
+              professions: row.professions,
+              appendNotes: row.append_notes,
+            }, params.keywords) > 0 ? "institution_context" : null,
+            continuityCharacterBoost({
+              currentLocation: row.current_location,
+              appendNotes: row.append_notes,
+              status: row.status,
+            }, params.keywords) > 0 ? "continuity_risk" : null,
+          ].filter(Boolean) as string[],
         }),
         content: compactLines([
           `name=${row.name}`,
@@ -519,6 +530,16 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
           category: row.category,
           description: row.description,
           appendNotes: row.append_notes,
+        }, params.keywords) + sourceObservationItemBoost({
+          category: row.category,
+          description: row.description,
+          appendNotes: row.append_notes,
+          status: row.status,
+        }, params.keywords) + sourceImmutabilityItemBoost({
+          category: row.category,
+          description: row.description,
+          appendNotes: row.append_notes,
+          status: row.status,
         }, params.keywords),
         reason: buildReasons({
           manualIds: params.manualRefs.itemIds,
@@ -538,6 +559,18 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
               category: row.category,
               description: row.description,
               appendNotes: row.append_notes,
+            }, params.keywords) > 0 ? "continuity_risk" : null,
+            sourceObservationItemBoost({
+              category: row.category,
+              description: row.description,
+              appendNotes: row.append_notes,
+              status: row.status,
+            }, params.keywords) > 0 ? "continuity_risk" : null,
+            sourceImmutabilityItemBoost({
+              category: row.category,
+              description: row.description,
+              appendNotes: row.append_notes,
+              status: row.status,
             }, params.keywords) > 0 ? "continuity_risk" : null,
           ].filter(Boolean) as string[],
         }),
@@ -907,6 +940,23 @@ function membershipCharacterBoost(input: {
   return ["宗", "门", "外门", "内门", "弟子", "入门"].some((token) => normalizedText.includes(token)) ? 18 : 0;
 }
 
+function continuityCharacterBoost(input: {
+  currentLocation: string | null;
+  appendNotes: string | null;
+  status: string | null;
+}, keywords: string[]): number {
+  if (!hasAnyKeywordCue(keywords, ["位置", "场景", "承接", "换场", "突然"])) {
+    return 0;
+  }
+
+  if (!input.currentLocation) {
+    return 0;
+  }
+
+  const normalizedText = [input.currentLocation, input.appendNotes, input.status].filter(Boolean).join("\n").toLowerCase();
+  return ["外门", "内门", "回廊", "山", "场", "alive"].some((token) => normalizedText.includes(token)) ? 18 : 0;
+}
+
 function membershipItemBoost(input: {
   category: string | null;
   description: string | null;
@@ -939,6 +989,39 @@ function continuityItemBoost(input: {
 
   const normalizedText = [input.category, input.description, input.appendNotes, input.status].filter(Boolean).join("\n").toLowerCase();
   return ["令牌", "身份", "凭证", "active", "失踪", "持有"].some((token) => normalizedText.includes(token)) ? 18 : 0;
+}
+
+function sourceObservationItemBoost(input: {
+  category: string | null;
+  description: string | null;
+  appendNotes: string | null;
+  status: string | null;
+}, keywords: string[]): number {
+  const hasSourceCue = hasAnyKeywordCue(keywords, ["来源", "来历"]);
+  const hasObserverCue = hasAnyKeywordCue(keywords, ["观察", "怀疑", "试探"]);
+  const hasInstitutionCue = hasAnyKeywordCue(keywords, ["宗门", "执事", "核验"]);
+  if (!(hasSourceCue && hasObserverCue && hasInstitutionCue)) {
+    return 0;
+  }
+
+  const normalizedText = [input.category, input.description, input.appendNotes, input.status].filter(Boolean).join("\n").toLowerCase();
+  return ["令牌", "身份", "凭证", "核验", "active"].some((token) => normalizedText.includes(token)) ? 18 : 0;
+}
+
+function sourceImmutabilityItemBoost(input: {
+  category: string | null;
+  description: string | null;
+  appendNotes: string | null;
+  status: string | null;
+}, keywords: string[]): number {
+  const hasImmutabilityCue = hasAnyKeywordCue(keywords, ["禁止", "不要", "改写", "覆盖"]);
+  const hasSourceCue = hasAnyKeywordCue(keywords, ["来源", "来历"]);
+  if (!(hasImmutabilityCue && hasSourceCue)) {
+    return 0;
+  }
+
+  const normalizedText = [input.category, input.description, input.appendNotes, input.status].filter(Boolean).join("\n").toLowerCase();
+  return ["令牌", "身份", "凭证", "核验", "active"].some((token) => normalizedText.includes(token)) ? 18 : 0;
 }
 
 function ruleWorldSettingBoost(input: {

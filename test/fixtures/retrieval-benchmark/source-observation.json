@@ -1,0 +1,12 @@
+{
+  "name": "source-observation",
+  "expectationMode": "strict",
+  "query": {
+    "keywords": ["来源", "观察", "宗门"]
+  },
+  "expected": {
+    "blockingNames": ["黑铁令"],
+    "decisionNames": ["青岳宗"],
+    "maxNoiseRatio": 0.7
+  }
+}

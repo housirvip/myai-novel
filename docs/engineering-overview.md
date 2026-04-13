@@ -121,7 +121,7 @@ examples/             示例脚本
 - `HeuristicReranker` 已实现并可配置启用
 - embedding 实验链路已实现：document / provider / memory search / hybrid search / candidate merge / store / refresh
 - embedding 刷新已支持：全量 refresh / 单一 entityType refresh / 按 model 清理
-- retrieval benchmark 已建立，当前包含 7 个 strict 样本和 1 个 baseline_gap 样本（`location-drift`）
+- retrieval benchmark 已建立，当前固定 10 个样本已全部收口到 strict
 - retrieval 模块已完成第一轮技术债拆分：fact packet builder / relation propagation / merge helper / feature layer
 - 自动化测试基线
 

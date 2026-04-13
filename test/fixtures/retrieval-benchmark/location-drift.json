@@ -1,6 +1,6 @@
 {
   "name": "location-drift",
-  "expectationMode": "baseline_gap",
+  "expectationMode": "strict",
   "query": {
     "keywords": ["场景", "承接", "位置"]
   },

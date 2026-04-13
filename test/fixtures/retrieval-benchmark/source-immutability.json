@@ -1,0 +1,11 @@
+{
+  "name": "source-immutability",
+  "expectationMode": "strict",
+  "query": {
+    "keywords": ["禁止", "改写", "来源"]
+  },
+  "expected": {
+    "blockingNames": ["黑铁令"],
+    "maxNoiseRatio": 0.7
+  }
+}

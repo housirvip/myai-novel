@@ -253,7 +253,7 @@ npm run dev -- approve --book 1 --chapter 1 --provider mock
 - Markdown 导入导出
 - SQLite 与 MySQL 主链验证
 - `HeuristicReranker` 与 embedding 实验链路
-- retrieval benchmark（当前包含 strict 样本与 `location-drift` gap 样本）
+- retrieval benchmark（当前固定 10 个样本已全部收口到 strict）
 - 自动化测试基线
 
 下一阶段比较自然的方向通常是：

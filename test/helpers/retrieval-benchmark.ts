@@ -25,6 +25,8 @@ export const RETRIEVAL_BENCHMARK_FIXTURE_NAMES = [
   "authority-reaction",
   "item-drift",
   "location-drift",
+  "source-observation",
+  "source-immutability",
 ] as const;
 
 export interface RetrievalBenchmarkResult {

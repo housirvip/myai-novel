@@ -38,10 +38,16 @@ test("retrieval benchmark fixtures keep blocking recall high and noise bounded",
     assert.equal(result.fixtureName, fixture.name);
 
     if (fixture.expectationMode === "baseline_gap") {
+      // baseline_gap means the fixture is intentionally kept as a known miss.
+      // The benchmark should prove that at least one recall dimension is still incomplete,
+      // so we can track the gap without treating it as a regression failure yet.
       assert.ok(result.blockingRecall < 1 || result.decisionRecall < 1, `${fixture.name} should currently expose a retrieval gap`);
       continue;
     }
 
+    // strict means this fixture is now part of the protected baseline.
+    // Blocking recall must stay perfect, decision recall must remain usable,
+    // and noise must stay within the fixture-specific bound.
     assert.equal(result.blockingRecall, 1, `${fixture.name} blocking recall should stay at 1`);
     assert.ok(result.decisionRecall >= 0.5, `${fixture.name} decision recall should stay usable`);
     assert.ok(result.noiseRatio <= (fixture.expected.maxNoiseRatio ?? 1), `${fixture.name} noise ratio too high`);
