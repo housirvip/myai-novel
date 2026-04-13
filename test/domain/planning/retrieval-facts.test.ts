@@ -78,7 +78,17 @@ test("buildPriorityContext propagates relation endpoints into decision context",
       worldSettings: [],
     },
     softReferences: {
-      relations: [{ id: 5, reason: "keyword_hit", content: "source=林夜 (character:1)\ntarget=青岳宗 (faction:2)\nrelation_type=member", score: 60, relationMetadata: { relationType: "member", description: "林夜加入青岳宗" } }],
+      relations: [{
+        id: 5,
+        reason: "keyword_hit",
+        content: "source=林夜 (character:1)\ntarget=青岳宗 (faction:2)\nrelation_type=member",
+        score: 60,
+        relationEndpoints: [
+          { entityType: "character", entityId: 1, displayName: "林夜" },
+          { entityType: "faction", entityId: 2, displayName: "青岳宗" },
+        ],
+        relationMetadata: { relationType: "member", description: "林夜加入青岳宗" },
+      }],
       characters: [{ id: 1, name: "林夜", reason: "keyword_hit", content: "current_location=青岳宗外门", score: 40 }],
       factions: [{ id: 2, name: "青岳宗", reason: "keyword_hit", content: "category=宗门", score: 30 }],
       hooks: [],
@@ -146,7 +156,17 @@ test("buildPriorityContext expands hard facts for member relations", () => {
       relations: [],
     },
     softReferences: {
-      relations: [{ id: 5, reason: "keyword_hit", content: "source=林夜 (character:1)\ntarget=青岳宗 (faction:2)\nrelation_type=member\nstatus=active", score: 60, relationMetadata: { relationType: "member", status: "active", description: "林夜已经加入青岳宗外门" } }],
+      relations: [{
+        id: 5,
+        reason: "keyword_hit",
+        content: "source=林夜 (character:1)\ntarget=青岳宗 (faction:2)\nrelation_type=member\nstatus=active",
+        score: 60,
+        relationEndpoints: [
+          { entityType: "character", entityId: 1, displayName: "林夜" },
+          { entityType: "faction", entityId: 2, displayName: "青岳宗" },
+        ],
+        relationMetadata: { relationType: "member", status: "active", description: "林夜已经加入青岳宗外门" },
+      }],
       characters: [{ id: 1, name: "林夜", reason: "keyword_hit", content: "current_location=青岳宗外门", score: 40 }],
       factions: [{ id: 2, name: "青岳宗", reason: "keyword_hit", content: "category=宗门", score: 30 }],
       items: [{ id: 7, name: "黑铁令", reason: "keyword_hit", content: "owner_type=character\nowner_id=1\nstatus=active", score: 35 }],

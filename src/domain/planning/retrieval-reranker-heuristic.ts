@@ -3,7 +3,8 @@ import type {
   RetrievalRerankerInput,
   RetrievalRerankerOutput,
 } from "./retrieval-pipeline.js";
-import type { PlanRetrievedContextEntityGroups, RetrievedEntity } from "./types.js";
+import type { RetrievedEntity, RetrievedFactEntityType } from "./types.js";
+import { continuityBonus, countKeywordHits, hasReason } from "./retrieval-features.js";
 
 export class HeuristicReranker implements RetrievalReranker {
   async rerank(input: RetrievalRerankerInput): Promise<RetrievalRerankerOutput> {
@@ -22,7 +23,7 @@ export class HeuristicReranker implements RetrievalReranker {
   }
 }
 
-type HeuristicEntityType = keyof PlanRetrievedContextEntityGroups | "character" | "faction" | "item" | "relation" | "hook" | "world_setting";
+type HeuristicEntityType = RetrievedFactEntityType;
 
 function rerankEntities(
   entities: RetrievedEntity[],
@@ -49,13 +50,13 @@ function computeHeuristicScore(
   const normalizedContent = content.toLowerCase();
   let score = entity.score ?? 0;
 
-  if (reason.includes("manual_id")) {
+  if (hasReason(entity, "manual_id")) {
     score += 40;
   }
-  if (reason.includes("keyword_hit")) {
+  if (hasReason(entity, "keyword_hit")) {
     score += 15;
   }
-  if (reason.includes("embedding_match")) {
+  if (hasReason(entity, "embedding_match")) {
     score += 10;
   }
 
@@ -64,36 +65,6 @@ function computeHeuristicScore(
 
   if (entityType === "hook") {
     score += hookChapterBonus(content, input.params.chapterNo);
-  }
-
-  return score;
-}
-
-function countKeywordHits(keywords: string[], content: string): number {
-  return keywords.filter((keyword) => keyword.trim() && content.includes(keyword.toLowerCase())).length;
-}
-
-function continuityBonus(content: string, entityType: HeuristicEntityType): number {
-  let score = 0;
-
-  if (content.includes("current_location") || content.includes("location")) {
-    score += 12;
-  }
-  if (content.includes("owner") || content.includes("owner_type")) {
-    score += 12;
-  }
-  if (content.includes("relation_type") || content.includes("relation")) {
-    score += 10;
-  }
-  if (content.includes("规则") || content.includes("制度") || content.includes("rule") || content.includes("禁忌")) {
-    score += 14;
-  }
-
-  if (entityType === "world_setting") {
-    score += 8;
-  }
-  if (entityType === "hook" && (content.includes("expected_payoff") || content.includes("target_chapter_no"))) {
-    score += 10;
   }
 
   return score;

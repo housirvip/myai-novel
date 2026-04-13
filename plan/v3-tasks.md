@@ -78,6 +78,11 @@
 - [x] Prompt 不再依赖原始字段拼接来理解关键状态
 - [x] 最近变更可单独展示并稳定进入高优先级上下文
 
+### P1-5. 技术债拆分
+- [x] 将 `retrieval-facts.ts` 拆分为 builder / propagation / merge 三层
+- [x] 新建 `retrieval-features.ts` 统一 priority / rerank 共用判断
+- [ ] 进一步压缩 relation 的 fallback 兼容路径
+
 ---
 
 ## P2. 召回规则升级

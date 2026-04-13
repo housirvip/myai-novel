@@ -49,6 +49,10 @@
 
 - 召回实现：`src/domain/planning/retrieval-service.ts`
 - 候选/重排接口：`src/domain/planning/retrieval-pipeline.ts`
+- 共享特征层：`src/domain/planning/retrieval-features.ts`
+- fact packet 构造：`src/domain/planning/fact-packet-builder.ts`
+- relation 传播：`src/domain/planning/relation-propagation.ts`
+- packet 合并：`src/domain/planning/fact-packet-merge.ts`
 - `plan` 工作流：`src/domain/workflows/plan-chapter-workflow.ts`
 - `draft` 工作流：`src/domain/workflows/draft-chapter-workflow.ts`
 - 召回结构定义：`src/domain/planning/types.ts`
@@ -172,6 +176,16 @@
 1. 分数降序
 2. 分数相同按 `id` 升序
 3. 最后按各实体类型的上限截断
+
+在当前实现里，priority 与 rerank 的一些判断已经抽成共享特征层：
+
+- `hasManualPriority()`
+- `hasContinuityRisk()`
+- `hasMotivationSignals()`
+- `hasInstitutionContext()`
+- `hasRuleIntent()`
+
+这样 `priorityContext` 和 `HeuristicReranker` 不再各自维护一套相似规则。
 
 ## 7. Reason 字段说明
 

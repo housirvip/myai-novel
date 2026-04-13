@@ -83,9 +83,13 @@ examples/             示例脚本
   - `prompt-context-blocks.ts`：可读事实块构造
   - `context-views.ts`：阶段化上下文视图
   - `retrieval-ranking.ts`：规则打分与 explainability
+  - `retrieval-features.ts`：priority 与 rerank 共享特征判断
   - `retrieval-pipeline.ts`：候选提供与 rerank 预留接口
   - `retrieval-service.ts`：当前默认规则召回主链
-  - `retrieval-facts.ts`：fact packet、关系传播、hard-fact 扩展
+  - `retrieval-facts.ts`：fact packet 入口编排
+  - `fact-packet-builder.ts`：fact packet 构造
+  - `relation-propagation.ts`：关系传播与 hard-fact 扩展
+  - `fact-packet-merge.ts`：packet 合并与去重
   - `retrieval-priorities.ts`：priorityContext 分层
   - `recent-changes.ts`：recentChanges 聚合
   - `retrieval-reranker-heuristic.ts`：启发式 rerank
@@ -115,6 +119,7 @@ examples/             示例脚本
 - `HeuristicReranker` 已实现并可配置启用
 - embedding 实验链路已实现：document / provider / memory search / hybrid search / candidate merge
 - retrieval benchmark 已建立，包含 strict 和 baseline_gap 样本
+- retrieval 模块已完成第一轮技术债拆分：fact packet builder / relation propagation / merge helper / feature layer
 - 自动化测试基线
 
 如果你想继续往下扩展，下一阶段比较自然的方向通常是：
