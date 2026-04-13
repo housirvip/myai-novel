@@ -1,0 +1,11 @@
+{
+  "name": "mixed-constraint",
+  "expectationMode": "strict",
+  "query": {
+    "keywords": ["不要", "改写", "关系", "持有者", "场景"]
+  },
+  "expected": {
+    "blockingNames": ["林夜", "黑铁令", "青岳宗"],
+    "maxNoiseRatio": 0.75
+  }
+}

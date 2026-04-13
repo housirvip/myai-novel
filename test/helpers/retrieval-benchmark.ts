@@ -19,6 +19,11 @@ export interface RetrievalBenchmarkFixture {
 export const RETRIEVAL_BENCHMARK_FIXTURE_NAMES = [
   "continuity-baseline",
   "character-motivation",
+  "cross-entity-conflict",
+  "executor-identity",
+  "institution-decision-immutability",
+  "mixed-constraint",
+  "motivation-immutability",
   "hook-payoff",
   "world-rule",
   "relation-shift",

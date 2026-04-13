@@ -1,0 +1,11 @@
+{
+  "name": "institution-decision-immutability",
+  "expectationMode": "strict",
+  "query": {
+    "keywords": ["不要", "改写", "执行者", "处理态度"]
+  },
+  "expected": {
+    "blockingNames": ["青岳宗"],
+    "maxNoiseRatio": 0.7
+  }
+}

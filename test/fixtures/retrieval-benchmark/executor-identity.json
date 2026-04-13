@@ -1,0 +1,11 @@
+{
+  "name": "executor-identity",
+  "expectationMode": "strict",
+  "query": {
+    "keywords": ["不要", "改写", "核验者", "身份"]
+  },
+  "expected": {
+    "blockingNames": ["青岳宗"],
+    "maxNoiseRatio": 0.7
+  }
+}

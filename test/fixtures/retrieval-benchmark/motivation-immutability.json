@@ -1,0 +1,11 @@
+{
+  "name": "motivation-immutability",
+  "expectationMode": "strict",
+  "query": {
+    "keywords": ["不要", "改写", "动机"]
+  },
+  "expected": {
+    "blockingNames": ["林夜"],
+    "maxNoiseRatio": 0.7
+  }
+}

@@ -249,6 +249,11 @@
 - `strict`
   - `continuity-baseline`
   - `character-motivation`
+  - `cross-entity-conflict`
+  - `executor-identity`
+  - `motivation-immutability`
+  - `institution-decision-immutability`
+  - `mixed-constraint`
   - `hook-payoff`
   - `world-rule`
   - `relation-shift`
@@ -259,4 +264,4 @@
   - `source-immutability`
   - `observer-immutability`
 
-当前固定 11 个 benchmark fixture 已全部收口到 `strict`。下一步要么补新的 `baseline_gap` 样本，要么继续把现有窄规则整理为统一的 query-intent 特征层。
+当前固定 16 个 benchmark fixture 已全部收口到 `strict`。下一步要么继续补新的 `baseline_gap` 样本，要么继续把现有窄规则整理为统一的 query-intent 特征层。

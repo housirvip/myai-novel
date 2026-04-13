@@ -10,9 +10,17 @@ import {
   authorityReactionFactionBoost,
   continuityCharacterBoost,
   continuityItemBoost,
+  crossEntityConflictCharacterBoost,
+  crossEntityConflictFactionBoost,
+  crossEntityConflictWorldSettingBoost,
+  institutionDecisionImmutabilityFactionBoost,
   institutionalFactionBoost,
   membershipCharacterBoost,
   membershipItemBoost,
+  mixedConstraintCharacterBoost,
+  mixedConstraintFactionBoost,
+  mixedConstraintItemBoost,
+  motivationImmutabilityCharacterBoost,
   observerImmutabilityCharacterBoost,
   ruleWorldSettingBoost,
   sourceImmutabilityItemBoost,
@@ -201,7 +209,10 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
           ],
         }) + membershipCharacterBoost({ currentLocation: row.current_location, professions: row.professions, appendNotes: row.append_notes }, params.keywords)
           + continuityCharacterBoost({ currentLocation: row.current_location, appendNotes: row.append_notes, status: row.status }, params.keywords)
-          + observerImmutabilityCharacterBoost({ background: row.background, goal: row.goal, appendNotes: row.append_notes }, params.keywords),
+          + crossEntityConflictCharacterBoost({ goal: row.goal, background: row.background, appendNotes: row.append_notes }, params.keywords)
+          + mixedConstraintCharacterBoost({ currentLocation: row.current_location, appendNotes: row.append_notes, goal: row.goal }, params.keywords)
+          + observerImmutabilityCharacterBoost({ background: row.background, goal: row.goal, appendNotes: row.append_notes }, params.keywords)
+          + motivationImmutabilityCharacterBoost({ background: row.background, goal: row.goal, personality: row.personality, appendNotes: row.append_notes }, params.keywords),
         reason: buildReasons({
           manualIds: params.manualRefs.characterIds,
           entityId: row.id,
@@ -223,7 +234,10 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
           extraReasons: [
             membershipCharacterBoost({ currentLocation: row.current_location, professions: row.professions, appendNotes: row.append_notes }, params.keywords) > 0 ? "institution_context" : null,
             continuityCharacterBoost({ currentLocation: row.current_location, appendNotes: row.append_notes, status: row.status }, params.keywords) > 0 ? "continuity_risk" : null,
+            crossEntityConflictCharacterBoost({ goal: row.goal, background: row.background, appendNotes: row.append_notes }, params.keywords) > 0 ? "continuity_risk" : null,
+            mixedConstraintCharacterBoost({ currentLocation: row.current_location, appendNotes: row.append_notes, goal: row.goal }, params.keywords) > 0 ? "continuity_risk" : null,
             observerImmutabilityCharacterBoost({ background: row.background, goal: row.goal, appendNotes: row.append_notes }, params.keywords) > 0 ? "continuity_risk" : null,
+            motivationImmutabilityCharacterBoost({ background: row.background, goal: row.goal, personality: row.personality, appendNotes: row.append_notes }, params.keywords) > 0 ? "continuity_risk" : null,
           ].filter(Boolean) as string[],
         }),
         content: compactLines([
@@ -264,7 +278,10 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
           { text: row.append_notes, weight: 8 },
           { text: row.keywords, weight: 18 },
         ],
-      }) + institutionalFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords)
+        }) + institutionalFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords)
+        + crossEntityConflictFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords)
+        + mixedConstraintFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords)
+        + institutionDecisionImmutabilityFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords)
         + authorityReactionFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords),
       reason: buildReasons({
         manualIds: params.manualRefs.factionIds,
@@ -280,6 +297,9 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
         ],
         extraReasons: [
           institutionalFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords) > 0 ? "institution_context" : null,
+          crossEntityConflictFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords) > 0 ? "continuity_risk" : null,
+          mixedConstraintFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords) > 0 ? "continuity_risk" : null,
+          institutionDecisionImmutabilityFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords) > 0 ? "continuity_risk" : null,
           authorityReactionFactionBoost({ category: row.category, coreGoal: row.core_goal, description: row.description, appendNotes: row.append_notes }, params.keywords) > 0 ? "institution_context" : null,
         ].filter(Boolean) as string[],
       }),
@@ -304,6 +324,7 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
       score: scoreEntity({ manualIds: params.manualRefs.itemIds, entityId: row.id, keywords: params.keywords, textSources: [row.name, row.description, row.append_notes, row.keywords] })
         + membershipItemBoost({ category: row.category, description: row.description, appendNotes: row.append_notes }, params.keywords)
         + continuityItemBoost({ ownerType: row.owner_type, ownerId: row.owner_id, status: row.status, category: row.category, description: row.description, appendNotes: row.append_notes }, params.keywords)
+        + mixedConstraintItemBoost({ ownerType: row.owner_type, ownerId: row.owner_id, status: row.status, category: row.category, description: row.description, appendNotes: row.append_notes }, params.keywords)
         + sourceObservationItemBoost({ category: row.category, description: row.description, appendNotes: row.append_notes, status: row.status }, params.keywords)
         + sourceImmutabilityItemBoost({ category: row.category, description: row.description, appendNotes: row.append_notes, status: row.status }, params.keywords),
       reason: buildReasons({
@@ -314,6 +335,7 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
         extraReasons: [
           membershipItemBoost({ category: row.category, description: row.description, appendNotes: row.append_notes }, params.keywords) > 0 ? "institution_context" : null,
           continuityItemBoost({ ownerType: row.owner_type, ownerId: row.owner_id, status: row.status, category: row.category, description: row.description, appendNotes: row.append_notes }, params.keywords) > 0 ? "continuity_risk" : null,
+          mixedConstraintItemBoost({ ownerType: row.owner_type, ownerId: row.owner_id, status: row.status, category: row.category, description: row.description, appendNotes: row.append_notes }, params.keywords) > 0 ? "continuity_risk" : null,
           sourceObservationItemBoost({ category: row.category, description: row.description, appendNotes: row.append_notes, status: row.status }, params.keywords) > 0 ? "continuity_risk" : null,
           sourceImmutabilityItemBoost({ category: row.category, description: row.description, appendNotes: row.append_notes, status: row.status }, params.keywords) > 0 ? "continuity_risk" : null,
         ].filter(Boolean) as string[],
@@ -438,7 +460,8 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
           { text: row.append_notes, weight: 8 },
           { text: row.keywords, weight: 18 },
         ],
-      }) + ruleWorldSettingBoost({ title: row.title, category: row.category, content: row.content, appendNotes: row.append_notes }, params.keywords),
+      }) + ruleWorldSettingBoost({ title: row.title, category: row.category, content: row.content, appendNotes: row.append_notes }, params.keywords)
+        + crossEntityConflictWorldSettingBoost({ title: row.title, category: row.category, content: row.content, appendNotes: row.append_notes }, params.keywords),
       reason: buildReasons({
         manualIds: params.manualRefs.worldSettingIds,
         entityId: row.id,
@@ -450,7 +473,10 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
           { text: row.append_notes, weight: 8 },
           { text: row.keywords, weight: 18 },
         ],
-        extraReasons: ruleWorldSettingBoost({ title: row.title, category: row.category, content: row.content, appendNotes: row.append_notes }, params.keywords) > 0 ? ["institution_context"] : [],
+        extraReasons: [
+          ruleWorldSettingBoost({ title: row.title, category: row.category, content: row.content, appendNotes: row.append_notes }, params.keywords) > 0 ? "institution_context" : null,
+          crossEntityConflictWorldSettingBoost({ title: row.title, category: row.category, content: row.content, appendNotes: row.append_notes }, params.keywords) > 0 ? "institution_context" : null,
+        ].filter(Boolean) as string[],
       }),
       content: compactLines([
         `title=${row.title}`,

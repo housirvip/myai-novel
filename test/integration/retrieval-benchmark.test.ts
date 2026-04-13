@@ -39,9 +39,14 @@ test("retrieval benchmark fixtures keep blocking recall high and noise bounded",
 
     if (fixture.expectationMode === "baseline_gap") {
       // baseline_gap means the fixture is intentionally kept as a known miss.
-      // The benchmark should prove that at least one recall dimension is still incomplete,
+      // The benchmark should prove that recall is still incomplete or noise is still too high,
       // so we can track the gap without treating it as a regression failure yet.
-      assert.ok(result.blockingRecall < 1 || result.decisionRecall < 1, `${fixture.name} should currently expose a retrieval gap`);
+      assert.ok(
+        result.blockingRecall < 1
+          || result.decisionRecall < 1
+          || result.noiseRatio > (fixture.expected.maxNoiseRatio ?? 1),
+        `${fixture.name} should currently expose a retrieval gap`,
+      );
       continue;
     }
 
@@ -54,8 +59,8 @@ test("retrieval benchmark fixtures keep blocking recall high and noise bounded",
   }
 });
 
-test("hybrid embedding experiment for world-rule runs end-to-end without regressing recall", async () => {
-  const fixture = await loadRetrievalBenchmarkFixture("world-rule");
+test("hybrid embedding experiment stays non-regressive across representative strict fixtures", async () => {
+  const fixtureNames = ["world-rule", "motivation-immutability", "observer-immutability", "cross-entity-conflict"] as const;
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-benchmark-embedding-"));
   const baselineEnv = createTestEnv(path.join(tempDir, "baseline"));
   const embeddingEnv = createTestEnv(path.join(tempDir, "embedding"), {
@@ -68,50 +73,53 @@ test("hybrid embedding experiment for world-rule runs end-to-end without regress
   await runCli(["db", "init"], embeddingEnv);
   await seedBenchmarkData(embeddingEnv);
 
-  const baselineContext = await runInlineModule<PlanRetrievedContext>(
-    [
-      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
-      "const logger = { info() {}, error() {}, debug() {} };",
-      "const service = new RetrievalQueryService(logger);",
-      `const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 5, keywords: ${JSON.stringify(fixture.query.keywords)}, manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });`,
-      "console.log(JSON.stringify(context));",
-    ].join("\n"),
-    baselineEnv,
-  );
+  for (const fixtureName of fixtureNames) {
+    const fixture = await loadRetrievalBenchmarkFixture(fixtureName);
+    const baselineContext = await runInlineModule<PlanRetrievedContext>(
+      [
+        "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+        "const logger = { info() {}, error() {}, debug() {} };",
+        "const service = new RetrievalQueryService(logger);",
+        `const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 5, keywords: ${JSON.stringify(fixture.query.keywords)}, manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });`,
+        "console.log(JSON.stringify(context));",
+      ].join("\n"),
+      baselineEnv,
+    );
 
-  const embeddingContext = await runInlineModule<PlanRetrievedContext>(
-    [
-      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
-      "import { DeterministicHashEmbeddingProvider } from './src/domain/planning/embedding-provider.ts';",
-      "import { EmbeddingRefreshService } from './src/domain/planning/embedding-refresh.ts';",
-      "import { InMemoryEmbeddingStore } from './src/domain/planning/embedding-store.ts';",
-      "import { HybridEmbeddingSearcher } from './src/domain/planning/embedding-searcher-hybrid.ts';",
-      "const logger = { info() {}, error() {}, debug() {} };",
-      "const provider = new DeterministicHashEmbeddingProvider();",
-      "const store = new InMemoryEmbeddingStore();",
-      "const refresh = new EmbeddingRefreshService(provider, store);",
-      "await refresh.refresh({",
-      "  model: 'test-embed-v1',",
-      "  characters: [{ id: 1, name: '林夜', goal: '查清黑铁令来历', background: '寒门出身' }],",
-      "  hooks: [{ id: 1, title: '黑铁令身份核验', expected_payoff: '执事将在第五章进行身份核验' }],",
-      "  worldSettings: [{ id: 1, title: '宗门制度', category: '规则', content: '外门弟子凭令牌登记入门' }],",
-      "});",
-      "const searcher = new HybridEmbeddingSearcher(provider);",
-      "searcher.loadIndexedDocuments(await store.listDocuments({ model: 'test-embed-v1' }));",
-      "const service = new RetrievalQueryService(logger, { embeddingSearcher: searcher });",
-      `const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 5, keywords: ${JSON.stringify(fixture.query.keywords)}, manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });`,
-      "console.log(JSON.stringify(context));",
-    ].join("\n"),
-    embeddingEnv,
-  );
+    const embeddingContext = await runInlineModule<PlanRetrievedContext>(
+      [
+        "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+        "import { DeterministicHashEmbeddingProvider } from './src/domain/planning/embedding-provider.ts';",
+        "import { EmbeddingRefreshService } from './src/domain/planning/embedding-refresh.ts';",
+        "import { InMemoryEmbeddingStore } from './src/domain/planning/embedding-store.ts';",
+        "import { HybridEmbeddingSearcher } from './src/domain/planning/embedding-searcher-hybrid.ts';",
+        "const logger = { info() {}, error() {}, debug() {} };",
+        "const provider = new DeterministicHashEmbeddingProvider();",
+        "const store = new InMemoryEmbeddingStore();",
+        "const refresh = new EmbeddingRefreshService(provider, store);",
+        "await refresh.refresh({",
+        "  model: 'test-embed-v1',",
+        "  characters: [{ id: 1, name: '林夜', goal: '查清黑铁令来历', background: '寒门出身' }, { id: 2, name: '顾沉舟', goal: '暗中观察黑铁令持有者', background: '曾目睹同门背叛事件' }],",
+        "  hooks: [{ id: 1, title: '黑铁令身份核验', description: '执事会对黑铁令来源起疑', target_chapter_no: 5 }],",
+        "  worldSettings: [{ id: 1, title: '宗门制度', category: '规则', content: '外门弟子凭令牌登记入门' }],",
+        "});",
+        "const searcher = new HybridEmbeddingSearcher(provider);",
+        "searcher.loadIndexedDocuments(await store.listDocuments({ model: 'test-embed-v1' }));",
+        "const service = new RetrievalQueryService(logger, { embeddingSearcher: searcher });",
+        `const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 5, keywords: ${JSON.stringify(fixture.query.keywords)}, manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });`,
+        "console.log(JSON.stringify(context));",
+      ].join("\n"),
+      embeddingEnv,
+    );
 
-  const baselineResult = evaluateRetrievalBenchmark(fixture, baselineContext);
-  const embeddingResult = evaluateRetrievalBenchmark(fixture, embeddingContext);
+    const baselineResult = evaluateRetrievalBenchmark(fixture, baselineContext);
+    const embeddingResult = evaluateRetrievalBenchmark(fixture, embeddingContext);
 
-  assert.equal(baselineResult.blockingRecall, 1);
-  assert.equal(baselineResult.decisionRecall, 1);
-  assert.equal(embeddingResult.blockingRecall, baselineResult.blockingRecall);
-  assert.ok(embeddingResult.decisionRecall >= baselineResult.decisionRecall);
+    assert.equal(baselineResult.blockingRecall, 1, `${fixture.name} baseline blocking recall should stay at 1`);
+    assert.equal(baselineResult.decisionRecall, 1, `${fixture.name} baseline decision recall should stay at 1`);
+    assert.equal(embeddingResult.blockingRecall, baselineResult.blockingRecall, `${fixture.name} embedding should not reduce blocking recall`);
+    assert.ok(embeddingResult.decisionRecall >= baselineResult.decisionRecall, `${fixture.name} embedding should not reduce decision recall`);
+  }
 });
 
 async function seedBenchmarkData(env: NodeJS.ProcessEnv): Promise<void> {

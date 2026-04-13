@@ -16,7 +16,10 @@ export function buildHardConstraints(groups: PlanRetrievedContextEntityGroups): 
       entity.score >= 130,
     ),
     factions: selectPriorityEntities(groups.factions, 4, (entity) =>
-      entity.reason.includes("manual_id") || entity.score >= 125,
+      entity.reason.includes("manual_id") ||
+      (entity.reason.includes("continuity_risk")
+        && (entity.content.includes("core_goal=") || entity.content.includes("description=") || entity.content.includes("append_notes="))) ||
+      entity.score >= 125,
     ),
     // 物品归属和状态最容易造成连续性错误，因此优先保留带 owner/status 信息的高分项。
     items: selectPriorityEntities(groups.items, 4, (entity) =>

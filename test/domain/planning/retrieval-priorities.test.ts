@@ -157,3 +157,30 @@ test("prioritizeFactPackets keeps institution-context factions in decision conte
   assert.equal(prioritized.decisionContext.length, 1);
   assert.equal(prioritized.decisionContext[0]?.displayName, "青岳宗");
 });
+
+test("prioritizeFactPackets upgrades continuity-risk factions into blocking constraints", () => {
+  const prioritized = prioritizeFactPackets([
+    {
+      entityType: "faction",
+      entityId: 5,
+      displayName: "青岳宗",
+      identity: ["青岳宗"],
+      currentState: ["category=宗门\ncore_goal=维持宗门秩序\ndescription=负责外门处理"],
+      coreConflictOrGoal: [],
+      recentChanges: [],
+      continuityRisk: [],
+      relevanceReasons: ["continuity_risk"],
+      scores: {
+        matchScore: 18,
+        importanceScore: 0,
+        continuityRiskScore: 0,
+        recencyScore: 0,
+        manualPriorityScore: 0,
+        finalScore: 18,
+      },
+    },
+  ]);
+
+  assert.equal(prioritized.blockingConstraints.length, 1);
+  assert.equal(prioritized.blockingConstraints[0]?.displayName, "青岳宗");
+});

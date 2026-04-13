@@ -45,12 +45,38 @@ export function hasObserverImmutabilityQueryCue(keywords: string[]): boolean {
     && hasAnyKeywordCue(keywords, ["观察者", "观察", "怀疑", "试探"]);
 }
 
+export function hasMotivationImmutabilityQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["禁止", "不要", "改写", "覆盖"])
+    && hasAnyKeywordCue(keywords, ["动机", "目标", "念头", "心思"]);
+}
+
+export function hasInstitutionDecisionImmutabilityQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["禁止", "不要", "改写", "覆盖"])
+    && hasAnyKeywordCue(keywords, ["执行者", "核验者", "处理态度", "态度", "处置", "决策", "身份"]);
+}
+
+export function hasMixedConstraintQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["禁止", "不要", "改写", "覆盖"])
+    && hasAnyKeywordCue(keywords, ["关系"])
+    && hasAnyKeywordCue(keywords, ["持有者", "持有", "归属"])
+    && hasAnyKeywordCue(keywords, ["场景", "位置", "承接"]);
+}
+
+export function hasCrossEntityConflictQueryCue(keywords: string[]): boolean {
+  return hasAnyKeywordCue(keywords, ["禁止", "不要", "改写", "覆盖"])
+    && hasAnyKeywordCue(keywords, ["目标", "动机"])
+    && hasAnyKeywordCue(keywords, ["关系"])
+    && hasAnyKeywordCue(keywords, ["规则", "制度"]);
+}
+
 export function hasManualPriority(packet: RetrievedFactPacket): boolean {
   return packet.scores.manualPriorityScore > 0;
 }
 
 export function hasContinuityRisk(packet: RetrievedFactPacket): boolean {
-  return packet.scores.continuityRiskScore > 0 || packet.continuityRisk.length > 0;
+  return packet.scores.continuityRiskScore > 0
+    || packet.continuityRisk.length > 0
+    || packet.relevanceReasons.includes("continuity_risk");
 }
 
 export function hasCharacterStateConstraint(packet: RetrievedFactPacket): boolean {

@@ -44,6 +44,7 @@
 - Markdown 编辑：支持导出 `plan / draft / final` 为 Markdown，再导入生成新版本
 - 数据库支持：默认 SQLite，本地开发体验不变；同时支持 `DB_CLIENT=mysql`
 - 实验扩展：已支持 `HeuristicReranker`、embedding candidate provider、basic / hybrid embedding search mode
+- retrieval 结构收敛：当前已拆分为 candidate provider、service factory、reranker factory、context builder、hard constraints、risk reminders 等模块
 - 日志体系：记录数据表 CRUD、工作流耗时、LLM 调用耗时、成功与否，AI 输入输出可选记录
 
 ## V2 重点变化
@@ -91,10 +92,17 @@ V2 不是只在配置里预留 `mysql`，而是已经支持：
 - `EmbeddingCandidateProvider`
 - `basic / hybrid` embedding search mode
 
+当前相关职责已经进一步拆分为：
+
+- `retrieval-candidate-provider-rule.ts`
+- `retrieval-service-factory.ts`
+- `retrieval-reranker-factory.ts`
+- `retrieval-context-builder.ts`
+
 也就是说：
 
 - 默认主链路仍稳定可用
-- embedding / rerank 实验不需要重写 workflow
+- embedding / rerank 实验不需要重写 workflow，正常 workflow 也可通过配置直接接入实验链路
 - benchmark 已可用来评估实验是否真的提升了召回质量
 
 ## V2 里最重要的设计
@@ -255,7 +263,8 @@ npm run dev -- approve --book 1 --chapter 1 --provider mock
 - Markdown 导入导出
 - SQLite 与 MySQL 主链验证
 - `HeuristicReranker` 与 embedding 实验链路
-- retrieval benchmark（当前固定 11 个样本已全部收口到 strict）
+- retrieval benchmark（当前固定 16 个样本已全部收口到 strict）
+- retrieval 模块第二轮结构收敛（provider / factory / context builder 已拆出）
 - 自动化测试基线
 
 下一阶段比较自然的方向通常是：

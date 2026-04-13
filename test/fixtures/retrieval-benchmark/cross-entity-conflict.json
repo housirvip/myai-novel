@@ -1,0 +1,11 @@
+{
+  "name": "cross-entity-conflict",
+  "expectationMode": "strict",
+  "query": {
+    "keywords": ["不要", "改写", "目标", "关系", "规则"]
+  },
+  "expected": {
+    "blockingNames": ["林夜", "青岳宗", "宗门制度"],
+    "maxNoiseRatio": 0.75
+  }
+}

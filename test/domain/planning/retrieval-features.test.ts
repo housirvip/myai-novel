@@ -3,10 +3,14 @@ import test from "node:test";
 
 import {
   hasAuthorityReactionQueryCue,
+  hasCrossEntityConflictQueryCue,
+  hasInstitutionDecisionImmutabilityQueryCue,
   hasInstitutionalQueryCue,
   hasItemContinuityQueryCue,
   hasLocationContinuityQueryCue,
   hasMembershipQueryCue,
+  hasMixedConstraintQueryCue,
+  hasMotivationImmutabilityQueryCue,
   hasObserverImmutabilityQueryCue,
   hasRuleQueryCue,
   hasSourceImmutabilityQueryCue,
@@ -17,17 +21,26 @@ test("retrieval feature helpers detect narrow query intents", () => {
   assert.equal(hasInstitutionalQueryCue(["宗门", "成员"]), true);
   assert.equal(hasRuleQueryCue(["制度", "登记"]), true);
   assert.equal(hasAuthorityReactionQueryCue(["身份", "异常", "反应"]), true);
+  assert.equal(hasInstitutionDecisionImmutabilityQueryCue(["不要", "改写", "执行者"]), true);
+  assert.equal(hasInstitutionDecisionImmutabilityQueryCue(["不要", "改写", "核验者", "身份"]), true);
+  assert.equal(hasCrossEntityConflictQueryCue(["不要", "改写", "目标", "关系", "规则"]), true);
   assert.equal(hasMembershipQueryCue(["入宗", "关系"]), true);
+  assert.equal(hasMixedConstraintQueryCue(["不要", "改写", "关系", "持有者", "场景"]), true);
   assert.equal(hasLocationContinuityQueryCue(["场景", "承接", "位置"]), true);
   assert.equal(hasItemContinuityQueryCue(["易主", "失踪"]), true);
   assert.equal(hasSourceObservationQueryCue(["来源", "观察", "宗门"]), true);
   assert.equal(hasSourceImmutabilityQueryCue(["禁止", "改写", "来源"]), true);
+  assert.equal(hasMotivationImmutabilityQueryCue(["不要", "改写", "动机"]), true);
   assert.equal(hasObserverImmutabilityQueryCue(["不要", "改写", "观察者"]), true);
 });
 
 test("retrieval feature helpers keep mixed intents narrow", () => {
   assert.equal(hasSourceObservationQueryCue(["来源", "宗门"]), false);
   assert.equal(hasSourceImmutabilityQueryCue(["改写", "宗门"]), false);
+  assert.equal(hasInstitutionDecisionImmutabilityQueryCue(["改写", "动机"]), false);
+  assert.equal(hasCrossEntityConflictQueryCue(["改写", "规则", "关系"]), false);
+  assert.equal(hasMixedConstraintQueryCue(["改写", "关系", "场景"]), false);
+  assert.equal(hasMotivationImmutabilityQueryCue(["改写", "来源"]), false);
   assert.equal(hasObserverImmutabilityQueryCue(["改写", "来源"]), false);
   assert.equal(hasLocationContinuityQueryCue(["来源", "观察"]), false);
 });
