@@ -653,6 +653,12 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
               ? { entityType: row.target_type, entityId: row.target_id, displayName: targetLabel }
               : null,
           ].filter(Boolean),
+          relationMetadata: {
+            relationType: row.relation_type,
+            status: row.status ?? undefined,
+            description: row.description ?? undefined,
+            appendNotes: row.append_notes ?? undefined,
+          },
         };
       }),
       KEYWORD_LIMITS.relations,

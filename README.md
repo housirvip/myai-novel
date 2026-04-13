@@ -4,7 +4,7 @@
 
 它把“设定管理 + 章节工作流 + 事实回写”放进一套本地优先的命令行系统里，适合用来持续维护长篇、网文、系列小说的写作上下文。
 
-当前 V2 基于 TypeScript、Node.js、SQLite / MySQL、dotenv 构建，支持 `mock`、`openai`、`anthropic`、`custom` 四种 LLM provider。
+当前基于 TypeScript、Node.js、SQLite / MySQL、dotenv 构建，支持 `mock`、`openai`、`anthropic`、`custom` 四种 LLM provider。
 
 ## 快速入口
 
@@ -38,11 +38,11 @@
 - 资源管理：`book`、`outline`、`world`、`character`、`faction`、`relation`、`item`、`hook`、`chapter`
 - 章节流水线：`plan -> draft -> review -> repair -> approve`
 - 召回机制：基于作者意图、近期大纲、前文章节、手工指定实体 ID 做规则式上下文召回
-- 阶段化上下文：`retrievedContext` 拆分为 `hardConstraints`、`softReferences`、`riskReminders`
+- 阶段化上下文：`retrievedContext` 已拆分为 `hardConstraints`、`softReferences`、`riskReminders`、`priorityContext`、`recentChanges`
 - 事实回写：`approve` 后把人物、势力、关系、物品、钩子、世界设定的变更回灌到设定库
 - Markdown 编辑：支持导出 `plan / draft / final` 为 Markdown，再导入生成新版本
 - 数据库支持：默认 SQLite，本地开发体验不变；同时支持 `DB_CLIENT=mysql`
-- 扩展预留：已为 `RetrievalCandidateProvider` / `RetrievalReranker` 留出接口，不改变默认规则召回行为
+- 实验扩展：已支持 `HeuristicReranker`、embedding candidate provider、basic / hybrid embedding search mode
 - 日志体系：记录数据表 CRUD、工作流耗时、LLM 调用耗时、成功与否，AI 输入输出可选记录
 
 ## V2 重点变化
@@ -75,19 +75,26 @@ V2 不是只在配置里预留 `mysql`，而是已经支持：
 - `DB_CLIENT=sqlite`
 - `LLM_PROVIDER=mock`
 
-### 3. 召回扩展接口已预留，但默认行为不变
+### 3. 召回扩展实验已接入，但默认行为仍稳定
 
 当前默认仍是：
 
 - 规则式候选召回
 - 直接按现有业务规则排序与截断
 
-但 `src/domain/planning/retrieval-pipeline.ts` 已预留：
+同时当前也已经接入实验层：
 
 - `RetrievalCandidateProvider`
 - `RetrievalReranker`
+- `HeuristicReranker`
+- `EmbeddingCandidateProvider`
+- `basic / hybrid` embedding search mode
 
-后续如果要接 embedding 或 rerank 实验，可以在不重写 workflow 的前提下挂到这两层接口。
+也就是说：
+
+- 默认主链路仍稳定可用
+- embedding / rerank 实验不需要重写 workflow
+- benchmark 已可用来评估实验是否真的提升了召回质量
 
 ## V2 里最重要的设计
 
@@ -233,16 +240,20 @@ npm run dev -- approve --book 1 --chapter 1 --provider mock
 
 ## 当前状态
 
-V2 当前已完成的主线能力：
+当前已完成的主线能力：
 
 - 核心表结构与迁移
 - 资源 CRUD CLI
 - 章节工作流全链路
 - 分层召回与阶段化上下文视图
+- `priorityContext` / `recentChanges`
+- 可读 prompt 事实块
 - 正式稿版本化
 - 结构化事实回写
 - Markdown 导入导出
 - SQLite 与 MySQL 主链验证
+- `HeuristicReranker` 与 embedding 实验链路
+- retrieval benchmark（含 strict / baseline_gap 样本）
 - 自动化测试基线
 
 下一阶段比较自然的方向通常是：

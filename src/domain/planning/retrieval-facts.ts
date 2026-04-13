@@ -30,6 +30,7 @@ export function buildFactPacket(entityType: RetrievedFactEntityType, entity: Ret
     displayName,
     relatedDisplayNames: inferRelatedDisplayNames(entityType, entity),
     relationEndpoints: inferRelationEndpoints(entityType, entity),
+    relationMetadata: inferRelationMetadata(entityType, entity),
     identity: [`${displayName}`],
     currentState: normalizedContent ? [normalizedContent] : [],
     coreConflictOrGoal: [],
@@ -164,9 +165,14 @@ function propagateRelationContext(input: {
     return { blockingConstraints: [], decisionContext: [] };
   }
 
-  const relatedNames = new Set(relationPackets.flatMap((packet) => packet.relatedDisplayNames ?? []));
+  const relatedEndpoints = new Set(
+    relationPackets.flatMap((packet) =>
+      (packet.relationEndpoints ?? []).map((endpoint) => `${endpoint.entityType}:${endpoint.entityId}`),
+    ),
+  );
   const candidateEndpoints = [...input.hardPackets, ...input.softPackets].filter((packet) =>
-    (packet.entityType === "character" || packet.entityType === "faction") && relatedNames.has(packet.displayName),
+    (packet.entityType === "character" || packet.entityType === "faction")
+    && relatedEndpoints.has(`${packet.entityType}:${packet.entityId}`),
   ).map((packet) => enrichEndpointPacketWithRelationContext(packet, relationPackets));
   const expandedHardFacts = expandHardFactsFromRelations({
     relationPackets,
@@ -191,7 +197,9 @@ function enrichEndpointPacketWithRelationContext(
   relationPackets: RetrievedFactPacket[],
 ): RetrievedFactPacket {
   const relatedRelations = relationPackets.filter((relation) =>
-    (relation.relatedDisplayNames ?? []).includes(packet.displayName),
+    (relation.relationEndpoints ?? []).some(
+      (endpoint) => endpoint.entityType === packet.entityType && endpoint.entityId === packet.entityId,
+    ),
   );
   if (relatedRelations.length === 0) {
     return packet;
@@ -222,11 +230,6 @@ function enrichEndpointPacketWithRelationContext(
 }
 
 function buildRelationEndpointSummary(displayName: string, relation: RetrievedFactPacket): string | null {
-  const content = relation.currentState.join("\n");
-  const relationTypeMatch = content.match(/relation_type=([^；\n]+)/);
-  const statusMatch = content.match(/status=([^；\n]+)/);
-  const descriptionMatch = content.match(/description=([^；\n]+)/);
-
   if (!relation.relationEndpoints || relation.relationEndpoints.length < 2) {
     return null;
   }
@@ -237,9 +240,9 @@ function buildRelationEndpointSummary(displayName: string, relation: RetrievedFa
   }
 
   const parts = [
-    relationTypeMatch?.[1] ? `关系=${relationTypeMatch[1].trim()}` : null,
-    statusMatch?.[1] ? `状态=${statusMatch[1].trim()}` : null,
-    descriptionMatch?.[1] ? descriptionMatch[1].trim() : null,
+    relation.relationMetadata?.relationType ? `关系=${relation.relationMetadata.relationType}` : null,
+    relation.relationMetadata?.status ? `状态=${relation.relationMetadata.status}` : null,
+    relation.relationMetadata?.description ? relation.relationMetadata.description : null,
   ].filter(Boolean);
 
   if (parts.length === 0) {
@@ -292,7 +295,7 @@ function expandHardFactsFromRelations(input: {
   candidateEndpoints: RetrievedFactPacket[];
 }): RetrievedFactPacket[] {
   const hasMembershipRelation = input.relationPackets.some((packet) =>
-    packet.currentState.some((line) => line.includes("relation_type=member")),
+    packet.relationMetadata?.relationType === "member",
   );
   if (!hasMembershipRelation) {
     return [];
@@ -328,6 +331,33 @@ function expandHardFactsFromRelations(input: {
       finalScore: packet.scores.finalScore + 8,
     },
   }));
+}
+
+function inferRelationMetadata(entityType: RetrievedFactEntityType, entity: RetrievedEntity): RetrievedFactPacket["relationMetadata"] {
+  if (entityType !== "relation") {
+    return undefined;
+  }
+
+  if (entity.relationMetadata) {
+    return entity.relationMetadata;
+  }
+
+  const content = entity.content ?? "";
+  const relationTypeMatch = content.match(/relation_type=([^；\n]+)/);
+  const statusMatch = content.match(/status=([^；\n]+)/);
+  const descriptionMatch = content.match(/description=([^；\n]+)/);
+  const appendNotesMatch = content.match(/append_notes=([^；\n]+)/);
+
+  if (!relationTypeMatch?.[1]) {
+    return undefined;
+  }
+
+  return {
+    relationType: relationTypeMatch[1].trim(),
+    status: statusMatch?.[1]?.trim(),
+    description: descriptionMatch?.[1]?.trim(),
+    appendNotes: appendNotesMatch?.[1]?.trim(),
+  };
 }
 
 function dedupePackets(packets: RetrievedFactPacket[]): RetrievedFactPacket[] {

@@ -19,6 +19,12 @@ export interface RetrievedEntity {
     entityId: number;
     displayName: string;
   }>;
+  relationMetadata?: {
+    relationType: string;
+    status?: string;
+    description?: string;
+    appendNotes?: string;
+  };
 }
 
 export type RetrievedFactEntityType =
@@ -40,6 +46,12 @@ export interface RetrievedFactPacket {
     entityId: number;
     displayName: string;
   }>;
+  relationMetadata?: {
+    relationType: string;
+    status?: string;
+    description?: string;
+    appendNotes?: string;
+  };
   identity: string[];
   currentState: string[];
   coreConflictOrGoal: string[];

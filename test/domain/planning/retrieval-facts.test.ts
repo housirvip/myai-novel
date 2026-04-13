@@ -29,10 +29,16 @@ test("buildFactPacket prefers structured relation endpoints over content parsing
       { entityType: "character", entityId: 1, displayName: "林夜" },
       { entityType: "faction", entityId: 2, displayName: "青岳宗" },
     ],
+    relationMetadata: {
+      relationType: "member",
+      status: "active",
+      description: "林夜已经加入青岳宗外门",
+    },
   });
 
   assert.deepEqual(packet.relatedDisplayNames, ["林夜", "青岳宗"]);
   assert.equal(packet.relationEndpoints?.[0]?.displayName, "林夜");
+  assert.equal(packet.relationMetadata?.relationType, "member");
 });
 
 test("buildPriorityContext keeps hard constraints ahead of soft references", () => {
@@ -72,7 +78,7 @@ test("buildPriorityContext propagates relation endpoints into decision context",
       worldSettings: [],
     },
     softReferences: {
-      relations: [{ id: 5, reason: "keyword_hit", content: "source=林夜 (character:1)\ntarget=青岳宗 (faction:2)\nrelation_type=member", score: 60 }],
+      relations: [{ id: 5, reason: "keyword_hit", content: "source=林夜 (character:1)\ntarget=青岳宗 (faction:2)\nrelation_type=member", score: 60, relationMetadata: { relationType: "member", description: "林夜加入青岳宗" } }],
       characters: [{ id: 1, name: "林夜", reason: "keyword_hit", content: "current_location=青岳宗外门", score: 40 }],
       factions: [{ id: 2, name: "青岳宗", reason: "keyword_hit", content: "category=宗门", score: 30 }],
       hooks: [],
@@ -88,6 +94,47 @@ test("buildPriorityContext propagates relation endpoints into decision context",
   assert.ok(context.blockingConstraints.some((packet) => packet.displayName === "青岳宗" || packet.displayName === "林夜"));
 });
 
+test("buildPriorityContext matches relation endpoints by entity type and id, not by displayName alone", () => {
+  const context = buildPriorityContext({
+    hardConstraints: {
+      characters: [
+        { id: 1, name: "林夜", reason: "keyword_hit", content: "current_location=青岳宗外门", score: 40 },
+        { id: 99, name: "林夜", reason: "keyword_hit", content: "current_location=别处", score: 10 },
+      ],
+      factions: [{ id: 2, name: "青岳宗", reason: "keyword_hit", content: "category=宗门", score: 30 }],
+      hooks: [],
+      items: [],
+      relations: [],
+      worldSettings: [],
+    },
+    softReferences: {
+      relations: [{
+        id: 5,
+        reason: "keyword_hit",
+        content: "source=林夜 (character:1)\ntarget=青岳宗 (faction:2)\nrelation_type=member",
+        score: 60,
+        relationEndpoints: [
+          { entityType: "character", entityId: 1, displayName: "林夜" },
+          { entityType: "faction", entityId: 2, displayName: "青岳宗" },
+        ],
+        relationMetadata: { relationType: "member", status: "active", description: "林夜加入青岳宗" },
+      }],
+      characters: [
+        { id: 1, name: "林夜", reason: "keyword_hit", content: "current_location=青岳宗外门", score: 40 },
+        { id: 99, name: "林夜", reason: "keyword_hit", content: "current_location=别处", score: 10 },
+      ],
+      factions: [{ id: 2, name: "青岳宗", reason: "keyword_hit", content: "category=宗门", score: 30 }],
+      hooks: [],
+      items: [],
+      worldSettings: [],
+    },
+  });
+
+  const duplicateCharacter = context.decisionContext.find((packet) => packet.entityId === 99);
+  assert.equal(duplicateCharacter, undefined);
+  assert.ok(context.decisionContext.some((packet) => packet.entityType === "character" && packet.entityId === 1));
+});
+
 test("buildPriorityContext expands hard facts for member relations", () => {
   const context = buildPriorityContext({
     hardConstraints: {
@@ -99,7 +146,7 @@ test("buildPriorityContext expands hard facts for member relations", () => {
       relations: [],
     },
     softReferences: {
-      relations: [{ id: 5, reason: "keyword_hit", content: "source=林夜 (character:1)\ntarget=青岳宗 (faction:2)\nrelation_type=member\nstatus=active", score: 60 }],
+      relations: [{ id: 5, reason: "keyword_hit", content: "source=林夜 (character:1)\ntarget=青岳宗 (faction:2)\nrelation_type=member\nstatus=active", score: 60, relationMetadata: { relationType: "member", status: "active", description: "林夜已经加入青岳宗外门" } }],
       characters: [{ id: 1, name: "林夜", reason: "keyword_hit", content: "current_location=青岳宗外门", score: 40 }],
       factions: [{ id: 2, name: "青岳宗", reason: "keyword_hit", content: "category=宗门", score: 30 }],
       items: [{ id: 7, name: "黑铁令", reason: "keyword_hit", content: "owner_type=character\nowner_id=1\nstatus=active", score: 35 }],

@@ -103,3 +103,57 @@ test("prioritizeFactPackets upgrades rule-relevant factions into decision contex
   assert.equal(prioritized.decisionContext.length, 1);
   assert.equal(prioritized.decisionContext[0]?.displayName, "青岳宗");
 });
+
+test("prioritizeFactPackets does not upgrade generic active factions without rule intent", () => {
+  const prioritized = prioritizeFactPackets([
+    {
+      entityType: "faction",
+      entityId: 3,
+      displayName: "山海盟",
+      identity: ["山海盟"],
+      currentState: ["category=宗门\ndescription=沿海宗门\nstatus=active"],
+      coreConflictOrGoal: [],
+      recentChanges: [],
+      continuityRisk: [],
+      relevanceReasons: ["keyword_hit"],
+      scores: {
+        matchScore: 25,
+        importanceScore: 0,
+        continuityRiskScore: 0,
+        recencyScore: 0,
+        manualPriorityScore: 0,
+        finalScore: 25,
+      },
+    },
+  ]);
+
+  assert.equal(prioritized.decisionContext.length, 0);
+  assert.equal(prioritized.supportingContext.length, 1);
+});
+
+test("prioritizeFactPackets keeps institution-context factions in decision context", () => {
+  const prioritized = prioritizeFactPackets([
+    {
+      entityType: "faction",
+      entityId: 4,
+      displayName: "青岳宗",
+      identity: ["青岳宗"],
+      currentState: ["category=宗门\ndescription=东境宗门"],
+      coreConflictOrGoal: [],
+      recentChanges: [],
+      continuityRisk: [],
+      relevanceReasons: ["institution_context"],
+      scores: {
+        matchScore: 18,
+        importanceScore: 0,
+        continuityRiskScore: 0,
+        recencyScore: 0,
+        manualPriorityScore: 0,
+        finalScore: 18,
+      },
+    },
+  ]);
+
+  assert.equal(prioritized.decisionContext.length, 1);
+  assert.equal(prioritized.decisionContext[0]?.displayName, "青岳宗");
+});

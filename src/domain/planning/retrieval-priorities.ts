@@ -82,7 +82,16 @@ function isRuleRelevantFaction(packet: RetrievedFactPacket): boolean {
     return false;
   }
 
+  if (packet.relevanceReasons.includes("institution_context")) {
+    return true;
+  }
+
+  if (!packet.relevanceReasons.includes("keyword_hit") && packet.scores.matchScore < 25) {
+    return false;
+  }
+
   const text = packet.currentState.join("\n").toLowerCase();
-  return ["category=宗门", "core_goal=维持", "description=", "status=active"]
-    .some((token) => text.includes(token));
+  const hasInstitutionType = text.includes("category=宗门");
+  const hasRuleIntent = text.includes("core_goal=维持") || text.includes("秩序") || text.includes("制度");
+  return hasInstitutionType && hasRuleIntent;
 }
