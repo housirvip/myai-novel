@@ -94,6 +94,8 @@ examples/             示例脚本
   - `recent-changes.ts`：recentChanges 聚合
   - `retrieval-reranker-heuristic.ts`：启发式 rerank
   - `embedding-*.ts`：embedding 文档、provider、searcher、candidate provider
+  - `embedding-store.ts`：embedding 索引存储契约与内存实现
+  - `embedding-refresh.ts`：embedding 文档刷新、按类型刷新、按 model 清理流程
 - `src/core/db/`
   - `dialects/sqlite.ts`
   - `dialects/mysql.ts`
@@ -117,15 +119,16 @@ examples/             示例脚本
 - Markdown 导入导出
 - SQLite / MySQL 双方言主链验证
 - `HeuristicReranker` 已实现并可配置启用
-- embedding 实验链路已实现：document / provider / memory search / hybrid search / candidate merge
-- retrieval benchmark 已建立，包含 strict 和 baseline_gap 样本
+- embedding 实验链路已实现：document / provider / memory search / hybrid search / candidate merge / store / refresh
+- embedding 刷新已支持：全量 refresh / 单一 entityType refresh / 按 model 清理
+- retrieval benchmark 已建立，当前包含 7 个 strict 样本和 1 个 baseline_gap 样本（`location-drift`）
 - retrieval 模块已完成第一轮技术债拆分：fact packet builder / relation propagation / merge helper / feature layer
 - 自动化测试基线
 
 如果你想继续往下扩展，下一阶段比较自然的方向通常是：
 
 - 更真实的 embedding provider / 索引刷新流程
-- `world-rule` / `relation-shift` gap 收口
+- 扩展新的 benchmark gap 样本，继续约束更难的召回缺口
 - 更强的关系演化建模
 - 冲突检测与设定一致性审计
 - 批量章节工作流

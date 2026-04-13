@@ -62,6 +62,7 @@ test("faction embedding text keeps goal and continuity risk readable", () => {
 
   assert.match(text, /势力：青岳宗/);
   assert.match(text, /核心目标：维持山门稳定并筛选可用弟子/);
+  assert.match(text, /规则执行：负责宗门制度、外门、内门、登记等秩序执行/);
   assert.match(text, /连续性风险：不能突然放松登记制度/);
 });
 
@@ -112,5 +113,6 @@ test("world setting embedding text keeps rule summary readable", () => {
   assert.match(text, /设定：宗门制度/);
   assert.match(text, /类别：制度/);
   assert.match(text, /规则摘要：外门弟子进入内门区域必须持有登记令牌/);
+  assert.match(text, /规则边界：外门弟子进入内门区域必须持有登记令牌/);
   assert.match(text, /连续性风险：不能无手续越级进入/);
 });

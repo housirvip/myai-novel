@@ -1,0 +1,12 @@
+{
+  "name": "authority-reaction",
+  "expectationMode": "strict",
+  "query": {
+    "keywords": ["身份", "异常", "反应"]
+  },
+  "expected": {
+    "blockingNames": ["黑铁令", "黑铁令身份核验"],
+    "decisionNames": ["青岳宗"],
+    "maxNoiseRatio": 0.7
+  }
+}

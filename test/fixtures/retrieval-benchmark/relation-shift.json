@@ -1,6 +1,6 @@
 {
   "name": "relation-shift",
-  "expectationMode": "baseline_gap",
+  "expectationMode": "strict",
   "query": {
     "keywords": ["关系", "入宗", "成员"]
   },

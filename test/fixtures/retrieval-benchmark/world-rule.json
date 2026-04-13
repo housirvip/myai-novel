@@ -1,6 +1,6 @@
 {
   "name": "world-rule",
-  "expectationMode": "baseline_gap",
+  "expectationMode": "strict",
   "query": {
     "keywords": ["规则", "令牌", "登记"]
   },

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import type { PlanRetrievedContext } from "../../src/domain/planning/types.js";
 import { createTestEnv, runCli, runInlineModule } from "../helpers/cli.js";
 import {
   evaluateRetrievalBenchmark,
@@ -21,7 +22,7 @@ test("retrieval benchmark fixtures keep blocking recall high and noise bounded",
 
   for (const fixtureName of RETRIEVAL_BENCHMARK_FIXTURE_NAMES) {
     const fixture = await loadRetrievalBenchmarkFixture(fixtureName);
-    const context = await runInlineModule(
+    const context = await runInlineModule<PlanRetrievedContext>(
       [
         "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
         "const logger = { info() {}, error() {}, debug() {} };",
@@ -47,7 +48,7 @@ test("retrieval benchmark fixtures keep blocking recall high and noise bounded",
   }
 });
 
-test("hybrid embedding experiment for world-rule runs end-to-end without regressing blocking recall", async () => {
+test("hybrid embedding experiment for world-rule runs end-to-end without regressing recall", async () => {
   const fixture = await loadRetrievalBenchmarkFixture("world-rule");
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-benchmark-embedding-"));
   const baselineEnv = createTestEnv(path.join(tempDir, "baseline"));
@@ -61,7 +62,7 @@ test("hybrid embedding experiment for world-rule runs end-to-end without regress
   await runCli(["db", "init"], embeddingEnv);
   await seedBenchmarkData(embeddingEnv);
 
-  const baselineContext = await runInlineModule(
+  const baselineContext = await runInlineModule<PlanRetrievedContext>(
     [
       "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
       "const logger = { info() {}, error() {}, debug() {} };",
@@ -72,17 +73,25 @@ test("hybrid embedding experiment for world-rule runs end-to-end without regress
     baselineEnv,
   );
 
-  const embeddingContext = await runInlineModule(
+  const embeddingContext = await runInlineModule<PlanRetrievedContext>(
     [
       "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
       "import { DeterministicHashEmbeddingProvider } from './src/domain/planning/embedding-provider.ts';",
+      "import { EmbeddingRefreshService } from './src/domain/planning/embedding-refresh.ts';",
+      "import { InMemoryEmbeddingStore } from './src/domain/planning/embedding-store.ts';",
       "import { HybridEmbeddingSearcher } from './src/domain/planning/embedding-searcher-hybrid.ts';",
       "const logger = { info() {}, error() {}, debug() {} };",
-      "const searcher = new HybridEmbeddingSearcher(new DeterministicHashEmbeddingProvider());",
-      "await searcher.index([",
-      `  { entityType: 'world_setting', entityId: 1, chunkKey: 'world_setting:1:summary', model: 'test-embed-v1', text: ${JSON.stringify("设定：宗门制度\n规则摘要：外门弟子凭令牌登记入门")} },`,
-      `  { entityType: 'faction', entityId: 1, chunkKey: 'faction:1:summary', model: 'test-embed-v1', text: ${JSON.stringify("势力：青岳宗\n核心目标：维持宗门秩序\n规则执行：负责外门弟子凭令牌登记入门")} },`,
-      "]);",
+      "const provider = new DeterministicHashEmbeddingProvider();",
+      "const store = new InMemoryEmbeddingStore();",
+      "const refresh = new EmbeddingRefreshService(provider, store);",
+      "await refresh.refresh({",
+      "  model: 'test-embed-v1',",
+      "  characters: [{ id: 1, name: '林夜', goal: '查清黑铁令来历', background: '寒门出身' }],",
+      "  hooks: [{ id: 1, title: '黑铁令身份核验', expected_payoff: '执事将在第五章进行身份核验' }],",
+      "  worldSettings: [{ id: 1, title: '宗门制度', category: '规则', content: '外门弟子凭令牌登记入门' }],",
+      "});",
+      "const searcher = new HybridEmbeddingSearcher(provider);",
+      "searcher.loadIndexedDocuments(await store.listDocuments({ model: 'test-embed-v1' }));",
       "const service = new RetrievalQueryService(logger, { embeddingSearcher: searcher });",
       `const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 5, keywords: ${JSON.stringify(fixture.query.keywords)}, manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });`,
       "console.log(JSON.stringify(context));",
@@ -93,7 +102,8 @@ test("hybrid embedding experiment for world-rule runs end-to-end without regress
   const baselineResult = evaluateRetrievalBenchmark(fixture, baselineContext);
   const embeddingResult = evaluateRetrievalBenchmark(fixture, embeddingContext);
 
-  assert.ok(baselineResult.decisionRecall < 1, "baseline world-rule case should still expose a gap");
+  assert.equal(baselineResult.blockingRecall, 1);
+  assert.equal(baselineResult.decisionRecall, 1);
   assert.equal(embeddingResult.blockingRecall, baselineResult.blockingRecall);
   assert.ok(embeddingResult.decisionRecall >= baselineResult.decisionRecall);
 });

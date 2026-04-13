@@ -1,0 +1,11 @@
+{
+  "name": "location-drift",
+  "expectationMode": "baseline_gap",
+  "query": {
+    "keywords": ["场景", "承接", "位置"]
+  },
+  "expected": {
+    "blockingNames": ["林夜"],
+    "maxNoiseRatio": 0.7
+  }
+}

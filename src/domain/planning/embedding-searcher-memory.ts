@@ -19,6 +19,10 @@ export class InMemoryEmbeddingSearcher implements EmbeddingCandidateSearcher {
     }));
   }
 
+  loadIndexedDocuments(documents: IndexedEmbeddingDocument[]): void {
+    this.indexedDocuments = [...documents];
+  }
+
   async search(params: { queryText: string; limit: number }): Promise<EmbeddingMatch[]> {
     if (this.indexedDocuments.length === 0) {
       return [];

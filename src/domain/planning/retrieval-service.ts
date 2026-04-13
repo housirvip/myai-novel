@@ -356,7 +356,11 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
             { text: row.append_notes, weight: 8 },
             { text: row.keywords, weight: 18 },
           ],
-        }),
+        }) + membershipCharacterBoost({
+          currentLocation: row.current_location,
+          professions: row.professions,
+          appendNotes: row.append_notes,
+        }, params.keywords),
         reason: buildReasons({
           manualIds: params.manualRefs.characterIds,
           entityId: row.id,
@@ -375,6 +379,11 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
             { text: row.append_notes, weight: 8 },
             { text: row.keywords, weight: 18 },
           ],
+          extraReasons: membershipCharacterBoost({
+            currentLocation: row.current_location,
+            professions: row.professions,
+            appendNotes: row.append_notes,
+          }, params.keywords) > 0 ? ["institution_context"] : [],
         }),
         content: compactLines([
           `name=${row.name}`,
@@ -424,7 +433,17 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
             { text: row.append_notes, weight: 8 },
             { text: row.keywords, weight: 18 },
           ],
-        }) + institutionalFactionBoost(row.category, params.keywords),
+        }) + institutionalFactionBoost({
+          category: row.category,
+          coreGoal: row.core_goal,
+          description: row.description,
+          appendNotes: row.append_notes,
+        }, params.keywords) + authorityReactionFactionBoost({
+          category: row.category,
+          coreGoal: row.core_goal,
+          description: row.description,
+          appendNotes: row.append_notes,
+        }, params.keywords),
         reason: buildReasons({
           manualIds: params.manualRefs.factionIds,
           entityId: row.id,
@@ -437,7 +456,20 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
             { text: row.append_notes, weight: 8 },
             { text: row.keywords, weight: 18 },
           ],
-          extraReasons: institutionalFactionBoost(row.category, params.keywords) > 0 ? ["institution_context"] : [],
+          extraReasons: [
+            institutionalFactionBoost({
+              category: row.category,
+              coreGoal: row.core_goal,
+              description: row.description,
+              appendNotes: row.append_notes,
+            }, params.keywords) > 0 ? "institution_context" : null,
+            authorityReactionFactionBoost({
+              category: row.category,
+              coreGoal: row.core_goal,
+              description: row.description,
+              appendNotes: row.append_notes,
+            }, params.keywords) > 0 ? "institution_context" : null,
+          ].filter(Boolean) as string[],
         }),
         content: compactLines([
           `name=${row.name}`,
@@ -476,12 +508,38 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
           entityId: row.id,
           keywords: params.keywords,
           textSources: [row.name, row.description, row.append_notes, row.keywords],
-        }),
+        }) + membershipItemBoost({
+          category: row.category,
+          description: row.description,
+          appendNotes: row.append_notes,
+        }, params.keywords) + continuityItemBoost({
+          ownerType: row.owner_type,
+          ownerId: row.owner_id,
+          status: row.status,
+          category: row.category,
+          description: row.description,
+          appendNotes: row.append_notes,
+        }, params.keywords),
         reason: buildReasons({
           manualIds: params.manualRefs.itemIds,
           entityId: row.id,
           keywords: params.keywords,
           textSources: [row.name, row.description, row.append_notes, row.keywords],
+          extraReasons: [
+            membershipItemBoost({
+              category: row.category,
+              description: row.description,
+              appendNotes: row.append_notes,
+            }, params.keywords) > 0 ? "institution_context" : null,
+            continuityItemBoost({
+              ownerType: row.owner_type,
+              ownerId: row.owner_id,
+              status: row.status,
+              category: row.category,
+              description: row.description,
+              appendNotes: row.append_notes,
+            }, params.keywords) > 0 ? "continuity_risk" : null,
+          ].filter(Boolean) as string[],
         }),
         content: compactLines([
           `name=${row.name}`,
@@ -694,7 +752,12 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
             { text: row.append_notes, weight: 8 },
             { text: row.keywords, weight: 18 },
           ],
-        }),
+        }) + ruleWorldSettingBoost({
+          title: row.title,
+          category: row.category,
+          content: row.content,
+          appendNotes: row.append_notes,
+        }, params.keywords),
         reason: buildReasons({
           manualIds: params.manualRefs.worldSettingIds,
           entityId: row.id,
@@ -706,6 +769,12 @@ class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
             { text: row.append_notes, weight: 8 },
             { text: row.keywords, weight: 18 },
           ],
+          extraReasons: ruleWorldSettingBoost({
+            title: row.title,
+            category: row.category,
+            content: row.content,
+            appendNotes: row.append_notes,
+          }, params.keywords) > 0 ? ["institution_context"] : [],
         }),
         content: compactLines([
           `title=${row.title}`,
@@ -787,18 +856,108 @@ function selectPriorityEntities(
   return [...prioritized, ...fallback].slice(0, limit);
 }
 
-function institutionalFactionBoost(category: string | null, keywords: string[]): number {
-  const normalizedCategory = (category ?? "").toLowerCase();
+function institutionalFactionBoost(input: {
+  category: string | null;
+  coreGoal: string | null;
+  description: string | null;
+  appendNotes: string | null;
+}, keywords: string[]): number {
+  const normalizedCategory = (input.category ?? "").toLowerCase();
   if (!normalizedCategory.includes("宗门")) {
     return 0;
   }
 
-  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
-  const hasInstitutionalCue = normalizedKeywords.some((keyword) =>
-    ["执事", "长老", "内门", "外门", "宗门", "入宗", "成员", "关系"].some((token) => keyword.includes(token)),
-  );
+  const normalizedText = [input.coreGoal, input.description, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
+  const hasInstitutionalCue = hasAnyKeywordCue(keywords, ["执事", "长老", "内门", "外门", "宗门", "入宗", "成员", "关系"]);
+  const hasRuleCue = hasAnyKeywordCue(keywords, ["规则", "制度", "登记", "令牌"])
+    && ["秩序", "制度", "外门", "入门", "登记", "门规"].some((token) => normalizedText.includes(token));
 
-  return hasInstitutionalCue ? 18 : 0;
+  return hasInstitutionalCue || hasRuleCue ? 18 : 0;
+}
+
+function authorityReactionFactionBoost(input: {
+  category: string | null;
+  coreGoal: string | null;
+  description: string | null;
+  appendNotes: string | null;
+}, keywords: string[]): number {
+  const normalizedCategory = (input.category ?? "").toLowerCase();
+  if (!normalizedCategory.includes("宗门")) {
+    return 0;
+  }
+
+  if (!hasAnyKeywordCue(keywords, ["身份", "异常", "反应", "核验", "执事"])) {
+    return 0;
+  }
+
+  const normalizedText = [input.coreGoal, input.description, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
+  return ["秩序", "宗门", "外门", "制度", "门规"].some((token) => normalizedText.includes(token)) ? 18 : 0;
+}
+
+function membershipCharacterBoost(input: {
+  currentLocation: string | null;
+  professions: string | null;
+  appendNotes: string | null;
+}, keywords: string[]): number {
+  if (!hasAnyKeywordCue(keywords, ["入宗", "成员", "关系"])) {
+    return 0;
+  }
+
+  const normalizedText = [input.currentLocation, input.professions, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
+  return ["宗", "门", "外门", "内门", "弟子", "入门"].some((token) => normalizedText.includes(token)) ? 18 : 0;
+}
+
+function membershipItemBoost(input: {
+  category: string | null;
+  description: string | null;
+  appendNotes: string | null;
+}, keywords: string[]): number {
+  if (!hasAnyKeywordCue(keywords, ["入宗", "成员", "关系", "规则", "登记"])) {
+    return 0;
+  }
+
+  const normalizedText = [input.category, input.description, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
+  return ["令牌", "身份", "凭证", "登记"].some((token) => normalizedText.includes(token)) ? 18 : 0;
+}
+
+function continuityItemBoost(input: {
+  ownerType: string;
+  ownerId: number | null;
+  status: string | null;
+  category: string | null;
+  description: string | null;
+  appendNotes: string | null;
+}, keywords: string[]): number {
+  if (!hasAnyKeywordCue(keywords, ["易主", "失踪", "连续", "恢复"])) {
+    return 0;
+  }
+
+  const hasTrackedOwnership = Boolean(input.ownerType) || input.ownerId !== null || Boolean(input.status);
+  if (!hasTrackedOwnership) {
+    return 0;
+  }
+
+  const normalizedText = [input.category, input.description, input.appendNotes, input.status].filter(Boolean).join("\n").toLowerCase();
+  return ["令牌", "身份", "凭证", "active", "失踪", "持有"].some((token) => normalizedText.includes(token)) ? 18 : 0;
+}
+
+function ruleWorldSettingBoost(input: {
+  title: string | null;
+  category: string | null;
+  content: string | null;
+  appendNotes: string | null;
+}, keywords: string[]): number {
+  if (!hasAnyKeywordCue(keywords, ["入宗", "成员", "关系", "规则", "制度", "登记", "令牌"])) {
+    return 0;
+  }
+
+  const normalizedText = [input.title, input.category, input.content, input.appendNotes].filter(Boolean).join("\n").toLowerCase();
+  return ["规则", "制度", "登记", "令牌", "入门", "外门", "宗门"].some((token) => normalizedText.includes(token)) ? 18 : 0;
+}
+
+function hasAnyKeywordCue(keywords: string[], cues: string[]): boolean {
+  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+  return normalizedKeywords.some((keyword) => cues.some((token) => keyword.includes(token)));
 }
 
 function buildRiskReminders(input: {

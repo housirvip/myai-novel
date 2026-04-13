@@ -22,6 +22,9 @@ export const RETRIEVAL_BENCHMARK_FIXTURE_NAMES = [
   "hook-payoff",
   "world-rule",
   "relation-shift",
+  "authority-reaction",
+  "item-drift",
+  "location-drift",
 ] as const;
 
 export interface RetrievalBenchmarkResult {

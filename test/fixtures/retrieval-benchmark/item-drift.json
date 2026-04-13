@@ -1,0 +1,11 @@
+{
+  "name": "item-drift",
+  "expectationMode": "strict",
+  "query": {
+    "keywords": ["避免", "易主", "失踪"]
+  },
+  "expected": {
+    "blockingNames": ["黑铁令"],
+    "maxNoiseRatio": 0.7
+  }
+}

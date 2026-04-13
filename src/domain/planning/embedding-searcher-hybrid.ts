@@ -22,6 +22,10 @@ export class HybridEmbeddingSearcher implements EmbeddingCandidateSearcher {
     }));
   }
 
+  loadIndexedDocuments(documents: IndexedEmbeddingDocument[]): void {
+    this.indexedDocuments = [...documents];
+  }
+
   async search(params: { queryText: string; limit: number }): Promise<EmbeddingMatch[]> {
     if (this.indexedDocuments.length === 0) {
       return [];
@@ -29,14 +33,17 @@ export class HybridEmbeddingSearcher implements EmbeddingCandidateSearcher {
 
     const queryVector = await this.provider.embed(params.queryText);
     const queryTokens = tokenize(params.queryText);
-    const semanticWeight = this.options.semanticWeight ?? 0.55;
-    const lexicalWeight = this.options.lexicalWeight ?? 0.45;
+    const ruleHeavyQuery = isRuleHeavyQuery(queryTokens);
+    const semanticWeight = this.options.semanticWeight ?? (ruleHeavyQuery ? 0.45 : 0.55);
+    const lexicalWeight = this.options.lexicalWeight ?? (ruleHeavyQuery ? 0.55 : 0.45);
 
     return this.indexedDocuments
       .map((document) => {
         const semanticScore = cosineSimilarity(queryVector, document.vector);
         const lexicalScore = lexicalOverlap(queryTokens, tokenize(document.text));
-        const combinedScore = semanticScore * semanticWeight + lexicalScore * lexicalWeight;
+        const combinedScore = semanticScore * semanticWeight
+          + lexicalScore * lexicalWeight
+          + entityTypeBonus(document.entityType, lexicalScore, ruleHeavyQuery);
 
         return {
           entityType: document.entityType,
@@ -50,6 +57,30 @@ export class HybridEmbeddingSearcher implements EmbeddingCandidateSearcher {
       .sort((left, right) => right.semanticScore - left.semanticScore || left.entityId - right.entityId)
       .slice(0, params.limit);
   }
+}
+
+function isRuleHeavyQuery(queryTokens: string[]): boolean {
+  return queryTokens.some((token) => ["规则", "制度", "令牌", "登记"].includes(token));
+}
+
+function entityTypeBonus(
+  entityType: EmbeddingDocument["entityType"],
+  lexicalScore: number,
+  ruleHeavyQuery: boolean,
+): number {
+  if (!ruleHeavyQuery || lexicalScore <= 0) {
+    return 0;
+  }
+
+  if (entityType === "world_setting") {
+    return 0.08;
+  }
+
+  if (entityType === "faction") {
+    return 0.03;
+  }
+
+  return 0;
 }
 
 function tokenize(text: string): string[] {

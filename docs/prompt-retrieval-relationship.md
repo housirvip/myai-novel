@@ -462,8 +462,8 @@ flowchart TD
 当前需要特别注意：
 
 - 默认主链路并不依赖 embedding
-- embedding 目前主要用于实验和 gap 样本验证
-- `world-rule` 仍然是 embedding/hybrid 尚未完全收口的典型样本
+- embedding 目前主要用于实验和对照验证
+- `world-rule` 已在规则召回主链路中收口到 strict，embedding 仍保留为补充实验链路
 
 ### 7.0b 实验链路图：Relation Propagation 与 Hard-Fact Expansion
 
@@ -482,7 +482,7 @@ flowchart TD
 
     D1[priorityContext.decisionContext]
     D2[priorityContext.blockingConstraints]
-    D3[gap benchmark<br/>relation-shift]
+    D3[benchmark<br/>relation-shift]
 
     A1 --> A2
     A2 --> A3
@@ -516,8 +516,7 @@ flowchart TD
   - 当前只对 `member` 这类关系做
   - 会补人物位置、端点人物持有物等更像硬约束的事实
 - `D` 区域说明这些结果最终会如何影响 benchmark
-  - `relation-shift` 之所以还在 `baseline_gap`
-  - 主要不是传播链路断了，而是 blocking facts 还不够稳定
+  - `relation-shift` 现在可以稳定验证 relation propagation 是否把 blocking facts 补齐
 
 当前这条链路已经解决的问题：
 
@@ -525,10 +524,10 @@ flowchart TD
 - 端点人物/势力可以进入 `decisionContext`
 - 端点 packet 会带关系状态摘要
 
-当前这条链路还没完全解决的问题：
+当前这条链路最新已解决的问题：
 
-- relation query 还不能稳定把 `林夜 / 黑铁令 / 宗门制度` 这种关联 hard facts 全部带进 `blockingConstraints`
-- 因此 `relation-shift` 仍然是当前保留的 `baseline_gap` 样本
+- relation query 现在可以稳定把 `林夜 / 黑铁令 / 宗门制度` 这类关联 hard facts 带进 `blockingConstraints`
+- `relation-shift` 已从 `baseline_gap` 收口到 `strict`
 
 ### 7.1 `hardConstraints`
 

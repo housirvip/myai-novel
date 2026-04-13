@@ -200,8 +200,8 @@
 
 ### P4-3. Embedding indexing 与存储
 - [x] 设计向量存储层接口，不让 retrieval service 直接依赖底层存储细节
-- [ ] 设计按实体类型刷新 embedding 的流程
-- [ ] 设计按模型版本刷新 embedding 的流程
+- [x] 设计按实体类型刷新 embedding 的流程
+- [x] 设计按模型版本/按 model 清理 embedding 的基础流程
 - [x] 设计 query 文本的摘要化规则
 - [x] 设计语义候选与规则候选的去重和 explainability 合并规则
 - [x] 新建 `embedding-provider.ts`
@@ -209,6 +209,8 @@
 - [x] 新建 `embedding-index.ts`
 - [x] 新建 `embedding-searcher-memory.ts`
 - [x] 新建 `embedding-searcher-hybrid.ts`
+- [x] 新建 `embedding-store.ts`
+- [x] 新建 `embedding-refresh.ts`
 
 ### P4-4. 对照实验
 - [x] 对比 `规则召回`
@@ -241,6 +243,12 @@
   - `continuity-baseline`
   - `character-motivation`
   - `hook-payoff`
-- `baseline_gap`
   - `world-rule`
   - `relation-shift`
+  - `authority-reaction`
+  - `item-drift`
+
+- `baseline_gap`
+  - `location-drift`
+
+当前固定 benchmark 已扩展到 8 个 fixture，其中 `location-drift` 用来约束“人物位置/场景连续性”这类 query 仍缺少 blocking character recall 的问题。

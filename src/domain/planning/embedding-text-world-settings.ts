@@ -11,6 +11,8 @@ export function buildWorldSettingEmbeddingText(setting: WorldSettingEmbeddingSou
     `设定：${setting.title}`,
     setting.category ? `类别：${setting.category}` : null,
     setting.content ? `规则摘要：${setting.content}` : null,
+    setting.content ? `规则边界：${setting.content}` : null,
+    setting.content ? `执行条件：${setting.content}` : null,
     setting.notes ? `连续性风险：${setting.notes}` : null,
   ]);
 }

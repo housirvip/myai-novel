@@ -14,6 +14,7 @@ export function buildFactionEmbeddingText(faction: FactionEmbeddingSource): stri
     faction.category ? `类型：${faction.category}` : null,
     faction.summary ? `身份摘要：${faction.summary}` : null,
     faction.core_goal ? `核心目标：${faction.core_goal}` : null,
+    faction.category === "宗门" ? `规则执行：负责宗门制度、外门、内门、登记等秩序执行` : null,
     faction.status ? `当前态势：${faction.status}` : null,
     faction.notes ? `连续性风险：${faction.notes}` : null,
   ]);
