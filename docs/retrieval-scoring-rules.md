@@ -144,7 +144,7 @@
 
 ## 6. 通用打分与优先级规则
 
-当前大多数实体都走同一个基础公式。
+当前召回不是所有实体都走完全相同的固定分值公式。
 
 ### 6.1 基础分
 
@@ -154,15 +154,22 @@
 
 ### 6.2 关键词命中分
 
-对于每一个关键词，只要命中了该实体的任一匹配字段：
+当前可以分成两类：
 
-- `+25`
+- 简单文本匹配实体：按拼接后的文本做 `includes(keyword)`，每命中一个关键词通常 `+25`
+- 加权字段匹配实体：按字段权重累计分数，不同字段权重不同
 
-这里的命中逻辑不是复杂分词，而是：
+当前使用加权字段匹配的主要有：
 
-- 把多个字段拼成一个文本串
-- 转成小写
-- 用 `includes(keyword)` 判断是否包含
+- `character`
+- `faction`
+- `relation`
+- `world_setting`
+
+当前仍使用简单文本匹配的主要有：
+
+- `item`
+- `hook`
 
 ### 6.3 保留条件
 
@@ -205,6 +212,9 @@
 - `keyword_hit`
 - `chapter_proximity`
 - `manual_entity_link`
+- `institution_context`
+- `continuity_risk`
+- `embedding_match`
 - `low_relevance`
 
 含义如下：
@@ -213,6 +223,9 @@
 - `keyword_hit`：该实体文本命中了关键词
 - `chapter_proximity`：主要用于钩子，说明与当前章节距离较近
 - `manual_entity_link`：主要用于关系，说明它与手工指定的人物或势力存在连接
+- `institution_context`：命中了制度、组织、成员、权力结构等语义线索
+- `continuity_risk`：命中了位置、状态、关系、归属、动机等连续性高风险线索
+- `embedding_match`：来自 embedding 实验链路补入的语义候选
 - `low_relevance`：没有明显命中原因，通常不会进入最终结果
 
 ## 8. 打分对照表
@@ -221,12 +234,12 @@
 | --- | --- | --- | --- | --- |
 | 大纲 | 否 | 按章节范围筛选 | 无 | `PLANNING_RETRIEVAL_OUTLINE_LIMIT` |
 | 最近章节 | 否 | 按章节号倒序筛选并要求存在摘要 | 无 | `PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT` |
-| 人物 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | `membership / continuity / observer-immutability` boost | `PLANNING_RETRIEVAL_CHARACTER_LIMIT` |
-| 势力 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | `institution / authority-reaction` boost | `PLANNING_RETRIEVAL_FACTION_LIMIT` |
+| 人物 | 是 | 手工 ID `+100`，关键词按字段权重累计 | `membership / continuity / observer-immutability` boost | `PLANNING_RETRIEVAL_CHARACTER_LIMIT` |
+| 势力 | 是 | 手工 ID `+100`，关键词按字段权重累计 | `institution / authority-reaction` boost | `PLANNING_RETRIEVAL_FACTION_LIMIT` |
 | 物品 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | `membership / continuity / source-*` boost | `PLANNING_RETRIEVAL_ITEM_LIMIT` |
 | 钩子 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | 章节邻近加权，最高 `+40` | `PLANNING_RETRIEVAL_HOOK_LIMIT` |
-| 关系 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | 与手工指定人物/势力相连时 `+35` | `PLANNING_RETRIEVAL_RELATION_LIMIT` |
-| 世界设定 | 是 | 手工 ID `+100`，每个关键词命中 `+25` | `rule-world-setting` boost | `PLANNING_RETRIEVAL_WORLD_SETTING_LIMIT` |
+| 关系 | 是 | 手工 ID `+100`，关键词按字段权重累计 | 与手工指定人物/势力相连时 `+35` | `PLANNING_RETRIEVAL_RELATION_LIMIT` |
+| 世界设定 | 是 | 手工 ID `+100`，关键词按字段权重累计 | `rule-world-setting` boost | `PLANNING_RETRIEVAL_WORLD_SETTING_LIMIT` |
 
 补充说明：
 

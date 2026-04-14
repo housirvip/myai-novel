@@ -125,8 +125,8 @@ examples/             示例脚本
 - Markdown 导入导出
 - SQLite / MySQL 双方言主链验证
 - `HeuristicReranker` 已实现并可配置启用
-- embedding 实验链路已实现：document / provider / memory search / hybrid search / candidate merge / store / refresh
-- embedding 刷新已支持：全量 refresh / 单一 entityType refresh / 按 model 清理
+- embedding 实验链路已实现：document / provider / memory search / hybrid search / candidate merge / store / refresh；当前在线接线实体为 `character / hook / world_setting`
+- embedding 刷新已支持：全量 refresh / 单一 entityType refresh / 按 model 清理；当前单类型 refresh 范围为 `character | hook | world_setting`
 - retrieval benchmark 当前固定 16 个样本已全部收口到 strict
 - retrieval query-intent helpers 已开始从 `retrieval-service.ts` 收敛到 `retrieval-features.ts`
 - retrieval boost 逻辑已开始从 `retrieval-service.ts` 收敛到 `retrieval-query-boosts.ts`

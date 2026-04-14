@@ -43,7 +43,7 @@
 - 事实回写：`approve` 后把人物、势力、关系、物品、钩子、世界设定的变更回灌到设定库
 - Markdown 编辑：支持导出 `plan / draft / final` 为 Markdown，再导入生成新版本
 - 数据库支持：默认 SQLite，本地开发体验不变；同时支持 `DB_CLIENT=mysql`
-- 实验扩展：已支持 `HeuristicReranker`、embedding candidate provider、basic / hybrid embedding search mode
+- 实验扩展：已支持 `HeuristicReranker`、embedding candidate provider、basic / hybrid embedding search mode；当前在线 embedding 候选链路接线实体为 `character / hook / world_setting`
 - embedding provider：已支持本地 hash provider 与自定义远程 embedding provider（OpenAI-compatible `/embeddings`）
 - retrieval 结构收敛：当前已拆分为 candidate provider、service factory、reranker factory、context builder、hard constraints、risk reminders 等模块
 - 日志体系：记录数据表 CRUD、工作流耗时、LLM 调用耗时、成功与否，AI 输入输出可选记录
@@ -263,7 +263,7 @@ npm run dev -- approve --book 1 --chapter 1 --provider mock
 - 结构化事实回写
 - Markdown 导入导出
 - SQLite 与 MySQL 主链验证
-- `HeuristicReranker` 与 embedding 实验链路
+- `HeuristicReranker` 与 embedding 实验链路（当前在线接线实体为 `character / hook / world_setting`）
 - retrieval benchmark（当前固定 16 个样本已全部收口到 strict）
 - retrieval 模块第二轮结构收敛（provider / factory / context builder 已拆出）
 - 自动化测试基线

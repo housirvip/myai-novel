@@ -141,14 +141,11 @@ flowchart TD
 
 文档构造入口在 `src/domain/planning/embedding-index.ts`，目前会把实体转换成 summary document。
 
-当前已经覆盖：
+当前实际接入 `buildEmbeddingDocuments()` 与 refresh 主链的实体类型是：
 
 - `character`
 - `hook`
 - `world_setting`
-- `faction`
-- `item`
-- `relation`
 
 当前 embedding provider 支持两种实现：
 
@@ -160,7 +157,8 @@ flowchart TD
 - `embedding-text-characters.ts`
 - `embedding-text-hooks.ts`
 - `embedding-text-world-settings.ts`
-- 以及 faction / item / relation 的扩展模板文件
+
+另外，仓库里已经存在 faction / item / relation 的扩展模板文件，但它们目前还没有接进 `buildEmbeddingDocuments()` 和 `EmbeddingRefreshService` 的在线实验链路。
 
 模板的原则不是“原始字段拼接”，而是构造成更可检索的摘要文本，例如：
 
@@ -177,7 +175,7 @@ flowchart TD
 - `refresh`
   - 全量按实体类型刷新
 - `refreshEntityType`
-  - 只刷新单一 entity type
+  - 当前只支持刷新 `character | hook | world_setting`
 - `clearModel`
   - 清理一个 model 的索引
 
@@ -543,7 +541,7 @@ flowchart LR
 - hybrid search 的权重和 bonus 仍然是手工启发式
 - rerank 仍然只基于规则特征，没有使用更强的 learned reranker
 - query-intent / boost / priority 特征虽然已经开始模块化，但还没有完全收敛成统一的策略层
-- 当前 embedding 文档覆盖虽然已扩展到多个实体模板，但主实验样本仍主要围绕 planning retrieval 的关键场景
+- 当前在线实验链路只对 `character / hook / world_setting` 建索引并补候选，faction / item / relation 模板仍处于未接线状态
 
 ## 相关阅读
 
