@@ -55,73 +55,76 @@ Prompt 模板统一定义在：
 
 ```mermaid
 flowchart TD
-    subgraph Inputs[输入源]
+    subgraph Inputs[输入与前置上下文]
         A1["book / chapter 基础信息"]
-        A2["近期相关大纲"]
-        A3["最近章节摘要"]
-        A4["手工指定实体 ID"]
-        A5["用户 authorIntent\n可选"]
+        A2["轻量初始上下文\noutlines + recent chapters + manual focus"]
+        A3["用户 authorIntent\n可选"]
     end
 
     subgraph PlanFlow[plan 阶段]
-        B1["初始上下文准备"]
-        B2{"是否传入\nauthorIntent?"}
-        B3["生成 authorIntent 草案"]
-        B4["关键词提取\n输出 intentSummary / keywords / mustInclude / mustAvoid"]
-        B5["生成 retrievedContext"]
-        B6["生成章节 plan"]
-        P1[("chapter_plans\ncontent + retrieved_context")]
+        B1{"是否传入\nauthorIntent?"}
+        B2["无 authorIntent 时\n生成意图草案"]
+        B3["关键词提取\nintentSummary / keywords / mustInclude / mustAvoid"]
+        B4["第二次召回\n生成共享 retrievedContext"]
+        B5["生成章节 plan"]
+        P1[("chapter_plans\ncontent + retrieved_context + intent constraints")]
     end
 
-    subgraph WritingFlow[后续工作流]
-        C1["draft\n输入: plan + retrievedContext"]
-        C2[("chapter_drafts")]
-        C3["review\n输入: plan + draft + retrievedContext"]
+    subgraph Reuse[基于 plan 固化上下文的后续工作流]
+        C1["draft\nplan + intentConstraints + draftContextView"]
+        C2[("chapter_drafts\n新增版本")]
+        C3["review\nplan + draft + reviewContextView"]
         C4[("chapter_reviews")]
-        C5["repair\n输入: plan + draft + review + retrievedContext"]
-        C6[("新的 chapter_drafts")]
-        C7["approve\n步骤1: 生成 final 正文"]
-        C8[("chapter_finals")]
-        C9["approve diff\n步骤2: 抽取结构化事实变更"]
-        C10["人物 / 势力 / 关系 / 物品 / 钩子 / 世界设定回写"]
+        C5["repair\nplan + draft + review + repairContextView"]
+        C6[("chapter_drafts\n新增 repaired 版本")]
+        C7["approve step 1\nfinal 正文 + approveContextView"]
+        C8["approve step 2\ndiff 抽取 + approveDiffContextView"]
+        C9[("chapter_finals\n新增版本")]
+        C10["实体回写 + 章节字段更新\nactual_*_ids / summary / word_count / status"]
     end
 
-    A1 --> B1
+    G1["提交前 pointer 校验\ncurrent_plan/draft/review 必须未漂移"]
+
+    A1 --> A2
     A2 --> B1
     A3 --> B1
-    A4 --> B1
-    A5 --> B2
-    B1 --> B2
-    B2 -- "否" --> B3
-    B2 -- "是" --> B4
+    B1 -- "否" --> B2
+    B1 -- "是" --> B3
+    B2 --> B3
     B3 --> B4
-    A4 --> B5
     B4 --> B5
-    B5 --> B6
-    B6 --> P1
+    B5 --> P1
 
     P1 --> C1
-    C1 --> C2
+    C1 --> G1
+    G1 --> C2
     P1 --> C3
     C2 --> C3
-    C3 --> C4
+    C3 --> G1
+    G1 --> C4
     P1 --> C5
     C2 --> C5
     C4 --> C5
-    C5 --> C6
+    C5 --> G1
+    G1 --> C6
     P1 --> C7
     C6 --> C7
     C7 --> C8
-    C8 --> C9
+    C8 --> G1
+    G1 --> C9
+    C8 --> C10
     C9 --> C10
 ``` 
 
-这个流程图可以这样读：
+这张图现在刻意把“主线顺序”和“共享上下文复用”分开画，读起来会更接近真实实现。
 
-- 左侧是 `plan` 阶段依赖的输入源
-- 中间是 `plan` 内部 prompt 链路和落库产物
-- 右侧是 `draft / review / repair / approve` 如何复用 `chapter_plans.retrieved_context`
-- `approve` 不是单一步骤，而是“生成 final 正文”后，再做一次结构化事实抽取与回写
+可以这样读：
+
+- 左侧只保留 `plan` 真正需要先准备的输入
+- 中间强调 `plan` 里“意图提取 -> 第二次召回 -> 固化上下文 -> 生成 plan”的主线
+- 右侧强调后续阶段并不是重新查库，而是基于 `chapter_plans` 中固化的上下文继续推进
+- `approve` 被拆成 `final 正文` 和 `diff 抽取` 两步，更贴近真实代码
+- `pointer 校验` 被单独画出来，便于理解为什么工作流在并发场景下会主动失败
 
 另外，当前 workflow 还有一个很重要但容易被忽略的工程约束：
 
@@ -346,36 +349,46 @@ workflow 在这一阶段会先通过 `buildRepairContextView()` 提供包含 `su
 
 ```mermaid
 flowchart TD
-    A1[manualRefs<br/>手工指定实体 ID]
-    A2[keywords<br/>authorIntent 提取关键词]
-    A3[outlines<br/>当前章节覆盖大纲]
-    A4[recent chapters<br/>最近章节摘要]
+    subgraph Inputs[召回输入]
+        A1["manualRefs\n手工指定实体 ID"]
+        A2["keywords\nauthorIntent 提取关键词"]
+        A3["outlines + recent chapters\n章节承接背景"]
+    end
 
-    B1[RuleBasedCandidateProvider<br/>默认规则召回主链]
-    B2[optional EmbeddingCandidateProvider<br/>实验链路: 补语义候选]
-    B3[optional HeuristicReranker<br/>实验链路: 二次重排]
+    subgraph Retrieval[候选获取与排序]
+        B1["RuleBasedCandidateProvider\n默认规则召回主链"]
+        B2["EmbeddingCandidateProvider\n实验链路: 补语义候选"]
+        B3["Reranker\n直通或 Heuristic 二次重排"]
+    end
 
-    C1[hardConstraints<br/>连续性保底约束]
-    C2[softReferences<br/>补充参考实体/大纲/章节]
-    C3[riskReminders<br/>显式风险提醒]
-    C4[priorityContext<br/>blocking/decision/supporting/background]
-    C5[recentChanges<br/>最近承接与状态变化]
+    subgraph Context[retrievedContext 装配结果]
+        C1["hardConstraints\n连续性保底约束"]
+        C2["softReferences\n补充实体 / 大纲 / 章节"]
+        C3["riskReminders\n显式风险提醒"]
+        C4["priorityContext\nblocking / decision / supporting / background"]
+        C5["recentChanges\n最近承接与状态变化"]
+    end
 
-    D1[prompt-context-blocks<br/>把 retrievedContext 转成可读事实块]
+    subgraph PromptLayer[Prompt 消费层]
+        D1["context-views\n按阶段裁剪上下文"]
+        D2["prompt-context-blocks\n转成可读事实块"]
+    end
 
-    E1[plan prompt<br/>生成章节规划]
-    E2[draft prompt<br/>生成章节草稿]
-    E3[review prompt<br/>做缺陷导向审阅]
-    E4[repair prompt<br/>在约束内修稿]
-    E5[approve prompt<br/>生成最终正文]
-    E6[approve diff prompt<br/>抽取结构化事实变更]
+    subgraph Stages[工作流阶段]
+        E1["plan"]
+        E2["draft"]
+        E3["review"]
+        E4["repair"]
+        E5["approve final"]
+        E6["approve diff"]
+    end
 
     A1 --> B1
     A2 --> B1
     A3 --> B1
-    A4 --> B1
 
     B1 --> B2
+    B1 --> B3
     B2 --> B3
 
     B3 --> C1
@@ -385,36 +398,37 @@ flowchart TD
     B3 --> C5
 
     C1 --> D1
+    C2 --> D1
     C3 --> D1
     C4 --> D1
     C5 --> D1
 
-    D1 --> E1
-    D1 --> E2
-    D1 --> E3
-    D1 --> E4
-    D1 --> E5
-    D1 --> E6
+    D1 --> D2
+    D2 --> E1
+    D2 --> E2
+    D2 --> E3
+    D2 --> E4
+    D2 --> E5
+    D2 --> E6
 ```
 
-这张图可以这样读：
+这张图现在也和前面的总流程图统一成了“输入 -> 主链 -> 结构化结果 -> prompt 消费 -> 阶段使用”的读法。
 
-- 左侧 `A` 区域是召回输入源
-  - `manualRefs` 是显式指定的强信号
-  - `keywords` 来自用户意图或意图提取结果
-  - `outlines / recent chapters` 提供章节承接背景
-- 中间 `B` 区域是候选获取与重排
-  - `RuleBasedCandidateProvider` 是默认主链
-  - `EmbeddingCandidateProvider` 和 `HeuristicReranker` 是可选实验层
-  - 当前 workflow 实际通过 `retrieval-service-factory.ts` 接入 embedding 实验链路，通过 `retrieval-reranker-factory.ts` 选择 reranker
-- `C` 区域是最终落入 `retrievedContext` 的结构
-  - 不是单一实体列表，而是多层上下文
-  - 当前这层装配已经收敛到 `retrieval-context-builder.ts`
-- `D` 区域是 prompt 输入整理层
-  - 负责把结构化上下文变成适合模型阅读的事实块
-- 右侧 `E` 区域是各阶段 prompt
-  - 它们共享同一份 `retrievedContext`
-  - 只是消费的上下文重点不同
+可以这样读：
+
+- 左侧 `Inputs` 是召回真正消费的输入信号
+- 中间 `Retrieval` 是候选获取与排序主链
+  - 默认从 `RuleBasedCandidateProvider` 开始
+  - embedding 只是补候选的实验层
+  - reranker 既可以直通，也可以走 `HeuristicReranker`
+- `Context` 是最终落入 `retrievedContext` 的多层结构
+  - 不是单一实体列表，而是给后续阶段共享的事实边界
+- `PromptLayer` 明确拆出了两层
+  - `context-views.ts` 负责按阶段裁剪
+  - `prompt-context-blocks.ts` 负责转成模型更容易消费的事实块
+- 右侧 `Stages` 是各工作流阶段
+  - 它们共享同一份上下文基线
+  - 只是消费重点不同
 
 它的作用不是“展示召回结果”，而是作为后续所有阶段共同依赖的事实边界：
 
