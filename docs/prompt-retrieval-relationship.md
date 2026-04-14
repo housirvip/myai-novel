@@ -123,6 +123,12 @@ flowchart TD
 - 右侧是 `draft / review / repair / approve` 如何复用 `chapter_plans.retrieved_context`
 - `approve` 不是单一步骤，而是“生成 final 正文”后，再做一次结构化事实抽取与回写
 
+另外，当前 workflow 还有一个很重要但容易被忽略的工程约束：
+
+- `draft / review / repair / approve` 在模型生成完成后、事务提交前，都会重新校验章节的 `current_*` pointer
+- 如果这段时间内 `current_plan_id / current_draft_id / current_review_id` 被别的操作切换，当前提交会直接失败
+- 这样做是为了避免把新版本提交到已经过期的上下文之上
+
 ## 3. Prompt 的统一构建规则
 
 所有 prompt 都遵循相同的基础模式：
@@ -255,13 +261,20 @@ flowchart TD
 `buildDraftPrompt()` 输入：
 
 - `planContent`
+- `intentConstraints`
 - `retrievedContext`
 - 可选 `targetWords`
 
 职责：
 
 - 在既有规划和事实约束内，产出完整章节草稿
-- 当前会优先消费 `blockingConstraints` 与 `recentChanges` 组织出的事实块
+- 当前会优先消费 `blockingConstraints`、`decisionContext`、`recentChanges` 与 `riskReminders` 组织出的事实块
+- 在真正进入 prompt 之前，workflow 会先通过 `buildDraftContextView()` 把 plan 中固化的 `retrievedContext` 裁成 draft 阶段使用的视图
+
+落库时还需要注意两点：
+
+- draft 会新增一条 `chapter_drafts` 版本记录，而不是覆盖旧 draft
+- draft 的 `summary` 会优先沿用 `chapters.summary`，否则退回 `currentPlan.author_intent`
 
 ### 6.2 Review Prompt
 
@@ -278,6 +291,8 @@ flowchart TD
 
 当前 review prompt 已偏“缺陷导向”，而不是泛泛评价文风。
 
+同样地，workflow 会先通过 `buildReviewContextView()` 把 `retrievedContext` 裁成 review 阶段的核对视图。
+
 ### 6.3 Repair Prompt
 
 `buildRepairPrompt()` 输入：
@@ -285,12 +300,22 @@ flowchart TD
 - `planContent`
 - `draftContent`
 - `reviewContent`
+- `intentConstraints`
 - `retrievedContext`
 
 职责：
 
 - 根据 review 修复 draft
 - 保持原有规划与事实边界不漂移
+
+workflow 在这一阶段会先通过 `buildRepairContextView()` 提供包含 `supportingOutlines` 的修稿视图。
+
+落库行为上，repair 不是“原地修改当前 draft”，而是：
+
+- 新增一条新的 `chapter_drafts`
+- 写入 `based_on_draft_id` 和 `based_on_review_id`
+- 把 `source_type` 标记为 `REPAIRED`
+- 再把 `chapters.current_draft_id` 切到新版本
 
 ### 6.4 Approve Prompt
 
@@ -300,6 +325,20 @@ flowchart TD
 2. 从最终正文中抽取结构化事实变更
 
 这意味着 `approve` 不只是“定稿”，还是“把正文变化转成可回写数据库的数据结构”。
+
+这里对应两份不同的上下文视图：
+
+- `buildApproveContextView()`：给最终正文生成使用，保留少量支撑背景
+- `buildApproveDiffContextView()`：给 diff 抽取使用，更偏硬约束与事实核对
+
+正式提交时，approve 除了写入 `chapter_finals` 以外，还会：
+
+- 把 diff 中识别到的新实体创建出来，或把已有实体做更新 / append note / status change
+- 把新建实体并入章节的 `actualCharacterIds / actualFactionIds / actualItemIds / actualHookIds / actualWorldSettingIds`
+- 更新 `chapters.summary`、`chapters.word_count`、`chapters.status`
+- 按当前已批准章节数回写 `books.current_chapter_count`
+
+如果启用 `dryRun`，这些数据库写入都会跳过，只保留 final 与 diff 的预览结果。
 
 ## 7. `retrievedContext` 在工作流中的角色
 
@@ -473,6 +512,7 @@ flowchart TD
 
 - 默认主链路并不依赖 embedding
 - embedding 目前主要用于实验和对照验证
+- 当前 workflow 在线接入的 embedding 实验链路只覆盖 `character / hook / world_setting`
 - `world-rule` 已在规则召回主链路中收口到 strict，embedding 仍保留为补充实验链路
 
 ### 7.0b 实验链路图：Relation Propagation 与 Hard-Fact Expansion
@@ -630,6 +670,7 @@ flowchart TD
 当前 prompt 不是直接“整包读取 `retrievedContext`”，而是先走：
 
 - `prompt-context-blocks.ts`
+- `context-views.ts`
 
 把它转成这些可读区块：
 
@@ -644,6 +685,13 @@ flowchart TD
 
 - 把最重要的信息顶到最前面
 - 减少模型自己从 JSON 里提炼重点的负担
+
+对应到 workflow，当前阶段化视图大致是：
+
+- `draft`：`buildDraftContextView()`，保留 `supportingOutlines`
+- `review`：`buildReviewContextView()`，更偏核对基准
+- `repair`：`buildRepairContextView()`，保留修稿所需支撑背景
+- `approve`：`buildApproveContextView()` / `buildApproveDiffContextView()`，分别服务正文定稿与结构化 diff
 
 ### 7.7 默认链路和实验链路的关系
 

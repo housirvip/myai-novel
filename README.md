@@ -128,8 +128,11 @@ V2 不是只在配置里预留 `mysql`，而是已经支持：
 
 - `approve` 不会覆盖某个单一的“final_content”字段
 - 每次 `approve` 都会新增一条 `chapter_finals`
+- 每次 `repair` 也会新增一条新的 `chapter_drafts`
 - 每次手工导入 `final` Markdown 也会新增一条 `chapter_finals`
 - 当前生效正式稿由 `chapters.current_final_id` 指向
+
+同时，`draft / review / repair / approve` 在模型生成完成后、正式提交前都会重新校验 `chapters.current_*_id` 指针；如果章节上下文已被其他操作切换，当前提交会直接失败，避免把新版本叠到过期上下文上。
 
 也就是说，正式稿和 plan/draft/review 一样，都是可追溯、可回滚、可保留来源的版本化数据。
 

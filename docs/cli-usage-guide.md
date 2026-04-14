@@ -439,6 +439,8 @@ npm run dev -- repair --book 1 --chapter 12 --provider mock
 - 更新 `chapters.current_final_id`
 - 抽取结构化事实 diff
 - 回写人物、势力、关系、物品、钩子、世界设定的变更
+- 更新章节摘要、字数和 `actual_*_ids`
+- 重算 `books.current_chapter_count`
 
 ```bash
 npm run dev -- approve --book 1 --chapter 12 --provider mock
@@ -449,6 +451,23 @@ npm run dev -- approve --book 1 --chapter 12 --provider mock
 ```bash
 npm run dev -- approve --book 1 --chapter 12 --provider mock --dryRun
 ```
+
+`--dryRun` 的实际行为是：
+
+- 仍然会调用模型生成 final 正文
+- 仍然会调用模型抽取结构化 diff
+- 但不会写入 `chapter_finals`
+- 也不会创建或更新任何实体
+- 也不会更新 `chapters.current_final_id`、`chapters.summary`、`chapters.actual_*_ids`
+- 也不会更新 `books.current_chapter_count`
+
+它更适合拿来做“定稿前预览”和“验证 diff 结构是否合理”，而不是做半提交。
+
+补充说明：
+
+- `approve` 正式提交时，会把 diff 中新建的实体并入章节的 `actual_*_ids`
+- `approve` 产生的新正式稿会新增一条 `chapter_finals`，不会覆盖旧版本
+- 如果模型生成期间该章节的 `current_plan_id / current_draft_id / current_review_id` 被其他操作切换，提交阶段会直接失败，避免把结果落到过期上下文上
 
 ## 12. Markdown 导出与导入
 
