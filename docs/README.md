@@ -22,6 +22,10 @@
   - Prompt 与工作流关系说明
   - 适合查 `plan / draft / review / repair / approve` 的阶段链路、Prompt 结构和共享上下文角色
 
+- [`plan-workflow-guide.md`](./plan-workflow-guide.md)
+  - `plan` 工作流详解
+  - 适合查 `plan` 命令的输入、两次召回、意图提取、落库流程与后续阶段复用基线
+
 - [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
   - 召回与打分规则说明
   - 适合查 `plan` 阶段的召回策略、打分细则、排序规则、实体匹配字段与相关配置项
@@ -40,10 +44,11 @@
 
 1. [`cli-usage-guide.md`](./cli-usage-guide.md)
 2. [`env-config-guide.md`](./env-config-guide.md)
-3. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
-4. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
-5. [`embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
-6. [`engineering-overview.md`](./engineering-overview.md)
+3. [`plan-workflow-guide.md`](./plan-workflow-guide.md)
+4. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+5. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
+6. [`embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
+7. [`engineering-overview.md`](./engineering-overview.md)
 
 ## 与根文档的关系
 
