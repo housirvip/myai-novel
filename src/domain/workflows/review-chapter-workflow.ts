@@ -24,6 +24,16 @@ const reviewResultSchema = z.object({
   repair_suggestions: z.array(z.string().min(1)).default([]),
 });
 
+const reviewResultLooseSchema = z.object({
+  summary: z.string().min(1),
+  issues: z.array(z.union([z.string(), z.record(z.unknown())])).default([]),
+  risks: z.array(z.union([z.string(), z.record(z.unknown())])).default([]),
+  continuity_checks: z
+    .union([z.array(z.union([z.string(), z.record(z.unknown())])), z.record(z.unknown())])
+    .default([]),
+  repair_suggestions: z.array(z.union([z.string(), z.record(z.unknown())])).default([]),
+});
+
 const runReviewWorkflowSchema = z.object({
   bookId: z.number().int().positive(),
   chapterNo: z.number().int().positive(),
@@ -105,7 +115,9 @@ export class ReviewChapterWorkflow {
             }),
             responseFormat: "json",
           });
-          const parsedReview = reviewResultSchema.parse(parseLooseJson(reviewResponse.content));
+          const parsedReview = reviewResultSchema.parse(
+            normalizeReviewResult(reviewResultLooseSchema.parse(parseLooseJson(reviewResponse.content))),
+          );
 
           const timestamp = nowIso();
 
@@ -177,4 +189,92 @@ export class ReviewChapterWorkflow {
       await manager.destroy();
     }
   }
+}
+
+function normalizeReviewResult(input: z.infer<typeof reviewResultLooseSchema>): z.infer<typeof reviewResultSchema> {
+  return {
+    summary: input.summary.trim(),
+    issues: normalizeReviewList(input.issues),
+    risks: normalizeReviewList(input.risks),
+    continuity_checks: Array.isArray(input.continuity_checks)
+      ? normalizeReviewList(input.continuity_checks)
+      : normalizeContinuityChecks(input.continuity_checks),
+    repair_suggestions: normalizeReviewList(input.repair_suggestions),
+  };
+}
+
+function normalizeReviewList(items: Array<string | Record<string, unknown>>): string[] {
+  return items
+    .map((item) => normalizeReviewItem(item))
+    .filter((item): item is string => Boolean(item));
+}
+
+function normalizeReviewItem(item: string | Record<string, unknown>): string | null {
+  if (typeof item === "string") {
+    const normalized = item.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  const preferredKeys = [
+    "issue",
+    "risk",
+    "suggestion",
+    "title",
+    "description",
+    "detail",
+    "content",
+    "problem",
+    "finding",
+    "message",
+    "summary",
+  ];
+
+  for (const key of preferredKeys) {
+    const value = item[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  const flattened = Object.entries(item)
+    .map(([key, value]) => {
+      if (typeof value === "string") {
+        return `${key}: ${value.trim()}`;
+      }
+
+      if (typeof value === "number" || typeof value === "boolean") {
+        return `${key}: ${String(value)}`;
+      }
+
+      return null;
+    })
+    .filter((value): value is string => Boolean(value))
+    .join("; ")
+    .trim();
+
+  return flattened.length > 0 ? flattened : null;
+}
+
+function normalizeContinuityChecks(input: Record<string, unknown>): string[] {
+  return Object.entries(input)
+    .flatMap(([key, value]) => {
+      if (Array.isArray(value)) {
+        return value
+          .map((item) => normalizeReviewItem(typeof item === "string" ? item : (item as Record<string, unknown>)))
+          .filter((item): item is string => Boolean(item))
+          .map((item) => `${key}: ${item}`);
+      }
+
+      if (typeof value === "string" && value.trim().length > 0) {
+        return [`${key}: ${value.trim()}`];
+      }
+
+      if (value && typeof value === "object") {
+        const normalized = normalizeReviewItem(value as Record<string, unknown>);
+        return normalized ? [`${key}: ${normalized}`] : [];
+      }
+
+      return [];
+    })
+    .filter((item) => item.trim().length > 0);
 }

@@ -113,6 +113,22 @@ const approveDiffSchema = z.object({
     .default([]),
 });
 
+const approveDiffLooseSchema = z.object({
+  chapterSummary: z.string().min(1),
+  actualCharacterIds: z.array(z.union([z.number(), z.string()])).default([]),
+  actualFactionIds: z.array(z.union([z.number(), z.string()])).default([]),
+  actualItemIds: z.array(z.union([z.number(), z.string()])).default([]),
+  actualHookIds: z.array(z.union([z.number(), z.string()])).default([]),
+  actualWorldSettingIds: z.array(z.union([z.number(), z.string()])).default([]),
+  newCharacters: z.array(z.record(z.unknown())).default([]),
+  newFactions: z.array(z.record(z.unknown())).default([]),
+  newItems: z.array(z.record(z.unknown())).default([]),
+  newHooks: z.array(z.record(z.unknown())).default([]),
+  newWorldSettings: z.array(z.record(z.unknown())).default([]),
+  newRelations: z.array(z.record(z.unknown())).default([]),
+  updates: z.array(z.record(z.unknown())).default([]),
+});
+
 const runApproveWorkflowSchema = z.object({
   bookId: z.number().int().positive(),
   chapterNo: z.number().int().positive(),
@@ -213,7 +229,9 @@ export class ApproveChapterWorkflow {
             }),
             responseFormat: "json",
           });
-          const diff = approveDiffSchema.parse(parseLooseJson(diffResponse.content));
+          const diff = approveDiffSchema.parse(
+            normalizeApproveDiff(approveDiffLooseSchema.parse(parseLooseJson(diffResponse.content))),
+          );
 
           const createdEntities: Record<string, number[]> = {
             characters: [],
@@ -661,4 +679,221 @@ function mapEntityUpdate<T extends { append_notes?: string | null; status?: stri
     ...payload,
     updated_at: timestamp,
   };
+}
+
+function normalizeApproveDiff(input: z.infer<typeof approveDiffLooseSchema>): z.infer<typeof approveDiffSchema> {
+  return {
+    chapterSummary: input.chapterSummary.trim(),
+    actualCharacterIds: normalizeNumberList(input.actualCharacterIds),
+    actualFactionIds: normalizeNumberList(input.actualFactionIds),
+    actualItemIds: normalizeNumberList(input.actualItemIds),
+    actualHookIds: normalizeNumberList(input.actualHookIds),
+    actualWorldSettingIds: normalizeNumberList(input.actualWorldSettingIds),
+    newCharacters: input.newCharacters.map(normalizeNamedSummaryEntity).filter(isTruthy),
+    newFactions: input.newFactions.map(normalizeNamedSummaryEntity).filter(isTruthy),
+    newItems: input.newItems.map(normalizeNamedSummaryEntity).filter(isTruthy),
+    newHooks: input.newHooks.map(normalizeHookEntity).filter(isTruthy),
+    newWorldSettings: input.newWorldSettings.map(normalizeWorldSettingEntity).filter(isTruthy),
+    newRelations: input.newRelations.map(normalizeRelationEntity).filter(isTruthy),
+    updates: input.updates.map(normalizeUpdateEntity).filter(isTruthy),
+  };
+}
+
+function normalizeNumberList(items: Array<number | string>): number[] {
+  return items
+    .map((item) => (typeof item === "number" ? item : Number.parseInt(item, 10)))
+    .filter((item) => Number.isInteger(item) && item > 0);
+}
+
+function normalizeNamedSummaryEntity(item: Record<string, unknown>) {
+  const name = pickString(item, ["name", "title"]);
+  const summary = pickString(item, ["summary", "description", "content", "note"]);
+
+  if (!name || !summary) {
+    return null;
+  }
+
+  return {
+    name,
+    summary,
+    keywords: normalizeKeywords(item.keywords),
+  };
+}
+
+function normalizeHookEntity(item: Record<string, unknown>) {
+  const title = pickString(item, ["title", "name", "hookTitle"]);
+  const description = pickString(item, ["description", "summary", "content", "note"]);
+
+  if (!title || !description) {
+    return null;
+  }
+
+  return {
+    title,
+    description,
+    keywords: normalizeKeywords(item.keywords),
+  };
+}
+
+function normalizeWorldSettingEntity(item: Record<string, unknown>) {
+  const title = pickString(item, ["title", "name"]);
+  const category = pickString(item, ["category", "type"]) ?? "补充设定";
+  const content = pickString(item, ["content", "summary", "description", "note"]);
+
+  if (!title || !content) {
+    return null;
+  }
+
+  return {
+    title,
+    category,
+    content,
+    keywords: normalizeKeywords(item.keywords),
+  };
+}
+
+function normalizeRelationEntity(item: Record<string, unknown>) {
+  const sourceType = pickEnum(item, ["sourceType", "source_type"], ["character", "faction"]);
+  const sourceId = pickNumber(item, ["sourceId", "source_id"]);
+  const targetType = pickEnum(item, ["targetType", "target_type"], ["character", "faction"]);
+  const targetId = pickNumber(item, ["targetId", "target_id"]);
+  const relationType = pickString(item, ["relationType", "relation_type"]);
+  const description = pickString(item, ["description", "summary", "note"]);
+
+  if (!sourceType || !sourceId || !targetType || !targetId || !relationType || !description) {
+    return null;
+  }
+
+  return {
+    sourceType,
+    sourceId,
+    targetType,
+    targetId,
+    relationType,
+    intensity: pickNullableNumber(item, ["intensity"]),
+    status: pickString(item, ["status"]),
+    description,
+    keywords: normalizeKeywords(item.keywords),
+  };
+}
+
+function normalizeUpdateEntity(item: Record<string, unknown>) {
+  const entityType = pickEnum(
+    item,
+    ["entityType", "entity_type"],
+    ["character", "faction", "relation", "item", "story_hook", "world_setting"],
+  );
+  const entityId = pickNumber(item, ["entityId", "entity_id"]);
+  const action = pickEnum(item, ["action"], ["update_fields", "append_notes", "status_change"]);
+
+  if (!entityType || !entityId || !action) {
+    return null;
+  }
+
+  const payload =
+    item.payload && typeof item.payload === "object"
+      ? (item.payload as Record<string, unknown>)
+      : buildUpdatePayload(action, item);
+
+  return {
+    entityType,
+    entityId,
+    action,
+    payload,
+  };
+}
+
+function buildUpdatePayload(action: "update_fields" | "append_notes" | "status_change", item: Record<string, unknown>) {
+  if (action === "append_notes") {
+    return { note: pickString(item, ["note", "append_notes", "description", "summary"]) ?? "" };
+  }
+
+  if (action === "status_change") {
+    return {
+      status: pickString(item, ["status"]),
+      note: pickString(item, ["note", "append_notes", "description", "summary"]),
+    };
+  }
+
+  if (item.fields && typeof item.fields === "object") {
+    return item.fields as Record<string, unknown>;
+  }
+
+  return Object.fromEntries(
+    Object.entries(item).filter(([key]) => !["entityType", "entity_type", "entityId", "entity_id", "action"].includes(key)),
+  );
+}
+
+function pickString(item: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function pickNumber(item: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = Number.parseInt(value, 10);
+      if (Number.isInteger(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
+function pickNullableNumber(item: Record<string, unknown>, keys: string[]): number | null | undefined {
+  for (const key of keys) {
+    const value = item[key];
+    if (value == null || value === "") {
+      return null;
+    }
+    if (typeof value === "number" && Number.isInteger(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = Number.parseInt(value, 10);
+      if (Number.isInteger(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function pickEnum<T extends string>(item: Record<string, unknown>, keys: string[], allowed: T[]): T | null {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === "string" && allowed.includes(value as T)) {
+      return value as T;
+    }
+  }
+
+  return null;
+}
+
+function normalizeKeywords(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function isTruthy<T>(value: T | null): value is T {
+  return value !== null;
 }
