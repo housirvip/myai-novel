@@ -26,6 +26,30 @@
   - `plan` 工作流详解
   - 适合查 `plan` 命令的输入、两次召回、意图提取、落库流程与后续阶段复用基线
 
+- [`approve-workflow-guide.md`](./approve-workflow-guide.md)
+  - `approve` 工作流详解
+  - 适合查 `approve` 命令的双阶段 LLM 调用、dryRun、实体回写、章节字段更新与事务提交逻辑
+
+- [`draft-workflow-guide.md`](./draft-workflow-guide.md)
+  - `draft` 工作流详解
+  - 适合查 `draft` 命令如何复用 plan 固化上下文、如何版本化写入草稿和如何做 pointer 校验
+
+- [`review-workflow-guide.md`](./review-workflow-guide.md)
+  - `review` 工作流详解
+  - 适合查 `review` 命令的 JSON 输出协议、核对视图、版本化落库与后续修稿衔接
+
+- [`repair-workflow-guide.md`](./repair-workflow-guide.md)
+  - `repair` 工作流详解
+  - 适合查 `repair` 命令如何基于 `plan + draft + review` 修稿、如何记录版本谱系和更新当前草稿
+
+- [`chapter-pipeline-overview.md`](./chapter-pipeline-overview.md)
+  - 章节全流水线总览
+  - 适合查 `plan -> draft -> review -> repair -> approve` 的整体主线、版本表关系、current 指针和状态流转
+
+- [`database-relationship-overview.md`](./database-relationship-overview.md)
+  - 数据库表关系总览
+  - 适合查核心表、强外键、软关联、多态引用、章节版本表关系和结构化 JSON 字段
+
 - [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
   - 召回与打分规则说明
   - 适合查 `plan` 阶段的召回策略、打分细则、排序规则、实体匹配字段与相关配置项
@@ -45,10 +69,16 @@
 1. [`cli-usage-guide.md`](./cli-usage-guide.md)
 2. [`env-config-guide.md`](./env-config-guide.md)
 3. [`plan-workflow-guide.md`](./plan-workflow-guide.md)
-4. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
-5. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
-6. [`embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
-7. [`engineering-overview.md`](./engineering-overview.md)
+4. [`approve-workflow-guide.md`](./approve-workflow-guide.md)
+5. [`draft-workflow-guide.md`](./draft-workflow-guide.md)
+6. [`review-workflow-guide.md`](./review-workflow-guide.md)
+7. [`repair-workflow-guide.md`](./repair-workflow-guide.md)
+8. [`chapter-pipeline-overview.md`](./chapter-pipeline-overview.md)
+9. [`database-relationship-overview.md`](./database-relationship-overview.md)
+10. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+11. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
+12. [`embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
+13. [`engineering-overview.md`](./engineering-overview.md)
 
 ## 与根文档的关系
 
