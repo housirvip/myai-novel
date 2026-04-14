@@ -14,6 +14,19 @@
 - `approve` 如何消费 repair 后的 draft：看 `docs/approve-workflow-guide.md`
 - 全工作流关系：看 `docs/prompt-retrieval-relationship.md`
 
+## 目录
+
+- [1. 涉及文件](#1-涉及文件)
+- [2. 一句话理解](#2-一句话理解)
+- [3. 输入与输出](#3-输入与输出)
+- [4. 主流程图](#4-主流程图)
+- [5. 时序图](#5-时序图)
+- [6. 详细说明](#6-详细说明)
+- [7. `repair` 结束后系统留下了什么](#7-repair-结束后系统留下了什么)
+- [8. 错误与边界情况](#8-错误与边界情况)
+- [9. 当前实现特征](#9-当前实现特征)
+- [相关阅读](#相关阅读)
+
 ## 1. 涉及文件
 
 - CLI 入口：`src/cli/commands/repair.ts`
@@ -24,7 +37,7 @@
 
 ## 2. 一句话理解
 
-`repair` 的核心职责不是重新生成一份全新草稿，而是在既有 `plan`、当前 `draft`、当前 `review` 的共同边界内，修复当前草稿的问题，并产出一条新的 repaired draft 版本。
+`repair` 的核心职责是在既有 `plan`、当前 `draft`、当前 `review` 的共同边界内修复当前草稿的问题，并产出一条新的 repaired draft 版本。
 
 ## 3. 输入与输出
 
@@ -270,3 +283,8 @@ sequenceDiagram
 - [`docs/review-workflow-guide.md`](./review-workflow-guide.md)
 - [`docs/approve-workflow-guide.md`](./approve-workflow-guide.md)
 - [`docs/prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/review-workflow-guide.md`](./review-workflow-guide.md)
+- 下一篇：[`docs/approve-workflow-guide.md`](./approve-workflow-guide.md)

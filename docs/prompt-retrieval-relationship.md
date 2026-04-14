@@ -738,3 +738,8 @@ flowchart TD
 - [`README.md`](../README.md)
 - [`docs/cli-usage-guide.md`](./cli-usage-guide.md)
 - [`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/retrieval-pipeline-guide.md`](./retrieval-pipeline-guide.md)
+- 下一篇：[`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)

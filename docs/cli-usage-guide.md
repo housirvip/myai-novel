@@ -543,11 +543,17 @@ npm run dev -- hook create --book 1 --title "黑铁令异常" --hookType mystery
 
 如需进一步了解工作流内部机制，可继续阅读：
 
+- `docs/chapter-pipeline-overview.md`
 - `docs/prompt-retrieval-relationship.md`
-- `docs/retrieval-scoring-rules.md`
+- `docs/retrieval-pipeline-guide.md`
 
 ## 相关阅读
 
 - [`README.md`](../README.md)
 - [`docs/prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
 - [`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/README.md`](./README.md)
+- 下一篇：[`docs/env-config-guide.md`](./env-config-guide.md)

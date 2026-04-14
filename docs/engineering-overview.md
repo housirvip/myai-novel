@@ -151,3 +151,8 @@ examples/             示例脚本
 - [`docs/README.md`](./README.md)
 - [`docs/cli-usage-guide.md`](./cli-usage-guide.md)
 - [`docs/embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
+- 下一篇：[`docs/README.md`](./README.md)

@@ -437,3 +437,8 @@ npm run dev -- plan \
 - [`README.md`](../README.md)
 - [`docs/cli-usage-guide.md`](./cli-usage-guide.md)
 - [`docs/prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+- 下一篇：[`docs/embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)

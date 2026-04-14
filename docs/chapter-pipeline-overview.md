@@ -24,6 +24,23 @@
 - `docs/repair-workflow-guide.md`
 - `docs/approve-workflow-guide.md`
 
+## 目录
+
+- [1. 涉及文件](#1-涉及文件)
+- [2. 一句话理解](#2-一句话理解)
+- [3. 总流程图](#3-总流程图)
+- [4. 统一时序图](#4-统一时序图)
+- [5. 版本表与 current 指针关系图](#5-版本表与-current-指针关系图)
+- [6. 状态流转图](#6-状态流转图)
+- [7. 每个阶段分别做什么](#7-每个阶段分别做什么)
+- [8. 哪些阶段重新召回，哪些阶段只复用 plan 上下文](#8-哪些阶段重新召回哪些阶段只复用-plan-上下文)
+- [9. 为什么要用多张版本表，而不是一份章节正文反复覆盖](#9-为什么要用多张版本表而不是一份章节正文反复覆盖)
+- [10. 为什么多个阶段都要做 pointer 校验](#10-为什么多个阶段都要做-pointer-校验)
+- [11. `source_type` 和版本语义](#11-source_type-和版本语义)
+- [12. 一章真正完成后，系统里会留下什么](#12-一章真正完成后系统里会留下什么)
+- [13. 推荐阅读顺序](#13-推荐阅读顺序)
+- [相关阅读](#相关阅读)
+
 ## 1. 涉及文件
 
 - `src/domain/workflows/plan-chapter-workflow.ts`
@@ -428,3 +445,8 @@ stateDiagram-v2
 - [`docs/review-workflow-guide.md`](./review-workflow-guide.md)
 - [`docs/repair-workflow-guide.md`](./repair-workflow-guide.md)
 - [`docs/approve-workflow-guide.md`](./approve-workflow-guide.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/approve-workflow-guide.md`](./approve-workflow-guide.md)
+- 下一篇：[`docs/database-relationship-overview.md`](./database-relationship-overview.md)

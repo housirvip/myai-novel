@@ -13,6 +13,19 @@
 - `repair` 如何消费 review 结果：看 `docs/repair-workflow-guide.md`
 - 全工作流关系：看 `docs/prompt-retrieval-relationship.md`
 
+## 目录
+
+- [1. 涉及文件](#1-涉及文件)
+- [2. 一句话理解](#2-一句话理解)
+- [3. 输入与输出](#3-输入与输出)
+- [4. 主流程图](#4-主流程图)
+- [5. 时序图](#5-时序图)
+- [6. 详细说明](#6-详细说明)
+- [7. `review` 结束后系统留下了什么](#7-review-结束后系统留下了什么)
+- [8. 错误与边界情况](#8-错误与边界情况)
+- [9. 当前实现特征](#9-当前实现特征)
+- [相关阅读](#相关阅读)
+
 ## 1. 涉及文件
 
 - CLI 入口：`src/cli/commands/review.ts`
@@ -23,7 +36,7 @@
 
 ## 2. 一句话理解
 
-`review` 的核心职责不是给草稿写一段笼统评价，而是把“这章草稿在哪些地方违背了规划和事实边界”整理成一份稳定、可落库、可供 `repair` 直接消费的结构化审阅结果。
+`review` 的核心职责是把“这章草稿在哪些地方违背了规划和事实边界”整理成一份稳定、可落库、可供 `repair` 直接消费的结构化审阅结果。
 
 ## 3. 输入与输出
 
@@ -261,3 +274,8 @@ sequenceDiagram
 - [`docs/draft-workflow-guide.md`](./draft-workflow-guide.md)
 - [`docs/repair-workflow-guide.md`](./repair-workflow-guide.md)
 - [`docs/prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/draft-workflow-guide.md`](./draft-workflow-guide.md)
+- 下一篇：[`docs/repair-workflow-guide.md`](./repair-workflow-guide.md)

@@ -14,6 +14,21 @@
 - `plan` 阶段的上下文是怎么来的：看 `docs/plan-workflow-guide.md`
 - 召回与打分规则：看 `docs/retrieval-scoring-rules.md`
 
+## 目录
+
+- [1. 涉及文件](#1-涉及文件)
+- [2. 一句话理解](#2-一句话理解)
+- [3. 输入与输出](#3-输入与输出)
+- [4. 主流程图](#4-主流程图)
+- [5. 时序图](#5-时序图)
+- [6. 详细说明](#6-详细说明)
+- [7. 为什么 `approve` 要拆成两次 LLM 调用](#7-为什么-approve-要拆成两次-llm-调用)
+- [8. `approve` 结束后，系统真正发生了什么](#8-approve-结束后系统真正发生了什么)
+- [9. 错误与边界情况](#9-错误与边界情况)
+- [10. 当前实现特征](#10-当前实现特征)
+- [11. 建议阅读顺序](#11-建议阅读顺序)
+- [相关阅读](#相关阅读)
+
 ## 1. 涉及文件
 
 - CLI 入口：`src/cli/commands/approve.ts`
@@ -24,7 +39,7 @@
 
 ## 2. 一句话理解
 
-`approve` 的核心职责不是“把当前 draft 改名成 final”，而是把章节写作链路正式收口：先产出可保存的最终正文，再把正文中的结构化事实变化抽成 diff，最后把 final 版本、实体变化、章节字段和书籍统计一次性写回数据库。
+`approve` 的核心职责是把章节写作链路正式收口：先产出可保存的最终正文，再把正文中的结构化事实变化抽成 diff，最后把 final 版本、实体变化、章节字段和书籍统计一次性写回数据库。
 
 ## 3. 输入与输出
 
@@ -471,3 +486,8 @@ sequenceDiagram
 - [`docs/cli-usage-guide.md`](./cli-usage-guide.md)
 - [`docs/plan-workflow-guide.md`](./plan-workflow-guide.md)
 - [`docs/prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/repair-workflow-guide.md`](./repair-workflow-guide.md)
+- 下一篇：[`docs/chapter-pipeline-overview.md`](./chapter-pipeline-overview.md)

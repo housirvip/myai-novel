@@ -14,6 +14,21 @@
 - prompt 与全工作流关系：看 `docs/prompt-retrieval-relationship.md`
 - embedding / rerank 实验链路：看 `docs/embedding-rerank-architecture.md`
 
+## 目录
+
+- [1. 涉及文件](#1-涉及文件)
+- [2. 一句话理解](#2-一句话理解)
+- [3. 输入与输出](#3-输入与输出)
+- [4. 主流程图](#4-主流程图)
+- [5. 时序图](#5-时序图)
+- [6. 详细说明](#6-详细说明)
+- [7. 为什么 `plan` 要两次召回](#7-为什么-plan-要两次召回)
+- [8. `plan` 给后续阶段留下了什么](#8-plan-给后续阶段留下了什么)
+- [9. 错误与边界情况](#9-错误与边界情况)
+- [10. 当前实现特征](#10-当前实现特征)
+- [11. 建议阅读顺序](#11-建议阅读顺序)
+- [相关阅读](#相关阅读)
+
 ## 1. 涉及文件
 
 - CLI 入口：`src/cli/commands/plan.ts`
@@ -375,3 +390,8 @@ CLI 层本身不做业务判断，主要做三件事：
 - [`docs/cli-usage-guide.md`](./cli-usage-guide.md)
 - [`docs/prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
 - [`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/chapter-pipeline-overview.md`](./chapter-pipeline-overview.md)
+- 下一篇：[`docs/draft-workflow-guide.md`](./draft-workflow-guide.md)

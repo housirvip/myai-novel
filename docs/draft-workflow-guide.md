@@ -14,6 +14,19 @@
 - 全工作流 prompt 关系：看 `docs/prompt-retrieval-relationship.md`
 - `review / repair / approve` 后续链路：看对应专题文档
 
+## 目录
+
+- [1. 涉及文件](#1-涉及文件)
+- [2. 一句话理解](#2-一句话理解)
+- [3. 输入与输出](#3-输入与输出)
+- [4. 主流程图](#4-主流程图)
+- [5. 时序图](#5-时序图)
+- [6. 详细说明](#6-详细说明)
+- [7. `draft` 结束后系统留下了什么](#7-draft-结束后系统留下了什么)
+- [8. 错误与边界情况](#8-错误与边界情况)
+- [9. 当前实现特征](#9-当前实现特征)
+- [相关阅读](#相关阅读)
+
 ## 1. 涉及文件
 
 - CLI 入口：`src/cli/commands/draft.ts`
@@ -24,7 +37,7 @@
 
 ## 2. 一句话理解
 
-`draft` 的核心职责不是“重新理解整本书再写一遍正文”，而是基于 `plan` 阶段已经固化的规划和上下文，生成一个新的草稿版本，并把章节当前 draft 指针切到这个新版本上。
+`draft` 的核心职责是基于 `plan` 阶段已经固化的规划和上下文，生成一个新的草稿版本，并把章节当前 draft 指针切到这个新版本上。
 
 ## 3. 输入与输出
 
@@ -124,10 +137,7 @@ sequenceDiagram
 
 裁成适合正文生成阶段的视图。
 
-这样做的目的很直接：
-
-- 保证 `plan` 和 `draft` 使用同一套事实边界
-- 避免多次生成时出现上下文漂移
+这样做的目的很直接：保证 `plan` 和 `draft` 使用同一套事实边界，避免多次生成时出现上下文漂移。
 
 ### 6.2 `draftContextView` 不是完整 JSON 直喂
 
@@ -275,3 +285,8 @@ sequenceDiagram
 - [`docs/plan-workflow-guide.md`](./plan-workflow-guide.md)
 - [`docs/review-workflow-guide.md`](./review-workflow-guide.md)
 - [`docs/prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/plan-workflow-guide.md`](./plan-workflow-guide.md)
+- 下一篇：[`docs/review-workflow-guide.md`](./review-workflow-guide.md)

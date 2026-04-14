@@ -548,3 +548,8 @@ flowchart LR
 - [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
 - [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
 - [`engineering-overview.md`](./engineering-overview.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
+- 下一篇：[`docs/engineering-overview.md`](./engineering-overview.md)

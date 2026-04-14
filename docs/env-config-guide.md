@@ -440,3 +440,8 @@ LOG_LLM_CONTENT_ENABLED=false
 - [`docs/cli-usage-guide.md`](./cli-usage-guide.md)
 - [`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
 - [`../.env.example`](../.env.example)
+
+## 阅读导航
+
+- 上一篇：[`docs/cli-usage-guide.md`](./cli-usage-guide.md)
+- 下一篇：[`docs/chapter-pipeline-overview.md`](./chapter-pipeline-overview.md)

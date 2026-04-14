@@ -14,6 +14,23 @@
 - `docs/plan-workflow-guide.md`
 - `docs/approve-workflow-guide.md`
 
+## 目录
+
+- [1. 涉及文件](#1-涉及文件)
+- [2. 一句话理解](#2-一句话理解)
+- [3. 总体关系图](#3-总体关系图)
+- [4. 强外键关系图](#4-强外键关系图)
+- [5. 章节工作流版本关系图](#5-章节工作流版本关系图)
+- [6. 设定库实体关系图](#6-设定库实体关系图)
+- [7. 哪些字段是“软关联”](#7-哪些字段是软关联)
+- [8. 哪些字段是“结构化 JSON 存储”](#8-哪些字段是结构化-json-存储)
+- [9. 索引设计在支持什么](#9-索引设计在支持什么)
+- [10. 为什么这里既有强外键，也保留软关联](#10-为什么这里既有强外键也保留软关联)
+- [11. 从业务上看，这套表可以怎么分层](#11-从业务上看这套表可以怎么分层)
+- [12. 最容易误解的几个点](#12-最容易误解的几个点)
+- [13. 推荐阅读顺序](#13-推荐阅读顺序)
+- [相关阅读](#相关阅读)
+
 ## 1. 涉及文件
 
 - Schema 类型：`src/core/db/schema/database.ts`
@@ -480,3 +497,8 @@ flowchart TD
 - [`docs/chapter-pipeline-overview.md`](./chapter-pipeline-overview.md)
 - [`docs/plan-workflow-guide.md`](./plan-workflow-guide.md)
 - [`docs/approve-workflow-guide.md`](./approve-workflow-guide.md)
+
+## 阅读导航
+
+- 上一篇：[`docs/chapter-pipeline-overview.md`](./chapter-pipeline-overview.md)
+- 下一篇：[`docs/retrieval-pipeline-guide.md`](./retrieval-pipeline-guide.md)
