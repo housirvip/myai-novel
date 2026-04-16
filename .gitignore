@@ -10,3 +10,4 @@ data
 package-lock.json
 tmp*
 test-project
+.sisyphus
