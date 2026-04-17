@@ -1,13 +1,44 @@
-node_modules
-dist
+# Dependencies / build outputs
+node_modules/
+dist/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Local environment / secrets
 .env
+.env.local
+.env.*.local
 .env.*test*
-logs
-data
+
+# Runtime data / logs
+logs/
+data/
+*.log
+*.pid
+*.pid.lock
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# Temp / caches
+tmp/
+tmp*/
+.tmp/
+.cache/
+.eslintcache
+
+# Local sandbox / agent state
+test-project/
+.sisyphus/
+.claude/
+.trae/
+
+# OS / editor
 .DS_Store
-.idea
-.claude
+.idea/
+
+# Lockfiles intentionally kept local in this repo
 package-lock.json
-tmp*
-test-project
-.sisyphus
