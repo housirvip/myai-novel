@@ -14,6 +14,17 @@ export interface EmbeddingDocument {
   model: string;
   displayName: string;
   text: string;
+  relationEndpoints?: Array<{
+    entityType: "character" | "faction";
+    entityId: number;
+    displayName: string;
+  }>;
+  relationMetadata?: {
+    relationType: string;
+    status?: string;
+    description?: string;
+    appendNotes?: string;
+  };
 }
 
 export interface IndexedEmbeddingDocument extends EmbeddingDocument {
@@ -27,6 +38,17 @@ export interface EmbeddingMatch {
   semanticScore: number;
   text: string;
   displayName: string;
+  relationEndpoints?: Array<{
+    entityType: "character" | "faction";
+    entityId: number;
+    displayName: string;
+  }>;
+  relationMetadata?: {
+    relationType: string;
+    status?: string;
+    description?: string;
+    appendNotes?: string;
+  };
 }
 
 export interface EmbeddingProvider {

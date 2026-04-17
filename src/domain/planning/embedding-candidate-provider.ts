@@ -98,6 +98,8 @@ function createEmbeddingOnlyEntity(match: EmbeddingMatch): RetrievedEntity {
     reason: "embedding_match",
     content: match.text,
     score: Math.round(match.semanticScore * 100),
+    relationEndpoints: match.entityType === "relation" ? match.relationEndpoints : undefined,
+    relationMetadata: match.entityType === "relation" ? match.relationMetadata : undefined,
   };
 }
 

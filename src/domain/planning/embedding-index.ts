@@ -56,7 +56,11 @@ interface ItemEmbeddingSource {
 interface RelationEmbeddingSource {
   id: number;
   sourceName: string;
+  sourceType?: "character" | "faction";
+  sourceId?: number;
   targetName: string;
+  targetType?: "character" | "faction";
+  targetId?: number;
   relationSummary?: string | null;
   relationType?: string | null;
   status?: string | null;
@@ -135,6 +139,15 @@ export function buildEmbeddingDocuments(input: {
       model: input.model,
       displayName: `${relation.sourceName} -> ${relation.targetName}`,
       text: buildRelationEmbeddingText(relation),
+      relationEndpoints: buildRelationEndpoints(relation),
+      relationMetadata: relation.relationType
+        ? {
+            relationType: relation.relationType,
+            status: relation.status ?? undefined,
+            description: relation.description ?? undefined,
+            appendNotes: relation.notes ?? undefined,
+          }
+        : undefined,
     });
   }
 
@@ -150,4 +163,25 @@ export function buildEmbeddingDocuments(input: {
   }
 
   return documents;
+}
+
+function buildRelationEndpoints(relation: RelationEmbeddingSource): Array<{
+  entityType: "character" | "faction";
+  entityId: number;
+  displayName: string;
+}> | undefined {
+  const endpoints = [
+    relation.sourceType && relation.sourceId
+      ? { entityType: relation.sourceType, entityId: relation.sourceId, displayName: relation.sourceName }
+      : null,
+    relation.targetType && relation.targetId
+      ? { entityType: relation.targetType, entityId: relation.targetId, displayName: relation.targetName }
+      : null,
+  ].filter(Boolean) as Array<{
+    entityType: "character" | "faction";
+    entityId: number;
+    displayName: string;
+  }>;
+
+  return endpoints.length > 0 ? endpoints : undefined;
 }

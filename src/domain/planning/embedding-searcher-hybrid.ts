@@ -52,6 +52,8 @@ export class HybridEmbeddingSearcher implements EmbeddingCandidateSearcher {
           semanticScore: combinedScore,
           displayName: document.displayName,
           text: document.text,
+          relationEndpoints: document.relationEndpoints,
+          relationMetadata: document.relationMetadata,
         } satisfies EmbeddingMatch;
       })
       .sort((left, right) => right.semanticScore - left.semanticScore || left.entityId - right.entityId)

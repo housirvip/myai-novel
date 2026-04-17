@@ -178,7 +178,11 @@ async function loadRelationEmbeddingRows(
     return {
       id: row.id,
       sourceName,
+      sourceType: row.source_type === "character" || row.source_type === "faction" ? row.source_type : undefined,
+      sourceId: row.source_type === "character" || row.source_type === "faction" ? row.source_id : undefined,
       targetName,
+      targetType: row.target_type === "character" || row.target_type === "faction" ? row.target_type : undefined,
+      targetId: row.target_type === "character" || row.target_type === "faction" ? row.target_id : undefined,
       relationSummary: row.description,
       relationType: row.relation_type,
       status: row.status,

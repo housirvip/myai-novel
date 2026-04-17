@@ -37,6 +37,8 @@ export class InMemoryEmbeddingSearcher implements EmbeddingCandidateSearcher {
         semanticScore: cosineSimilarity(queryVector, document.vector),
         displayName: document.displayName,
         text: document.text,
+        relationEndpoints: document.relationEndpoints,
+        relationMetadata: document.relationMetadata,
       }))
       .sort((left, right) => right.semanticScore - left.semanticScore || left.entityId - right.entityId)
       .slice(0, params.limit);
