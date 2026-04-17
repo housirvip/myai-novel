@@ -56,6 +56,8 @@ test("retrieval benchmark fixtures keep blocking recall high and noise bounded",
     assert.equal(result.blockingRecall, 1, `${fixture.name} blocking recall should stay at 1`);
     assert.ok(result.decisionRecall >= 0.5, `${fixture.name} decision recall should stay usable`);
     assert.ok(result.noiseRatio <= (fixture.expected.maxNoiseRatio ?? 1), `${fixture.name} noise ratio too high`);
+    assert.equal(result.observability.hardConstraintExplainedRatio, 1, `${fixture.name} hard constraints should stay explained`);
+    assert.equal(result.observability.priorityAssignmentExplainedRatio, 1, `${fixture.name} priority packets should stay explained`);
   }
 });
 
@@ -119,6 +121,10 @@ test("hybrid embedding experiment stays non-regressive across representative str
     assert.equal(baselineResult.decisionRecall, 1, `${fixture.name} baseline decision recall should stay at 1`);
     assert.equal(embeddingResult.blockingRecall, baselineResult.blockingRecall, `${fixture.name} embedding should not reduce blocking recall`);
     assert.ok(embeddingResult.decisionRecall >= baselineResult.decisionRecall, `${fixture.name} embedding should not reduce decision recall`);
+    assert.equal(baselineResult.observability.hardConstraintExplainedRatio, 1, `${fixture.name} baseline hard constraints should stay explained`);
+    assert.equal(embeddingResult.observability.hardConstraintExplainedRatio, 1, `${fixture.name} embedding hard constraints should stay explained`);
+    assert.equal(baselineResult.observability.priorityAssignmentExplainedRatio, 1, `${fixture.name} baseline priority packets should stay explained`);
+    assert.equal(embeddingResult.observability.priorityAssignmentExplainedRatio, 1, `${fixture.name} embedding priority packets should stay explained`);
   }
 });
 

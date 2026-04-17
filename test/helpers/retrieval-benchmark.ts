@@ -40,6 +40,15 @@ export interface RetrievalBenchmarkResult {
   blockingRecall: number;
   decisionRecall: number;
   noiseRatio: number;
+  observability: {
+    candidateSourceCounts: {
+      rule: number;
+      embeddingSupport: number;
+      embeddingOnly: number;
+    };
+    hardConstraintExplainedRatio: number;
+    priorityAssignmentExplainedRatio: number;
+  };
 }
 
 export async function loadRetrievalBenchmarkFixture(name: string): Promise<RetrievalBenchmarkFixture> {
@@ -71,12 +80,36 @@ export function evaluateRetrievalBenchmark(
   const relevantNames = new Set([...fixture.expected.blockingNames, ...decisionExpected]);
   const noiseCount = decisionPackets.filter((packet) => !relevantNames.has(packet.displayName)).length;
   const noiseRatio = decisionPackets.length === 0 ? 0 : ratio(noiseCount, decisionPackets.length);
+  const candidateObservations = context.retrievalObservability
+    ? Object.values(context.retrievalObservability.candidates).flat()
+    : [];
+  const hardConstraintObservations = context.retrievalObservability
+    ? Object.values(context.retrievalObservability.hardConstraints).flat()
+    : [];
+  const priorityObservations = context.retrievalObservability
+    ? Object.values(context.retrievalObservability.priorityContext).flat()
+    : [];
 
   return {
     fixtureName: fixture.name,
     blockingRecall,
     decisionRecall,
     noiseRatio,
+    observability: {
+      candidateSourceCounts: {
+        rule: candidateObservations.filter((item) => item.source === "rule").length,
+        embeddingSupport: candidateObservations.filter((item) => item.source === "embedding_support").length,
+        embeddingOnly: candidateObservations.filter((item) => item.source === "embedding_only").length,
+      },
+      hardConstraintExplainedRatio: ratio(
+        hardConstraintObservations.filter((item) => item.selectedBy.length > 0).length,
+        hardConstraintObservations.length,
+      ),
+      priorityAssignmentExplainedRatio: ratio(
+        priorityObservations.filter((item) => item.assignedBy.length > 0).length,
+        priorityObservations.length,
+      ),
+    },
   };
 }
 
