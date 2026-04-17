@@ -63,21 +63,42 @@ function mergeEntities(
   const byId = new Map(existing.map((entity) => [entity.id, entity]));
 
   for (const match of matches) {
-    if (match.entityType !== entityType || byId.has(match.entityId)) {
+    if (match.entityType !== entityType) {
       continue;
     }
 
-    byId.set(match.entityId, {
-      id: match.entityId,
-      name: shouldUseNameField(entityType) ? match.displayName : undefined,
-      title: shouldUseNameField(entityType) ? undefined : match.displayName,
-      reason: "embedding_match",
-      content: match.text,
-      score: Math.round(match.semanticScore * 100),
-    });
+    const existingEntity = byId.get(match.entityId);
+    if (existingEntity) {
+      byId.set(match.entityId, mergeSemanticSignal(existingEntity, match));
+      continue;
+    }
+
+    byId.set(match.entityId, createEmbeddingOnlyEntity(match));
   }
 
   return Array.from(byId.values()).sort((left, right) => right.score - left.score || left.id - right.id);
+}
+
+function mergeSemanticSignal(entity: RetrievedEntity, match: EmbeddingMatch): RetrievedEntity {
+  const reasons = new Set((entity.reason ?? "").split("+").filter(Boolean));
+  reasons.add("embedding_support");
+
+  return {
+    ...entity,
+    reason: Array.from(reasons).join("+"),
+    score: (entity.score ?? 0) + Math.round(match.semanticScore * 10),
+  };
+}
+
+function createEmbeddingOnlyEntity(match: EmbeddingMatch): RetrievedEntity {
+  return {
+    id: match.entityId,
+    name: shouldUseNameField(match.entityType) ? match.displayName : undefined,
+    title: shouldUseNameField(match.entityType) ? undefined : match.displayName,
+    reason: "embedding_match",
+    content: match.text,
+    score: Math.round(match.semanticScore * 100),
+  };
 }
 
 function shouldUseNameField(entityType: EmbeddingMatch["entityType"]): boolean {

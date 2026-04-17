@@ -25,6 +25,16 @@ export class HeuristicReranker implements RetrievalReranker {
 
 type HeuristicEntityType = RetrievedFactEntityType;
 
+interface HeuristicScoreBreakdown {
+  baseScore: number;
+  manualBoost: number;
+  keywordBoost: number;
+  embeddingBoost: number;
+  continuityBoost: number;
+  hookBonus: number;
+  finalScore: number;
+}
+
 function rerankEntities(
   entities: RetrievedEntity[],
   input: RetrievalRerankerInput,
@@ -45,29 +55,39 @@ function computeHeuristicScore(
   input: RetrievalRerankerInput,
   entityType: HeuristicEntityType,
 ): number {
-  const reason = entity.reason ?? "";
+  return computeHeuristicScoreBreakdown(entity, input, entityType).finalScore;
+}
+
+function computeHeuristicScoreBreakdown(
+  entity: RetrievedEntity,
+  input: RetrievalRerankerInput,
+  entityType: HeuristicEntityType,
+): HeuristicScoreBreakdown {
   const content = entity.content ?? "";
   const normalizedContent = content.toLowerCase();
-  let score = entity.score ?? 0;
+  const baseScore = entity.score ?? 0;
+  const manualBoost = hasReason(entity, "manual_id") ? 40 : 0;
+  const keywordBoost = hasReason(entity, "keyword_hit") ? 15 : 0;
+  const embeddingBoost =
+    (hasReason(entity, "embedding_match") ? 10 : 0)
+    + (hasReason(entity, "embedding_support") ? 6 : 0);
+  const continuityBoost =
+    countKeywordHits(input.params.keywords, normalizedContent) * 4
+    + continuityBonus(normalizedContent, entityType);
+  const hookBonus = entityType === "hook"
+    ? hookChapterBonus(content, input.params.chapterNo)
+    : 0;
+  const finalScore = baseScore + manualBoost + keywordBoost + embeddingBoost + continuityBoost + hookBonus;
 
-  if (hasReason(entity, "manual_id")) {
-    score += 40;
-  }
-  if (hasReason(entity, "keyword_hit")) {
-    score += 15;
-  }
-  if (hasReason(entity, "embedding_match")) {
-    score += 10;
-  }
-
-  score += countKeywordHits(input.params.keywords, normalizedContent) * 4;
-  score += continuityBonus(normalizedContent, entityType);
-
-  if (entityType === "hook") {
-    score += hookChapterBonus(content, input.params.chapterNo);
-  }
-
-  return score;
+  return {
+    baseScore,
+    manualBoost,
+    keywordBoost,
+    embeddingBoost,
+    continuityBoost,
+    hookBonus,
+    finalScore,
+  };
 }
 
 function hookChapterBonus(content: string, chapterNo: number): number {

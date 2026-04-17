@@ -44,3 +44,39 @@ test("HeuristicReranker prefers continuity-heavy entities and preserves candidat
   assert.equal(result.entityGroups.characters[0]?.name, "林夜");
   assert.equal(result.entityGroups.hooks[0]?.title, "临近伏笔");
 });
+
+test("HeuristicReranker prefers semantic-supported candidates over equally scored keyword-only ones", async () => {
+  const reranker = new HeuristicReranker();
+  const result = await reranker.rerank({
+    params: {
+      bookId: 1,
+      chapterNo: 5,
+      keywords: ["黑铁令"],
+      manualRefs: {
+        characterIds: [],
+        factionIds: [],
+        itemIds: [],
+        hookIds: [],
+        relationIds: [],
+        worldSettingIds: [],
+      },
+    },
+    candidates: {
+      outlines: [],
+      recentChapters: [],
+      entityGroups: {
+        hooks: [],
+        characters: [
+          { id: 1, name: "林夜", reason: "keyword_hit+embedding_support", content: "background=持令者", score: 50 },
+          { id: 2, name: "顾沉舟", reason: "keyword_hit", content: "background=观察者", score: 50 },
+        ],
+        factions: [],
+        items: [],
+        relations: [],
+        worldSettings: [],
+      },
+    },
+  });
+
+  assert.equal(result.entityGroups.characters[0]?.name, "林夜");
+});
