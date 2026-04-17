@@ -17,6 +17,25 @@ export interface PromptContextBlocks {
   supportingBackground: string[];
 }
 
+export type PromptContextMode =
+  | "plan"
+  | "draft"
+  | "review"
+  | "repair"
+  | "approve"
+  | "approveDiff";
+
+interface PromptContextBlockConfig {
+  mustFollowFactsLimit: number;
+  recentChangesLimit: number;
+  coreEntitiesLimit: number;
+  requiredHooksLimit: number;
+  forbiddenMovesLimit: number;
+  supportingFactLimit: number;
+  supportingOutlineLimit: number;
+  coreFallbackLimit: number;
+}
+
 type RetrievedContextViewLike = {
   hardConstraints?: Partial<PlanRetrievedContextEntityGroups>;
   priorityContext?: RetrievedPriorityContext;
@@ -32,8 +51,12 @@ type RetrievedContextViewLike = {
   worldSettings?: RetrievedEntity[];
 };
 
-export function buildPromptContextBlocks(context: unknown): PromptContextBlocks {
+export function buildPromptContextBlocks(
+  context: unknown,
+  options: { mode?: PromptContextMode } = {},
+): PromptContextBlocks {
   const value = (context ?? {}) as RetrievedContextViewLike;
+  const config = getPromptContextBlockConfig(options.mode ?? "draft");
   const hardConstraints = {
     characters: value.hardConstraints?.characters ?? value.characters,
     factions: value.hardConstraints?.factions ?? value.factions,
@@ -55,14 +78,14 @@ export function buildPromptContextBlocks(context: unknown): PromptContextBlocks 
     },
   });
 
-  const mustFollowFacts = summarizeFactPackets(priorityContext.blockingConstraints, 5);
+  const mustFollowFacts = summarizeFactPackets(priorityContext.blockingConstraints, config.mustFollowFactsLimit);
   const requiredHooks = summarizeFactPackets(
     priorityContext.blockingConstraints.filter((packet) => packet.entityType === "hook"),
-    3,
+    config.requiredHooksLimit,
   );
   const coreEntities = summarizeFactPackets(
     [...priorityContext.decisionContext, ...priorityContext.supportingContext].filter((packet) => packet.entityType !== "hook"),
-    6,
+    config.coreEntitiesLimit,
   );
 
   const recentChanges = buildRecentChanges({
@@ -75,13 +98,15 @@ export function buildPromptContextBlocks(context: unknown): PromptContextBlocks 
       ...(hardConstraints.hooks ?? []),
       ...(hardConstraints.worldSettings ?? []),
     ],
-  }).map((item) => `${item.label}：${item.detail}`);
+  })
+    .slice(0, config.recentChangesLimit)
+    .map((item) => `${item.label}：${item.detail}`);
 
-  const forbiddenMoves = (value.riskReminders ?? []).slice(0, 4);
+  const forbiddenMoves = (value.riskReminders ?? []).slice(0, config.forbiddenMovesLimit);
   const supportingBackground = [
-    ...summarizeFactPackets(priorityContext.supportingContext, 3),
-    ...summarizeOutlines(value.supportingOutlines ?? value.outlines, 2),
-  ].slice(0, 4);
+    ...summarizeFactPackets(priorityContext.supportingContext, config.supportingFactLimit),
+    ...summarizeOutlines(value.supportingOutlines ?? value.outlines, config.supportingOutlineLimit),
+  ].slice(0, config.supportingFactLimit + config.supportingOutlineLimit);
 
   return {
     mustFollowFacts: mustFollowFacts.length > 0 ? mustFollowFacts : forbiddenMoves.slice(0, 2),
@@ -89,13 +114,85 @@ export function buildPromptContextBlocks(context: unknown): PromptContextBlocks 
     coreEntities: coreEntities.length > 0
       ? coreEntities
       : summarizeFactPackets(
-          priorityContext.blockingConstraints.filter((packet) => packet.entityType !== "hook"),
-          4,
+        priorityContext.blockingConstraints.filter((packet) => packet.entityType !== "hook"),
+          config.coreFallbackLimit,
         ),
     requiredHooks,
     forbiddenMoves,
     supportingBackground,
   };
+}
+
+function getPromptContextBlockConfig(mode: PromptContextMode): PromptContextBlockConfig {
+  switch (mode) {
+    case "plan":
+      return {
+        mustFollowFactsLimit: 5,
+        recentChangesLimit: 3,
+        coreEntitiesLimit: 4,
+        requiredHooksLimit: 3,
+        forbiddenMovesLimit: 4,
+        supportingFactLimit: 2,
+        supportingOutlineLimit: 2,
+        coreFallbackLimit: 4,
+      };
+    case "review":
+      return {
+        mustFollowFactsLimit: 4,
+        recentChangesLimit: 5,
+        coreEntitiesLimit: 3,
+        requiredHooksLimit: 1,
+        forbiddenMovesLimit: 5,
+        supportingFactLimit: 1,
+        supportingOutlineLimit: 1,
+        coreFallbackLimit: 3,
+      };
+    case "repair":
+      return {
+        mustFollowFactsLimit: 5,
+        recentChangesLimit: 4,
+        coreEntitiesLimit: 5,
+        requiredHooksLimit: 2,
+        forbiddenMovesLimit: 5,
+        supportingFactLimit: 2,
+        supportingOutlineLimit: 1,
+        coreFallbackLimit: 4,
+      };
+    case "approve":
+      return {
+        mustFollowFactsLimit: 4,
+        recentChangesLimit: 4,
+        coreEntitiesLimit: 4,
+        requiredHooksLimit: 2,
+        forbiddenMovesLimit: 4,
+        supportingFactLimit: 1,
+        supportingOutlineLimit: 1,
+        coreFallbackLimit: 3,
+      };
+    case "approveDiff":
+      return {
+        mustFollowFactsLimit: 3,
+        recentChangesLimit: 5,
+        coreEntitiesLimit: 2,
+        requiredHooksLimit: 1,
+        forbiddenMovesLimit: 5,
+        supportingFactLimit: 1,
+        supportingOutlineLimit: 0,
+        coreFallbackLimit: 2,
+      };
+    case "draft":
+    default:
+      return {
+        mustFollowFactsLimit: 5,
+        recentChangesLimit: 4,
+        coreEntitiesLimit: 6,
+        requiredHooksLimit: 3,
+        forbiddenMovesLimit: 4,
+        supportingFactLimit: 2,
+        supportingOutlineLimit: 2,
+        coreFallbackLimit: 4,
+      };
+  }
 }
 
 function summarizeFactPackets(

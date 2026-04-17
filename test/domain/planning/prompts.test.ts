@@ -35,7 +35,7 @@ test("repair prompt includes plan and retrieved context", () => {
       mustAvoid: ["直接揭晓真相"],
     },
     retrievedContext: {
-      characters: [{ id: 1, name: "林夜" }],
+      characters: [{ id: 1, name: "林夜", content: "current_location=青岳宗外门" }],
       worldSettings: [{ id: 2, title: "宗门制度" }],
     },
   });

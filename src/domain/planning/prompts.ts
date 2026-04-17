@@ -61,7 +61,7 @@ export function buildPlanPrompt(input: {
   intentConstraints?: PlanIntentConstraints;
   retrievedContext: PlanRetrievedContext;
 }): LlmMessage[] {
-  const contextBlocks = buildPromptContextBlocks(input.retrievedContext);
+  const contextBlocks = buildPromptContextBlocks(input.retrievedContext, { mode: "plan" });
   // plan prompt 的职责是把“本章想写什么”和“本章不能写错什么”同时交给模型。
   // 其中 retrievedContext 是后续所有阶段共享的事实边界，因此在 plan 阶段就必须显式固化。
   return [
@@ -110,7 +110,7 @@ export function buildDraftPrompt(input: {
   retrievedContext?: unknown;
   targetWords?: number;
 }): LlmMessage[] {
-  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext) : null;
+  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext, { mode: "draft" }) : null;
   return [
     {
       role: "system",
@@ -153,7 +153,7 @@ export function buildReviewPrompt(input: {
   draftContent: string;
   retrievedContext?: unknown;
 }): LlmMessage[] {
-  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext) : null;
+  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext, { mode: "review" }) : null;
   // review 的输出会直接进入结构化落库和后续 repair，
   // 因此这里要把输出字段约束得足够稳定，避免下游解析依赖自然语言猜测。
   return [
@@ -193,7 +193,7 @@ export function buildRepairPrompt(input: {
   intentConstraints?: PlanIntentConstraints;
   retrievedContext?: unknown;
 }): LlmMessage[] {
-  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext) : null;
+  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext, { mode: "repair" }) : null;
   return [
     {
       role: "system",
@@ -240,7 +240,7 @@ export function buildApprovePrompt(input: {
   intentConstraints?: PlanIntentConstraints;
   retrievedContext?: unknown;
 }): LlmMessage[] {
-  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext) : null;
+  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext, { mode: "approve" }) : null;
   // approve prompt 只负责产出最终正文，不承担结构化回写任务；
   // 事实抽取会在 approve diff 的独立 prompt 中完成。
   return [
@@ -284,7 +284,7 @@ export function buildApproveDiffPrompt(input: {
   reviewContent: string;
   retrievedContext?: unknown;
 }): LlmMessage[] {
-  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext) : null;
+  const contextBlocks = input.retrievedContext ? buildPromptContextBlocks(input.retrievedContext, { mode: "approveDiff" }) : null;
   return [
     {
       role: "system",
