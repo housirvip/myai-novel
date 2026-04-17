@@ -1,4 +1,4 @@
-import type { EmbeddingProvider } from "./embedding-types.js";
+import type { EmbeddingProvider, RelationEmbeddingSource } from "./embedding-types.js";
 import type { EmbeddingStore } from "./embedding-store.js";
 import { buildEmbeddingDocuments } from "./embedding-index.js";
 import { buildIndexedEmbeddingDocuments } from "./embedding-store.js";
@@ -45,17 +45,6 @@ interface ItemEmbeddingSource {
   summary?: string | null;
   status?: string | null;
   ownerSummary?: string | null;
-  notes?: string | null;
-}
-
-interface RelationEmbeddingSource {
-  id: number;
-  sourceName: string;
-  targetName: string;
-  relationSummary?: string | null;
-  relationType?: string | null;
-  status?: string | null;
-  description?: string | null;
   notes?: string | null;
 }
 

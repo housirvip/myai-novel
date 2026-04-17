@@ -1,13 +1,4 @@
-interface RelationEmbeddingSource {
-  id: number;
-  sourceName: string;
-  targetName: string;
-  relationSummary?: string | null;
-  relationType?: string | null;
-  status?: string | null;
-  description?: string | null;
-  notes?: string | null;
-}
+import type { RelationEmbeddingSource } from "./embedding-types.js";
 
 export function buildRelationEmbeddingText(relation: RelationEmbeddingSource): string {
   return compactLines([

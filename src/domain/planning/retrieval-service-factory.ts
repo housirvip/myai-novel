@@ -8,7 +8,7 @@ import { HybridEmbeddingSearcher } from "./embedding-searcher-hybrid.js";
 import { InMemoryEmbeddingSearcher } from "./embedding-searcher-memory.js";
 import { InMemoryEmbeddingStore } from "./embedding-store.js";
 import { RetrievalQueryService } from "./retrieval-service.js";
-import type { EmbeddingProvider } from "./embedding-types.js";
+import type { EmbeddingProvider, RelationEmbeddingSource } from "./embedding-types.js";
 
 const DEFAULT_EMBEDDING_MODEL = "planning-retrieval-deterministic-v1";
 
@@ -143,16 +143,7 @@ function createEmbeddingProvider(): EmbeddingProvider {
 async function loadRelationEmbeddingRows(
   db: import("kysely").Kysely<DatabaseSchema>,
   bookId: number,
-): Promise<Array<{
-  id: number;
-  sourceName: string;
-  targetName: string;
-  relationSummary: string | null;
-  relationType: string;
-  status: string | null;
-  description: string | null;
-  notes: string | null;
-}>> {
+): Promise<RelationEmbeddingSource[]> {
   const rows = await db.selectFrom("relations").selectAll().where("book_id", "=", bookId).execute();
   const characterIds = rows
     .flatMap((row) => [row.source_type === "character" ? row.source_id : null, row.target_type === "character" ? row.target_id : null])

@@ -6,7 +6,12 @@ import {
   buildRelationEmbeddingText,
   buildWorldSettingEmbeddingText,
 } from "./embedding-text.js";
-import type { EmbeddingDocument } from "./embedding-types.js";
+import type {
+  EmbeddingDocument,
+  RelationEmbeddingEndpoint,
+  RelationEmbeddingMetadata,
+  RelationEmbeddingSource,
+} from "./embedding-types.js";
 
 interface CharacterEmbeddingSource {
   id: number;
@@ -50,21 +55,6 @@ interface ItemEmbeddingSource {
   summary?: string | null;
   status?: string | null;
   ownerSummary?: string | null;
-  notes?: string | null;
-}
-
-interface RelationEmbeddingSource {
-  id: number;
-  sourceName: string;
-  sourceType?: "character" | "faction";
-  sourceId?: number;
-  targetName: string;
-  targetType?: "character" | "faction";
-  targetId?: number;
-  relationSummary?: string | null;
-  relationType?: string | null;
-  status?: string | null;
-  description?: string | null;
   notes?: string | null;
 }
 
@@ -140,14 +130,7 @@ export function buildEmbeddingDocuments(input: {
       displayName: `${relation.sourceName} -> ${relation.targetName}`,
       text: buildRelationEmbeddingText(relation),
       relationEndpoints: buildRelationEndpoints(relation),
-      relationMetadata: relation.relationType
-        ? {
-            relationType: relation.relationType,
-            status: relation.status ?? undefined,
-            description: relation.description ?? undefined,
-            appendNotes: relation.notes ?? undefined,
-          }
-        : undefined,
+      relationMetadata: buildRelationMetadata(relation),
     });
   }
 
@@ -165,11 +148,7 @@ export function buildEmbeddingDocuments(input: {
   return documents;
 }
 
-function buildRelationEndpoints(relation: RelationEmbeddingSource): Array<{
-  entityType: "character" | "faction";
-  entityId: number;
-  displayName: string;
-}> | undefined {
+function buildRelationEndpoints(relation: RelationEmbeddingSource): RelationEmbeddingEndpoint[] | undefined {
   const endpoints = [
     relation.sourceType && relation.sourceId
       ? { entityType: relation.sourceType, entityId: relation.sourceId, displayName: relation.sourceName }
@@ -177,11 +156,20 @@ function buildRelationEndpoints(relation: RelationEmbeddingSource): Array<{
     relation.targetType && relation.targetId
       ? { entityType: relation.targetType, entityId: relation.targetId, displayName: relation.targetName }
       : null,
-  ].filter(Boolean) as Array<{
-    entityType: "character" | "faction";
-    entityId: number;
-    displayName: string;
-  }>;
+  ].filter(Boolean) as RelationEmbeddingEndpoint[];
 
   return endpoints.length > 0 ? endpoints : undefined;
+}
+
+function buildRelationMetadata(relation: RelationEmbeddingSource): RelationEmbeddingMetadata | undefined {
+  if (!relation.relationType) {
+    return undefined;
+  }
+
+  return {
+    relationType: relation.relationType,
+    status: relation.status ?? undefined,
+    description: relation.description ?? undefined,
+    appendNotes: relation.notes ?? undefined,
+  };
 }
