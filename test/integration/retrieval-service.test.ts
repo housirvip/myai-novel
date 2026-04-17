@@ -330,7 +330,7 @@ test("retrieval service honors hybrid embedding mode with injected searcher", as
   assert.equal(result.topReason, "embedding_match");
 });
 
-test("configured planning retrieval service wires embedding searcher for normal workflow use", async () => {
+test("configured planning retrieval service wires embedding searcher for normal workflow use across entity groups", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-factory-"));
   const env = createTestEnv(tempDir, {
     PLANNING_RETRIEVAL_EMBEDDING_ENABLED: "true",
@@ -339,7 +339,16 @@ test("configured planning retrieval service wires embedding searcher for normal 
 
   await runCli(["db", "init"], env);
 
-  const result = await runInlineModule<{ baseWorldSettingCount: number; wiredWorldSettingReason: string | null }>(
+  const result = await runInlineModule<{
+    baseWorldSettingCount: number;
+    wiredWorldSettingReason: string | null;
+    baseFactionCount: number;
+    wiredFactionReason: string | null;
+    baseItemCount: number;
+    wiredItemReason: string | null;
+    baseRelationCount: number;
+    wiredRelationReason: string | null;
+  }>(
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
       "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
@@ -350,13 +359,35 @@ test("configured planning retrieval service wires embedding searcher for normal 
       "const now = '2026-04-10T15:00:00.000Z';",
       "try {",
       "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 10, current_chapter_count: 1, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('factions').values({ id: 1, book_id: 1, name: '青岳宗', category: '宗门', core_goal: '维持外门登记秩序', description: '负责外门令牌登记', leader_character_id: null, headquarter: null, status: 'active', append_notes: '不能突然放松登记制度', keywords: '[\"宗门\",\"登记\"]', created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('characters').values([{ id: 1, book_id: 1, name: '林夜', alias: null, gender: '男', age: 18, personality: null, background: null, current_location: '外门', status: 'alive', professions: null, levels: null, currencies: null, abilities: null, goal: null, append_notes: null, keywords: '[\"黑铁令\"]', created_at: now, updated_at: now }, { id: 2, book_id: 1, name: '顾沉舟', alias: null, gender: '男', age: 22, personality: null, background: null, current_location: '内门', status: 'alive', professions: null, levels: null, currencies: null, abilities: null, goal: null, append_notes: null, keywords: '[\"核验\"]', created_at: now, updated_at: now }]).execute();",
+      "  await db.insertInto('items').values({ id: 1, book_id: 1, name: '黑铁令', category: '令牌', description: '登记凭证', owner_type: 'character', owner_id: 1, rarity: 'rare', status: 'active', append_notes: '不可无交代易主', keywords: '[\"令牌\",\"登记\"]', created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('relations').values({ id: 1, book_id: 1, source_type: 'character', source_id: 1, target_type: 'character', target_id: 2, relation_type: 'observer', intensity: 60, status: '互相试探', description: '因黑铁令线索产生试探', append_notes: '关系不能突然缓和', keywords: '[\"黑铁令\",\"试探\"]', created_at: now, updated_at: now }).execute();",
       "  await db.insertInto('world_settings').values({ id: 1, book_id: 1, title: '宗门制度', category: '规则', content: '外门弟子凭令牌登记入门', status: 'active', append_notes: '违反后会被逐出山门', keywords: '[\"宗门\",\"令牌\"]', created_at: now, updated_at: now }).execute();",
       "  const baseService = new RetrievalQueryService(logger);",
       "  const wiredService = await createPlanningRetrievalService(logger, db, { bookId: 1 });",
-      "  const params = { bookId: 1, chapterNo: 2, keywords: ['执行条件'], manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } };",
-      "  const baseContext = await baseService.retrievePlanContext(params);",
-      "  const wiredContext = await wiredService.retrievePlanContext(params);",
-      "  console.log(JSON.stringify({ baseWorldSettingCount: baseContext.worldSettings.length, wiredWorldSettingReason: wiredContext.worldSettings[0]?.reason ?? null }));",
+      "  const worldSettingParams = { bookId: 1, chapterNo: 2, keywords: ['执行条件'], manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } };",
+      "  const factionParams = { bookId: 1, chapterNo: 2, keywords: ['秩序执行'], manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } };",
+      "  const itemParams = { bookId: 1, chapterNo: 2, keywords: ['身份凭证'], manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } };",
+      "  const relationParams = { bookId: 1, chapterNo: 2, keywords: ['互相试探'], manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } };",
+      "  const baseWorldContext = await baseService.retrievePlanContext(worldSettingParams);",
+      "  const wiredWorldContext = await wiredService.retrievePlanContext(worldSettingParams);",
+      "  const baseFactionContext = await baseService.retrievePlanContext(factionParams);",
+      "  const wiredFactionContext = await wiredService.retrievePlanContext(factionParams);",
+      "  const baseItemContext = await baseService.retrievePlanContext(itemParams);",
+      "  const wiredItemContext = await wiredService.retrievePlanContext(itemParams);",
+      "  const baseRelationContext = await baseService.retrievePlanContext(relationParams);",
+      "  const wiredRelationContext = await wiredService.retrievePlanContext(relationParams);",
+      "  console.log(JSON.stringify({",
+      "    baseWorldSettingCount: baseWorldContext.worldSettings.length,",
+      "    wiredWorldSettingReason: wiredWorldContext.worldSettings[0]?.reason ?? null,",
+      "    baseFactionCount: baseFactionContext.factions.length,",
+      "    wiredFactionReason: wiredFactionContext.factions[0]?.reason ?? null,",
+      "    baseItemCount: baseItemContext.items.length,",
+      "    wiredItemReason: wiredItemContext.items[0]?.reason ?? null,",
+      "    baseRelationCount: baseRelationContext.relations.length,",
+      "    wiredRelationReason: wiredRelationContext.relations[0]?.reason ?? null,",
+      "  }));",
       "} finally {",
       "  await manager.destroy();",
       "}",
@@ -366,6 +397,12 @@ test("configured planning retrieval service wires embedding searcher for normal 
 
   assert.equal(result.baseWorldSettingCount, 0);
   assert.equal(result.wiredWorldSettingReason, "embedding_match");
+  assert.equal(result.baseFactionCount, 0);
+  assert.equal(result.wiredFactionReason, "embedding_match");
+  assert.equal(result.baseItemCount, 0);
+  assert.equal(result.wiredItemReason, "embedding_match");
+  assert.equal(result.baseRelationCount, 0);
+  assert.equal(result.wiredRelationReason, "embedding_match");
 });
 
 test("retrieval ranking prefers stronger weighted hits and keeps continuity entities in hard constraints", async () => {

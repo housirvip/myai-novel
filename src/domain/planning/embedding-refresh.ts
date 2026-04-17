@@ -27,6 +27,38 @@ interface HookEmbeddingSource {
   notes?: string | null;
 }
 
+interface FactionEmbeddingSource {
+  id: number;
+  name: string;
+  category?: string | null;
+  summary?: string | null;
+  core_goal?: string | null;
+  status?: string | null;
+  notes?: string | null;
+}
+
+interface ItemEmbeddingSource {
+  id: number;
+  name: string;
+  description?: string | null;
+  ability?: string | null;
+  summary?: string | null;
+  status?: string | null;
+  ownerSummary?: string | null;
+  notes?: string | null;
+}
+
+interface RelationEmbeddingSource {
+  id: number;
+  sourceName: string;
+  targetName: string;
+  relationSummary?: string | null;
+  relationType?: string | null;
+  status?: string | null;
+  description?: string | null;
+  notes?: string | null;
+}
+
 interface WorldSettingEmbeddingSource {
   id: number;
   title: string;
@@ -44,7 +76,10 @@ export class EmbeddingRefreshService {
   async refresh(params: {
     model: string;
     characters?: CharacterEmbeddingSource[];
+    factions?: FactionEmbeddingSource[];
+    items?: ItemEmbeddingSource[];
     hooks?: HookEmbeddingSource[];
+    relations?: RelationEmbeddingSource[];
     worldSettings?: WorldSettingEmbeddingSource[];
   }): Promise<void> {
     const documentsByType = groupDocumentsByType(buildEmbeddingDocuments(params));
@@ -61,9 +96,12 @@ export class EmbeddingRefreshService {
 
   async refreshEntityType(params: {
     model: string;
-    entityType: "character" | "hook" | "world_setting";
+    entityType: "character" | "faction" | "item" | "hook" | "relation" | "world_setting";
     characters?: CharacterEmbeddingSource[];
+    factions?: FactionEmbeddingSource[];
+    items?: ItemEmbeddingSource[];
     hooks?: HookEmbeddingSource[];
+    relations?: RelationEmbeddingSource[];
     worldSettings?: WorldSettingEmbeddingSource[];
   }): Promise<void> {
     const allDocuments = buildEmbeddingDocuments(params);
