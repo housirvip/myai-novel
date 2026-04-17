@@ -61,3 +61,24 @@ test("CustomRemoteEmbeddingProvider requests OpenAI-compatible embeddings endpoi
     env.CUSTOM_EMBEDDING_PATH = originalConfig.path;
   }
 });
+
+test("CustomRemoteEmbeddingProvider fails fast when api key is missing", async () => {
+  const originalConfig = {
+    baseUrl: env.CUSTOM_EMBEDDING_BASE_URL,
+    apiKey: env.CUSTOM_EMBEDDING_API_KEY,
+  };
+
+  env.CUSTOM_EMBEDDING_BASE_URL = "https://example.com/v1";
+  env.CUSTOM_EMBEDDING_API_KEY = "";
+
+  try {
+    const provider = new CustomRemoteEmbeddingProvider();
+    await assert.rejects(
+      provider.embedBatch(["first"]),
+      /CUSTOM_EMBEDDING_API_KEY is required when PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom/,
+    );
+  } finally {
+    env.CUSTOM_EMBEDDING_BASE_URL = originalConfig.baseUrl;
+    env.CUSTOM_EMBEDDING_API_KEY = originalConfig.apiKey;
+  }
+});

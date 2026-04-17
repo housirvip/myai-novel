@@ -66,7 +66,7 @@ test("hybrid embedding experiment stays non-regressive across representative str
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-benchmark-embedding-"));
   const baselineEnv = createTestEnv(path.join(tempDir, "baseline"));
   const embeddingEnv = createTestEnv(path.join(tempDir, "embedding"), {
-    PLANNING_RETRIEVAL_EMBEDDING_ENABLED: "true",
+    PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: "hash",
   });
 
   await runCli(["db", "init"], baselineEnv);

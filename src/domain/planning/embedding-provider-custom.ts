@@ -24,13 +24,16 @@ export class CustomRemoteEmbeddingProvider implements EmbeddingProvider {
       throw new Error("CUSTOM_EMBEDDING_BASE_URL is required when PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom");
     }
 
+    const apiKey = env.CUSTOM_EMBEDDING_API_KEY;
+    if (!apiKey) {
+      throw new Error("CUSTOM_EMBEDDING_API_KEY is required when PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom");
+    }
+
     const response = await fetch(buildEmbeddingUrl(baseUrl, env.CUSTOM_EMBEDDING_PATH), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(env.CUSTOM_EMBEDDING_API_KEY
-          ? { Authorization: `Bearer ${env.CUSTOM_EMBEDDING_API_KEY}` }
-          : {}),
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: env.CUSTOM_EMBEDDING_MODEL,

@@ -250,7 +250,7 @@ test("retrieval service can apply heuristic reranker to promote continuity-heavy
 test("retrieval service can enable embedding candidate provider via config with injected searcher", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-embedding-"));
   const env = createTestEnv(tempDir, {
-    PLANNING_RETRIEVAL_EMBEDDING_ENABLED: "true",
+    PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: "hash",
   });
 
   await runCli(["db", "init"], env);
@@ -298,7 +298,7 @@ test("retrieval service can enable embedding candidate provider via config with 
 test("retrieval service honors hybrid embedding mode with injected searcher", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-hybrid-"));
   const env = createTestEnv(tempDir, {
-    PLANNING_RETRIEVAL_EMBEDDING_ENABLED: "true",
+    PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: "hash",
     PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE: "hybrid",
   });
 
@@ -342,7 +342,7 @@ test("retrieval service honors hybrid embedding mode with injected searcher", as
 test("configured planning retrieval service wires embedding searcher for normal workflow use across entity groups", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-factory-"));
   const env = createTestEnv(tempDir, {
-    PLANNING_RETRIEVAL_EMBEDDING_ENABLED: "true",
+    PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: "hash",
     PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE: "hybrid",
   });
 

@@ -460,8 +460,7 @@ embedding 和 rerank 虽然都影响召回结果，但职责不同。
 
 当前相关开关主要包括：
 
-- `PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=hash|custom`
-- `PLANNING_RETRIEVAL_EMBEDDING_ENABLED`
+- `PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=none|hash|custom`
 - `PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE=basic|hybrid`
 - `PLANNING_RETRIEVAL_RERANKER=none|heuristic`
 - `CUSTOM_EMBEDDING_BASE_URL`
@@ -473,7 +472,7 @@ embedding 和 rerank 虽然都影响召回结果，但职责不同。
 
 也就是说：
 
-- 如果只开 `PLANNING_RETRIEVAL_EMBEDDING_ENABLED=true`，workflow 会实际构造 in-memory store、refresh 文档并装载 searcher
+- 如果 `PLANNING_RETRIEVAL_EMBEDDING_PROVIDER!=none`，workflow 会实际构造 in-memory store、refresh 文档并装载 searcher
 - 如果同时配置 `PLANNING_RETRIEVAL_RERANKER=heuristic`，则会继续在统一 pipeline 中走启发式重排
 - 默认不打开这些配置时，主链路仍保持规则召回 + pass-through rerank
 

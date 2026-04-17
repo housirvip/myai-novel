@@ -277,7 +277,7 @@ OPENAI_MODEL=gpt-5.4-mini
 
 说明：
 
-- `OPENAI_API_KEY`：OpenAI API key
+- `OPENAI_API_KEY`：OpenAI API key；当 `LLM_PROVIDER=openai` 时必填
 - `OPENAI_BASE_URL`：兼容代理或自定义网关时可配置
 - `OPENAI_MODEL`：默认模型名
 
@@ -291,7 +291,7 @@ ANTHROPIC_MODEL=claude-sonnet-4-20250514
 
 说明：
 
-- `ANTHROPIC_API_KEY`：Anthropic API key
+- `ANTHROPIC_API_KEY`：Anthropic API key；当 `LLM_PROVIDER=anthropic` 时必填
 - `ANTHROPIC_BASE_URL`：兼容代理或自定义网关时可配置
 - `ANTHROPIC_MODEL`：默认模型名
 
@@ -304,6 +304,10 @@ CUSTOM_LLM_MODEL=custom-default
 ```
 
 适合接入自定义兼容服务。
+
+- `CUSTOM_LLM_BASE_URL`：当 `LLM_PROVIDER=custom` 时必填
+- `CUSTOM_LLM_API_KEY`：可选；如果你的兼容服务要求 Bearer 鉴权，再填写该字段
+- `CUSTOM_LLM_MODEL`：默认模型名
 
 ## 7. Planning 与召回配置
 
@@ -364,6 +368,26 @@ PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT=200
 
 - 先扫描一批候选
 - 再按规则打分、排序、截断
+
+### 7.4 Embedding 检索配置
+
+```dotenv
+PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=none
+PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE=basic
+```
+
+说明：
+
+- `PLANNING_RETRIEVAL_EMBEDDING_PROVIDER`：embedding 检索模式，支持 `none | hash | custom`
+  - `none`：关闭 embedding 增强，仅使用规则召回
+  - `hash`：启用本地 deterministic hash embedding
+  - `custom`：启用远程 OpenAI-compatible `/embeddings` 服务
+- `PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE`：embedding searcher 模式，支持 `basic | hybrid`
+- 当 `PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom` 时，还需要配置：
+  - `CUSTOM_EMBEDDING_BASE_URL`
+  - `CUSTOM_EMBEDDING_API_KEY`
+  - `CUSTOM_EMBEDDING_MODEL`（可使用默认值）
+  - `CUSTOM_EMBEDDING_PATH`（默认 `/embeddings`）
 
 更详细的召回规则请看：[`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
 

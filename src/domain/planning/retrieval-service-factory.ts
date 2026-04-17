@@ -17,7 +17,7 @@ export async function createPlanningRetrievalService(
   db: import("kysely").Kysely<DatabaseSchema>,
   input: { bookId: number },
 ): Promise<RetrievalQueryService> {
-  if (!env.PLANNING_RETRIEVAL_EMBEDDING_ENABLED) {
+  if (env.PLANNING_RETRIEVAL_EMBEDDING_PROVIDER === "none") {
     return new RetrievalQueryService(logger);
   }
 
@@ -132,6 +132,8 @@ export async function createPlanningRetrievalService(
 
 function createEmbeddingProvider(): EmbeddingProvider {
   switch (env.PLANNING_RETRIEVAL_EMBEDDING_PROVIDER) {
+    case "none":
+      throw new Error("Embedding provider 'none' should not construct an embedding provider");
     case "custom":
       return new CustomRemoteEmbeddingProvider();
     case "hash":

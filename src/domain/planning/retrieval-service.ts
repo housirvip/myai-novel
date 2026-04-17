@@ -31,7 +31,7 @@ export class RetrievalQueryService {
   ) {
     const baseProvider = options?.candidateProvider ?? new RuleBasedCandidateProvider();
     const embeddingSearchMode = options?.embeddingSearchMode ?? env.PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE;
-    const shouldEnableEmbedding = env.PLANNING_RETRIEVAL_EMBEDDING_ENABLED && options?.embeddingSearcher;
+    const shouldEnableEmbedding = env.PLANNING_RETRIEVAL_EMBEDDING_PROVIDER !== "none" && options?.embeddingSearcher;
 
     this.candidateProvider = shouldEnableEmbedding
       ? new EmbeddingCandidateProvider(baseProvider, options.embeddingSearcher!, {

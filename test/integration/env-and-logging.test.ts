@@ -13,7 +13,7 @@ test("env config resolves paths and keeps defaults", async () => {
     DB_SQLITE_PATH: "./tmp-db/novel.sqlite",
     PLANNING_RETRIEVAL_CHARACTER_LIMIT: "9",
     PLANNING_RETRIEVAL_RERANKER: "heuristic",
-    PLANNING_RETRIEVAL_EMBEDDING_ENABLED: "true",
+    PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: "hash",
     PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE: "hybrid",
   });
 
@@ -24,7 +24,7 @@ test("env config resolves paths and keeps defaults", async () => {
     planningCharacterLimit: number;
     llmDefaultMaxTokens: number;
     planningReranker: string;
-    planningEmbeddingEnabled: boolean;
+    planningEmbeddingProvider: string;
     planningEmbeddingSearchMode: string;
   }>(
     [
@@ -36,7 +36,7 @@ test("env config resolves paths and keeps defaults", async () => {
         "  planningCharacterLimit: env.PLANNING_RETRIEVAL_CHARACTER_LIMIT,",
         "  llmDefaultMaxTokens: env.LLM_DEFAULT_MAX_TOKENS,",
         "  planningReranker: env.PLANNING_RETRIEVAL_RERANKER,",
-        "  planningEmbeddingEnabled: env.PLANNING_RETRIEVAL_EMBEDDING_ENABLED,",
+        "  planningEmbeddingProvider: env.PLANNING_RETRIEVAL_EMBEDDING_PROVIDER,",
         "  planningEmbeddingSearchMode: env.PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE,",
         "}));",
     ].join("\n"),
@@ -47,7 +47,7 @@ test("env config resolves paths and keeps defaults", async () => {
   assert.equal(result.planningCharacterLimit, 9);
   assert.equal(result.llmDefaultMaxTokens, 2048);
   assert.equal(result.planningReranker, "heuristic");
-  assert.equal(result.planningEmbeddingEnabled, true);
+  assert.equal(result.planningEmbeddingProvider, "hash");
   assert.equal(result.planningEmbeddingSearchMode, "hybrid");
   assert.match(result.logDir, /tmp-logs$/);
   assert.match(result.sqlitePath, /tmp-db\/novel\.sqlite$/);
@@ -96,6 +96,159 @@ test("env config resolves mysql settings", async () => {
   assert.equal(result.user, "writer");
   assert.equal(result.password, "secret");
   assert.equal(result.poolMax, 12);
+});
+
+test("env config requires custom embedding base url and api key when provider is custom", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-env-embedding-custom-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: "custom",
+    CUSTOM_EMBEDDING_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    CUSTOM_EMBEDDING_API_KEY: "embed-test-key",
+    CUSTOM_EMBEDDING_MODEL: "text-embedding-v4",
+  });
+
+  const result = await runInlineModule<{
+    provider: string;
+    baseUrl: string;
+    apiKey: string;
+  }>(
+    [
+      "import { env } from './src/config/env.ts';",
+      "console.log(JSON.stringify({",
+      "  provider: env.PLANNING_RETRIEVAL_EMBEDDING_PROVIDER,",
+      "  baseUrl: env.CUSTOM_EMBEDDING_BASE_URL,",
+      "  apiKey: env.CUSTOM_EMBEDDING_API_KEY,",
+      "}));",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.provider, "custom");
+  assert.equal(result.baseUrl, "https://dashscope.aliyuncs.com/compatible-mode/v1");
+  assert.equal(result.apiKey, "embed-test-key");
+});
+
+test("env config fails fast when custom embedding provider is missing api key", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-env-embedding-missing-key-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: "custom",
+    CUSTOM_EMBEDDING_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    CUSTOM_EMBEDDING_API_KEY: "",
+  });
+
+  await assert.rejects(
+    runInlineModule(
+      [
+        "import './src/config/env.ts';",
+        "console.log(JSON.stringify({ ok: true }));",
+      ].join("\n"),
+      env,
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /CUSTOM_EMBEDDING_API_KEY/);
+      assert.match(error.message, /PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom/);
+      return true;
+    },
+  );
+});
+
+test("env config fails fast when custom embedding provider is missing base url", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-env-embedding-missing-url-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: "custom",
+    CUSTOM_EMBEDDING_BASE_URL: "",
+    CUSTOM_EMBEDDING_API_KEY: "embed-test-key",
+  });
+
+  await assert.rejects(
+    runInlineModule(
+      [
+        "import './src/config/env.ts';",
+        "console.log(JSON.stringify({ ok: true }));",
+      ].join("\n"),
+      env,
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /CUSTOM_EMBEDDING_BASE_URL/);
+      assert.match(error.message, /PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom/);
+      return true;
+    },
+  );
+});
+
+test("env config fails fast when llm provider openai is missing api key", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-env-openai-missing-key-"));
+  const env = createTestEnv(tempDir, {
+    LLM_PROVIDER: "openai",
+    OPENAI_API_KEY: "",
+  });
+
+  await assert.rejects(
+    runInlineModule(
+      [
+        "import './src/config/env.ts';",
+        "console.log(JSON.stringify({ ok: true }));",
+      ].join("\n"),
+      env,
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /OPENAI_API_KEY/);
+      assert.match(error.message, /LLM_PROVIDER=openai/);
+      return true;
+    },
+  );
+});
+
+test("env config fails fast when llm provider anthropic is missing api key", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-env-anthropic-missing-key-"));
+  const env = createTestEnv(tempDir, {
+    LLM_PROVIDER: "anthropic",
+    ANTHROPIC_API_KEY: "",
+  });
+
+  await assert.rejects(
+    runInlineModule(
+      [
+        "import './src/config/env.ts';",
+        "console.log(JSON.stringify({ ok: true }));",
+      ].join("\n"),
+      env,
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /ANTHROPIC_API_KEY/);
+      assert.match(error.message, /LLM_PROVIDER=anthropic/);
+      return true;
+    },
+  );
+});
+
+test("env config fails fast when llm provider custom is missing base url", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-env-custom-missing-url-"));
+  const env = createTestEnv(tempDir, {
+    LLM_PROVIDER: "custom",
+    CUSTOM_LLM_BASE_URL: "",
+    CUSTOM_LLM_API_KEY: "test-key",
+  });
+
+  await assert.rejects(
+    runInlineModule(
+      [
+        "import './src/config/env.ts';",
+        "console.log(JSON.stringify({ ok: true }));",
+      ].join("\n"),
+      env,
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /CUSTOM_LLM_BASE_URL/);
+      assert.match(error.message, /LLM_PROVIDER=custom/);
+      return true;
+    },
+  );
 });
 
 test("database manager creates mysql client and destroys pool", async () => {

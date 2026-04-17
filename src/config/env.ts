@@ -55,16 +55,58 @@ const envSchema = z.object({
   PLANNING_RETRIEVAL_WORLD_SETTING_LIMIT: z.coerce.number().int().positive().default(8),
   PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT: z.coerce.number().int().positive().default(200),
   PLANNING_RETRIEVAL_RERANKER: z.enum(["none", "heuristic"]).default("none"),
-  PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: z.enum(["hash", "custom"]).default("hash"),
-  PLANNING_RETRIEVAL_EMBEDDING_ENABLED: z
-    .string()
-    .optional()
-    .transform((value) => value === "true"),
+  PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: z.enum(["none", "hash", "custom"]).default("none"),
   PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE: z.enum(["basic", "hybrid"]).default("basic"),
   CUSTOM_EMBEDDING_BASE_URL: z.string().optional(),
   CUSTOM_EMBEDDING_API_KEY: z.string().optional(),
   CUSTOM_EMBEDDING_MODEL: z.string().default("custom-embedding-v1"),
   CUSTOM_EMBEDDING_PATH: z.string().default("/embeddings"),
+}).superRefine((value, context) => {
+  if (value.LLM_PROVIDER === "openai" && !value.OPENAI_API_KEY) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["OPENAI_API_KEY"],
+      message: "OPENAI_API_KEY is required when LLM_PROVIDER=openai",
+    });
+  }
+
+  if (value.LLM_PROVIDER === "anthropic" && !value.ANTHROPIC_API_KEY) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["ANTHROPIC_API_KEY"],
+      message: "ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic",
+    });
+  }
+
+  if (value.LLM_PROVIDER === "custom" && !value.CUSTOM_LLM_BASE_URL) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["CUSTOM_LLM_BASE_URL"],
+      message: "CUSTOM_LLM_BASE_URL is required when LLM_PROVIDER=custom",
+    });
+  }
+
+  if (value.PLANNING_RETRIEVAL_EMBEDDING_PROVIDER !== "custom") {
+    return;
+  }
+
+  if (!value.CUSTOM_EMBEDDING_BASE_URL) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["CUSTOM_EMBEDDING_BASE_URL"],
+      message:
+        "CUSTOM_EMBEDDING_BASE_URL is required when PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom",
+    });
+  }
+
+  if (!value.CUSTOM_EMBEDDING_API_KEY) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["CUSTOM_EMBEDDING_API_KEY"],
+      message:
+        "CUSTOM_EMBEDDING_API_KEY is required when PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom",
+    });
+  }
 });
 
 const parsedEnv = envSchema.parse(process.env);
