@@ -4,7 +4,7 @@ import test from "node:test";
 import { buildHardConstraints } from "../../../src/domain/planning/retrieval-hard-constraints.js";
 import type { PlanRetrievedContextEntityGroups, RetrievedEntity } from "../../../src/domain/planning/types.js";
 
-test("buildHardConstraints keeps only priority entities instead of filling fallback slots", () => {
+test("buildHardConstraints keeps priority entities while filling remaining slots by score order", () => {
   const groups = createGroups({
     characters: [
       createEntity({ id: 1, name: "林夜", reason: "keyword_hit", content: "current_location=青岳宗外门", score: 60 }),
@@ -18,8 +18,8 @@ test("buildHardConstraints keeps only priority entities instead of filling fallb
 
   const hardConstraints = buildHardConstraints(groups);
 
-  assert.deepEqual(hardConstraints.characters.map((item) => item.id), [1]);
-  assert.deepEqual(hardConstraints.items.map((item) => item.id), [3]);
+  assert.deepEqual(hardConstraints.characters.map((item) => item.id), [1, 2]);
+  assert.deepEqual(hardConstraints.items.map((item) => item.id), [3, 4]);
 });
 
 test("buildHardConstraints keeps observer-style character constraints when continuity risk is present", () => {

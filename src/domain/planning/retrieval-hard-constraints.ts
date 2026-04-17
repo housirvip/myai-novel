@@ -5,43 +5,96 @@ export function buildHardConstraints(groups: PlanRetrievedContextEntityGroups): 
     hooks: selectPriorityEntities(groups.hooks, 5, (entity) =>
       entity.reason.includes("chapter_proximity") || entity.reason.includes("manual_id"),
     ),
-    // 人物如果是手工指定、关键词强命中，或文本里带当前位置/状态信息，优先进入硬约束。
-    // 另外保留少量带 continuity_risk 且具备目标/背景状态的人物，用于承接“不可改写观察者/动机”这类约束查询。
-    characters: selectPriorityEntities(groups.characters, 6, (entity) =>
-      entity.reason.includes("manual_id") ||
-      (entity.reason.includes("keyword_hit") && entity.content.includes("current_location=")) ||
-      (entity.reason.includes("continuity_risk") && entity.content.includes("current_location=")) ||
-      (entity.reason.includes("continuity_risk")
-        && (entity.content.includes("goal=") || entity.content.includes("background="))) ||
-      entity.score >= 130,
-    ),
+    characters: selectCharacterHardConstraints(groups.characters),
     factions: selectPriorityEntities(groups.factions, 4, (entity) =>
       entity.reason.includes("manual_id") ||
       (entity.reason.includes("continuity_risk")
         && (entity.content.includes("core_goal=") || entity.content.includes("description=") || entity.content.includes("append_notes="))) ||
       entity.score >= 125,
     ),
-    // 物品归属和状态最容易造成连续性错误，因此优先保留带 owner/status 信息的高分项。
-    items: selectPriorityEntities(groups.items, 4, (entity) =>
-      entity.reason.includes("manual_id") ||
-      ((entity.reason.includes("keyword_hit") || entity.reason.includes("continuity_risk"))
-        && (entity.content.includes("owner_type=") || entity.content.includes("status="))) ||
-      entity.score >= 125,
-    ),
-    relations: selectPriorityEntities(groups.relations, 6, (entity) =>
-      entity.reason.includes("manual_id") ||
-      entity.reason.includes("manual_entity_link") ||
-      entity.reason.includes("keyword_hit") ||
-      entity.score >= 130,
-    ),
-    // 世界规则类内容即使不是最高分，只要是活跃规则也值得优先保留在硬约束层。
-    worldSettings: selectPriorityEntities(groups.worldSettings, 4, (entity) =>
-      entity.reason.includes("manual_id") ||
-      entity.reason.includes("keyword_hit") ||
-      entity.reason.includes("institution_context") ||
-      entity.score >= 125,
-    ),
+    items: selectItemHardConstraints(groups.items),
+    relations: selectRelationHardConstraints(groups.relations),
+    worldSettings: selectWorldSettingHardConstraints(groups.worldSettings),
   };
+}
+
+function selectCharacterHardConstraints(entities: RetrievedEntity[]): RetrievedEntity[] {
+  return fillRemainingByScore(
+    dedupeById([
+      ...entities.filter((entity) => entity.reason.includes("manual_id") || entity.score >= 130),
+      ...selectGuaranteedEntities(entities, [
+        {
+          maxCount: 1,
+          match: (entity) =>
+            entity.content.includes("current_location=")
+            && (entity.reason.includes("keyword_hit") || entity.reason.includes("continuity_risk")),
+        },
+        {
+          maxCount: 1,
+          match: (entity) =>
+            (entity.content.includes("goal=") || entity.content.includes("background="))
+            && (entity.reason.includes("keyword_hit") || entity.reason.includes("continuity_risk")),
+        },
+      ]),
+    ]),
+    entities,
+    6,
+  );
+}
+
+function selectItemHardConstraints(entities: RetrievedEntity[]): RetrievedEntity[] {
+  return fillRemainingByScore(
+    dedupeById([
+      ...entities.filter((entity) => entity.reason.includes("manual_id") || entity.score >= 125),
+      ...selectGuaranteedEntities(entities, [
+        {
+          maxCount: 1,
+          match: (entity) =>
+            (entity.content.includes("owner_type=") || entity.content.includes("status="))
+            && (entity.reason.includes("keyword_hit") || entity.reason.includes("continuity_risk") || entity.score >= 100),
+        },
+      ]),
+    ]),
+    entities,
+    4,
+  );
+}
+
+function selectRelationHardConstraints(entities: RetrievedEntity[]): RetrievedEntity[] {
+  return fillRemainingByScore(
+    dedupeById([
+      ...entities.filter((entity) => entity.reason.includes("manual_id") || entity.reason.includes("manual_entity_link")),
+      ...selectGuaranteedEntities(entities, [
+        {
+          maxCount: 1,
+          match: (entity) => entity.reason.includes("keyword_hit"),
+        },
+      ]),
+      ...entities.filter((entity) => entity.score >= 130),
+    ]),
+    entities,
+    6,
+  );
+}
+
+function selectWorldSettingHardConstraints(entities: RetrievedEntity[]): RetrievedEntity[] {
+  return fillRemainingByScore(
+    dedupeById([
+      ...entities.filter((entity) => entity.reason.includes("manual_id") || entity.score >= 125),
+      ...selectGuaranteedEntities(entities, [
+        {
+          maxCount: 1,
+          match: (entity) =>
+            entity.reason.includes("institution_context")
+            || entity.reason.includes("keyword_hit")
+            || entity.content.includes("规则")
+            || entity.content.includes("制度"),
+        },
+      ]),
+    ]),
+    entities,
+    4,
+  );
 }
 
 function selectPriorityEntities(
@@ -50,4 +103,57 @@ function selectPriorityEntities(
   isPriority: (entity: RetrievedEntity) => boolean,
 ): RetrievedEntity[] {
   return entities.filter(isPriority).slice(0, limit);
+}
+
+function selectGuaranteedEntities(
+  entities: RetrievedEntity[],
+  buckets: Array<{
+    maxCount: number;
+    match: (entity: RetrievedEntity) => boolean;
+  }>,
+): RetrievedEntity[] {
+  const selected: RetrievedEntity[] = [];
+  const usedIds = new Set<number>();
+
+  for (const bucket of buckets) {
+    let count = 0;
+
+    for (const entity of entities) {
+      if (usedIds.has(entity.id) || !bucket.match(entity)) {
+        continue;
+      }
+
+      selected.push(entity);
+      usedIds.add(entity.id);
+      count += 1;
+
+      if (count >= bucket.maxCount) {
+        break;
+      }
+    }
+  }
+
+  return selected;
+}
+
+function fillRemainingByScore(
+  selected: RetrievedEntity[],
+  entities: RetrievedEntity[],
+  limit: number,
+): RetrievedEntity[] {
+  const usedIds = new Set(selected.map((entity) => entity.id));
+  const remaining = entities.filter((entity) => !usedIds.has(entity.id));
+  return [...selected, ...remaining].slice(0, limit);
+}
+
+function dedupeById(entities: RetrievedEntity[]): RetrievedEntity[] {
+  const map = new Map<number, RetrievedEntity>();
+
+  for (const entity of entities) {
+    if (!map.has(entity.id)) {
+      map.set(entity.id, entity);
+    }
+  }
+
+  return Array.from(map.values());
 }

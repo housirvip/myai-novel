@@ -86,7 +86,13 @@ export function buildPlanPrompt(input: {
         section("作者意图", input.authorIntent),
         buildIntentConstraintsSection(input.intentConstraints),
         ...buildReadableContextSections(contextBlocks),
-        jsonSection("召回上下文（必须严格参考）", input.retrievedContext),
+        jsonSection(
+          "召回上下文（必须严格参考）",
+          buildCompactRetrievedContextForPrompt({
+            retrievedContext: input.retrievedContext,
+            mode: "plan",
+          }),
+        ),
         section("输出要求", [
           "请输出章节规划。",
           "至少包含：本章目标、主线、支线、出场角色、出场势力、关键道具、钩子推进、节奏分段、风险提醒。",
@@ -207,7 +213,15 @@ export function buildRepairPrompt(input: {
         section("审阅结果", input.reviewContent),
         buildIntentConstraintsSection(input.intentConstraints),
         ...buildReadableContextSections(contextBlocks),
-        input.retrievedContext ? jsonSection("召回上下文（必须保持一致）", input.retrievedContext) : null,
+        input.retrievedContext
+          ? jsonSection(
+              "召回上下文（必须保持一致）",
+              buildCompactRetrievedContextForPrompt({
+                retrievedContext: input.retrievedContext as PlanRetrievedContext,
+                mode: "repair",
+              }),
+            )
+          : null,
         section("修稿要求", [
           "优先修复审阅问题，同时不要偏离既有规划和召回设定。",
           "如果存在必须包含或必须避免的意图约束，修稿后必须继续满足。",
@@ -357,4 +371,32 @@ function buildIntentConstraintsSection(input?: PlanIntentConstraints): string | 
   }
 
   return section("意图约束", lines);
+}
+
+function buildCompactRetrievedContextForPrompt(input: {
+  retrievedContext: PlanRetrievedContext;
+  mode: "plan" | "repair";
+}): {
+  hardConstraints: PlanRetrievedContext["hardConstraints"];
+  riskReminders: string[];
+  recentChanges: PlanRetrievedContext["recentChanges"];
+  priorityContext: {
+    blockingConstraints: NonNullable<PlanRetrievedContext["priorityContext"]>["blockingConstraints"];
+    decisionContext: NonNullable<PlanRetrievedContext["priorityContext"]>["decisionContext"];
+  };
+} {
+  const recentChanges = input.retrievedContext.recentChanges ?? [];
+  const priorityContext = input.retrievedContext.priorityContext;
+
+  return {
+    hardConstraints: input.retrievedContext.hardConstraints,
+    riskReminders: input.retrievedContext.riskReminders,
+    recentChanges,
+    priorityContext: {
+      blockingConstraints: priorityContext?.blockingConstraints.slice(0, 6) ?? [],
+      decisionContext: input.mode === "repair"
+        ? priorityContext?.decisionContext.slice(0, 4) ?? []
+        : [],
+    },
+  };
 }

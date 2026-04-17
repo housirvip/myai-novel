@@ -104,10 +104,15 @@ export class PlanChapterWorkflow {
 
         // 第二次召回才是后续写作阶段真正共享的事实边界：
         // 这里把意图提取出的 keywords 和手工指定实体一起纳入，生成会被固化到 plan 的 retrievedContext。
+          const retrievalQuery = buildRetrievalQueryPayload({
+            authorIntent,
+            extractedIntent,
+          });
+
           const retrievedContext = await retrievalService.retrievePlanContext({
             bookId: payload.bookId,
             chapterNo: payload.chapterNo,
-            keywords: extractedIntent.keywords,
+            keywords: retrievalQuery.keywords,
             manualRefs: payload.manualEntityRefs,
           });
 
@@ -238,6 +243,55 @@ function formatEntityNames(label: string, values: string[]): string | null {
     return null;
   }
   return `${label}：${normalized.join("；")}`;
+}
+
+function buildRetrievalQueryPayload(input: {
+  authorIntent: string;
+  extractedIntent: ExtractedIntentPayload;
+}): {
+  keywords: string[];
+  queryText: string;
+} {
+  const keywordTerms = input.extractedIntent.keywords.flatMap((value) => splitIntoRetrievalTerms(value));
+  const mustIncludeTerms = input.extractedIntent.mustInclude.flatMap((value) => splitIntoRetrievalTerms(value));
+  const summaryTerms = splitIntoRetrievalTerms(input.extractedIntent.intentSummary);
+
+  const keywords = Array.from(
+    new Set(
+      [
+        ...keywordTerms,
+        ...mustIncludeTerms,
+        ...summaryTerms,
+      ]
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+
+  const queryText = [
+    input.extractedIntent.intentSummary,
+    ...input.extractedIntent.mustInclude,
+    ...keywords,
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    keywords,
+    queryText,
+  };
+}
+
+function splitIntoRetrievalTerms(value?: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(/[\s,，、；;。.!?\n]+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && part.length <= 12);
 }
 
 function toIntentConstraints(extractedIntent: ExtractedIntentPayload): PlanIntentConstraints {
