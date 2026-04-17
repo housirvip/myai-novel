@@ -1,4 +1,5 @@
 import { buildRecentChanges } from "./recent-changes.js";
+import { buildRetrievalObservability } from "./retrieval-observability.js";
 import { buildPriorityContext } from "./retrieval-facts.js";
 import { buildHardConstraints } from "./retrieval-hard-constraints.js";
 import { buildRiskReminders } from "./retrieval-risk-reminders.js";
@@ -40,6 +41,11 @@ export function buildRetrievedContext(input: {
       ...hardConstraints.worldSettings,
     ],
   });
+  const retrievalObservability = buildRetrievalObservability({
+    candidates: entityGroups,
+    hardConstraints,
+    priorityContext,
+  });
 
   return {
     book: {
@@ -64,6 +70,7 @@ export function buildRetrievedContext(input: {
       entities: entityGroups,
     },
     priorityContext,
+    retrievalObservability,
     recentChanges,
     riskReminders,
   };

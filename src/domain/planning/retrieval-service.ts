@@ -5,6 +5,7 @@ import { RuleBasedCandidateProvider } from "./retrieval-candidate-provider-rule.
 import { buildRetrievedContext } from "./retrieval-context-builder.js";
 import { createConfiguredReranker } from "./retrieval-reranker-factory.js";
 import { EmbeddingCandidateProvider, type EmbeddingCandidateSearcher } from "./embedding-candidate-provider.js";
+import { summarizeRetrievalObservability } from "./retrieval-observability.js";
 
 import type {
   PlanRetrievedContext,
@@ -68,7 +69,20 @@ export class RetrievalQueryService {
           candidates,
         });
 
-        return buildRetrievedContext({ book, reranked });
+        const context = buildRetrievedContext({ book, reranked });
+        if (context.retrievalObservability) {
+          this.logger.info(
+            {
+              event: "planning.retrieve.observability",
+              bookId: params.bookId,
+              chapterNo: params.chapterNo,
+              ...summarizeRetrievalObservability(context.retrievalObservability),
+            },
+            "Planning retrieval observability summary",
+          );
+        }
+
+        return context;
       },
     );
   }

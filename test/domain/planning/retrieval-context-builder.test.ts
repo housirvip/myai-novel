@@ -57,6 +57,9 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
   assert.ok(context.riskReminders.some((item) => item.includes("人物当前位置连续性")));
   assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "林夜"));
   assert.ok(context.priorityContext?.decisionContext.some((packet) => packet.displayName === "青岳宗"));
+  assert.equal(context.retrievalObservability?.candidates.characters[0]?.source, "rule");
+  assert.ok(context.retrievalObservability?.hardConstraints.characters[0]?.selectedBy.length);
+  assert.ok(context.retrievalObservability?.priorityContext.blockingConstraints.some((packet) => packet.displayName === "林夜"));
   assert.ok(context.recentChanges?.some((item) => item.source === "risk_reminder"));
   assert.ok(context.recentChanges?.some((item) => item.source === "chapter_summary"));
 });

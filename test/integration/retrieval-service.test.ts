@@ -27,6 +27,9 @@ test("retrieval service skips placeholder chapters and returns richer entity con
     riskReminders: string[];
     priorityBlockingCount: number;
     priorityDecisionCount: number;
+    candidateCharacterSource: string | null;
+    hardConstraintCharacterSelectedBy: string[];
+    priorityBlockingAssignedBy: string[];
     recentChanges: Array<{ source: string; label: string; detail: string }>;
   }>(
     [
@@ -99,6 +102,9 @@ test("retrieval service skips placeholder chapters and returns richer entity con
       "    riskReminders: context.riskReminders,",
       "    priorityBlockingCount: context.priorityContext?.blockingConstraints.length ?? 0,",
       "    priorityDecisionCount: context.priorityContext?.decisionContext.length ?? 0,",
+      "    candidateCharacterSource: context.retrievalObservability?.candidates.characters[0]?.source ?? null,",
+      "    hardConstraintCharacterSelectedBy: context.retrievalObservability?.hardConstraints.characters[0]?.selectedBy ?? [],",
+      "    priorityBlockingAssignedBy: context.retrievalObservability?.priorityContext.blockingConstraints[0]?.assignedBy ?? [],",
       "    recentChanges: context.recentChanges ?? [],",
       "  }));",
       "} finally {",
@@ -142,6 +148,9 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.ok(result.riskReminders.some((item) => item.includes("已激活的世界规则")));
   assert.ok(result.priorityBlockingCount >= 4);
   assert.ok(result.priorityDecisionCount >= 1);
+  assert.equal(result.candidateCharacterSource, "rule");
+  assert.ok(result.hardConstraintCharacterSelectedBy.length >= 1);
+  assert.ok(result.priorityBlockingAssignedBy.length >= 1);
   assert.ok(result.recentChanges.length >= 3);
   assert.ok(result.recentChanges.some((item) => item.source === "risk_reminder"));
   assert.ok(result.recentChanges.some((item) => item.source === "chapter_summary"));

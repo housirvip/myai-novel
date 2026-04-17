@@ -1,5 +1,7 @@
 import type { PlanRetrievedContextEntityGroups, RetrievedEntity } from "./types.js";
 
+import type { RetrievedFactEntityType } from "./types.js";
+
 export function buildHardConstraints(groups: PlanRetrievedContextEntityGroups): PlanRetrievedContextEntityGroups {
   return {
     hooks: selectPriorityEntities(groups.hooks, 5, (entity) =>
@@ -16,6 +18,83 @@ export function buildHardConstraints(groups: PlanRetrievedContextEntityGroups): 
     relations: selectRelationHardConstraints(groups.relations),
     worldSettings: selectWorldSettingHardConstraints(groups.worldSettings),
   };
+}
+
+export function explainHardConstraintSelection(entityType: RetrievedFactEntityType, entity: RetrievedEntity): string[] {
+  const reasons = new Set<string>();
+
+  if (entity.reason.includes("manual_id")) {
+    reasons.add("manual_id");
+  }
+
+  switch (entityType) {
+    case "hook":
+      if (entity.reason.includes("chapter_proximity")) {
+        reasons.add("chapter_proximity");
+      }
+      break;
+    case "character":
+      if (entity.score >= 130) {
+        reasons.add("score_threshold");
+      }
+      if (entity.content.includes("current_location=")
+        && (entity.reason.includes("keyword_hit") || entity.reason.includes("continuity_risk"))) {
+        reasons.add("guaranteed_current_location");
+      }
+      if ((entity.content.includes("goal=") || entity.content.includes("background="))
+        && (entity.reason.includes("keyword_hit") || entity.reason.includes("continuity_risk"))) {
+        reasons.add("guaranteed_goal_or_background");
+      }
+      break;
+    case "faction":
+      if (entity.score >= 125) {
+        reasons.add("score_threshold");
+      }
+      if (entity.reason.includes("continuity_risk")
+        && (entity.content.includes("core_goal=") || entity.content.includes("description=") || entity.content.includes("append_notes="))) {
+        reasons.add("continuity_goal_or_description");
+      }
+      break;
+    case "item":
+      if (entity.score >= 125) {
+        reasons.add("score_threshold");
+      }
+      if ((entity.content.includes("owner_type=") || entity.content.includes("status="))
+        && (entity.reason.includes("keyword_hit") || entity.reason.includes("continuity_risk") || entity.score >= 100)) {
+        reasons.add("guaranteed_owner_or_status");
+      }
+      break;
+    case "relation":
+      if (entity.reason.includes("manual_entity_link")) {
+        reasons.add("manual_entity_link");
+      }
+      if (entity.reason.includes("keyword_hit")) {
+        reasons.add("keyword_hit_relation");
+      }
+      if (entity.score >= 130) {
+        reasons.add("score_threshold");
+      }
+      break;
+    case "world_setting":
+      if (entity.score >= 125) {
+        reasons.add("score_threshold");
+      }
+      if (entity.reason.includes("institution_context")
+        || entity.reason.includes("keyword_hit")
+        || entity.content.includes("规则")
+        || entity.content.includes("制度")) {
+        reasons.add("institution_or_rule_signal");
+      }
+      break;
+    default:
+      break;
+  }
+
+  if (reasons.size === 0) {
+    reasons.add("fill_remaining_by_score");
+  }
+
+  return Array.from(reasons);
 }
 
 function selectCharacterHardConstraints(entities: RetrievedEntity[]): RetrievedEntity[] {

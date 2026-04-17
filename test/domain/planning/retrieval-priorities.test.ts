@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { prioritizeFactPackets } from "../../../src/domain/planning/retrieval-priorities.js";
+import { classifyPriorityPacket, prioritizeFactPackets } from "../../../src/domain/planning/retrieval-priorities.js";
 
 test("prioritizeFactPackets keeps manual and risky packets in blocking constraints", () => {
   const prioritized = prioritizeFactPackets([
@@ -183,4 +183,30 @@ test("prioritizeFactPackets upgrades continuity-risk factions into blocking cons
 
   assert.equal(prioritized.blockingConstraints.length, 1);
   assert.equal(prioritized.blockingConstraints[0]?.displayName, "青岳宗");
+});
+
+test("classifyPriorityPacket returns bucket and assignment reasons", () => {
+  const classification = classifyPriorityPacket({
+    entityType: "character",
+    entityId: 1,
+    displayName: "林夜",
+    identity: ["林夜"],
+    currentState: ["current_location=外门", "goal=查清黑铁令来历"],
+    coreConflictOrGoal: [],
+    recentChanges: [],
+    continuityRisk: ["人物或实体位置需要连续承接"],
+    relevanceReasons: ["keyword_hit", "continuity_risk"],
+    scores: {
+      matchScore: 55,
+      importanceScore: 0,
+      continuityRiskScore: 1,
+      recencyScore: 0,
+      manualPriorityScore: 0,
+      finalScore: 55,
+    },
+  });
+
+  assert.equal(classification.bucket, "blockingConstraints");
+  assert.ok(classification.assignedBy.includes("continuity_risk"));
+  assert.ok(classification.assignedBy.includes("character_state_constraint"));
 });

@@ -69,6 +69,37 @@ export interface RetrievedFactPacket {
   };
 }
 
+export type RetrievalCandidateSource = "rule" | "embedding_support" | "embedding_only";
+
+export interface RetrievalObservedEntity {
+  entityType: RetrievedFactEntityType;
+  entityId: number;
+  displayName: string;
+  source: RetrievalCandidateSource;
+  reasons: string[];
+  score: number;
+}
+
+export interface RetrievalObservedHardConstraint extends RetrievalObservedEntity {
+  selectedBy: string[];
+}
+
+export interface RetrievalObservedPriorityPacket extends RetrievalObservedEntity {
+  bucket: keyof RetrievedPriorityContext;
+  assignedBy: string[];
+}
+
+export interface PlanRetrievalObservability {
+  candidates: Record<keyof PlanRetrievedContextEntityGroups, RetrievalObservedEntity[]>;
+  hardConstraints: Record<keyof PlanRetrievedContextEntityGroups, RetrievalObservedHardConstraint[]>;
+  priorityContext: {
+    blockingConstraints: RetrievalObservedPriorityPacket[];
+    decisionContext: RetrievalObservedPriorityPacket[];
+    supportingContext: RetrievalObservedPriorityPacket[];
+    backgroundNoise: RetrievalObservedPriorityPacket[];
+  };
+}
+
 export interface RetrievedPriorityContext {
   blockingConstraints: RetrievedFactPacket[];
   decisionContext: RetrievedFactPacket[];
@@ -131,6 +162,7 @@ export interface PlanRetrievedContext {
   };
   riskReminders: string[];
   priorityContext?: RetrievedPriorityContext;
+  retrievalObservability?: PlanRetrievalObservability;
   recentChanges?: RetrievedRecentChange[];
 }
 

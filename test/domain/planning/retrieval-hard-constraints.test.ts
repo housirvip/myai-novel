@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildHardConstraints } from "../../../src/domain/planning/retrieval-hard-constraints.js";
+import { buildHardConstraints, explainHardConstraintSelection } from "../../../src/domain/planning/retrieval-hard-constraints.js";
 import type { PlanRetrievedContextEntityGroups, RetrievedEntity } from "../../../src/domain/planning/types.js";
 
 test("buildHardConstraints keeps priority entities while filling remaining slots by score order", () => {
@@ -50,6 +50,24 @@ test("buildHardConstraints keeps keyword-hit relations and institution-context w
 
   assert.deepEqual(hardConstraints.relations.map((item) => item.id), [1]);
   assert.deepEqual(hardConstraints.worldSettings.map((item) => item.id), [2]);
+});
+
+test("explainHardConstraintSelection exposes why selected entities stayed in hard constraints", () => {
+  assert.deepEqual(
+    explainHardConstraintSelection(
+      "character",
+      createEntity({ id: 1, name: "林夜", reason: "keyword_hit", content: "current_location=青岳宗外门", score: 60 }),
+    ),
+    ["guaranteed_current_location"],
+  );
+
+  assert.deepEqual(
+    explainHardConstraintSelection(
+      "relation",
+      createEntity({ id: 2, reason: "manual_entity_link+keyword_hit", content: "relation_type=member", score: 30 }),
+    ),
+    ["manual_entity_link", "keyword_hit_relation"],
+  );
 });
 
 function createGroups(input: Partial<PlanRetrievedContextEntityGroups>): PlanRetrievedContextEntityGroups {
