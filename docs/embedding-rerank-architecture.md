@@ -129,6 +129,7 @@ flowchart TD
 - `EmbeddingMatch`
   - 表示搜索命中的结果
   - 保留 `displayName` 和 `text`，这样 merge 回 retrieval 时不会退化成只有 id
+  - 对 relation 命中还会保留 `relationEndpoints / relationMetadata`
 - `EmbeddingProvider`
   - 统一抽象 `embed` / `embedBatch`
 
@@ -144,7 +145,10 @@ flowchart TD
 当前实际接入 `buildEmbeddingDocuments()` 与 refresh 主链的实体类型是：
 
 - `character`
+- `faction`
+- `item`
 - `hook`
+- `relation`
 - `world_setting`
 
 当前 embedding provider 支持两种实现：
@@ -155,10 +159,11 @@ flowchart TD
 文本模板分散在：
 
 - `embedding-text-characters.ts`
+- `embedding-text-factions.ts`
+- `embedding-text-items.ts`
 - `embedding-text-hooks.ts`
+- `embedding-text-relations.ts`
 - `embedding-text-world-settings.ts`
-
-另外，仓库里已经存在 faction / item / relation 的扩展模板文件，但它们目前还没有接进 `buildEmbeddingDocuments()` 和 `EmbeddingRefreshService` 的在线实验链路。
 
 模板的原则不是“原始字段拼接”，而是构造成更可检索的摘要文本，例如：
 
@@ -175,7 +180,7 @@ flowchart TD
 - `refresh`
   - 全量按实体类型刷新
 - `refreshEntityType`
-  - 当前只支持刷新 `character | hook | world_setting`
+  - 当前支持刷新 `character | faction | item | hook | relation | world_setting`
 - `clearModel`
   - 清理一个 model 的索引
 
@@ -344,14 +349,14 @@ embedding 不直接替代规则召回，而是通过 `EmbeddingCandidateProvider
 
 1. 先调用 base candidate provider，拿到规则召回结果
 2. 再做 embedding search
-3. 只把“base 里没有的同类型实体”补进去
-4. 保留原先实体，不做覆盖
+3. 如果同类型同 ID 实体已存在，则追加 `embedding_support`
+4. 如果 base 里没有该实体，则补入 `embedding_match`
 
 这意味着：
 
-- embedding 是补候选，不是改写已有候选
+- embedding 仍然不替代规则主链，但现在既能补候选，也能扶正已有候选
 - 规则链路仍然是主骨架
-- semantic match 只在“原规则没抓到”时补位
+- semantic match 会在“原规则没抓到”时补位，也会在“原规则已命中”时提供轻量语义加权
 
 ## 4. Rerank 实现逻辑
 
@@ -376,6 +381,7 @@ rerank 抽象定义在 `src/domain/planning/retrieval-pipeline.ts`：
 - `manual_id`
 - `keyword_hit`
 - `embedding_match`
+- `embedding_support`
 - `countKeywordHits(...)`
 - `continuityBonus(...)`
 - `hookChapterBonus(...)`
@@ -384,6 +390,29 @@ rerank 抽象定义在 `src/domain/planning/retrieval-pipeline.ts`：
 
 - `continuityBonus` 会识别 `current_location`、`owner_type`、`relation_type`、`规则/制度` 等文本线索
 - `hookChapterBonus` 会把接近目标章节的 hook 往前提
+- 内部已经拆成 breakdown 风格的分项计算，便于后续 explainability 和调参
+
+### 4.3 relation 元数据保留
+
+relation 是当前 embedding 链路里最特殊的一类实体。
+
+现在 relation 文档除了 `displayName + text`，还会额外带：
+
+- `relationEndpoints`
+- `relationMetadata`
+
+这些结构化字段会从：
+
+- `embedding-index.ts`
+- `embedding-searcher-memory.ts` / `embedding-searcher-hybrid.ts`
+- `embedding-candidate-provider.ts`
+
+一路保留到 `RetrievedEntity`，因此 embedding-only relation 命中不再只是纯文本软引用，而能继续被：
+
+- `fact-packet-builder.ts`
+- `relation-propagation.ts`
+
+当成真正的 relation fact 来使用。
 
 它的本质是：
 
@@ -391,7 +420,7 @@ rerank 抽象定义在 `src/domain/planning/retrieval-pipeline.ts`：
 - 只调整候选排序
 - 优先把高 continuity risk、高显式命中、高 payoff 的内容抬到前面
 
-### 4.3 为什么先用 heuristic rerank
+### 4.4 为什么先用 heuristic rerank
 
 当前先选 heuristic rerank，而不是更重的模型式 rerank，主要是因为：
 

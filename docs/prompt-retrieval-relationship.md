@@ -219,6 +219,7 @@ flowchart TD
 
 - 它的职责是把写作意图进一步结构化
 - 它为后续生成 `retrievedContext` 提供输入
+- 当前 workflow 不再直接把 `extractedIntent.keywords` 原样送进第二次 retrieval，而是会把 `intentSummary / mustInclude / keywords` 进一步压成 retrieval query payload
 
 ### 5.4 章节规划 Prompt
 
@@ -257,6 +258,14 @@ flowchart TD
 - `禁止改写与禁止新增`
 - `补充背景`
 
+同时，`plan` 和 `repair` 现在仍会带一份精简版 JSON 作为兜底，但已经不是整包 `retrievedContext` 原文，而是 compact 视图：
+
+- `hardConstraints`
+- `riskReminders`
+- `recentChanges`
+- `priorityContext.blockingConstraints`
+- repair 额外带少量 `decisionContext`
+
 ## 6. Draft / Review / Repair / Approve 的 Prompt 链路
 
 ### 6.1 Draft Prompt
@@ -273,6 +282,7 @@ flowchart TD
 - 在既有规划和事实约束内，产出完整章节草稿
 - 当前会优先消费 `blockingConstraints`、`decisionContext`、`recentChanges` 与 `riskReminders` 组织出的事实块
 - 在真正进入 prompt 之前，workflow 会先通过 `buildDraftContextView()` 把 plan 中固化的 `retrievedContext` 裁成 draft 阶段使用的视图
+- `prompt-context-blocks.ts` 现在也已经按阶段显式区分 `plan / draft / review / repair / approve / approveDiff`，不再是一套固定上限打到底
 
 落库时还需要注意两点：
 
@@ -423,6 +433,7 @@ flowchart TD
   - reranker 既可以直通，也可以走 `HeuristicReranker`
 - `Context` 是最终落入 `retrievedContext` 的多层结构
   - 不是单一实体列表，而是给后续阶段共享的事实边界
+  - 现在还会包含一份可选的 `retrievalObservability` 诊断层
 - `PromptLayer` 明确拆出了两层
   - `context-views.ts` 负责按阶段裁剪
   - `prompt-context-blocks.ts` 负责转成模型更容易消费的事实块
@@ -456,6 +467,12 @@ flowchart TD
 - `riskReminders`
 
 JSON 原文仍保留，但更多是兜底、核对和调试用途。
+
+另外，`retrievalObservability` 不会作为 prompt 主输入参与生成；它的定位是：
+
+- retrieval 调试
+- benchmark 回归观察
+- 为什么某个事实会进入 hardConstraints / priorityContext 的解释层
 
 从代码结构上看，当前 `retrievedContext` 相关职责已经拆成：
 

@@ -9,6 +9,7 @@
 - candidate provider、reranker、context builder 各自负责什么
 - `hardConstraints / softReferences / priorityContext / riskReminders / recentChanges` 是怎么来的
 - embedding 实验链路是怎么接进主流程的
+- retrieval observability 现在落在哪一层
 
 如果你想看的是：
 
@@ -88,6 +89,7 @@ hooks / characters / factions / items / relations / worldSettings]
     D2[buildRiskReminders]
     D3[buildPriorityContext]
     D4[buildRecentChanges]
+    D5[buildRetrievalObservability]
 
     E1[buildRetrievedContext]
     E2[PlanRetrievedContext]
@@ -108,6 +110,7 @@ hooks / characters / factions / items / relations / worldSettings]
     D2 --> E1
     D3 --> E1
     D4 --> E1
+    D5 --> E1
     E1 --> E2 --> E3
 ```
 
@@ -127,7 +130,7 @@ sequenceDiagram
     alt embedding 关闭
         Factory-->>Plan: RetrievalQueryService(rule-only)
     else embedding 开启
-        Factory->>DB: 加载 characters / hooks / world_settings
+        Factory->>DB: 加载 characters / factions / items / hooks / relations / world_settings
         Factory->>Factory: refresh embedding documents
         Factory-->>Plan: RetrievalQueryService(rule + embedding)
     end
@@ -182,6 +185,7 @@ plan -> draft/review/repair/approve]
 - 读取 `books` 基础信息
 - 调用 candidate provider 获取候选集
 - 调用 reranker 排序后，再交给 context builder 装配成 `PlanRetrievedContext`
+- 在返回前输出一条紧凑的 retrieval observability summary log
 
 它本身不关心：
 
@@ -316,8 +320,8 @@ plan -> draft/review/repair/approve]
 
 当前补候选逻辑的特点是：
 
-- 只做“补充缺失候选”
-- 不覆盖规则 provider 已经命中的同 ID 实体
+- 对缺失候选补入 `reason=embedding_match`
+- 对已命中的同 ID 候选追加 `embedding_support`
 - 新补进来的候选会带 `reason=embedding_match`
 
 这层的定位很明确：
@@ -345,6 +349,7 @@ plan -> draft/review/repair/approve]
 - `manual_id`
 - `keyword_hit`
 - `embedding_match`
+- `embedding_support`
 - 关键词命中次数
 - continuity bonus
 - hook 的目标章节邻近性
@@ -368,6 +373,7 @@ plan -> draft/review/repair/approve]
 - `hardConstraints`
 - `softReferences`
 - `priorityContext`
+- `retrievalObservability`
 - `recentChanges`
 - `riskReminders`
 
@@ -383,6 +389,7 @@ plan -> draft/review/repair/approve]
 - 强关键词命中且带关键状态字段的实体优先
 - continuity risk 高的实体优先
 - 高分实体优先
+- 不够填满时会按原排序补齐剩余名额
 
 不同实体类型有不同保留逻辑，比如：
 
@@ -405,6 +412,11 @@ plan -> draft/review/repair/approve]
 - `decisionContext`
 - `supportingContext`
 - `backgroundNoise`
+
+当前这一步还会被 observability 复用，额外记录：
+
+- 每个 packet 最终落入哪个 bucket
+- 是按哪些已有规则信号被分进这个 bucket 的
 
 这层的意义是：
 
@@ -451,7 +463,7 @@ retrieval 服务不是直接 new 出来的，而是通过工厂创建。
 
 当前如果开启 embedding，工厂会：
 
-- 从数据库加载 `characters / hooks / world_settings`
+- 从数据库加载 `characters / factions / items / hooks / relations / world_settings`
 - 刷新 embedding 文档
 - 读取索引文档
 - 构造 searcher
@@ -460,7 +472,10 @@ retrieval 服务不是直接 new 出来的，而是通过工厂创建。
 当前在线接线的 embedding 实体范围是：
 
 - `character`
+- `faction`
+- `item`
 - `hook`
+- `relation`
 - `world_setting`
 
 ## 17. 为什么 retrieval 只发生在 `plan`
@@ -499,20 +514,30 @@ retrieval 服务不是直接 new 出来的，而是通过工厂创建。
 
 输入：
 
-- `keywords=extractedIntent.keywords`
+- `keywords=buildRetrievalQueryPayload(...)` 生成的 retrieval keywords
 - `manualRefs`
 
 用途：
 
 - 生成真正会被持久化和复用的共享 `retrievedContext`
 
+这里已经不再是“原样使用 `extractedIntent.keywords`”，而是会把：
+
+- `intentSummary`
+- `mustInclude`
+- `keywords`
+
+一起压成更接近检索语言的 query payload，再送进第二次 retrieval。
+
 ## 19. 当前实现特征
 
 - 默认稳定主链仍是规则式 retrieval
 - embedding 只做实验候选补充
+- embedding 现在既能补缺失候选，也能给已命中候选追加 semantic support
 - rerank 是可插拔层，不强绑到主链
 - context builder 是 retrieval 和 workflow/prompt 之间的边界层
 - `retrievedContext` 的目标是共享上下文，而不是一次性搜索结果
+- `retrievedContext` 现在还会带一份可选的 `retrievalObservability`，用于解释来源、hard constraint 命中与 priority bucket 去向
 
 ## 20. 推荐阅读顺序
 

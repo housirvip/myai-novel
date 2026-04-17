@@ -241,7 +241,7 @@ CLI 层本身不做业务判断，主要做三件事：
 
 第二次召回会带上：
 
-- `keywords`
+- `buildRetrievalQueryPayload(...)` 生成的 retrieval keywords
 - `manualEntityRefs`
 
 得到的 `retrievedContext` 才是后续 `draft / review / repair / approve` 共同复用的事实边界。
@@ -251,6 +251,14 @@ CLI 层本身不做业务判断，主要做三件事：
 - 第一次召回只是为意图生成服务
 - 第二次召回才是真正进入章节工作流主链的上下文基线
 
+这里一个已经发生的重要变化是：第二次召回不再机械依赖 `extractedIntent.keywords`，而是会把：
+
+- `intentSummary`
+- `mustInclude`
+- `keywords`
+
+一起压成更接近 retrieval 语言的 query payload，再送进正式检索。
+
 当前 `retrievedContext` 不只是实体列表，而是一个多层结构，核心包括：
 
 - `hardConstraints`
@@ -258,6 +266,7 @@ CLI 层本身不做业务判断，主要做三件事：
 - `riskReminders`
 - `priorityContext`
 - `recentChanges`
+- `retrievalObservability`（可选诊断层）
 
 因此，`plan` 阶段真正做的是“上下文固化”，而不仅仅是“生成一段 planning 文本”。
 
