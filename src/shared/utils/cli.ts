@@ -52,6 +52,8 @@ export function parseOptionalStringArrayText(
   }
 
   const trimmed = value.trim();
+  // CLI 同时接受 JSON 数组和逗号分隔文本，
+  // 这样既方便脚本直传结构化参数，也方便命令行手敲简单列表。
   const items = trimmed.startsWith("[")
     ? parseJsonArray(trimmed, fieldName).map((item) => {
         if (typeof item !== "string") {
@@ -81,6 +83,8 @@ export function parseOptionalNumberArrayText(
   }
 
   const trimmed = value.trim();
+  // 数字数组和字符串数组保持相同输入约定，
+  // 避免不同命令参数在“支持 JSON 还是支持逗号分隔”上出现心智负担。
   const items = trimmed.startsWith("[")
     ? parseJsonArray(trimmed, fieldName).map((item) => {
         if (typeof item !== "number" || !Number.isFinite(item)) {
@@ -109,6 +113,8 @@ export function parseOptionalKeywordsText(
 
   const keywords = JSON.parse(parsed) as string[];
 
+  // keyword 长度限制放在 CLI 边界尽早失败，
+  // 这样用户能在命令执行入口就拿到明确报错，而不是拖到后面的 workflow / zod 校验才发现。
   for (const keyword of keywords) {
     if (keyword.length > 8) {
       throw new Error(`Keyword exceeds 8 characters: ${keyword}`);
@@ -132,6 +138,8 @@ export function parseOptionalStructuredText(
 
   const trimmed = value.trim();
 
+  // structured text 是一个宽容入口：
+  // 传 JSON 时原样保结构；传逗号分隔时退化成字符串数组，便于命令行快速试跑。
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
     try {
       return JSON.stringify(JSON.parse(trimmed));

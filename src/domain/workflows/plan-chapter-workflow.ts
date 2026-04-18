@@ -219,6 +219,8 @@ function formatRecentChapters(context: PlanRetrievedContext): string {
 }
 
 function formatManualFocus(context: PlanRetrievedContext): string {
+  // 这里只把已经进入 hardConstraints 的实体暴露给意图生成阶段，
+  // 目的是让模型看到“必须关注的人/物/关系”，而不是再次被整批软召回结果带偏。
   const sections = [
     formatEntityNames("人物", context.hardConstraints.characters.map((entity) => entity.name ?? `ID:${entity.id}`)),
     formatEntityNames("势力", context.hardConstraints.factions.map((entity) => entity.name ?? `ID:${entity.id}`)),
@@ -252,6 +254,8 @@ function buildRetrievalQueryPayload(input: {
   keywords: string[];
   queryText: string;
 } {
+  // 第二次召回前要把“自由文本意图”压成更稳定的检索词，
+  // 这样 retrievePlanContext 可以直接消费同一组 intent 信号，而不是反复依赖整段原始意图文本。
   const keywordTerms = input.extractedIntent.keywords.flatMap((value) => splitIntoRetrievalTerms(value));
   const mustIncludeTerms = input.extractedIntent.mustInclude.flatMap((value) => splitIntoRetrievalTerms(value));
   const summaryTerms = splitIntoRetrievalTerms(input.extractedIntent.intentSummary);
@@ -288,6 +292,8 @@ function splitIntoRetrievalTerms(value?: string | null): string[] {
     return [];
   }
 
+  // 这里故意做较激进的切词和长度裁剪，
+  // 因为 retrieval term 的职责是“扩召回入口”，不是保留 authorIntent 的完整语义原文。
   return value
     .split(/[\s,，、；;。.!?\n]+/)
     .map((part) => part.trim())

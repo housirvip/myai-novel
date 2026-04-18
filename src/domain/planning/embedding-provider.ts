@@ -12,6 +12,8 @@ export class DeterministicHashEmbeddingProvider implements EmbeddingProvider {
   }
 
   private embedText(text: string): number[] {
+    // 这是本地可复现的占位 embedding：
+    // 它不追求语义质量，主要用于离线测试、基线对比和在没有远端 embedding 服务时保持链路可跑通。
     const vector = new Array<number>(this.dimensions).fill(0);
     const tokens = tokenize(text);
 
@@ -41,6 +43,8 @@ function hashToken(token: string): number {
 }
 
 function normalize(vector: number[]): number[] {
+  // 归一化后，向量比较更接近“方向相似度”而不是“文本长度相似度”，
+  // 否则长文本会仅因 token 更多就在后续相似度计算里天然占优。
   const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
   if (magnitude === 0) {
     return vector;

@@ -57,6 +57,8 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
     db: import("kysely").Kysely<DatabaseSchema>,
     params: RetrievePlanContextParams,
   ): Promise<RetrievalCandidateBundle> {
+    // 规则召回负责先给出“业务上可信的候选集合”，
+    // 后面的 rerank / embedding 都是在这个基线之上增强，而不是替代这里的业务约束。
     const outlines = await this.loadOutlines(db, params.bookId, params.chapterNo);
     const recentChapters = await this.loadRecentChapters(db, params.bookId, params.chapterNo);
     const characters = await this.loadCharacters(db, params);
@@ -124,6 +126,8 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
     bookId: number,
     chapterNo: number,
   ): Promise<RetrievedChapterSummary[]> {
+    // 近期章节摘要优先复用 chapters 主表已有 summary；
+    // 如果主表还没同步完整，再依次回退到 final / draft / plan，尽量保住“前文发生了什么”的连续性线索。
     const rows = await db
       .selectFrom("chapters")
       .select([
@@ -183,6 +187,8 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
     db: import("kysely").Kysely<DatabaseSchema>,
     params: RetrievePlanContextParams,
   ): Promise<RetrievedEntity[]> {
+    // 人物召回权重最重的是名字、别名、目标、当前位置，
+    // 因为这些字段最容易直接影响本章动作与连续性，不适合只当成普通背景信息处理。
     const rows = await db.selectFrom("characters").selectAll().where("book_id", "=", params.bookId).where("status", "in", ["alive", "missing", "unknown"]).limit(ENTITY_SCAN_LIMIT).execute();
 
     return rankRows(
@@ -379,6 +385,8 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
   }
 
   private async loadRelations(db: import("kysely").Kysely<DatabaseSchema>, params: RetrievePlanContextParams): Promise<RetrievedEntity[]> {
+    // 关系召回先把 source/target 名称补齐，再参与打分。
+    // 否则 relation_type 和 description 往往太抽象，模型很难从“谁和谁之间的关系”这个维度真正命中意图。
     const rows = await db.selectFrom("relations").selectAll().where("book_id", "=", params.bookId).limit(ENTITY_SCAN_LIMIT).execute();
     const characterIds = rows.flatMap((row) => [row.source_type === "character" ? row.source_id : null, row.target_type === "character" ? row.target_id : null]).filter((value): value is number => value !== null);
     const factionIds = rows.flatMap((row) => [row.source_type === "faction" ? row.source_id : null, row.target_type === "faction" ? row.target_id : null]).filter((value): value is number => value !== null);
@@ -445,6 +453,8 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
   }
 
   private async loadWorldSettings(db: import("kysely").Kysely<DatabaseSchema>, params: RetrievePlanContextParams): Promise<RetrievedEntity[]> {
+    // 世界设定更偏“规则边界”，因此 category/title 权重大于长文本 content。
+    // 这样做是为了优先把制度、禁忌、组织规则这类容易一写就错的内容抬出来。
     const rows = await db.selectFrom("world_settings").selectAll().where("book_id", "=", params.bookId).where("status", "=", "active").limit(ENTITY_SCAN_LIMIT).execute();
     return rankRows(rows.map((row) => ({
       id: row.id,

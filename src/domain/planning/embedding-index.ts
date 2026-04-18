@@ -75,6 +75,8 @@ export function buildEmbeddingDocuments(input: {
   relations?: RelationEmbeddingSource[];
   worldSettings?: WorldSettingEmbeddingSource[];
 }): EmbeddingDocument[] {
+  // embedding document 是实体到向量索引之间的中间层。
+  // 这里统一生成 displayName / chunkKey / text，避免索引层直接依赖数据库字段细节。
   const documents: EmbeddingDocument[] = [];
 
   for (const character of input.characters ?? []) {
@@ -122,6 +124,8 @@ export function buildEmbeddingDocuments(input: {
   }
 
   for (const relation of input.relations ?? []) {
+    // 关系实体除了文本摘要，还额外携带端点和元数据。
+    // 这样后面即使只通过 embedding 命中一条关系，也还能恢复“是谁和谁的什么关系”。
     documents.push({
       entityType: "relation",
       entityId: relation.id,
@@ -149,6 +153,8 @@ export function buildEmbeddingDocuments(input: {
 }
 
 function buildRelationEndpoints(relation: RelationEmbeddingSource): RelationEmbeddingEndpoint[] | undefined {
+  // 关系端点是后续事实包、approve diff、prompt 解释链路都能复用的结构化信息，
+  // 所以在建索引文档时就顺手固化下来，而不是等命中后再反向解析文本。
   const endpoints = [
     relation.sourceType && relation.sourceId
       ? { entityType: relation.sourceType, entityId: relation.sourceId, displayName: relation.sourceName }
@@ -162,6 +168,7 @@ function buildRelationEndpoints(relation: RelationEmbeddingSource): RelationEmbe
 }
 
 function buildRelationMetadata(relation: RelationEmbeddingSource): RelationEmbeddingMetadata | undefined {
+  // relationMetadata 不是为了提升搜索召回，而是为了让命中结果回流业务层时保留足够的语义上下文。
   if (!relation.relationType) {
     return undefined;
   }

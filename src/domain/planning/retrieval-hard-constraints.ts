@@ -3,6 +3,8 @@ import type { PlanRetrievedContextEntityGroups, RetrievedEntity } from "./types.
 import type { RetrievedFactEntityType } from "./types.js";
 
 export function buildHardConstraints(groups: PlanRetrievedContextEntityGroups): PlanRetrievedContextEntityGroups {
+  // hardConstraints 不是“得分最高的若干条”，而是“最容易写错且必须保底出现的事实子集”。
+  // 因此这里会按实体类型分别走不同的兜底规则，而不是统一按 score 截断。
   return {
     hooks: selectPriorityEntities(groups.hooks, 5, (entity) =>
       entity.reason.includes("chapter_proximity") || entity.reason.includes("manual_id"),
@@ -98,6 +100,8 @@ export function explainHardConstraintSelection(entityType: RetrievedFactEntityTy
 }
 
 function selectCharacterHardConstraints(entities: RetrievedEntity[]): RetrievedEntity[] {
+  // 人物最怕当前位置、目标、背景被写漂，
+  // 所以除了高分实体，还会强行保留少量携带这些字段的候选，保证 prompt 至少看到一条关键状态。
   return fillRemainingByScore(
     dedupeById([
       ...entities.filter((entity) => entity.reason.includes("manual_id") || entity.score >= 130),
@@ -122,6 +126,8 @@ function selectCharacterHardConstraints(entities: RetrievedEntity[]): RetrievedE
 }
 
 function selectItemHardConstraints(entities: RetrievedEntity[]): RetrievedEntity[] {
+  // 物品连续性的核心通常是“谁持有、当前状态是什么”，
+  // 因此 owner/status 命中的实体会比一般描述性条目更优先进入硬约束。
   return fillRemainingByScore(
     dedupeById([
       ...entities.filter((entity) => entity.reason.includes("manual_id") || entity.score >= 125),
@@ -140,6 +146,8 @@ function selectItemHardConstraints(entities: RetrievedEntity[]): RetrievedEntity
 }
 
 function selectRelationHardConstraints(entities: RetrievedEntity[]): RetrievedEntity[] {
+  // 关系实体优先保留手工点名、由手工实体牵引出的关系，以及正文意图直接命中的关系。
+  // 这样可以降低 approve / draft 阶段把人物关系写断层的概率。
   return fillRemainingByScore(
     dedupeById([
       ...entities.filter((entity) => entity.reason.includes("manual_id") || entity.reason.includes("manual_entity_link")),
@@ -157,6 +165,8 @@ function selectRelationHardConstraints(entities: RetrievedEntity[]): RetrievedEn
 }
 
 function selectWorldSettingHardConstraints(entities: RetrievedEntity[]): RetrievedEntity[] {
+  // 世界设定里最危险的是规则类、制度类约束被正文无意覆盖，
+  // 所以 institution/rule 信号会被优先抬进硬约束，而不只是看普通相关性分数。
   return fillRemainingByScore(
     dedupeById([
       ...entities.filter((entity) => entity.reason.includes("manual_id") || entity.score >= 125),
@@ -191,6 +201,8 @@ function selectGuaranteedEntities(
     match: (entity: RetrievedEntity) => boolean;
   }>,
 ): RetrievedEntity[] {
+  // bucket 按顺序消费，表示“每类关键事实至少保一条”。
+  // 这里不是为了全面覆盖，而是为了避免某种关键状态在后续按分数截断时完全消失。
   const selected: RetrievedEntity[] = [];
   const usedIds = new Set<number>();
 
@@ -220,6 +232,8 @@ function fillRemainingByScore(
   entities: RetrievedEntity[],
   limit: number,
 ): RetrievedEntity[] {
+  // 先保规则性挑出来的实体，再用原始排序补满余量。
+  // 这样最终集合既保留“不能丢的约束”，也保留一定的相关性顺序。
   const usedIds = new Set(selected.map((entity) => entity.id));
   const remaining = entities.filter((entity) => !usedIds.has(entity.id));
   return [...selected, ...remaining].slice(0, limit);

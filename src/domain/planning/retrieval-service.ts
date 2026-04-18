@@ -33,6 +33,8 @@ export class RetrievalQueryService {
     const embeddingSearchMode = options?.embeddingSearchMode ?? env.PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE;
     const shouldEnableEmbedding = env.PLANNING_RETRIEVAL_EMBEDDING_PROVIDER !== "none" && options?.embeddingSearcher;
 
+    // embedding 候选不是替换规则召回，而是包在 baseProvider 外层做增强。
+    // 这样即使实验链路关闭，主流程仍然保留稳定的规则式召回基线。
     this.candidateProvider = shouldEnableEmbedding
       ? new EmbeddingCandidateProvider(baseProvider, options.embeddingSearcher!, {
           limit: embeddingSearchMode === "hybrid" ? 12 : 10,
@@ -69,6 +71,8 @@ export class RetrievalQueryService {
           candidates,
         });
 
+        // 这里先产出完整上下文，再额外记录 observability 摘要；
+        // 观测日志是为了调 retrieval 质量，不应反向影响实际写入 plan 的上下文内容。
         const context = buildRetrievedContext({ book, reranked });
         if (context.retrievalObservability) {
           this.logger.info(

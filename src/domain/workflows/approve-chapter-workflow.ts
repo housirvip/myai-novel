@@ -284,6 +284,8 @@ export class ApproveChapterWorkflow {
             });
 
             for (const item of diff.newCharacters) {
+              // 这里先按同书同名复用已有人物，而不是每次 approve 都机械插入新记录。
+              // 否则同名人物会在设定库里越积越多，后续 retrieval 反而更容易漂移。
               const existing = await trx
                 .selectFrom("characters")
                 .select(["id", "append_notes"])
@@ -457,6 +459,8 @@ export class ApproveChapterWorkflow {
             }
 
             for (const item of diff.newRelations) {
+              // 关系没有简单的名称键，所以复用逻辑走 source/target/relationType 这组复合身份。
+              // 这样 approve 多次运行时会倾向于更新同一条关系，而不是裂变出多条近似关系记录。
               const existing = await relationRepository.findByComposite({
                 bookId: payload.bookId,
                 sourceType: item.sourceType,
@@ -499,6 +503,8 @@ export class ApproveChapterWorkflow {
 
             let updatedCount = 0;
             for (const update of diff.updates) {
+              // diff 允许模型引用已经不存在的实体；这里选择静默跳过，
+              // 目的是让 approve 能尽量提交其余稳定部分，而不是因为一条脏引用导致整批更新报废。
               if (update.entityType === "character") {
                 const existing = await characterRepository.getById(update.entityId);
                 if (!existing) {
@@ -657,6 +663,8 @@ function mapEntityUpdate<T extends { append_notes?: string | null; status?: stri
   chapterNo: number,
   timestamp: string,
 ): Record<string, unknown> {
+  // update action 先被压成统一语义，再映射到各 repository 的 update payload。
+  // 这样 approve diff 只需要表达“想做什么”，而不用感知每张表的具体字段组合差异。
   if (action === "append_notes") {
     return {
       append_notes: appendChapterNote(existing.append_notes ?? null, chapterNo, String(payload.note ?? payload.append_notes ?? "")),
@@ -682,6 +690,8 @@ function mapEntityUpdate<T extends { append_notes?: string | null; status?: stri
 }
 
 function normalizeApproveDiff(input: z.infer<typeof approveDiffLooseSchema>): z.infer<typeof approveDiffSchema> {
+  // 模型返回的 diff 允许字段名、数字类型、局部结构有轻微漂移；
+  // 这里先做“宽进严出”的归一化，再交给严格 schema 兜底，减少因为格式小偏差导致 approve 整体失败。
   return {
     chapterSummary: input.chapterSummary.trim(),
     actualCharacterIds: normalizeNumberList(input.actualCharacterIds),
@@ -804,6 +814,8 @@ function normalizeUpdateEntity(item: Record<string, unknown>) {
 }
 
 function buildUpdatePayload(action: "update_fields" | "append_notes" | "status_change", item: Record<string, unknown>) {
+  // 有些模型会把更新字段平铺在顶层，有些会放进 payload / fields；
+  // 这里统一折叠成内部 update payload，尽量吸收输出风格差异而不是把格式要求全推给 prompt。
   if (action === "append_notes") {
     return { note: pickString(item, ["note", "append_notes", "description", "summary"]) ?? "" };
   }

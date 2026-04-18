@@ -25,6 +25,8 @@ export class EmbeddingCandidateProvider implements RetrievalCandidateProvider {
     params: RetrievePlanContextParams,
   ): Promise<RetrievalCandidateBundle> {
     const baseCandidates = await this.baseProvider.loadCandidates(db, params);
+    // embedding 查询这里只消费已经整理过的关键词串，
+    // 而不是直接把整段作者意图原文丢给向量搜索，避免语义召回被长文本噪声主导。
     const semanticMatches = await this.searcher.search({
       queryText: params.keywords.join(" ").trim(),
       limit: this.options.limit ?? 10,
@@ -60,6 +62,8 @@ function mergeEntities(
   matches: EmbeddingMatch[],
   entityType: EmbeddingMatch["entityType"],
 ): RetrievedEntity[] {
+  // 合并策略不是“语义召回覆盖规则召回”，而是按实体 id 把语义信号叠加进已有候选。
+  // 这样 embedding 更像是加权补充，而不是另起一套完全独立的候选池。
   const byId = new Map(existing.map((entity) => [entity.id, entity]));
 
   for (const match of matches) {
@@ -80,6 +84,8 @@ function mergeEntities(
 }
 
 function mergeSemanticSignal(entity: RetrievedEntity, match: EmbeddingMatch): RetrievedEntity {
+  // 已存在实体只补 reason 和少量分数，
+  // 目的是告诉后续 reranker“这条不只是规则命中，也得到了语义支持”。
   const reasons = new Set((entity.reason ?? "").split("+").filter(Boolean));
   reasons.add("embedding_support");
 
@@ -91,6 +97,8 @@ function mergeSemanticSignal(entity: RetrievedEntity, match: EmbeddingMatch): Re
 }
 
 function createEmbeddingOnlyEntity(match: EmbeddingMatch): RetrievedEntity {
+  // 规则召回完全没捞到、但 embedding 命中的实体，会以“embedding-only 候选”补进来。
+  // 它们后面仍要经过 hardConstraints / priorityContext 等收敛步骤，不会直接跳过主链路。
   return {
     id: match.entityId,
     name: shouldUseNameField(match.entityType) ? match.displayName : undefined,

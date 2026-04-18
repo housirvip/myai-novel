@@ -15,6 +15,8 @@ const ENTITY_TYPE_MAP = {
 } as const satisfies Record<keyof PlanRetrievedContextEntityGroups, RetrievedFactEntityType>;
 
 export function buildFactPacket(entityType: RetrievedFactEntityType, entity: RetrievedEntity): RetrievedFactPacket {
+  // fact packet 是给 prompt / rerank 消费的统一事实载体，
+  // 这里先把不同实体压成同一套骨架，后续模块就不需要知道底层表结构差异。
   const displayName = entity.name ?? entity.title ?? `#${entity.id}`;
   const content = entity.content ?? "";
   const reason = entity.reason ?? "";
@@ -65,6 +67,8 @@ function normalizeContent(content: string): string {
 }
 
 function inferContinuityRisk(content: string, reason: string): string[] {
+  // 这里只做轻量启发式风险标注，不追求完整语义理解。
+  // 它的作用是把“最容易写崩的连续性点”提前暴露给 prompt，而不是替代正式规则校验。
   const text = `${content}\n${reason}`.toLowerCase();
   const risks: string[] = [];
 
@@ -101,7 +105,8 @@ function inferRelationEndpoints(entityType: RetrievedFactEntityType, entity: Ret
     return entity.relationEndpoints;
   }
 
-  // Compatibility fallback for older retrieved_context payloads.
+  // 旧 retrieved_context 里关系端点可能还只埋在 content 文本里，
+  // 所以这里会回退到字符串解析，避免历史 plan 数据在新 prompt 链路里丢失关系两端信息。
   return [parseRelationEndpoint(entity.content ?? "", "source"), parseRelationEndpoint(entity.content ?? "", "target")].filter(Boolean) as Array<{
     entityType: "character" | "faction";
     entityId: number;
@@ -118,7 +123,8 @@ function inferRelationMetadata(entityType: RetrievedFactEntityType, entity: Retr
     return entity.relationMetadata;
   }
 
-  // Compatibility fallback for older retrieved_context payloads.
+  // relationMetadata 也是新结构字段；
+  // 对旧数据继续从 content 里捞，目的是让事实包尽量稳定，而不是要求用户先重跑全量 plan。
   const content = entity.content ?? "";
   const relationTypeMatch = content.match(/relation_type=([^；\n]+)/);
   const statusMatch = content.match(/status=([^；\n]+)/);

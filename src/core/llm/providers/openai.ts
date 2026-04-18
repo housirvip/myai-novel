@@ -30,6 +30,8 @@ export class OpenAiLlmClient implements LlmClient {
     }
 
     return withLlmLogging(this.logger, "openai", model, params, async () => {
+      // 这里固定走 chat/completions，是因为当前工程里的 prompt 结构就是传统多轮消息模型。
+      // 只要 provider 仍兼容这套接口，workflow 层就不需要感知具体厂商差异。
       const response = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -95,6 +97,8 @@ function extractOpenAiContent(raw: OpenAiChatCompletionResponse): string {
   }
 
   if (Array.isArray(content)) {
+    // 有些兼容实现会把文本拆成 content parts，
+    // 这里统一拼回单字符串，保证上层 workflow 不需要再区分响应分片形态。
     return content
       .map((part) => part.text ?? "")
       .join("")

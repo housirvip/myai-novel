@@ -22,6 +22,8 @@ export function formatChapterMarkdown(input: {
   summary: string | null;
   content: string;
 }): string {
+  // 导出的 Markdown 需要同时满足“人可读编辑”和“机器可逆导入”，
+  // 所以这里固定 front matter + Summary + Content 三段协议，而不是完全自由格式。
   const { metadata, summary, content } = input;
   const title = metadata.title ?? `Chapter ${metadata.chapterNo}`;
   const lines = [
@@ -51,6 +53,8 @@ export function formatChapterMarkdown(input: {
 }
 
 export function parseChapterMarkdown(markdown: string): ParsedChapterMarkdown {
+  // 解析时按导出协议做严格匹配，
+  // 目的是尽早暴露用户手改 Markdown 后破坏结构的问题，避免导入半成功半失败。
   const frontMatterMatch = markdown.match(/^---\n([\s\S]*?)\n---\n?/);
 
   if (!frontMatterMatch) {
@@ -77,6 +81,8 @@ export function parseChapterMarkdown(markdown: string): ParsedChapterMarkdown {
 }
 
 function parseMetadata(frontMatter: string): ChapterMarkdownMetadata {
+  // front matter 这里只支持简单 key:value 结构，
+  // 不打算做完整 YAML 解析，避免为了导入章节稿引入更宽但更难控的语法面。
   const records = Object.fromEntries(
     frontMatter
       .split("\n")

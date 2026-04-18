@@ -30,6 +30,8 @@ export class CustomLlmClient implements LlmClient {
     }
 
     return withLlmLogging(this.logger, "custom", model, params, async () => {
+      // custom provider 的职责是兜住“OpenAI-compatible 但不属于固定官方 provider”的场景。
+      // 因此这里尽量只依赖通用 chat/completions 契约，把差异留给环境变量和远端实现自己处理。
       const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
         method: "POST",
         headers: {
@@ -97,6 +99,8 @@ function extractCustomContent(raw: CustomChatCompletionResponse): string {
   }
 
   if (Array.isArray(content)) {
+    // custom 端也允许返回 OpenAI 风格的 content parts，
+    // 这里统一拍平成文本，避免兼容 provider 的响应细节泄露到上层调用方。
     return content
       .map((part) => part.text ?? "")
       .join("")
