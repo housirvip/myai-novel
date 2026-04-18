@@ -17,6 +17,8 @@ export function registerDraftCommands(program: Command): void {
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("draft", async (logger) => {
+        // targetWords 作为可选长度参数传给 workflow，
+        // 用来表达本次草稿期望的目标字数。
         const result = await new DraftChapterWorkflow(logger).run({
           bookId: parseRequiredNumber(options.book as string, "book"),
           chapterNo: parseRequiredNumber(options.chapter as string, "chapter"),

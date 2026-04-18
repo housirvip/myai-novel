@@ -4,6 +4,8 @@ export async function runCliCommand(
   command: string,
   action: (logger: ReturnType<typeof createLogger>) => Promise<void>,
 ): Promise<void> {
+  // 所有 CLI 命令都走同一个 runtime 包装，
+  // 这样日志上下文、开始/结束事件和失败退出码策略可以保持统一。
   const context = createRunContext({ command });
   const logger = createLogger(context);
 
@@ -21,7 +23,8 @@ export async function runCliCommand(
       },
       "Command failed",
     );
+    // 这里不直接调用 process.exit()，
+    // 是为了让 commander / 测试环境还能完成剩余清理，并通过 exitCode 反映失败结果。
     process.exitCode = 1;
   }
 }
-

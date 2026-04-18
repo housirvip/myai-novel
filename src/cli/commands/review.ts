@@ -16,6 +16,8 @@ export function registerReviewCommands(program: Command): void {
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("review", async (logger) => {
+        // review 命令默认审阅当前章节指针指向的最新草稿，
+        // 这里不额外暴露版本参数，是为了让 CLI 行为和主工作流的 current_* 语义保持一致。
         const result = await new ReviewChapterWorkflow(logger).run({
           bookId: parseRequiredNumber(options.book as string, "book"),
           chapterNo: parseRequiredNumber(options.chapter as string, "chapter"),

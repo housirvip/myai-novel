@@ -27,6 +27,8 @@ export function registerPlanCommands(program: Command): void {
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("plan", async (logger) => {
+        // 这些手工引用会作为显式实体锚点传给 workflow，
+        // 用来表达“这些实体和本章意图强相关”，而不是替代普通参数输入。
         const manualEntityRefs = createEmptyManualEntityRefs();
 
         manualEntityRefs.characterIds = parseIdList(

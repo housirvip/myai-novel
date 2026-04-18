@@ -7,6 +7,8 @@ export function propagateRelationContext(input: {
   prioritizedHard: RetrievedPriorityContext;
   prioritizedSoft: RetrievedPriorityContext;
 }): Pick<RetrievedPriorityContext, "blockingConstraints" | "decisionContext"> {
+  // 关系一旦重要，关系两端的人物/势力往往也应该一起升权。
+  // 这里做的是“关系上下文外溢”，避免 prompt 只看到一条关系，却看不到关系双方当前状态。
   const relationPackets = [
     ...input.prioritizedHard.blockingConstraints,
     ...input.prioritizedHard.decisionContext,
@@ -52,6 +54,8 @@ function enrichEndpointPacketWithRelationContext(
   packet: RetrievedFactPacket,
   relationPackets: RetrievedFactPacket[],
 ): RetrievedFactPacket {
+  // 端点增强不会改写实体身份，但会补充 currentState / recentChanges，
+  // 同时轻量抬高 relevanceReasons 和 scores，让这条人物/势力事实包更容易带着关系语境进入下游 prompt。
   const relatedRelations = relationPackets.filter((relation) =>
     (relation.relationEndpoints ?? []).some(
       (endpoint) => endpoint.entityType === packet.entityType && endpoint.entityId === packet.entityId,
@@ -114,6 +118,8 @@ function expandHardFactsFromRelations(input: {
   softPackets: RetrievedFactPacket[];
   candidateEndpoints: RetrievedFactPacket[];
 }): RetrievedFactPacket[] {
+  // 某些关系类型本身会牵出额外硬事实。
+  // 例如成员关系一旦命中，人物位置和随身物品就可能从“背景信息”升级成“必须一起看的连续性约束”。
   const hasMembershipRelation = input.relationPackets.some((packet) => packet.relationMetadata?.relationType === "member");
   if (!hasMembershipRelation) {
     return [];

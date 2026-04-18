@@ -17,6 +17,8 @@ export function registerApproveCommands(program: Command): void {
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("approve", async (logger) => {
+        // dryRun 标志会原样传给 workflow，
+        // 用来区分这次 approve 是正式提交还是仅做预演检查。
         const result = await new ApproveChapterWorkflow(logger).run({
           bookId: parseRequiredNumber(options.book as string, "book"),
           chapterNo: parseRequiredNumber(options.chapter as string, "chapter"),

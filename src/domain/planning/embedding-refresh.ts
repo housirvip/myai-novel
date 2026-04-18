@@ -71,6 +71,8 @@ export class EmbeddingRefreshService {
     relations?: RelationEmbeddingSource[];
     worldSettings?: WorldSettingEmbeddingSource[];
   }): Promise<void> {
+    // 全量 refresh 按实体类型分批写入，
+    // 这样 store 可以以“某模型下某类实体”的粒度替换文档，避免一类刷新影响到其他类型的索引内容。
     const documentsByType = groupDocumentsByType(buildEmbeddingDocuments(params));
 
     for (const [entityType, docs] of documentsByType.entries()) {
@@ -93,6 +95,7 @@ export class EmbeddingRefreshService {
     relations?: RelationEmbeddingSource[];
     worldSettings?: WorldSettingEmbeddingSource[];
   }): Promise<void> {
+    // 单实体类型刷新用于局部重建，避免每次只改人物或物品时都重刷全量 embedding。
     const allDocuments = buildEmbeddingDocuments(params);
     const documents = allDocuments.filter((document) => document.entityType === params.entityType);
     const vectors = await this.provider.embedBatch(documents.map((document) => document.text));
@@ -110,6 +113,7 @@ export class EmbeddingRefreshService {
 }
 
 function groupDocumentsByType(documents: ReturnType<typeof buildEmbeddingDocuments>) {
+  // group by entityType 是为了和 replaceDocuments 的写入边界对齐。
   const groups = new Map<ReturnType<typeof buildEmbeddingDocuments>[number]["entityType"], typeof documents>();
 
   for (const document of documents) {

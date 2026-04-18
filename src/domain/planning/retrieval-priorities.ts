@@ -16,6 +16,8 @@ import {
 const BLOCKING_ENTITY_TYPES = new Set<RetrievedFactEntityType>(["hook", "world_setting"]);
 
 export function prioritizeFactPackets(packets: RetrievedFactPacket[]): RetrievedPriorityContext {
+  // 这里做的是“prompt 预算分层”，不是事实真假判断。
+  // 同一事实包只是在不同桶里拥有不同发言权，而不是被判定为重要/不重要的绝对结论。
   const blockingConstraints: RetrievedFactPacket[] = [];
   const decisionContext: RetrievedFactPacket[] = [];
   const supportingContext: RetrievedFactPacket[] = [];
@@ -72,6 +74,8 @@ export function classifyPriorityPacket(packet: RetrievedFactPacket): {
 }
 
 function isBlockingConstraint(packet: RetrievedFactPacket): boolean {
+  // blockingConstraints 偏向“写错代价最高”的事实：
+  // 明确手工指定、连续性高风险、或天然承担规则边界的实体，会优先进最强约束层。
   return BLOCKING_ENTITY_TYPES.has(packet.entityType)
     || hasManualPriority(packet)
     || hasContinuityRisk(packet)
@@ -79,6 +83,8 @@ function isBlockingConstraint(packet: RetrievedFactPacket): boolean {
 }
 
 function isDecisionContext(packet: RetrievedFactPacket): boolean {
+  // decisionContext 给“当前章节很可能要用来做判断”的事实。
+  // 它比 supporting 更靠前，但不等于像 blocking 那样必须严格遵守。
   return packet.scores.matchScore >= 50
     || packet.scores.finalScore >= 50
     || hasMotivationSignals(packet)
@@ -124,6 +130,7 @@ export function explainPriorityPacketAssignment(packet: RetrievedFactPacket): st
 }
 
 function sortPackets(packets: RetrievedFactPacket[]): RetrievedFactPacket[] {
+  // 先按 finalScore 排，再按实体 id 稳定打平，避免 prompt 上下文顺序在重复运行时出现无意义抖动。
   return [...packets].sort(
     (left, right) => right.scores.finalScore - left.scores.finalScore || left.entityId - right.entityId,
   );

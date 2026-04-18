@@ -32,6 +32,8 @@ export function registerChapterCommands(program: Command): void {
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("chapter.create", async (logger) => {
+        // create 阶段这些 actual_* IDs 作为章节的结构化关联字段一并提交，
+        // 适合在创建时直接带入已知的出场人物、势力、物品、钩子和世界设定。
         const result = await new ChapterService(logger).create({
           bookId: parseRequiredNumber(options.book as string, "book"),
           chapterNo: parseRequiredNumber(options.chapter as string, "chapter"),
@@ -109,6 +111,8 @@ export function registerChapterCommands(program: Command): void {
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("chapter.update", async (logger) => {
+        // update 里 undefined 表示“不改这个字段”，null 则表示“显式清空”。
+        // 这里通过 parseOptional* 系列保持 CLI 入参与 service 更新语义一致。
         const result = await new ChapterService(logger).update({
           bookId: parseRequiredNumber(options.book as string, "book"),
           chapterNo: parseRequiredNumber(options.chapter as string, "chapter"),
@@ -166,6 +170,8 @@ export function registerChapterCommands(program: Command): void {
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("chapter.import", async (logger) => {
+        // import 默认遵守阶段状态保护，避免用户把旧稿覆盖到当前有效版本上。
+        // 只有显式传 --force 时，才允许跳过这层保护做人工回灌。
         const result = await new ChapterService(logger).importStage({
           bookId: parseRequiredNumber(options.book as string, "book"),
           chapterNo: parseRequiredNumber(options.chapter as string, "chapter"),
