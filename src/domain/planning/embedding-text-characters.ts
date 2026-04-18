@@ -12,6 +12,8 @@ interface CharacterEmbeddingSource {
 }
 
 export function buildCharacterEmbeddingText(character: CharacterEmbeddingSource): string {
+  // 人物 embedding 文本优先保留“身份 + 动机 + 当前状态”三层信息，
+  // 因为这三类字段最容易决定人物是否和当前章节意图真正相关。
   return compactLines([
     `人物：${character.name}`,
     character.alias ? `别名：${character.alias}` : null,

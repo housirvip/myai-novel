@@ -9,6 +9,8 @@ interface FactionEmbeddingSource {
 }
 
 export function buildFactionEmbeddingText(faction: FactionEmbeddingSource): string {
+  // 势力文本除了名称和目标，还会对“宗门”追加规则执行语义，
+  // 这是为了让 embedding 更容易把宗门类势力与制度、登记、内外门语境对齐。
   return compactLines([
     `势力：${faction.name}`,
     faction.category ? `类型：${faction.category}` : null,

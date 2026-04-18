@@ -5,6 +5,8 @@ export function buildRecentChanges(input: {
   riskReminders?: string[];
   entities?: RetrievedEntity[];
 }): RetrievedRecentChange[] {
+  // recentChanges 不是完整事件流，而是给 prompt 用的“近期最值得先看几条”。
+  // 因此这里会把章节承接、风险提醒、状态型实体变化压到同一个小窗口里做排序。
   const chapterChanges = (input.recentChapters ?? []).slice(0, 3).map((chapter) => ({
     source: "chapter_summary" as const,
     label: `第${chapter.chapterNo}章承接`,
@@ -35,6 +37,8 @@ export function buildRecentChanges(input: {
 }
 
 function hasStatefulChangeHint(content: string): boolean {
+  // 这里只抓一小组高相关的状态字段线索。
+  // 没有尝试覆盖所有实体属性，是为了让“最近变化”保持短而尖锐。
   const text = (content ?? "").toLowerCase();
   return ["current_location", "status", "owner", "relation", "target_chapter", "active"].some((token) =>
     text.includes(token),

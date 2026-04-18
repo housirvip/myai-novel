@@ -1,6 +1,8 @@
 import type { RetrievedEntity, RetrievedFactEntityType, RetrievedFactPacket } from "./types.js";
 
 export function hasAnyKeywordCue(keywords: string[], cues: string[]): boolean {
+  // 这些 cue 判断是“宽松触发器”，不是精确意图解析。
+  // 目的只是给规则加一点业务方向感，而不是在这里完成完整 NLP 分类。
   const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
   return normalizedKeywords.some((keyword) => cues.some((token) => keyword.includes(token)));
 }
@@ -63,6 +65,8 @@ export function hasMixedConstraintQueryCue(keywords: string[]): boolean {
 }
 
 export function hasCrossEntityConflictQueryCue(keywords: string[]): boolean {
+  // 这里要求多组 cue 同时出现，
+  // 是为了避免用户只是提到“关系”或“规则”时就把查询误判成跨实体冲突场景。
   return hasAnyKeywordCue(keywords, ["禁止", "不要", "改写", "覆盖"])
     && hasAnyKeywordCue(keywords, ["目标", "动机"])
     && hasAnyKeywordCue(keywords, ["关系"])
@@ -74,6 +78,8 @@ export function hasManualPriority(packet: RetrievedFactPacket): boolean {
 }
 
 export function hasContinuityRisk(packet: RetrievedFactPacket): boolean {
+  // continuity risk 允许从 score、显式字段、reason 三条路径任一触发。
+  // 这样即使某个上游模块暂时没填满所有结构，也能降低高风险事实被漏判的概率。
   return packet.scores.continuityRiskScore > 0
     || packet.continuityRisk.length > 0
     || packet.relevanceReasons.includes("continuity_risk");
@@ -129,6 +135,8 @@ export function countKeywordHits(keywords: string[], content: string): number {
 }
 
 export function continuityBonus(content: string, entityType: RetrievedFactEntityType): number {
+  // continuity bonus 偏向奖励“容易写崩连续性”的字段，
+  // 比如位置、持有关系、制度规则，而不是泛泛奖励长文本或描述性文本。
   let score = 0;
 
   if (content.includes("current_location") || content.includes("location")) {

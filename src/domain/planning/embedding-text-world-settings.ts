@@ -7,6 +7,8 @@ interface WorldSettingEmbeddingSource {
 }
 
 export function buildWorldSettingEmbeddingText(setting: WorldSettingEmbeddingSource): string {
+  // 世界设定这里故意从“摘要 / 边界 / 执行条件”三个角度重复同一段内容，
+  // 不是为了生成漂亮文本，而是为了把规则类设定在不同语义问法下都更容易被向量命中。
   return compactLines([
     `设定：${setting.title}`,
     setting.category ? `类别：${setting.category}` : null,

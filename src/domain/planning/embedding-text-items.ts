@@ -10,6 +10,8 @@ interface ItemEmbeddingSource {
 }
 
 export function buildItemEmbeddingText(item: ItemEmbeddingSource): string {
+  // 物品文本会把用途、剧情关联、持有状态放在一起，
+  // 因为很多关键物品的相关性来自“谁持有它、它在当前局势里起什么作用”，不只是名称匹配。
   return compactLines([
     `物品：${item.name}`,
     item.summary ? `用途：${item.summary}` : null,

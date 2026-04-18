@@ -1,6 +1,8 @@
 import type { RelationEmbeddingSource } from "./embedding-types.js";
 
 export function buildRelationEmbeddingText(relation: RelationEmbeddingSource): string {
+  // 关系 embedding 需要先把“两端是谁”说清，再补关系类型和近期变化。
+  // 否则只看 relationType/description，向量检索很容易命中抽象相似而不是正确人物对。
   return compactLines([
     `关系：${relation.sourceName} -> ${relation.targetName}`,
     relation.relationType ? `关系类型：${relation.relationType}` : null,

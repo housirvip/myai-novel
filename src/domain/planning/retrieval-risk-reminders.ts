@@ -4,6 +4,8 @@ export function buildRiskReminders(input: {
   hardConstraints: PlanRetrievedContextEntityGroups;
   recentChapters: RetrievedChapterSummary[];
 }): string[] {
+  // risk reminders 是写给模型看的“负面提醒”，不是给工程侧做严格校验的规则列表。
+  // 这里宁可短一些，也要确保每条都直指最容易出戏的连续性风险。
   const reminders: string[] = [];
 
   if (input.hardConstraints.hooks.some((hook) => hook.reason.includes("chapter_proximity"))) {

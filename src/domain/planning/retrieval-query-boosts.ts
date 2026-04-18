@@ -21,6 +21,8 @@ export function institutionalFactionBoost(input: {
   description: string | null;
   appendNotes: string | null;
 }, keywords: string[]): number {
+  // 这类 boost 不是为了证明“这条就是答案”，
+  // 而是在用户问题明显带有宗门/制度语境时，给相应势力一点更高的进入前排概率。
   const normalizedCategory = (input.category ?? "").toLowerCase();
   if (!normalizedCategory.includes("宗门")) {
     return 0;
@@ -128,6 +130,8 @@ export function continuityCharacterBoost(input: {
   appendNotes: string | null;
   status: string | null;
 }, keywords: string[]): number {
+  // 只有查询本身带有场景承接信号时，人物位置/状态才值得额外加分；
+  // 否则这些连续性字段不应该无条件压过更直接的意图命中。
   if (!hasLocationContinuityQueryCue(keywords)) {
     return 0;
   }
@@ -217,6 +221,8 @@ export function continuityItemBoost(input: {
   description: string | null;
   appendNotes: string | null;
 }, keywords: string[]): number {
+  // 物品连续性依赖“可追踪状态”存在。
+  // 如果既没有 owner，也没有 status，说明这条物品暂时不适合承担连续性锚点角色。
   if (!hasItemContinuityQueryCue(keywords)) {
     return 0;
   }
@@ -285,6 +291,8 @@ export function ruleWorldSettingBoost(input: {
   content: string | null;
   appendNotes: string | null;
 }, keywords: string[]): number {
+  // 世界设定只有在查询已经显露规则/制度语境时才抬分，
+  // 避免设定文本因为天然更抽象、更像“总规则”而在普通章节里挤掉人物和物品上下文。
   if (!(hasMembershipQueryCue(keywords) || hasRuleQueryCue(keywords) || hasAnyKeywordCue(keywords, ["制度", "令牌"]))) {
     return 0;
   }

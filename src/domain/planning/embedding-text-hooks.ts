@@ -10,6 +10,8 @@ interface HookEmbeddingSource {
 }
 
 export function buildHookEmbeddingText(hook: HookEmbeddingSource): string {
+  // 钩子的 embedding 重点不是世界观信息，而是“铺垫到哪、预计何时回收”。
+  // 所以这里会把 expected_payoff 和目标章节显式写出来，强化时间推进信号。
   return compactLines([
     `钩子：${hook.title}`,
     hook.description ? `摘要：${hook.description}` : null,
