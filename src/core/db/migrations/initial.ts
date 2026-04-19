@@ -36,6 +36,10 @@ export async function migrateToLatest(
       await createChapterDraftsTable(database);
       await createChapterReviewsTable(database);
       await createChapterFinalsTable(database);
+      await createRetrievalDocumentsTable(database);
+      await createRetrievalFactsTable(database);
+      await createStoryEventsTable(database);
+      await createChapterSegmentsTable(database);
       await ensureMysqlCompatibleColumnTypes(database);
       await rebuildMysqlCompatibleIndexes(database);
       await createIndexes(database);
@@ -83,6 +87,19 @@ async function ensureMysqlCompatibleColumnTypes(database: Kysely<DatabaseSchema>
     { table: "chapter_reviews", column: "source_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
     { table: "chapter_finals", column: "status", definition: `${TYPE_STATUS} NOT NULL` },
     { table: "chapter_finals", column: "source_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "retrieval_documents", column: "entity_type", definition: TYPE_ENTITY_TYPE },
+    { table: "retrieval_documents", column: "layer", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "retrieval_documents", column: "chunk_key", definition: `${TYPE_NAME} NOT NULL` },
+    { table: "retrieval_documents", column: "status", definition: `${TYPE_STATUS} NOT NULL DEFAULT 'active'` },
+    { table: "retrieval_facts", column: "entity_type", definition: TYPE_ENTITY_TYPE },
+    { table: "retrieval_facts", column: "fact_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "retrieval_facts", column: "fact_key", definition: `${TYPE_NAME} NOT NULL` },
+    { table: "retrieval_facts", column: "status", definition: `${TYPE_STATUS} NOT NULL DEFAULT 'active'` },
+    { table: "story_events", column: "event_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "story_events", column: "title", definition: `${TYPE_NAME} NOT NULL` },
+    { table: "story_events", column: "status", definition: `${TYPE_STATUS} NOT NULL DEFAULT 'active'` },
+    { table: "chapter_segments", column: "source_type", definition: `${TYPE_ENTITY_TYPE} NOT NULL` },
+    { table: "chapter_segments", column: "status", definition: `${TYPE_STATUS} NOT NULL DEFAULT 'active'` },
   ];
 
   for (const target of alterTargets) {
@@ -112,6 +129,14 @@ async function rebuildMysqlCompatibleIndexes(database: Kysely<DatabaseSchema>): 
     ["chapter_drafts", "idx_chapter_drafts_book_status"],
     ["chapter_reviews", "idx_chapter_reviews_book_status"],
     ["chapter_finals", "idx_chapter_finals_book_status"],
+    ["retrieval_documents", "idx_retrieval_documents_book_layer"],
+    ["retrieval_documents", "idx_retrieval_documents_book_entity"],
+    ["retrieval_documents", "idx_retrieval_documents_book_chapter"],
+    ["retrieval_facts", "idx_retrieval_facts_book_fact_type"],
+    ["retrieval_facts", "idx_retrieval_facts_book_entity"],
+    ["story_events", "idx_story_events_book_chapter"],
+    ["story_events", "idx_story_events_book_status"],
+    ["chapter_segments", "idx_chapter_segments_book_chapter"],
   ] as const;
 
   for (const [tableName, indexName] of targets) {
@@ -513,6 +538,98 @@ async function createChapterFinalsTable(database: Kysely<DatabaseSchema>): Promi
     .execute();
 }
 
+async function createRetrievalDocumentsTable(database: Kysely<DatabaseSchema>): Promise<void> {
+  await database.schema
+    .createTable("retrieval_documents")
+    .ifNotExists()
+    .addColumn("id", "integer", (column) => column.primaryKey().autoIncrement())
+    .addColumn("book_id", "integer", (column) => column.notNull().references("books.id").onDelete("cascade"))
+    .addColumn("entity_type", TYPE_ENTITY_TYPE)
+    .addColumn("entity_id", "integer")
+    .addColumn("layer", TYPE_ENTITY_TYPE, (column) => column.notNull())
+    .addColumn("chunk_key", TYPE_NAME, (column) => column.notNull())
+    .addColumn("chapter_no", "integer")
+    .addColumn("payload_json", "text")
+    .addColumn("text", "text", (column) => column.notNull())
+    .addColumn("embedding_model", "text")
+    .addColumn("embedding_vector_ref", "text")
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull().defaultTo("active"))
+    .addColumn("created_at", "text", (column) => column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .addColumn("updated_at", "text", (column) => column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .addUniqueConstraint("uniq_retrieval_documents_book_layer_model_chunk", ["book_id", "layer", "embedding_model", "chunk_key"])
+    .execute();
+}
+
+async function createRetrievalFactsTable(database: Kysely<DatabaseSchema>): Promise<void> {
+  await database.schema
+    .createTable("retrieval_facts")
+    .ifNotExists()
+    .addColumn("id", "integer", (column) => column.primaryKey().autoIncrement())
+    .addColumn("book_id", "integer", (column) => column.notNull().references("books.id").onDelete("cascade"))
+    .addColumn("chapter_no", "integer")
+    .addColumn("entity_type", TYPE_ENTITY_TYPE)
+    .addColumn("entity_id", "integer")
+    .addColumn("event_id", "integer")
+    .addColumn("fact_type", TYPE_ENTITY_TYPE, (column) => column.notNull())
+    .addColumn("fact_key", TYPE_NAME, (column) => column.notNull())
+    .addColumn("fact_text", "text", (column) => column.notNull())
+    .addColumn("payload_json", "text")
+    .addColumn("importance", "integer")
+    .addColumn("risk_level", "integer")
+    .addColumn("effective_from_chapter_no", "integer")
+    .addColumn("effective_to_chapter_no", "integer")
+    .addColumn("superseded_by_fact_id", "integer")
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull().defaultTo("active"))
+    .addColumn("created_at", "text", (column) => column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .addColumn("updated_at", "text", (column) => column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .addUniqueConstraint("uniq_retrieval_facts_book_fact_key", ["book_id", "fact_key"])
+    .execute();
+}
+
+async function createStoryEventsTable(database: Kysely<DatabaseSchema>): Promise<void> {
+  await database.schema
+    .createTable("story_events")
+    .ifNotExists()
+    .addColumn("id", "integer", (column) => column.primaryKey().autoIncrement())
+    .addColumn("book_id", "integer", (column) => column.notNull().references("books.id").onDelete("cascade"))
+    .addColumn("chapter_id", "integer", (column) => column.references("chapters.id").onDelete("set null"))
+    .addColumn("chapter_no", "integer")
+    .addColumn("event_type", TYPE_ENTITY_TYPE, (column) => column.notNull())
+    .addColumn("title", TYPE_NAME, (column) => column.notNull())
+    .addColumn("summary", "text", (column) => column.notNull())
+    .addColumn("participant_entity_refs", "text")
+    .addColumn("location_label", "text")
+    .addColumn("trigger_text", "text")
+    .addColumn("outcome_text", "text")
+    .addColumn("unresolved_impact", "text")
+    .addColumn("hook_refs", "text")
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull().defaultTo("active"))
+    .addColumn("created_at", "text", (column) => column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .addColumn("updated_at", "text", (column) => column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .execute();
+}
+
+async function createChapterSegmentsTable(database: Kysely<DatabaseSchema>): Promise<void> {
+  await database.schema
+    .createTable("chapter_segments")
+    .ifNotExists()
+    .addColumn("id", "integer", (column) => column.primaryKey().autoIncrement())
+    .addColumn("book_id", "integer", (column) => column.notNull().references("books.id").onDelete("cascade"))
+    .addColumn("chapter_id", "integer", (column) => column.notNull().references("chapters.id").onDelete("cascade"))
+    .addColumn("chapter_no", "integer", (column) => column.notNull())
+    .addColumn("segment_index", "integer", (column) => column.notNull())
+    .addColumn("source_type", TYPE_ENTITY_TYPE, (column) => column.notNull())
+    .addColumn("text", "text", (column) => column.notNull())
+    .addColumn("summary", "text")
+    .addColumn("event_refs", "text")
+    .addColumn("metadata", "text")
+    .addColumn("status", TYPE_STATUS, (column) => column.notNull().defaultTo("active"))
+    .addColumn("created_at", "text", (column) => column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .addColumn("updated_at", "text", (column) => column.notNull().defaultTo(sql`CURRENT_TIMESTAMP`))
+    .addUniqueConstraint("uniq_chapter_segments_chapter_segment_index", ["chapter_id", "segment_index"])
+    .execute();
+}
+
 async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
   await database.schema
     .createIndex("idx_books_status")
@@ -764,6 +881,69 @@ async function createIndexes(database: Kysely<DatabaseSchema>): Promise<void> {
     .ifNotExists()
     .on("chapter_finals")
     .columns(["book_id", "status"])
+    .execute();
+
+  await database.schema
+    .createIndex("idx_retrieval_documents_book_layer")
+    .ifNotExists()
+    .on("retrieval_documents")
+    .columns(mysqlCompatibleColumns("book_id", "layer"))
+    .execute();
+
+  await database.schema
+    .createIndex("idx_retrieval_documents_book_layer_model")
+    .ifNotExists()
+    .on("retrieval_documents")
+    .columns(mysqlCompatibleColumns("book_id", "layer", "embedding_model"))
+    .execute();
+
+  await database.schema
+    .createIndex("idx_retrieval_documents_book_entity")
+    .ifNotExists()
+    .on("retrieval_documents")
+    .columns(mysqlCompatibleColumns("book_id", "entity_type", "entity_id"))
+    .execute();
+
+  await database.schema
+    .createIndex("idx_retrieval_documents_book_chapter")
+    .ifNotExists()
+    .on("retrieval_documents")
+    .columns(mysqlCompatibleColumns("book_id", "chapter_no"))
+    .execute();
+
+  await database.schema
+    .createIndex("idx_retrieval_facts_book_fact_type")
+    .ifNotExists()
+    .on("retrieval_facts")
+    .columns(mysqlCompatibleColumns("book_id", "fact_type"))
+    .execute();
+
+  await database.schema
+    .createIndex("idx_retrieval_facts_book_entity")
+    .ifNotExists()
+    .on("retrieval_facts")
+    .columns(mysqlCompatibleColumns("book_id", "entity_type", "entity_id"))
+    .execute();
+
+  await database.schema
+    .createIndex("idx_story_events_book_chapter")
+    .ifNotExists()
+    .on("story_events")
+    .columns(mysqlCompatibleColumns("book_id", "chapter_no"))
+    .execute();
+
+  await database.schema
+    .createIndex("idx_story_events_book_status")
+    .ifNotExists()
+    .on("story_events")
+    .columns(mysqlCompatibleColumns("book_id", "status"))
+    .execute();
+
+  await database.schema
+    .createIndex("idx_chapter_segments_book_chapter")
+    .ifNotExists()
+    .on("chapter_segments")
+    .columns(mysqlCompatibleColumns("book_id", "chapter_id", "segment_index"))
     .execute();
 }
 

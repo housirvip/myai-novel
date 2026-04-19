@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildRetrievedContext } from "../../../src/domain/planning/retrieval-context-builder.js";
-import type { RetrievalRerankerOutput } from "../../../src/domain/planning/retrieval-pipeline.js";
+import type { RetrievalCandidateBundle, RetrievalRerankerOutput } from "../../../src/domain/planning/retrieval-pipeline.js";
 import type { RetrievedEntity } from "../../../src/domain/planning/types.js";
 
 test("buildRetrievedContext assembles top-level, soft references and derived context consistently", () => {
@@ -32,8 +32,28 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
       worldSettings: [createEntity({ id: 7, title: "宗门制度", reason: "keyword_hit", content: "category=规则\ncontent=外门弟子需持令牌登记", score: 45 })],
     },
   };
+  const candidates: RetrievalCandidateBundle = {
+    ...reranked,
+    stats: {
+      recentChaptersScanned: 5,
+    },
+  };
 
   const context = buildRetrievedContext({
+    params: {
+      bookId: 99,
+      chapterNo: 11,
+      keywords: ["黑铁令", "规则"],
+      queryText: "黑铁令 规则",
+      manualRefs: {
+        characterIds: [],
+        factionIds: [],
+        itemIds: [],
+        hookIds: [],
+        relationIds: [],
+        worldSettingIds: [],
+      },
+    },
     book: {
       id: 99,
       title: "青岳入门录",
@@ -41,6 +61,7 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
       target_chapter_count: 200,
       current_chapter_count: 10,
     },
+    candidates,
     reranked,
   });
 
@@ -57,10 +78,14 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
   assert.ok(context.riskReminders.some((item) => item.includes("人物当前位置连续性")));
   assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "林夜"));
   assert.ok(context.priorityContext?.decisionContext.some((packet) => packet.displayName === "青岳宗"));
-  assert.equal(context.retrievalObservability?.candidates.characters[0]?.source, "rule");
-  assert.ok(context.retrievalObservability?.hardConstraints.characters[0]?.selectedBy.length);
-  assert.ok(context.retrievalObservability?.priorityContext.blockingConstraints.some((packet) => packet.displayName === "林夜"));
-  assert.ok(context.recentChanges?.some((item) => item.source === "risk_reminder"));
+    assert.equal(context.retrievalObservability?.candidates.characters[0]?.source, "rule");
+   assert.equal(context.retrievalObservability?.query.chapterNo, 11);
+   assert.equal(context.retrievalObservability?.candidateVolumes.recentChaptersScanned, 5);
+   assert.equal(context.retrievalObservability?.candidateVolumes.recentChaptersKept, 1);
+   assert.equal(context.retrievalObservability?.retention.hardConstraintPromotionCounts.characters.promoted > 0, true);
+   assert.ok(context.retrievalObservability?.hardConstraints.characters[0]?.selectedBy.length);
+   assert.ok(context.retrievalObservability?.priorityContext.blockingConstraints.some((packet) => packet.displayName === "林夜"));
+   assert.ok(context.recentChanges?.some((item) => item.source === "risk_reminder"));
   assert.ok(context.recentChanges?.some((item) => item.source === "chapter_summary"));
 });
 

@@ -90,6 +90,42 @@ export interface RetrievalObservedPriorityPacket extends RetrievalObservedEntity
 }
 
 export interface PlanRetrievalObservability {
+  query: {
+    chapterNo: number;
+    keywordCount: number;
+    queryTextLength: number;
+  };
+  candidateVolumes: {
+    beforeRerank: Record<keyof PlanRetrievedContextEntityGroups, {
+      total: number;
+      rule: number;
+      embeddingSupport: number;
+      embeddingOnly: number;
+      entityType: RetrievedFactEntityType;
+    }>;
+    afterRerank: Record<keyof PlanRetrievedContextEntityGroups, {
+      total: number;
+      rule: number;
+      embeddingSupport: number;
+      embeddingOnly: number;
+      entityType: RetrievedFactEntityType;
+    }>;
+    recentChaptersScanned: number;
+    recentChaptersKept: number;
+    outlinesKept: number;
+  };
+  retention: {
+    hardConstraintPromotionCounts: Record<keyof PlanRetrievedContextEntityGroups, {
+      promoted: number;
+      leftAsSoft: number;
+    }>;
+    priorityBucketCounts: {
+      blockingConstraints: number;
+      decisionContext: number;
+      supportingContext: number;
+      backgroundNoise: number;
+    };
+  };
   candidates: Record<keyof PlanRetrievedContextEntityGroups, RetrievalObservedEntity[]>;
   hardConstraints: Record<keyof PlanRetrievedContextEntityGroups, RetrievalObservedHardConstraint[]>;
   priorityContext: {

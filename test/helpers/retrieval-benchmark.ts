@@ -6,6 +6,7 @@ import type { PlanRetrievedContext } from "../../src/domain/planning/types.js";
 export interface RetrievalBenchmarkFixture {
   name: string;
   query: {
+    chapterNo?: number;
     keywords: string[];
   };
   expectationMode?: "strict" | "baseline_gap";
@@ -33,6 +34,10 @@ export const RETRIEVAL_BENCHMARK_FIXTURE_NAMES = [
   "source-observation",
   "source-immutability",
   "observer-immutability",
+  "long-distance-callback",
+  "long-distance-motivation",
+  "long-distance-world-rule",
+  "dense-entity-ambiguity",
 ] as const;
 
 export interface RetrievalBenchmarkResult {

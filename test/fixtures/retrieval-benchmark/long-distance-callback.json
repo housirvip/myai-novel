@@ -1,0 +1,13 @@
+{
+  "name": "long-distance-callback",
+  "expectationMode": "baseline_gap",
+  "query": {
+    "chapterNo": 120,
+    "keywords": ["旧案", "回收", "黑铁令", "执事"]
+  },
+  "expected": {
+    "blockingNames": ["黑铁令旧案回收"],
+    "decisionNames": ["执事档案库"],
+    "maxNoiseRatio": 0.35
+  }
+}

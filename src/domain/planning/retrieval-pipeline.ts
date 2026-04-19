@@ -21,6 +21,9 @@ export interface RetrievalCandidateBundle {
   outlines: RetrievedOutline[];
   recentChapters: RetrievedChapterSummary[];
   entityGroups: PlanRetrievedContextEntityGroups;
+  stats?: {
+    recentChaptersScanned: number;
+  };
 }
 
 export interface RetrievalCandidateProvider {

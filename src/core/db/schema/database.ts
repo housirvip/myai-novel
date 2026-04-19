@@ -232,6 +232,79 @@ export interface ChapterFinalsTable {
   updated_at: string;
 }
 
+export interface RetrievalDocumentsTable {
+  id: Generated<number>;
+  book_id: number;
+  entity_type: string | null;
+  entity_id: number | null;
+  layer: string;
+  chunk_key: string;
+  chapter_no: number | null;
+  payload_json: string | null;
+  text: string;
+  embedding_model: string | null;
+  embedding_vector_ref: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RetrievalFactsTable {
+  id: Generated<number>;
+  book_id: number;
+  chapter_no: number | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  event_id: number | null;
+  fact_type: string;
+  fact_key: string;
+  fact_text: string;
+  payload_json: string | null;
+  importance: number | null;
+  risk_level: number | null;
+  effective_from_chapter_no: number | null;
+  effective_to_chapter_no: number | null;
+  superseded_by_fact_id: number | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoryEventsTable {
+  id: Generated<number>;
+  book_id: number;
+  chapter_id: number | null;
+  chapter_no: number | null;
+  event_type: string;
+  title: string;
+  summary: string;
+  participant_entity_refs: string | null;
+  location_label: string | null;
+  trigger_text: string | null;
+  outcome_text: string | null;
+  unresolved_impact: string | null;
+  hook_refs: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChapterSegmentsTable {
+  id: Generated<number>;
+  book_id: number;
+  chapter_id: number;
+  chapter_no: number;
+  segment_index: number;
+  source_type: string;
+  text: string;
+  summary: string | null;
+  event_refs: string | null;
+  metadata: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DatabaseSchema {
   books: BooksTable;
   outlines: OutlinesTable;
@@ -246,4 +319,8 @@ export interface DatabaseSchema {
   chapter_drafts: ChapterDraftsTable;
   chapter_reviews: ChapterReviewsTable;
   chapter_finals: ChapterFinalsTable;
+  retrieval_documents: RetrievalDocumentsTable;
+  retrieval_facts: RetrievalFactsTable;
+  story_events: StoryEventsTable;
+  chapter_segments: ChapterSegmentsTable;
 }

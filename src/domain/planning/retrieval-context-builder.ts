@@ -4,9 +4,10 @@ import { buildPriorityContext } from "./retrieval-facts.js";
 import { buildHardConstraints } from "./retrieval-hard-constraints.js";
 import { buildRiskReminders } from "./retrieval-risk-reminders.js";
 import type { PlanRetrievedContext } from "./types.js";
-import type { RetrievalRerankerOutput } from "./retrieval-pipeline.js";
+import type { RetrievePlanContextParams, RetrievalCandidateBundle, RetrievalRerankerOutput } from "./retrieval-pipeline.js";
 
 export function buildRetrievedContext(input: {
+  params: RetrievePlanContextParams;
   book: {
     id: number;
     title: string;
@@ -14,6 +15,7 @@ export function buildRetrievedContext(input: {
     target_chapter_count: number | null;
     current_chapter_count: number;
   };
+  candidates: RetrievalCandidateBundle;
   reranked: RetrievalRerankerOutput;
 }): PlanRetrievedContext {
   // 这里是 retrieval 链路真正把“候选结果”收敛成“可持久化共享上下文”的地方。
@@ -46,7 +48,9 @@ export function buildRetrievedContext(input: {
     ],
   });
   const retrievalObservability = buildRetrievalObservability({
-    candidates: entityGroups,
+    params: input.params,
+    candidates: input.candidates,
+    reranked: input.reranked,
     hardConstraints,
     priorityContext,
   });

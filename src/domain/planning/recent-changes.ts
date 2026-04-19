@@ -7,11 +7,11 @@ export function buildRecentChanges(input: {
 }): RetrievedRecentChange[] {
   // recentChanges 不是完整事件流，而是给 prompt 用的“近期最值得先看几条”。
   // 因此这里会把章节承接、风险提醒、状态型实体变化压到同一个小窗口里做排序。
-  const chapterChanges = (input.recentChapters ?? []).slice(0, 3).map((chapter) => ({
+  const chapterChanges = (input.recentChapters ?? []).slice(0, 6).map((chapter, index) => ({
     source: "chapter_summary" as const,
     label: `第${chapter.chapterNo}章承接`,
     detail: normalizeInline(chapter.summary) || chapter.title || "已发生关键承接",
-    priority: 80 - chapter.chapterNo,
+    priority: 80 - index,
   }));
 
   const riskChanges = (input.riskReminders ?? []).slice(0, 4).map((risk, index) => ({

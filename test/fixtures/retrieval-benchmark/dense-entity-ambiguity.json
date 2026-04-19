@@ -1,0 +1,13 @@
+{
+  "name": "dense-entity-ambiguity",
+  "expectationMode": "baseline_gap",
+  "query": {
+    "chapterNo": 120,
+    "keywords": ["黑铁", "令牌", "副令", "旧案"]
+  },
+  "expected": {
+    "blockingNames": ["黑铁令"],
+    "decisionNames": ["黑铁副令"],
+    "maxNoiseRatio": 0.2
+  }
+}

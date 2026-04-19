@@ -75,7 +75,7 @@ export class RetrievalQueryService {
 
         // 这里先产出完整上下文，再额外记录 observability 摘要；
         // 观测日志是为了调 retrieval 质量，不应反向影响实际写入 plan 的上下文内容。
-        const context = buildRetrievedContext({ book, reranked });
+        const context = buildRetrievedContext({ params, book, candidates, reranked });
         if (context.retrievalObservability) {
           this.logger.info(
             {

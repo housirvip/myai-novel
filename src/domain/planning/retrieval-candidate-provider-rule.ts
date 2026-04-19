@@ -60,7 +60,7 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
     // 规则召回负责先给出“业务上可信的候选集合”，
     // 后面的 rerank / embedding 都是在这个基线之上增强，而不是替代这里的业务约束。
     const outlines = await this.loadOutlines(db, params.bookId, params.chapterNo);
-    const recentChapters = await this.loadRecentChapters(db, params.bookId, params.chapterNo);
+    const recentChapterResult = await this.loadRecentChapters(db, params.bookId, params.chapterNo);
     const characters = await this.loadCharacters(db, params);
     const factions = await this.loadFactions(db, params);
     const items = await this.loadItems(db, params);
@@ -70,7 +70,7 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
 
     return {
       outlines,
-      recentChapters,
+      recentChapters: recentChapterResult.chapters,
       entityGroups: {
         hooks,
         characters,
@@ -78,6 +78,9 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
         items,
         relations,
         worldSettings,
+      },
+      stats: {
+        recentChaptersScanned: recentChapterResult.scanned,
       },
     };
   }
@@ -125,7 +128,7 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
     db: import("kysely").Kysely<DatabaseSchema>,
     bookId: number,
     chapterNo: number,
-  ): Promise<RetrievedChapterSummary[]> {
+  ): Promise<{ chapters: RetrievedChapterSummary[]; scanned: number }> {
     // 近期章节摘要优先复用 chapters 主表已有 summary；
     // 如果主表还没同步完整，再依次回退到 final / draft / plan，尽量保住“前文发生了什么”的连续性线索。
     const rows = await db
@@ -167,7 +170,7 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
     const draftSummaryMap = new Map(draftRows.map((row) => [row.id, row.summary]));
     const finalSummaryMap = new Map(finalRows.map((row) => [row.id, row.summary]));
 
-    return rows
+    const chapters = rows
       .map((row) => ({
         id: row.id,
         chapterNo: row.chapter_no,
@@ -181,6 +184,11 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
       }))
       .filter((row) => Boolean(row.summary?.trim()))
       .slice(0, KEYWORD_LIMITS.recentChapters);
+
+    return {
+      chapters,
+      scanned: rows.length,
+    };
   }
 
   private async loadCharacters(

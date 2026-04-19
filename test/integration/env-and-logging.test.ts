@@ -12,6 +12,9 @@ test("env config resolves paths and keeps defaults", async () => {
     LOG_DIR: "./tmp-logs",
     DB_SQLITE_PATH: "./tmp-db/novel.sqlite",
     PLANNING_RETRIEVAL_CHARACTER_LIMIT: "9",
+    PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT: "1500",
+    PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT: "8",
+    PLANNING_RETRIEVAL_EMBEDDING_LIMIT_BASIC: "32",
     PLANNING_RETRIEVAL_RERANKER: "heuristic",
     PLANNING_RETRIEVAL_EMBEDDING_PROVIDER: "hash",
     PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE: "hybrid",
@@ -28,6 +31,9 @@ test("env config resolves paths and keeps defaults", async () => {
     planningEmbeddingSearchMode: string;
     embeddingMinScore: number;
     promptPlanBudget: number;
+    entityScanLimit: number;
+    recentChapterLimit: number;
+    embeddingLimitBasic: number;
   }>(
     [
       "import { env } from './src/config/env.ts';",
@@ -42,6 +48,9 @@ test("env config resolves paths and keeps defaults", async () => {
         "  planningEmbeddingSearchMode: env.PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE,",
         "  embeddingMinScore: env.PLANNING_RETRIEVAL_EMBEDDING_MIN_SCORE,",
         "  promptPlanBudget: env.PLANNING_PROMPT_CONTEXT_PLAN_CHAR_BUDGET,",
+        "  entityScanLimit: env.PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT,",
+        "  recentChapterLimit: env.PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT,",
+        "  embeddingLimitBasic: env.PLANNING_RETRIEVAL_EMBEDDING_LIMIT_BASIC,",
         "}));",
     ].join("\n"),
     env,
@@ -55,6 +64,9 @@ test("env config resolves paths and keeps defaults", async () => {
   assert.equal(result.planningEmbeddingSearchMode, "hybrid");
   assert.equal(result.embeddingMinScore, 0.64);
   assert.equal(result.promptPlanBudget, 3800);
+  assert.equal(result.entityScanLimit, 1500);
+  assert.equal(result.recentChapterLimit, 8);
+  assert.equal(result.embeddingLimitBasic, 32);
   assert.match(result.logDir, /tmp-logs$/);
   assert.match(result.sqlitePath, /tmp-db\/novel\.sqlite$/);
 });

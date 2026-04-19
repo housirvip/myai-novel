@@ -6,7 +6,7 @@ import { CustomRemoteEmbeddingProvider } from "./embedding-provider-custom.js";
 import { EmbeddingRefreshService } from "./embedding-refresh.js";
 import { HybridEmbeddingSearcher } from "./embedding-searcher-hybrid.js";
 import { InMemoryEmbeddingSearcher } from "./embedding-searcher-memory.js";
-import { InMemoryEmbeddingStore } from "./embedding-store.js";
+import { DbRetrievalDocumentEmbeddingStore } from "./embedding-store.js";
 import { RetrievalQueryService } from "./retrieval-service.js";
 import type { EmbeddingProvider, RelationEmbeddingSource } from "./embedding-types.js";
 
@@ -22,7 +22,7 @@ export async function createPlanningRetrievalService(
   }
 
   const provider = createEmbeddingProvider();
-  const store = new InMemoryEmbeddingStore();
+  const store = new DbRetrievalDocumentEmbeddingStore(db, input.bookId);
   const refresh = new EmbeddingRefreshService(provider, store);
   const [characters, factions, items, hooks, relations, worldSettings] = await Promise.all([
     db

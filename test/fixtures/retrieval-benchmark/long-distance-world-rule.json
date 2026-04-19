@@ -1,0 +1,13 @@
+{
+  "name": "long-distance-world-rule",
+  "expectationMode": "strict",
+  "query": {
+    "chapterNo": 120,
+    "keywords": ["规则", "封存", "旧案", "调阅"]
+  },
+  "expected": {
+    "blockingNames": ["档案封存律"],
+    "decisionNames": ["执事档案库"],
+    "maxNoiseRatio": 0.75
+  }
+}

@@ -1,3 +1,4 @@
+import type { RetrievePlanContextParams, RetrievalCandidateBundle, RetrievalRerankerOutput } from "./retrieval-pipeline.js";
 import type {
   PlanRetrievedContextEntityGroups,
   PlanRetrievalObservability,
@@ -23,12 +24,39 @@ const ENTITY_GROUP_TO_TYPE = {
 } as const satisfies Record<keyof PlanRetrievedContextEntityGroups, RetrievedFactEntityType>;
 
 export function buildRetrievalObservability(input: {
-  candidates: PlanRetrievedContextEntityGroups;
+  params: RetrievePlanContextParams;
+  candidates: RetrievalCandidateBundle;
+  reranked: RetrievalRerankerOutput;
   hardConstraints: PlanRetrievedContextEntityGroups;
   priorityContext: RetrievedPriorityContext;
 }): PlanRetrievalObservability {
+  const beforeRerank = summarizeObservedGroups(buildObservedEntityGroups(input.candidates.entityGroups));
+  const afterRerank = summarizeObservedGroups(buildObservedEntityGroups(input.reranked.entityGroups));
+  const priorityBucketCounts = {
+    blockingConstraints: input.priorityContext.blockingConstraints.length,
+    decisionContext: input.priorityContext.decisionContext.length,
+    supportingContext: input.priorityContext.supportingContext.length,
+    backgroundNoise: input.priorityContext.backgroundNoise.length,
+  };
+
   return {
-    candidates: buildObservedEntityGroups(input.candidates),
+    query: {
+      chapterNo: input.params.chapterNo,
+      keywordCount: input.params.keywords.length,
+      queryTextLength: input.params.queryText.length,
+    },
+    candidateVolumes: {
+      beforeRerank,
+      afterRerank,
+      recentChaptersScanned: input.candidates.stats?.recentChaptersScanned ?? input.candidates.recentChapters.length,
+      recentChaptersKept: input.reranked.recentChapters.length,
+      outlinesKept: input.reranked.outlines.length,
+    },
+    retention: {
+      hardConstraintPromotionCounts: summarizeHardConstraintRetention(input.reranked.entityGroups, input.hardConstraints),
+      priorityBucketCounts,
+    },
+    candidates: buildObservedEntityGroups(input.reranked.entityGroups),
     hardConstraints: buildObservedHardConstraintGroups(input.hardConstraints),
     priorityContext: buildObservedPriorityContext(input.priorityContext),
   };
@@ -36,14 +64,16 @@ export function buildRetrievalObservability(input: {
 
 export function summarizeRetrievalObservability(observability: PlanRetrievalObservability) {
   return {
-    candidateCounts: summarizeObservedGroups(observability.candidates),
-    hardConstraintCounts: summarizeObservedGroups(observability.hardConstraints),
-    priorityBucketCounts: {
-      blockingConstraints: observability.priorityContext.blockingConstraints.length,
-      decisionContext: observability.priorityContext.decisionContext.length,
-      supportingContext: observability.priorityContext.supportingContext.length,
-      backgroundNoise: observability.priorityContext.backgroundNoise.length,
+    query: observability.query,
+    candidateCountsBeforeRerank: observability.candidateVolumes.beforeRerank,
+    candidateCountsAfterRerank: observability.candidateVolumes.afterRerank,
+    recentChapterWindow: {
+      scanned: observability.candidateVolumes.recentChaptersScanned,
+      kept: observability.candidateVolumes.recentChaptersKept,
     },
+    hardConstraintPromotionCounts: observability.retention.hardConstraintPromotionCounts,
+    hardConstraintCounts: summarizeObservedGroups(observability.hardConstraints),
+    priorityBucketCounts: observability.retention.priorityBucketCounts,
   };
 }
 
@@ -143,5 +173,24 @@ function summarizeObservedGroups(groups: Record<keyof PlanRetrievedContextEntity
         },
       ];
     }),
-  );
+  ) as Record<keyof PlanRetrievedContextEntityGroups, {
+    total: number;
+    rule: number;
+    embeddingSupport: number;
+    embeddingOnly: number;
+    entityType: RetrievedFactEntityType;
+  }>;
+}
+
+function summarizeHardConstraintRetention(
+  reranked: PlanRetrievedContextEntityGroups,
+  hardConstraints: PlanRetrievedContextEntityGroups,
+): Record<keyof PlanRetrievedContextEntityGroups, { promoted: number; leftAsSoft: number }> {
+  return Object.fromEntries(
+    (Object.keys(reranked) as Array<keyof PlanRetrievedContextEntityGroups>).map((groupName) => {
+      const promoted = hardConstraints[groupName].length;
+      const leftAsSoft = Math.max(0, reranked[groupName].length - promoted);
+      return [groupName, { promoted, leftAsSoft }];
+    }),
+  ) as Record<keyof PlanRetrievedContextEntityGroups, { promoted: number; leftAsSoft: number }>;
 }

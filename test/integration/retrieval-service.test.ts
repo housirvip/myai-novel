@@ -360,6 +360,8 @@ test("configured planning retrieval service wires embedding searcher for normal 
     wiredItemReason: string | null;
     baseRelationCount: number;
     wiredRelationReason: string | null;
+    persistedEmbeddingDocCount: number;
+    persistedEmbeddingModel: string | null;
   }>(
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
@@ -388,18 +390,21 @@ test("configured planning retrieval service wires embedding searcher for normal 
       "  const wiredFactionContext = await wiredService.retrievePlanContext(factionParams);",
       "  const baseItemContext = await baseService.retrievePlanContext(itemParams);",
       "  const wiredItemContext = await wiredService.retrievePlanContext(itemParams);",
-      "  const baseRelationContext = await baseService.retrievePlanContext(relationParams);",
-      "  const wiredRelationContext = await wiredService.retrievePlanContext(relationParams);",
-      "  console.log(JSON.stringify({",
-      "    baseWorldSettingCount: baseWorldContext.worldSettings.length,",
-      "    wiredWorldSettingReason: wiredWorldContext.worldSettings[0]?.reason ?? null,",
-      "    baseFactionCount: baseFactionContext.factions.length,",
-      "    wiredFactionReason: wiredFactionContext.factions[0]?.reason ?? null,",
-      "    baseItemCount: baseItemContext.items.length,",
-      "    wiredItemReason: wiredItemContext.items[0]?.reason ?? null,",
-      "    baseRelationCount: baseRelationContext.relations.length,",
-      "    wiredRelationReason: wiredRelationContext.relations[0]?.reason ?? null,",
-      "  }));",
+       "  const baseRelationContext = await baseService.retrievePlanContext(relationParams);",
+       "  const wiredRelationContext = await wiredService.retrievePlanContext(relationParams);",
+       "  const persistedDocs = await db.selectFrom('retrieval_documents').selectAll().where('book_id', '=', 1).where('layer', '=', 'embedding').orderBy('id', 'asc').execute();",
+       "  console.log(JSON.stringify({",
+        "    baseWorldSettingCount: baseWorldContext.worldSettings.length,",
+        "    wiredWorldSettingReason: wiredWorldContext.worldSettings[0]?.reason ?? null,",
+        "    baseFactionCount: baseFactionContext.factions.length,",
+        "    wiredFactionReason: wiredFactionContext.factions[0]?.reason ?? null,",
+        "    baseItemCount: baseItemContext.items.length,",
+        "    wiredItemReason: wiredItemContext.items[0]?.reason ?? null,",
+        "    baseRelationCount: baseRelationContext.relations.length,",
+        "    wiredRelationReason: wiredRelationContext.relations[0]?.reason ?? null,",
+        "    persistedEmbeddingDocCount: persistedDocs.length,",
+        "    persistedEmbeddingModel: persistedDocs[0]?.embedding_model ?? null,",
+        "  }));",
       "} finally {",
       "  await manager.destroy();",
       "}",
@@ -415,6 +420,8 @@ test("configured planning retrieval service wires embedding searcher for normal 
   assert.equal(result.wiredItemReason, "embedding_match");
   assert.equal(result.baseRelationCount, 0);
   assert.equal(result.wiredRelationReason, "embedding_match");
+  assert.ok(result.persistedEmbeddingDocCount >= 4);
+  assert.equal(result.persistedEmbeddingModel, "planning-retrieval-deterministic-v1");
 });
 
 test("retrieval ranking prefers stronger weighted hits and keeps continuity entities in hard constraints", async () => {

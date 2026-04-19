@@ -1,0 +1,13 @@
+{
+  "name": "long-distance-motivation",
+  "expectationMode": "baseline_gap",
+  "query": {
+    "chapterNo": 120,
+    "keywords": ["背叛", "旧案", "试探", "动机"]
+  },
+  "expected": {
+    "blockingNames": ["顾沉舟"],
+    "decisionNames": ["林夜"],
+    "maxNoiseRatio": 0.3
+  }
+}
