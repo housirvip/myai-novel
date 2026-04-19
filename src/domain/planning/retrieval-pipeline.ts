@@ -13,6 +13,7 @@ export interface RetrievePlanContextParams {
   bookId: number;
   chapterNo: number;
   keywords: string[];
+  queryText: string;
   manualRefs: ManualEntityRefs;
 }
 
@@ -59,6 +60,7 @@ export interface RetrievalExperimentFormat {
     bookId: number;
     chapterNo: number;
     keywords: string[];
+    queryText: string;
     manualRefs: ManualEntityRefs;
   };
   candidates: PlanRetrievedContextEntityGroups;

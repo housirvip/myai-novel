@@ -26,6 +26,8 @@ test("env config resolves paths and keeps defaults", async () => {
     planningReranker: string;
     planningEmbeddingProvider: string;
     planningEmbeddingSearchMode: string;
+    embeddingMinScore: number;
+    promptPlanBudget: number;
   }>(
     [
       "import { env } from './src/config/env.ts';",
@@ -38,6 +40,8 @@ test("env config resolves paths and keeps defaults", async () => {
         "  planningReranker: env.PLANNING_RETRIEVAL_RERANKER,",
         "  planningEmbeddingProvider: env.PLANNING_RETRIEVAL_EMBEDDING_PROVIDER,",
         "  planningEmbeddingSearchMode: env.PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE,",
+        "  embeddingMinScore: env.PLANNING_RETRIEVAL_EMBEDDING_MIN_SCORE,",
+        "  promptPlanBudget: env.PLANNING_PROMPT_CONTEXT_PLAN_CHAR_BUDGET,",
         "}));",
     ].join("\n"),
     env,
@@ -49,6 +53,8 @@ test("env config resolves paths and keeps defaults", async () => {
   assert.equal(result.planningReranker, "heuristic");
   assert.equal(result.planningEmbeddingProvider, "hash");
   assert.equal(result.planningEmbeddingSearchMode, "hybrid");
+  assert.equal(result.embeddingMinScore, 0.64);
+  assert.equal(result.promptPlanBudget, 3800);
   assert.match(result.logDir, /tmp-logs$/);
   assert.match(result.sqlitePath, /tmp-db\/novel\.sqlite$/);
 });

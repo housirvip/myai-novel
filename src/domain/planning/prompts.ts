@@ -8,12 +8,18 @@ export function buildIntentGenerationPrompt(input: {
   outlinesText: string;
   recentChapterText: string;
   manualFocusText?: string;
+  riskReminderText?: string;
 }): LlmMessage[] {
   return [
     {
       role: "system",
       content:
-        "你是一名长篇小说作者助手。请根据近期大纲和前文章节摘要，生成一段简洁但明确的本章作者意图草案。",
+        [
+          "你是一名长篇网文分章策划助手。",
+          "你的任务不是自由发挥剧情，而是先稳定本章的写作意图。",
+          "请优先保证承接上一章状态、维持设定一致、人物动机成立和钩子推进清晰。",
+          "不要提前透支后续 payoff，不要擅自改写既有规则与关系。",
+        ].join(""),
     },
     {
       role: "user",
@@ -26,11 +32,15 @@ export function buildIntentGenerationPrompt(input: {
         "",
         "近期章节：",
         input.recentChapterText,
+        input.riskReminderText?.trim()
+          ? ["", "连续性高风险提醒：", input.riskReminderText].join("\n")
+          : null,
         input.manualFocusText?.trim()
           ? ["", "用户显式指定的重点实体：", input.manualFocusText].join("\n")
           : null,
         "",
-        "请输出本章作者意图草案，聚焦本章要推进的主线、冲突和钩子。",
+        "请输出本章作者意图草案。",
+        "输出必须包含：本章主线推进、本章核心冲突、必须承接的前文状态、必须避免的错误推进。",
       ]
         .filter(Boolean)
         .join("\n"),
@@ -45,7 +55,13 @@ export function buildKeywordExtractionPrompt(input: {
     {
       role: "system",
       content:
-        "你是一名小说规划助手。请从作者意图中提取关键词，并返回 JSON：intentSummary, keywords, mustInclude, mustAvoid。keywords 中每个词不超过 8 个字。",
+        [
+          "你是一名小说规划助手。",
+          "请从作者意图中提取检索与约束信息，并返回 JSON。",
+          "字段必须包含：intentSummary, keywords, mustInclude, mustAvoid, entityHints, continuityCues, settingCues, sceneCues。",
+          "entityHints 必须是对象，字段为 characters, factions, items, relations, hooks, worldSettings。",
+          "keywords 中每个词不超过 8 个字；其余 cue 字段用于检索，可稍长，但应简洁。",
+        ].join(""),
     },
     {
       role: "user",
@@ -89,7 +105,7 @@ export function buildPlanPrompt(input: {
         jsonSection(
           "召回上下文（必须严格参考）",
           buildCompactRetrievedContextForPrompt({
-            retrievedContext: input.retrievedContext,
+            contextBlocks,
             mode: "plan",
           }),
         ),
@@ -217,7 +233,7 @@ export function buildRepairPrompt(input: {
           ? jsonSection(
               "召回上下文（必须保持一致）",
               buildCompactRetrievedContextForPrompt({
-                retrievedContext: input.retrievedContext as PlanRetrievedContext,
+                contextBlocks,
                 mode: "repair",
               }),
             )
@@ -374,29 +390,24 @@ function buildIntentConstraintsSection(input?: PlanIntentConstraints): string | 
 }
 
 function buildCompactRetrievedContextForPrompt(input: {
-  retrievedContext: PlanRetrievedContext;
+  contextBlocks: ReturnType<typeof buildPromptContextBlocks> | null;
   mode: "plan" | "repair";
 }): {
-  hardConstraints: PlanRetrievedContext["hardConstraints"];
-  riskReminders: string[];
-  recentChanges: PlanRetrievedContext["recentChanges"];
-  priorityContext: {
-    blockingConstraints: NonNullable<PlanRetrievedContext["priorityContext"]>["blockingConstraints"];
-    decisionContext: NonNullable<PlanRetrievedContext["priorityContext"]>["decisionContext"];
-  };
+  mustFollowFacts: string[];
+  recentChanges: string[];
+  requiredHooks: string[];
+  forbiddenMoves: string[];
+  supportingBackground: string[];
 } {
-  const recentChanges = input.retrievedContext.recentChanges ?? [];
-  const priorityContext = input.retrievedContext.priorityContext;
+  const contextBlocks = input.contextBlocks;
 
   return {
-    hardConstraints: input.retrievedContext.hardConstraints,
-    riskReminders: input.retrievedContext.riskReminders,
-    recentChanges,
-    priorityContext: {
-      blockingConstraints: priorityContext?.blockingConstraints.slice(0, 6) ?? [],
-      decisionContext: input.mode === "repair"
-        ? priorityContext?.decisionContext.slice(0, 4) ?? []
-        : [],
-    },
+    mustFollowFacts: contextBlocks?.mustFollowFacts ?? [],
+    recentChanges: contextBlocks?.recentChanges ?? [],
+    requiredHooks: contextBlocks?.requiredHooks ?? [],
+    forbiddenMoves: contextBlocks?.forbiddenMoves ?? [],
+    supportingBackground: input.mode === "repair"
+      ? contextBlocks?.supportingBackground ?? []
+      : [],
   };
 }

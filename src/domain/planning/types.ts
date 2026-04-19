@@ -171,6 +171,17 @@ export interface ExtractedIntentPayload {
   keywords: string[];
   mustInclude: string[];
   mustAvoid: string[];
+  entityHints: {
+    characters: string[];
+    factions: string[];
+    items: string[];
+    relations: string[];
+    hooks: string[];
+    worldSettings: string[];
+  };
+  continuityCues: string[];
+  settingCues: string[];
+  sceneCues: string[];
 }
 
 export interface PlanIntentConstraints {

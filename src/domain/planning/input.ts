@@ -5,12 +5,31 @@ import { parseRequiredNumber } from "../../shared/utils/cli.js";
 import type { ManualEntityRefs } from "./types.js";
 
 const keywordSchema = z.string().min(1).max(env.PLANNING_KEYWORD_MAX_LENGTH);
+const retrievalCueSchema = z.string().min(1).max(32);
 
 export const extractedIntentSchema = z.object({
   intentSummary: z.string().min(1),
   keywords: z.array(keywordSchema).max(env.PLANNING_INTENT_KEYWORD_LIMIT),
   mustInclude: z.array(z.string().min(1)).max(env.PLANNING_INTENT_MUST_INCLUDE_LIMIT).default([]),
   mustAvoid: z.array(z.string().min(1)).max(env.PLANNING_INTENT_MUST_AVOID_LIMIT).default([]),
+  entityHints: z.object({
+    characters: z.array(retrievalCueSchema).max(8).default([]),
+    factions: z.array(retrievalCueSchema).max(8).default([]),
+    items: z.array(retrievalCueSchema).max(8).default([]),
+    relations: z.array(retrievalCueSchema).max(8).default([]),
+    hooks: z.array(retrievalCueSchema).max(8).default([]),
+    worldSettings: z.array(retrievalCueSchema).max(8).default([]),
+  }).default({
+    characters: [],
+    factions: [],
+    items: [],
+    relations: [],
+    hooks: [],
+    worldSettings: [],
+  }),
+  continuityCues: z.array(retrievalCueSchema).max(10).default([]),
+  settingCues: z.array(retrievalCueSchema).max(10).default([]),
+  sceneCues: z.array(retrievalCueSchema).max(10).default([]),
 });
 
 export const planInputSchema = z.object({

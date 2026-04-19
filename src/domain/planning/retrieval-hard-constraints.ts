@@ -6,19 +6,19 @@ export function buildHardConstraints(groups: PlanRetrievedContextEntityGroups): 
   // hardConstraints 不是“得分最高的若干条”，而是“最容易写错且必须保底出现的事实子集”。
   // 因此这里会按实体类型分别走不同的兜底规则，而不是统一按 score 截断。
   return {
-    hooks: selectPriorityEntities(groups.hooks, 5, (entity) =>
+    hooks: selectPriorityEntities("hook", groups.hooks, 5, (entity) =>
       entity.reason.includes("chapter_proximity") || entity.reason.includes("manual_id"),
     ),
-    characters: selectCharacterHardConstraints(groups.characters),
-    factions: selectPriorityEntities(groups.factions, 4, (entity) =>
+    characters: sortHardConstraintEntities("character", selectCharacterHardConstraints(groups.characters)),
+    factions: selectPriorityEntities("faction", groups.factions, 4, (entity) =>
       entity.reason.includes("manual_id") ||
       (entity.reason.includes("continuity_risk")
         && (entity.content.includes("core_goal=") || entity.content.includes("description=") || entity.content.includes("append_notes="))) ||
       entity.score >= 125,
     ),
-    items: selectItemHardConstraints(groups.items),
-    relations: selectRelationHardConstraints(groups.relations),
-    worldSettings: selectWorldSettingHardConstraints(groups.worldSettings),
+    items: sortHardConstraintEntities("item", selectItemHardConstraints(groups.items)),
+    relations: sortHardConstraintEntities("relation", selectRelationHardConstraints(groups.relations)),
+    worldSettings: sortHardConstraintEntities("world_setting", selectWorldSettingHardConstraints(groups.worldSettings)),
   };
 }
 
@@ -187,11 +187,12 @@ function selectWorldSettingHardConstraints(entities: RetrievedEntity[]): Retriev
 }
 
 function selectPriorityEntities(
+  entityType: RetrievedFactEntityType,
   entities: RetrievedEntity[],
   limit: number,
   isPriority: (entity: RetrievedEntity) => boolean,
 ): RetrievedEntity[] {
-  return entities.filter(isPriority).slice(0, limit);
+  return sortHardConstraintEntities(entityType, entities.filter(isPriority)).slice(0, limit);
 }
 
 function selectGuaranteedEntities(
@@ -232,10 +233,10 @@ function fillRemainingByScore(
   entities: RetrievedEntity[],
   limit: number,
 ): RetrievedEntity[] {
-  // 先保规则性挑出来的实体，再用原始排序补满余量。
-  // 这样最终集合既保留“不能丢的约束”，也保留一定的相关性顺序。
   const usedIds = new Set(selected.map((entity) => entity.id));
-  const remaining = entities.filter((entity) => !usedIds.has(entity.id));
+  const remaining = entities
+    .filter((entity) => !usedIds.has(entity.id))
+    .sort((left, right) => right.score - left.score || left.id - right.id);
   return [...selected, ...remaining].slice(0, limit);
 }
 
@@ -249,4 +250,80 @@ function dedupeById(entities: RetrievedEntity[]): RetrievedEntity[] {
   }
 
   return Array.from(map.values());
+}
+
+function sortHardConstraintEntities(
+  entityType: RetrievedFactEntityType,
+  entities: RetrievedEntity[],
+): RetrievedEntity[] {
+  return [...entities].sort((left, right) => {
+    const scoreDiff = hardConstraintPriorityScore(entityType, right) - hardConstraintPriorityScore(entityType, left);
+    if (scoreDiff !== 0) {
+      return scoreDiff;
+    }
+    return right.score - left.score || left.id - right.id;
+  });
+}
+
+function hardConstraintPriorityScore(entityType: RetrievedFactEntityType, entity: RetrievedEntity): number {
+  let score = 0;
+
+  if (entity.reason.includes("manual_id")) {
+    score += 1000;
+  }
+  if (entity.reason.includes("continuity_risk")) {
+    score += 300;
+  }
+  if (entity.reason.includes("manual_entity_link")) {
+    score += 220;
+  }
+  if (entity.reason.includes("institution_context")) {
+    score += 180;
+  }
+  if (entity.reason.includes("keyword_hit")) {
+    score += 120;
+  }
+
+  switch (entityType) {
+    case "hook":
+      if (entity.reason.includes("chapter_proximity")) {
+        score += 500;
+      }
+      break;
+    case "character":
+      if (entity.content.includes("current_location=")) {
+        score += 260;
+      }
+      if (entity.content.includes("goal=") || entity.content.includes("background=")) {
+        score += 180;
+      }
+      break;
+    case "item":
+      if (entity.content.includes("owner_type=")) {
+        score += 260;
+      }
+      if (entity.content.includes("status=")) {
+        score += 200;
+      }
+      break;
+    case "relation":
+      if (entity.content.includes("relation_type=")) {
+        score += 240;
+      }
+      break;
+    case "world_setting":
+      if (entity.content.includes("规则") || entity.content.includes("制度")) {
+        score += 260;
+      }
+      break;
+    case "faction":
+      if (entity.content.includes("core_goal=")) {
+        score += 200;
+      }
+      break;
+    default:
+      break;
+  }
+
+  return score;
 }

@@ -10,6 +10,7 @@ test("HeuristicReranker prefers continuity-heavy entities and preserves candidat
       bookId: 1,
       chapterNo: 5,
       keywords: ["黑铁令", "林夜"],
+      queryText: "黑铁令 林夜",
       manualRefs: {
         characterIds: [],
         factionIds: [],
@@ -52,6 +53,7 @@ test("HeuristicReranker prefers semantic-supported candidates over equally score
       bookId: 1,
       chapterNo: 5,
       keywords: ["黑铁令"],
+      queryText: "黑铁令",
       manualRefs: {
         characterIds: [],
         factionIds: [],

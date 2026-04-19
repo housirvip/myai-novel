@@ -50,6 +50,7 @@ test("EmbeddingCandidateProvider merges semantic matches without replacing base 
     bookId: 1,
     chapterNo: 12,
     keywords: ["黑铁令", "旧案"],
+    queryText: "黑铁令 旧案 宗门制度",
     manualRefs: {
       characterIds: [],
       factionIds: [],
@@ -113,6 +114,7 @@ test("EmbeddingCandidateProvider preserves structured relation metadata for embe
     bookId: 1,
     chapterNo: 12,
     keywords: ["互相试探"],
+    queryText: "林夜 顾沉舟 互相试探",
     manualRefs: {
       characterIds: [],
       factionIds: [],
@@ -140,4 +142,53 @@ test("EmbeddingCandidateProvider preserves structured relation metadata for embe
   assert.deepEqual(packet.relationEndpoints, relation?.relationEndpoints);
   assert.deepEqual(packet.relationMetadata, relation?.relationMetadata);
   assert.deepEqual(packet.relatedDisplayNames, ["林夜", "顾沉舟"]);
+});
+
+test("EmbeddingCandidateProvider filters low-score embedding-only matches while keeping support for existing candidates", async () => {
+  const baseProvider: RetrievalCandidateProvider = {
+    async loadCandidates() {
+      return {
+        outlines: [],
+        recentChapters: [],
+        entityGroups: {
+          hooks: [],
+          characters: [{ id: 1, name: "林夜", reason: "keyword_hit", content: "goal=调查", score: 90 }],
+          factions: [],
+          items: [],
+          relations: [],
+          worldSettings: [],
+        },
+      };
+    },
+  };
+
+  const provider = new EmbeddingCandidateProvider(baseProvider, {
+    async search() {
+      return [
+        { entityType: "character", entityId: 1, chunkKey: "character:1:summary", semanticScore: 0.66, displayName: "林夜", text: "人物：林夜" },
+        { entityType: "world_setting", entityId: 4, chunkKey: "world_setting:4:summary", semanticScore: 0.68, displayName: "宗门制度", text: "设定：宗门制度" },
+      ];
+    },
+  }, {
+    minScore: 0.64,
+    minEmbeddingOnlyScore: 0.72,
+  });
+
+  const result = await provider.loadCandidates({} as never, {
+    bookId: 1,
+    chapterNo: 12,
+    keywords: ["林夜"],
+    queryText: "林夜 宗门制度",
+    manualRefs: {
+      characterIds: [],
+      factionIds: [],
+      itemIds: [],
+      hookIds: [],
+      relationIds: [],
+      worldSettingIds: [],
+    },
+  });
+
+  assert.match(result.entityGroups.characters[0]?.reason ?? "", /embedding_support/);
+  assert.equal(result.entityGroups.worldSettings.length, 0);
 });

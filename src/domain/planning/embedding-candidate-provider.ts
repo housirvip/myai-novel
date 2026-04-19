@@ -1,3 +1,4 @@
+import { env } from "../../config/env.js";
 import type { Kysely } from "kysely";
 
 import type { DatabaseSchema } from "../../core/db/schema/database.js";
@@ -17,7 +18,7 @@ export class EmbeddingCandidateProvider implements RetrievalCandidateProvider {
   constructor(
     private readonly baseProvider: RetrievalCandidateProvider,
     private readonly searcher: EmbeddingCandidateSearcher,
-    private readonly options: { limit?: number } = {},
+    private readonly options: { limit?: number; minScore?: number; minEmbeddingOnlyScore?: number } = {},
   ) {}
 
   async loadCandidates(
@@ -28,7 +29,7 @@ export class EmbeddingCandidateProvider implements RetrievalCandidateProvider {
     // embedding 查询这里只消费已经整理过的关键词串，
     // 而不是直接把整段作者意图原文丢给向量搜索，避免语义召回被长文本噪声主导。
     const semanticMatches = await this.searcher.search({
-      queryText: params.keywords.join(" ").trim(),
+      queryText: params.queryText.trim() || params.keywords.join(" ").trim(),
       limit: this.options.limit ?? 10,
     });
 
@@ -38,7 +39,10 @@ export class EmbeddingCandidateProvider implements RetrievalCandidateProvider {
 
     return {
       ...baseCandidates,
-      entityGroups: mergeEntityGroups(baseCandidates.entityGroups, semanticMatches),
+      entityGroups: mergeEntityGroups(baseCandidates.entityGroups, semanticMatches, {
+        minScore: this.options.minScore ?? env.PLANNING_RETRIEVAL_EMBEDDING_MIN_SCORE,
+        minEmbeddingOnlyScore: this.options.minEmbeddingOnlyScore ?? env.PLANNING_RETRIEVAL_EMBEDDING_ONLY_MIN_SCORE,
+      }),
     };
   }
 }
@@ -46,14 +50,15 @@ export class EmbeddingCandidateProvider implements RetrievalCandidateProvider {
 function mergeEntityGroups(
   entityGroups: PlanRetrievedContextEntityGroups,
   matches: EmbeddingMatch[],
+  options: { minScore: number; minEmbeddingOnlyScore: number },
 ): PlanRetrievedContextEntityGroups {
   return {
-    hooks: mergeEntities(entityGroups.hooks, matches, "hook"),
-    characters: mergeEntities(entityGroups.characters, matches, "character"),
-    factions: mergeEntities(entityGroups.factions, matches, "faction"),
-    items: mergeEntities(entityGroups.items, matches, "item"),
-    relations: mergeEntities(entityGroups.relations, matches, "relation"),
-    worldSettings: mergeEntities(entityGroups.worldSettings, matches, "world_setting"),
+    hooks: mergeEntities(entityGroups.hooks, matches, "hook", options),
+    characters: mergeEntities(entityGroups.characters, matches, "character", options),
+    factions: mergeEntities(entityGroups.factions, matches, "faction", options),
+    items: mergeEntities(entityGroups.items, matches, "item", options),
+    relations: mergeEntities(entityGroups.relations, matches, "relation", options),
+    worldSettings: mergeEntities(entityGroups.worldSettings, matches, "world_setting", options),
   };
 }
 
@@ -61,6 +66,7 @@ function mergeEntities(
   existing: RetrievedEntity[],
   matches: EmbeddingMatch[],
   entityType: EmbeddingMatch["entityType"],
+  options: { minScore: number; minEmbeddingOnlyScore: number },
 ): RetrievedEntity[] {
   // 合并策略不是“语义召回覆盖规则召回”，而是按实体 id 把语义信号叠加进已有候选。
   // 这样 embedding 更像是加权补充，而不是另起一套完全独立的候选池。
@@ -73,7 +79,14 @@ function mergeEntities(
 
     const existingEntity = byId.get(match.entityId);
     if (existingEntity) {
+      if (match.semanticScore < options.minScore) {
+        continue;
+      }
       byId.set(match.entityId, mergeSemanticSignal(existingEntity, match));
+      continue;
+    }
+
+    if (match.semanticScore < options.minEmbeddingOnlyScore) {
       continue;
     }
 

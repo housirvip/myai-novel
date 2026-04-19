@@ -52,6 +52,18 @@ test("buildHardConstraints keeps keyword-hit relations and institution-context w
   assert.deepEqual(hardConstraints.worldSettings.map((item) => item.id), [2]);
 });
 
+test("buildHardConstraints prioritizes manual and continuity-critical entities before score-only filler", () => {
+  const hardConstraints = buildHardConstraints(createGroups({
+    characters: [
+      createEntity({ id: 1, name: "高分路人", reason: "keyword_hit", content: "status=alive", score: 300 }),
+      createEntity({ id: 2, name: "林夜", reason: "continuity_risk+keyword_hit", content: "current_location=青岳宗外门", score: 120 }),
+      createEntity({ id: 3, name: "顾沉舟", reason: "manual_id", content: "goal=观察林夜", score: 80 }),
+    ],
+  }));
+
+  assert.deepEqual(hardConstraints.characters.map((item) => item.id).slice(0, 2), [3, 2]);
+});
+
 test("explainHardConstraintSelection exposes why selected entities stayed in hard constraints", () => {
   assert.deepEqual(
     explainHardConstraintSelection(
@@ -67,6 +79,14 @@ test("explainHardConstraintSelection exposes why selected entities stayed in har
       createEntity({ id: 2, reason: "manual_entity_link+keyword_hit", content: "relation_type=member", score: 30 }),
     ),
     ["manual_entity_link", "keyword_hit_relation"],
+  );
+
+  assert.deepEqual(
+    explainHardConstraintSelection(
+      "world_setting",
+      createEntity({ id: 3, title: "宗门制度", reason: "institution_context", content: "规则=登记", score: 18 }),
+    ),
+    ["institution_or_rule_signal"],
   );
 });
 

@@ -71,6 +71,7 @@ export class PlanChapterWorkflow {
             bookId: payload.bookId,
             chapterNo: payload.chapterNo,
             keywords: [],
+            queryText: "",
             manualRefs: payload.manualEntityRefs,
           });
 
@@ -87,6 +88,7 @@ export class PlanChapterWorkflow {
                   outlinesText: formatOutlines(initialContext),
                   recentChapterText: formatRecentChapters(initialContext),
                   manualFocusText: formatManualFocus(initialContext),
+                  riskReminderText: formatRiskReminders(initialContext),
                 }),
               })
             ).content;
@@ -113,6 +115,7 @@ export class PlanChapterWorkflow {
             bookId: payload.bookId,
             chapterNo: payload.chapterNo,
             keywords: retrievalQuery.keywords,
+            queryText: retrievalQuery.queryText,
             manualRefs: payload.manualEntityRefs,
           });
 
@@ -259,6 +262,12 @@ function buildRetrievalQueryPayload(input: {
   const keywordTerms = input.extractedIntent.keywords.flatMap((value) => splitIntoRetrievalTerms(value));
   const mustIncludeTerms = input.extractedIntent.mustInclude.flatMap((value) => splitIntoRetrievalTerms(value));
   const summaryTerms = splitIntoRetrievalTerms(input.extractedIntent.intentSummary);
+  const continuityTerms = input.extractedIntent.continuityCues.flatMap((value) => splitIntoRetrievalTerms(value));
+  const settingTerms = input.extractedIntent.settingCues.flatMap((value) => splitIntoRetrievalTerms(value));
+  const sceneTerms = input.extractedIntent.sceneCues.flatMap((value) => splitIntoRetrievalTerms(value));
+  const entityHintTerms = Object.values(input.extractedIntent.entityHints).flatMap((values) =>
+    values.flatMap((value) => splitIntoRetrievalTerms(value))
+  );
 
   const keywords = Array.from(
     new Set(
@@ -266,6 +275,10 @@ function buildRetrievalQueryPayload(input: {
         ...keywordTerms,
         ...mustIncludeTerms,
         ...summaryTerms,
+        ...continuityTerms,
+        ...settingTerms,
+        ...sceneTerms,
+        ...entityHintTerms,
       ]
         .map((value) => value.trim())
         .filter(Boolean),
@@ -275,6 +288,12 @@ function buildRetrievalQueryPayload(input: {
   const queryText = [
     input.extractedIntent.intentSummary,
     ...input.extractedIntent.mustInclude,
+    ...input.extractedIntent.continuityCues,
+    ...input.extractedIntent.settingCues,
+    ...input.extractedIntent.sceneCues,
+    ...Object.entries(input.extractedIntent.entityHints).flatMap(([group, values]) =>
+      values.map((value) => `${group}:${value}`)
+    ),
     ...keywords,
   ]
     .map((value) => value.trim())
@@ -296,8 +315,16 @@ function splitIntoRetrievalTerms(value?: string | null): string[] {
   // 因为 retrieval term 的职责是“扩召回入口”，不是保留 authorIntent 的完整语义原文。
   return value
     .split(/[\s,，、；;。.!?\n]+/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0 && part.length <= 12);
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0 && part.length <= 16);
+}
+
+function formatRiskReminders(context: PlanRetrievedContext): string {
+  if (context.riskReminders.length === 0) {
+    return "无";
+  }
+
+  return context.riskReminders.slice(0, 3).map((item) => `- ${item}`).join("\n");
 }
 
 function toIntentConstraints(extractedIntent: ExtractedIntentPayload): PlanIntentConstraints {

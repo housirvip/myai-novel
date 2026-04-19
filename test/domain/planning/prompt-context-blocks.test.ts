@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { env } from "../../../src/config/env.js";
 import { buildPromptContextBlocks } from "../../../src/domain/planning/prompt-context-blocks.js";
 
-test("buildPromptContextBlocks applies stage-specific limits", () => {
+test("buildPromptContextBlocks respects stage-specific char budgets", () => {
   const context = {
     hardConstraints: {
       characters: [
@@ -69,13 +70,16 @@ test("buildPromptContextBlocks applies stage-specific limits", () => {
   const reviewBlocks = buildPromptContextBlocks(context, { mode: "review" });
   const approveDiffBlocks = buildPromptContextBlocks(context, { mode: "approveDiff" });
 
-  assert.equal(draftBlocks.coreEntities.length, 6);
-  assert.equal(reviewBlocks.coreEntities.length, 3);
-  assert.equal(approveDiffBlocks.coreEntities.length, 2);
-  assert.equal(draftBlocks.requiredHooks.length, 1);
-  assert.equal(reviewBlocks.requiredHooks.length, 1);
-  assert.equal(approveDiffBlocks.requiredHooks.length, 1);
-  assert.equal(reviewBlocks.recentChanges.length, 5);
-  assert.ok(approveDiffBlocks.supportingBackground.length <= 1);
+  const draftChars = Object.values(draftBlocks).flat().join("").length;
+  const reviewChars = Object.values(reviewBlocks).flat().join("").length;
+  const approveDiffChars = Object.values(approveDiffBlocks).flat().join("").length;
+
+  assert.ok(draftChars <= env.PLANNING_PROMPT_CONTEXT_DRAFT_CHAR_BUDGET);
+  assert.ok(reviewChars <= env.PLANNING_PROMPT_CONTEXT_REVIEW_CHAR_BUDGET);
+  assert.ok(approveDiffChars <= env.PLANNING_PROMPT_CONTEXT_APPROVE_DIFF_CHAR_BUDGET);
+  assert.ok(draftBlocks.mustFollowFacts.length >= 1);
+  assert.ok(reviewBlocks.mustFollowFacts.length >= 1);
+  assert.ok(approveDiffBlocks.mustFollowFacts.length >= 1);
+  assert.ok(reviewBlocks.supportingBackground.length <= draftBlocks.supportingBackground.length);
   assert.ok(approveDiffBlocks.supportingBackground.length <= draftBlocks.supportingBackground.length);
 });

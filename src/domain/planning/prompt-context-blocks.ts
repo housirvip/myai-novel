@@ -1,3 +1,4 @@
+import { env } from "../../config/env.js";
 import type {
   PlanRetrievedContextEntityGroups,
   RetrievedChapterSummary,
@@ -26,14 +27,7 @@ export type PromptContextMode =
   | "approveDiff";
 
 interface PromptContextBlockConfig {
-  mustFollowFactsLimit: number;
-  recentChangesLimit: number;
-  coreEntitiesLimit: number;
-  requiredHooksLimit: number;
-  forbiddenMovesLimit: number;
-  supportingFactLimit: number;
-  supportingOutlineLimit: number;
-  coreFallbackLimit: number;
+  charBudget: number;
 }
 
 type RetrievedContextViewLike = {
@@ -80,14 +74,12 @@ export function buildPromptContextBlocks(
     },
   });
 
-  const mustFollowFacts = summarizeFactPackets(priorityContext.blockingConstraints, config.mustFollowFactsLimit);
+  const mustFollowFacts = summarizeFactPackets(priorityContext.blockingConstraints);
   const requiredHooks = summarizeFactPackets(
     priorityContext.blockingConstraints.filter((packet) => packet.entityType === "hook"),
-    config.requiredHooksLimit,
   );
   const coreEntities = summarizeFactPackets(
     [...priorityContext.decisionContext, ...priorityContext.supportingContext].filter((packet) => packet.entityType !== "hook"),
-    config.coreEntitiesLimit,
   );
 
   const recentChanges = buildRecentChanges({
@@ -101,102 +93,70 @@ export function buildPromptContextBlocks(
       ...(hardConstraints.worldSettings ?? []),
     ],
   })
-    .slice(0, config.recentChangesLimit)
     .map((item) => `${item.label}：${item.detail}`);
 
-  const forbiddenMoves = (value.riskReminders ?? []).slice(0, config.forbiddenMovesLimit);
+  const forbiddenMoves = value.riskReminders ?? [];
   const supportingBackground = [
-    ...summarizeFactPackets(priorityContext.supportingContext, config.supportingFactLimit),
-    ...summarizeOutlines(value.supportingOutlines ?? value.outlines, config.supportingOutlineLimit),
-  ].slice(0, config.supportingFactLimit + config.supportingOutlineLimit);
+    ...summarizeFactPackets(priorityContext.supportingContext),
+    ...summarizeOutlines(value.supportingOutlines ?? value.outlines),
+  ];
+
+  const budgeted = allocateBudget({
+    charBudget: config.charBudget,
+    sections: [
+      { key: "mustFollowFacts", lines: mustFollowFacts.length > 0 ? mustFollowFacts : forbiddenMoves.slice(0, 2), minCount: 1 },
+      { key: "recentChanges", lines: recentChanges, minCount: 0 },
+      { key: "coreEntities", lines: coreEntities, minCount: 0 },
+      { key: "requiredHooks", lines: requiredHooks, minCount: 0 },
+      { key: "forbiddenMoves", lines: forbiddenMoves, minCount: 0 },
+      { key: "supportingBackground", lines: supportingBackground, minCount: 0 },
+    ],
+  });
+
+  const fallbackCoreEntities = summarizeFactPackets(
+    priorityContext.blockingConstraints.filter((packet) => packet.entityType !== "hook"),
+  );
+  const remainingBudget = Math.max(0, config.charBudget - totalChars(Object.values(budgeted).flat()));
+  const fallbackCoreWithinBudget = budgeted.coreEntities.length > 0
+    ? budgeted.coreEntities
+    : takeLinesWithinBudget(fallbackCoreEntities, remainingBudget, 0);
 
   return {
-    // 如果 blocking facts 不足，就退回到 forbiddenMoves 顶上去，
-    // 至少保证 prompt 还能看到一小组高风险提醒，而不是完全失去负面约束信息。
-    mustFollowFacts: mustFollowFacts.length > 0 ? mustFollowFacts : forbiddenMoves.slice(0, 2),
-    recentChanges,
-    coreEntities: coreEntities.length > 0
-      ? coreEntities
-      : summarizeFactPackets(
-        priorityContext.blockingConstraints.filter((packet) => packet.entityType !== "hook"),
-          config.coreFallbackLimit,
-        ),
-    requiredHooks,
-    forbiddenMoves,
-    supportingBackground,
+    mustFollowFacts: budgeted.mustFollowFacts,
+    recentChanges: budgeted.recentChanges,
+    coreEntities: fallbackCoreWithinBudget,
+    requiredHooks: budgeted.requiredHooks,
+    forbiddenMoves: budgeted.forbiddenMoves,
+    supportingBackground: budgeted.supportingBackground,
   };
 }
 
 function getPromptContextBlockConfig(mode: PromptContextMode): PromptContextBlockConfig {
-  // 不同阶段看的上下文重点不一样：
-  // plan/draft 更需要支撑信息，review/approveDiff 更需要收紧噪声，所以各 block limit 分别调小或调大。
   switch (mode) {
     case "plan":
       return {
-        mustFollowFactsLimit: 5,
-        recentChangesLimit: 3,
-        coreEntitiesLimit: 4,
-        requiredHooksLimit: 3,
-        forbiddenMovesLimit: 4,
-        supportingFactLimit: 2,
-        supportingOutlineLimit: 2,
-        coreFallbackLimit: 4,
+        charBudget: env.PLANNING_PROMPT_CONTEXT_PLAN_CHAR_BUDGET,
       };
     case "review":
       return {
-        mustFollowFactsLimit: 4,
-        recentChangesLimit: 5,
-        coreEntitiesLimit: 3,
-        requiredHooksLimit: 1,
-        forbiddenMovesLimit: 5,
-        supportingFactLimit: 1,
-        supportingOutlineLimit: 1,
-        coreFallbackLimit: 3,
+        charBudget: env.PLANNING_PROMPT_CONTEXT_REVIEW_CHAR_BUDGET,
       };
     case "repair":
       return {
-        mustFollowFactsLimit: 5,
-        recentChangesLimit: 4,
-        coreEntitiesLimit: 5,
-        requiredHooksLimit: 2,
-        forbiddenMovesLimit: 5,
-        supportingFactLimit: 2,
-        supportingOutlineLimit: 1,
-        coreFallbackLimit: 4,
+        charBudget: env.PLANNING_PROMPT_CONTEXT_REPAIR_CHAR_BUDGET,
       };
     case "approve":
       return {
-        mustFollowFactsLimit: 4,
-        recentChangesLimit: 4,
-        coreEntitiesLimit: 4,
-        requiredHooksLimit: 2,
-        forbiddenMovesLimit: 4,
-        supportingFactLimit: 1,
-        supportingOutlineLimit: 1,
-        coreFallbackLimit: 3,
+        charBudget: env.PLANNING_PROMPT_CONTEXT_APPROVE_CHAR_BUDGET,
       };
     case "approveDiff":
       return {
-        mustFollowFactsLimit: 3,
-        recentChangesLimit: 5,
-        coreEntitiesLimit: 2,
-        requiredHooksLimit: 1,
-        forbiddenMovesLimit: 5,
-        supportingFactLimit: 1,
-        supportingOutlineLimit: 0,
-        coreFallbackLimit: 2,
+        charBudget: env.PLANNING_PROMPT_CONTEXT_APPROVE_DIFF_CHAR_BUDGET,
       };
     case "draft":
     default:
       return {
-        mustFollowFactsLimit: 5,
-        recentChangesLimit: 4,
-        coreEntitiesLimit: 6,
-        requiredHooksLimit: 3,
-        forbiddenMovesLimit: 4,
-        supportingFactLimit: 2,
-        supportingOutlineLimit: 2,
-        coreFallbackLimit: 4,
+        charBudget: env.PLANNING_PROMPT_CONTEXT_DRAFT_CHAR_BUDGET,
       };
   }
 }
@@ -206,27 +166,173 @@ function summarizeFactPackets(
     entityType: string;
     displayName: string;
     currentState: string[];
+    coreConflictOrGoal: string[];
     continuityRisk: string[];
   }>,
-  limit: number,
 ): string[] {
-  // 这里只抽每个 fact packet 的第一条状态和第一条风险，
-  // 是为了把 prompt block 保持在“可快速扫读”的颗粒度，而不是把完整事实包原样塞回 prompt。
-  return packets.slice(0, limit).map((packet) => {
+  return packets.map((packet) => {
     const label = mapEntityTypeLabel(packet.entityType);
-    const state = packet.currentState[0] ? normalizeInline(packet.currentState[0]) : "";
-    const risk = packet.continuityRisk[0] ? `；风险=${packet.continuityRisk[0]}` : "";
-    return state ? `${label}：${packet.displayName}；${state}${risk}` : `${label}：${packet.displayName}${risk}`;
+    const details = selectPacketDetails(packet);
+    return details.length > 0
+      ? `${label}：${packet.displayName}；${details.join("；")}`
+      : `${label}：${packet.displayName}`;
   });
 }
 
-function summarizeOutlines(outlines?: RetrievedOutline[], limit = 3): string[] {
+function summarizeOutlines(outlines?: RetrievedOutline[]): string[] {
   return (outlines ?? [])
-    .slice(0, limit)
     .map((outline) => {
       const summary = normalizeInline(outline.content);
       return summary ? `${outline.title}：${summary}` : outline.title;
     });
+}
+
+function allocateBudget(input: {
+  charBudget: number;
+  sections: Array<{ key: keyof PromptContextBlocks; lines: string[]; minCount: number }>;
+}): PromptContextBlocks {
+  let remaining = input.charBudget;
+  const result = {
+    mustFollowFacts: [],
+    recentChanges: [],
+    coreEntities: [],
+    requiredHooks: [],
+    forbiddenMoves: [],
+    supportingBackground: [],
+  } as PromptContextBlocks;
+
+  for (const section of input.sections) {
+    const selected = takeLinesWithinBudget(section.lines, remaining, section.minCount);
+    assignSection(result, section.key, selected);
+    remaining -= selected.reduce((sum, line) => sum + line.length, 0);
+  }
+
+  return result;
+}
+
+function takeLinesWithinBudget(lines: string[], budget: number, minCount: number): string[] {
+  if (lines.length === 0) {
+    return [];
+  }
+
+  const selected: string[] = [];
+  let used = 0;
+
+  for (const line of lines) {
+    const remaining = Math.max(0, budget - used);
+    if (remaining === 0 && selected.length >= minCount) {
+      break;
+    }
+
+    const truncated = truncateLine(line, remaining);
+    if (!truncated) {
+      break;
+    }
+
+    selected.push(truncated);
+    used += truncated.length;
+
+    if (selected.length >= minCount && used >= budget) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function truncateLine(line: string, budget: number): string {
+  if (budget <= 0) {
+    return "";
+  }
+
+  if (line.length <= budget) {
+    return line;
+  }
+
+  if (budget === 1) {
+    return "…";
+  }
+
+  return `${line.slice(0, Math.max(0, budget - 1)).trimEnd()}…`;
+}
+
+function selectPacketDetails(packet: {
+  entityType: string;
+  currentState: string[];
+  coreConflictOrGoal?: string[];
+  continuityRisk: string[];
+}): string[] {
+  const details: string[] = [];
+  const stateCandidates = packet.currentState.map(normalizeInline).filter(Boolean);
+  const goalCandidates = (packet.coreConflictOrGoal ?? []).map(normalizeInline).filter(Boolean);
+  const riskCandidates = packet.continuityRisk.map(normalizeInline).filter(Boolean);
+
+  for (const candidate of prioritizeStateDetails(packet.entityType, stateCandidates)) {
+    if (!details.includes(candidate)) {
+      details.push(candidate);
+    }
+    if (details.length >= 2) {
+      break;
+    }
+  }
+
+  if (details.length < 2) {
+    for (const candidate of goalCandidates) {
+      if (!details.includes(candidate)) {
+        details.push(candidate);
+      }
+      if (details.length >= 2) {
+        break;
+      }
+    }
+  }
+
+  if (riskCandidates[0] && !details.some((item) => item.includes("风险="))) {
+    details.push(`风险=${riskCandidates[0]}`);
+  }
+
+  return details.slice(0, 3);
+}
+
+function prioritizeStateDetails(entityType: string, candidates: string[]): string[] {
+  const priorities = getDetailPriority(entityType);
+  return [...candidates].sort((left, right) => scoreDetailPriority(right, priorities) - scoreDetailPriority(left, priorities));
+}
+
+function getDetailPriority(entityType: string): string[] {
+  switch (entityType) {
+    case "character":
+      return ["current_location=", "goal=", "status="];
+    case "item":
+      return ["owner_type=", "status=", "description="];
+    case "relation":
+      return ["relation_type=", "status=", "description="];
+    case "world_setting":
+      return ["规则", "制度", "category="];
+    case "hook":
+      return ["target_chapter_no=", "expected_payoff=", "description="];
+    case "faction":
+      return ["core_goal=", "status=", "description="];
+    default:
+      return [];
+  }
+}
+
+function scoreDetailPriority(value: string, priorities: string[]): number {
+  const index = priorities.findIndex((item) => value.includes(item));
+  return index === -1 ? 0 : priorities.length - index;
+}
+
+function assignSection(
+  target: PromptContextBlocks,
+  key: keyof PromptContextBlocks,
+  value: string[],
+): void {
+  target[key] = value;
+}
+
+function totalChars(lines: string[]): number {
+  return lines.reduce((sum, line) => sum + line.length, 0);
 }
 
 function mapEntityTypeLabel(entityType: string): string {

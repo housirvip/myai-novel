@@ -5,6 +5,7 @@ import {
   buildApprovePrompt,
   buildDraftPrompt,
   buildIntentGenerationPrompt,
+  buildKeywordExtractionPrompt,
   buildPlanPrompt,
   buildRepairPrompt,
   buildReviewPrompt,
@@ -17,11 +18,22 @@ test("intent generation prompt includes manual focus when provided", () => {
     outlinesText: "- 内门试炼开启",
     recentChapterText: "- 第7章：黑铁令引发高层异常反应",
     manualFocusText: "人物：林夜；顾沉舟\n物品：黑铁令",
+    riskReminderText: "- 注意黑铁令归属连续性",
   });
 
   assert.match(messages[1]?.content ?? "", /用户显式指定的重点实体：/);
   assert.match(messages[1]?.content ?? "", /人物：林夜；顾沉舟/);
   assert.match(messages[1]?.content ?? "", /物品：黑铁令/);
+  assert.match(messages[1]?.content ?? "", /连续性高风险提醒：/);
+  assert.match(messages[1]?.content ?? "", /必须避免的错误推进/);
+});
+
+test("keyword extraction prompt requests extended retrieval fields", () => {
+  const messages = buildKeywordExtractionPrompt({ authorIntent: "推进黑铁令线索" });
+
+  assert.match(messages[0]?.content ?? "", /entityHints/);
+  assert.match(messages[0]?.content ?? "", /continuityCues/);
+  assert.match(messages[0]?.content ?? "", /sceneCues/);
 });
 
 test("repair prompt includes plan and retrieved context", () => {
@@ -133,6 +145,26 @@ test("plan prompt uses structured sections and explicit recall constraints", () 
       items: [],
       relations: [],
       worldSettings: [],
+      hardConstraints: {
+        hooks: [],
+        characters: [],
+        factions: [],
+        items: [],
+        relations: [],
+        worldSettings: [],
+      },
+      softReferences: {
+        outlines: [{ id: 9, title: "外门试炼", reason: "outline_hit", content: "外门考核将升级，需承接令牌规则。" }],
+        recentChapters: [],
+        entities: {
+          hooks: [],
+          characters: [],
+          factions: [],
+          items: [],
+          relations: [],
+          worldSettings: [],
+        },
+      },
       riskReminders: ["注意承接上一章状态"],
     },
   });

@@ -37,7 +37,9 @@ export class RetrievalQueryService {
     // 这样即使实验链路关闭，主流程仍然保留稳定的规则式召回基线。
     this.candidateProvider = shouldEnableEmbedding
       ? new EmbeddingCandidateProvider(baseProvider, options.embeddingSearcher!, {
-          limit: embeddingSearchMode === "hybrid" ? 12 : 10,
+          limit: embeddingSearchMode === "hybrid"
+            ? env.PLANNING_RETRIEVAL_EMBEDDING_LIMIT_HYBRID
+            : env.PLANNING_RETRIEVAL_EMBEDDING_LIMIT_BASIC,
         })
       : baseProvider;
     this.reranker = options?.reranker ?? createConfiguredReranker();
