@@ -63,6 +63,12 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
     },
     candidates,
     reranked,
+    persistedFacts: [
+      { id: 11, chapterNo: 8, factType: "chapter_summary", factText: "黑铁令旧案尚未收束。", importance: 90, riskLevel: 88 },
+    ],
+    persistedEvents: [
+      { id: 12, chapterNo: 9, title: "旧案回收前兆", summary: "执事档案库再次提起旧案。", unresolvedImpact: "仍需确认黑铁副令来源。" },
+    ],
   });
 
   assert.equal(context.book.title, "青岳入门录");
@@ -74,10 +80,12 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
   assert.ok(context.hardConstraints.characters.some((item) => item.id === 3));
   assert.ok(context.hardConstraints.items.some((item) => item.id === 5));
   assert.ok(context.hardConstraints.worldSettings.some((item) => item.id === 7));
-  assert.ok(context.riskReminders.some((item) => item.includes("接近回收节点的重要钩子")));
-  assert.ok(context.riskReminders.some((item) => item.includes("人物当前位置连续性")));
-  assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "林夜"));
-  assert.ok(context.priorityContext?.decisionContext.some((packet) => packet.displayName === "青岳宗"));
+   assert.ok(context.riskReminders.some((item) => item.text.includes("接近回收节点的重要钩子")));
+   assert.ok(context.riskReminders.some((item) => item.text.includes("人物当前位置连续性")));
+   assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "林夜"));
+   assert.ok(context.priorityContext?.decisionContext.some((packet) => packet.displayName === "青岳宗"));
+   assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "第8章事实"));
+   assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "第9章事件"));
     assert.equal(context.retrievalObservability?.candidates.characters[0]?.source, "rule");
    assert.equal(context.retrievalObservability?.query.chapterNo, 11);
    assert.equal(context.retrievalObservability?.candidateVolumes.recentChaptersScanned, 5);
@@ -86,7 +94,10 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
    assert.ok(context.retrievalObservability?.hardConstraints.characters[0]?.selectedBy.length);
    assert.ok(context.retrievalObservability?.priorityContext.blockingConstraints.some((packet) => packet.displayName === "林夜"));
    assert.ok(context.recentChanges?.some((item) => item.source === "risk_reminder"));
-  assert.ok(context.recentChanges?.some((item) => item.source === "chapter_summary"));
+   assert.ok(context.recentChanges?.some((item) => item.source === "retrieval_fact"));
+   assert.ok(context.recentChanges?.some((item) => item.source === "story_event"));
+   assert.ok(context.recentChanges?.some((item) => item.source === "chapter_summary"));
+   assert.ok(context.riskReminders.some((item) => item.text.includes("黑铁令旧案尚未收束")));
 });
 
 function createEntity(input: Partial<RetrievedEntity> & { id: number }): RetrievedEntity {

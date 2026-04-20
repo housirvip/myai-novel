@@ -1,9 +1,11 @@
-import type { RetrievedChapterSummary, RetrievedEntity, RetrievedRecentChange } from "./types.js";
+import type { PersistedRetrievalFact, PersistedStoryEvent, RetrievedChapterSummary, RetrievedEntity, RetrievedRecentChange, RetrievedRiskReminder } from "./types.js";
 
 export function buildRecentChanges(input: {
   recentChapters?: RetrievedChapterSummary[];
-  riskReminders?: string[];
+  riskReminders?: RetrievedRiskReminder[];
   entities?: RetrievedEntity[];
+  persistedFacts?: PersistedRetrievalFact[];
+  persistedEvents?: PersistedStoryEvent[];
 }): RetrievedRecentChange[] {
   // recentChanges 不是完整事件流，而是给 prompt 用的“近期最值得先看几条”。
   // 因此这里会把章节承接、风险提醒、状态型实体变化压到同一个小窗口里做排序。
@@ -17,8 +19,9 @@ export function buildRecentChanges(input: {
   const riskChanges = (input.riskReminders ?? []).slice(0, 4).map((risk, index) => ({
     source: "risk_reminder" as const,
     label: `高风险提醒${index + 1}`,
-    detail: normalizeInline(risk),
+    detail: normalizeInline(risk.text),
     priority: 100 - index,
+    sourceRef: risk.sourceRef,
   }));
 
   const entityChanges = (input.entities ?? [])
@@ -31,9 +34,31 @@ export function buildRecentChanges(input: {
       priority: 70 - index,
     }));
 
-  return [...riskChanges, ...entityChanges, ...chapterChanges]
+  const factChanges = (input.persistedFacts ?? []).slice(0, 4).map((fact, index) => ({
+    source: "retrieval_fact" as const,
+    label: fact.chapterNo ? `第${fact.chapterNo}章事实` : `历史事实${index + 1}`,
+    detail: normalizeInline(fact.factText),
+    priority: 85 - index,
+    sourceRef: {
+      sourceType: "persisted_fact" as const,
+      sourceId: fact.id,
+    },
+  }));
+
+  const eventChanges = (input.persistedEvents ?? []).slice(0, 3).map((event, index) => ({
+    source: "story_event" as const,
+    label: event.chapterNo ? `第${event.chapterNo}章事件` : event.title,
+    detail: normalizeInline(event.unresolvedImpact || event.summary || event.title),
+    priority: 78 - index,
+    sourceRef: {
+      sourceType: "persisted_event" as const,
+      sourceId: event.id,
+    },
+  }));
+
+  return [...riskChanges, ...factChanges, ...eventChanges, ...entityChanges, ...chapterChanges]
     .sort((left, right) => right.priority - left.priority)
-    .slice(0, 6);
+    .slice(0, 8);
 }
 
 function hasStatefulChangeHint(content: string): boolean {

@@ -1,7 +1,9 @@
+import type { Kysely } from "kysely";
 import { z } from "zod";
 
 import { env } from "../../config/env.js";
 import { createDatabaseManager } from "../../core/db/client.js";
+import type { DatabaseSchema } from "../../core/db/schema/database.js";
 import { BookRepository } from "../../core/db/repositories/book-repository.js";
 import { ChapterDraftRepository } from "../../core/db/repositories/chapter-draft-repository.js";
 import { ChapterFinalRepository } from "../../core/db/repositories/chapter-final-repository.js";
@@ -9,10 +11,14 @@ import { ChapterPlanRepository } from "../../core/db/repositories/chapter-plan-r
 import { ChapterRepository } from "../../core/db/repositories/chapter-repository.js";
 import { ChapterReviewRepository } from "../../core/db/repositories/chapter-review-repository.js";
 import { CharacterRepository } from "../../core/db/repositories/character-repository.js";
+import { ChapterSegmentRepository } from "../../core/db/repositories/chapter-segment-repository.js";
 import { FactionRepository } from "../../core/db/repositories/faction-repository.js";
 import { ItemRepository } from "../../core/db/repositories/item-repository.js";
 import { RelationRepository } from "../../core/db/repositories/relation-repository.js";
+import { RetrievalDocumentRepository } from "../../core/db/repositories/retrieval-document-repository.js";
+import { RetrievalFactRepository } from "../../core/db/repositories/retrieval-fact-repository.js";
 import { StoryHookRepository } from "../../core/db/repositories/story-hook-repository.js";
+import { StoryEventRepository } from "../../core/db/repositories/story-event-repository.js";
 import { WorldSettingRepository } from "../../core/db/repositories/world-setting-repository.js";
 import { createLlmFactory } from "../../core/llm/factory.js";
 import type { LlmProviderName } from "../../core/llm/types.js";
@@ -267,6 +273,10 @@ export class ApproveChapterWorkflow {
             const relationRepository = new RelationRepository(trx);
             const itemRepository = new ItemRepository(trx);
             const hookRepository = new StoryHookRepository(trx);
+            const storyEventRepository = new StoryEventRepository(trx);
+            const chapterSegmentRepository = new ChapterSegmentRepository(trx);
+            const retrievalDocumentRepository = new RetrievalDocumentRepository(trx);
+            const retrievalFactRepository = new RetrievalFactRepository(trx);
             const worldSettingRepository = new WorldSettingRepository(trx);
 
             const chapterBeforeCommit = await chapterRepository.getByBookAndChapterNo(payload.bookId, payload.chapterNo);
@@ -639,6 +649,120 @@ export class ApproveChapterWorkflow {
               updated_at: timestamp,
             });
 
+            await clearApproveSidecarArtifacts({
+              trx,
+              bookId: payload.bookId,
+              chapterId: chapterBeforeCommit.id,
+              chapterNo: payload.chapterNo,
+            });
+
+            const approvedStoryEvent = await storyEventRepository.create({
+              book_id: payload.bookId,
+              chapter_id: chapterBeforeCommit.id,
+              chapter_no: payload.chapterNo,
+              event_type: "chapter_approval",
+              title: `第${payload.chapterNo}章定稿事件`,
+              summary: diff.chapterSummary,
+              participant_entity_refs: JSON.stringify({
+                characters: actualCharacterIds,
+                factions: actualFactionIds,
+                items: actualItemIds,
+                hooks: actualHookIds,
+                worldSettings: actualWorldSettingIds,
+              }),
+              location_label: null,
+              trigger_text: `approve:${finalRecord.id}`,
+              outcome_text: diff.chapterSummary,
+              unresolved_impact: null,
+              hook_refs: JSON.stringify(actualHookIds),
+              status: "active",
+              created_at: timestamp,
+              updated_at: timestamp,
+            });
+
+            const approvedSegment = await chapterSegmentRepository.create({
+              book_id: payload.bookId,
+              chapter_id: chapterBeforeCommit.id,
+              chapter_no: payload.chapterNo,
+              segment_index: 0,
+              source_type: CHAPTER_SOURCE_TYPE.APPROVED,
+              text: finalResponse.content,
+              summary: diff.chapterSummary,
+              event_refs: JSON.stringify([approvedStoryEvent.id]),
+              metadata: JSON.stringify({
+                finalId: finalRecord.id,
+                wordCount: finalWordCount,
+              }),
+              status: "active",
+              created_at: timestamp,
+              updated_at: timestamp,
+            });
+
+            await retrievalDocumentRepository.create({
+              book_id: payload.bookId,
+              entity_type: "story_event",
+              entity_id: approvedStoryEvent.id,
+              layer: "event",
+              chunk_key: `story_event:${payload.bookId}:${chapterBeforeCommit.id}:approved`,
+              chapter_no: payload.chapterNo,
+              payload_json: JSON.stringify({
+                chapterId: chapterBeforeCommit.id,
+                storyEventId: approvedStoryEvent.id,
+                participantEntityRefs: {
+                  characters: actualCharacterIds,
+                  factions: actualFactionIds,
+                  items: actualItemIds,
+                  hooks: actualHookIds,
+                  worldSettings: actualWorldSettingIds,
+                },
+              }),
+              text: diff.chapterSummary,
+              embedding_model: null,
+              embedding_vector_ref: null,
+              status: "active",
+              created_at: timestamp,
+              updated_at: timestamp,
+            });
+
+            await retrievalDocumentRepository.create({
+              book_id: payload.bookId,
+              entity_type: "chapter",
+              entity_id: approvedSegment.id,
+              layer: "chapter_segment",
+              chunk_key: `chapter_segment:${payload.bookId}:${chapterBeforeCommit.id}:0:approved`,
+              chapter_no: payload.chapterNo,
+              payload_json: JSON.stringify({
+                chapterId: chapterBeforeCommit.id,
+                segmentId: approvedSegment.id,
+                sourceType: CHAPTER_SOURCE_TYPE.APPROVED,
+                eventRefs: [approvedStoryEvent.id],
+              }),
+              text: finalResponse.content,
+              embedding_model: null,
+              embedding_vector_ref: null,
+              status: "active",
+              created_at: timestamp,
+              updated_at: timestamp,
+            });
+
+            await persistApproveRetrievalFacts({
+              repository: retrievalFactRepository,
+              bookId: payload.bookId,
+              chapterId: chapterBeforeCommit.id,
+              chapterNo: payload.chapterNo,
+              finalId: finalRecord.id,
+              storyEventId: approvedStoryEvent.id,
+              chapterSegmentId: approvedSegment.id,
+              chapterSummary: diff.chapterSummary,
+              updates: diff.updates,
+              actualCharacterIds,
+              actualFactionIds,
+              actualItemIds,
+              actualHookIds,
+              actualWorldSettingIds,
+              timestamp,
+            });
+
             return {
               chapterId: chapter.id,
               finalId: finalRecord.id,
@@ -654,6 +778,125 @@ export class ApproveChapterWorkflow {
       await manager.destroy();
     }
   }
+}
+
+async function clearApproveSidecarArtifacts(input: {
+  trx: Kysely<DatabaseSchema>;
+  bookId: number;
+  chapterId: number;
+  chapterNo: number;
+}): Promise<void> {
+  await input.trx
+    .deleteFrom("retrieval_documents")
+    .where("book_id", "=", input.bookId)
+    .where((expressionBuilder) =>
+      expressionBuilder.or([
+        expressionBuilder("chunk_key", "=", `story_event:${input.bookId}:${input.chapterId}:approved`),
+        expressionBuilder("chunk_key", "=", `chapter_segment:${input.bookId}:${input.chapterId}:0:approved`),
+      ]),
+    )
+    .executeTakeFirst();
+
+  await input.trx.deleteFrom("story_events").where("book_id", "=", input.bookId).where("chapter_id", "=", input.chapterId).executeTakeFirst();
+  await input.trx.deleteFrom("chapter_segments").where("book_id", "=", input.bookId).where("chapter_id", "=", input.chapterId).executeTakeFirst();
+  await input.trx.deleteFrom("retrieval_facts").where("book_id", "=", input.bookId).where("chapter_no", "=", input.chapterNo).executeTakeFirst();
+}
+
+async function persistApproveRetrievalFacts(input: {
+  repository: RetrievalFactRepository;
+  bookId: number;
+  chapterId: number;
+  chapterNo: number;
+  finalId: number;
+  storyEventId: number;
+  chapterSegmentId: number;
+  chapterSummary: string;
+  updates: z.infer<typeof approveDiffSchema>["updates"];
+  actualCharacterIds: number[];
+  actualFactionIds: number[];
+  actualItemIds: number[];
+  actualHookIds: number[];
+  actualWorldSettingIds: number[];
+  timestamp: string;
+}): Promise<void> {
+  await input.repository.create({
+    book_id: input.bookId,
+    chapter_no: input.chapterNo,
+    entity_type: null,
+    entity_id: null,
+    event_id: input.storyEventId,
+    fact_type: "chapter_summary",
+    fact_key: `chapter:${input.bookId}:${input.chapterId}:summary`,
+    fact_text: input.chapterSummary,
+    payload_json: JSON.stringify({
+      finalId: input.finalId,
+      chapterSegmentId: input.chapterSegmentId,
+      actualEntityRefs: {
+        characters: input.actualCharacterIds,
+        factions: input.actualFactionIds,
+        items: input.actualItemIds,
+        hooks: input.actualHookIds,
+        worldSettings: input.actualWorldSettingIds,
+      },
+    }),
+    importance: 90,
+    risk_level: 70,
+    effective_from_chapter_no: input.chapterNo,
+    effective_to_chapter_no: null,
+    superseded_by_fact_id: null,
+    status: "active",
+    created_at: input.timestamp,
+    updated_at: input.timestamp,
+  });
+
+  for (const update of input.updates) {
+    const note = buildUpdateFactText(update);
+    if (!note) {
+      continue;
+    }
+
+    await input.repository.create({
+      book_id: input.bookId,
+      chapter_no: input.chapterNo,
+      entity_type: normalizeFactEntityType(update.entityType),
+      entity_id: update.entityId,
+      event_id: input.storyEventId,
+      fact_type: `${normalizeFactEntityType(update.entityType)}_update`,
+      fact_key: `${normalizeFactEntityType(update.entityType)}:${update.entityId}:chapter_update:${input.chapterNo}`,
+      fact_text: note,
+      payload_json: JSON.stringify({
+        action: update.action,
+        payload: update.payload,
+      }),
+      importance: 75,
+      risk_level: 65,
+      effective_from_chapter_no: input.chapterNo,
+      effective_to_chapter_no: null,
+      superseded_by_fact_id: null,
+      status: "active",
+      created_at: input.timestamp,
+      updated_at: input.timestamp,
+    });
+  }
+}
+
+function buildUpdateFactText(update: z.infer<typeof approveDiffSchema>["updates"][number]): string | null {
+  const note =
+    typeof update.payload.note === "string" ? update.payload.note
+      : typeof update.payload.append_notes === "string" ? update.payload.append_notes
+      : typeof update.payload.description === "string" ? update.payload.description
+      : typeof update.payload.status === "string" ? `状态变更为：${update.payload.status}`
+      : null;
+
+  if (!note || note.trim().length === 0) {
+    return null;
+  }
+
+  return note.trim();
+}
+
+function normalizeFactEntityType(entityType: z.infer<typeof approveDiffSchema>["updates"][number]["entityType"]): string {
+  return entityType === "story_hook" ? "hook" : entityType;
 }
 
 function mapEntityUpdate<T extends { append_notes?: string | null; status?: string | null }>(

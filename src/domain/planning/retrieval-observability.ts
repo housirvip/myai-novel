@@ -1,5 +1,9 @@
 import type { RetrievePlanContextParams, RetrievalCandidateBundle, RetrievalRerankerOutput } from "./retrieval-pipeline.js";
 import type {
+  PersistedRetrievalFact,
+  PersistedRetrievalFactSelectionObserved,
+  PersistedStoryEvent,
+  PersistedStoryEventSelectionObserved,
   PlanRetrievedContextEntityGroups,
   PlanRetrievalObservability,
   RetrievedEntity,
@@ -29,6 +33,12 @@ export function buildRetrievalObservability(input: {
   reranked: RetrievalRerankerOutput;
   hardConstraints: PlanRetrievedContextEntityGroups;
   priorityContext: RetrievedPriorityContext;
+  persistedFacts?: PersistedRetrievalFact[];
+  persistedEvents?: PersistedStoryEvent[];
+  persistedSelectionFunnel?: {
+    facts: PersistedRetrievalFactSelectionObserved[];
+    events: PersistedStoryEventSelectionObserved[];
+  };
 }): PlanRetrievalObservability {
   const beforeRerank = summarizeObservedGroups(buildObservedEntityGroups(input.candidates.entityGroups));
   const afterRerank = summarizeObservedGroups(buildObservedEntityGroups(input.reranked.entityGroups));
@@ -56,6 +66,10 @@ export function buildRetrievalObservability(input: {
       hardConstraintPromotionCounts: summarizeHardConstraintRetention(input.reranked.entityGroups, input.hardConstraints),
       priorityBucketCounts,
     },
+    persistedSidecarSelection: {
+      facts: buildObservedPersistedFacts(input.persistedFacts, input.persistedSelectionFunnel?.facts),
+      events: buildObservedPersistedEvents(input.persistedEvents, input.persistedSelectionFunnel?.events),
+    },
     candidates: buildObservedEntityGroups(input.reranked.entityGroups),
     hardConstraints: buildObservedHardConstraintGroups(input.hardConstraints),
     priorityContext: buildObservedPriorityContext(input.priorityContext),
@@ -74,6 +88,14 @@ export function summarizeRetrievalObservability(observability: PlanRetrievalObse
     hardConstraintPromotionCounts: observability.retention.hardConstraintPromotionCounts,
     hardConstraintCounts: summarizeObservedGroups(observability.hardConstraints),
     priorityBucketCounts: observability.retention.priorityBucketCounts,
+    persistedSidecarSelection: {
+      factsConsidered: observability.persistedSidecarSelection.facts.length,
+      factsSelected: observability.persistedSidecarSelection.facts.filter((item) => item.selected).length,
+      factsDropped: observability.persistedSidecarSelection.facts.filter((item) => !item.selected).length,
+      eventsConsidered: observability.persistedSidecarSelection.events.length,
+      eventsSelected: observability.persistedSidecarSelection.events.filter((item) => item.selected).length,
+      eventsDropped: observability.persistedSidecarSelection.events.filter((item) => !item.selected).length,
+    },
   };
 }
 
@@ -193,4 +215,63 @@ function summarizeHardConstraintRetention(
       return [groupName, { promoted, leftAsSoft }];
     }),
   ) as Record<keyof PlanRetrievedContextEntityGroups, { promoted: number; leftAsSoft: number }>;
+}
+
+function buildObservedPersistedFacts(
+  facts?: PersistedRetrievalFact[],
+  funnel?: PersistedRetrievalFactSelectionObserved[],
+) {
+  if (funnel && funnel.length > 0) {
+    return funnel;
+  }
+
+  return (facts ?? []).map((fact) => ({
+    id: fact.id,
+    chapterNo: fact.chapterNo,
+    factType: fact.factType,
+    factText: fact.factText,
+    rank: 1,
+    score: fact.selectionTrace?.score ?? 0,
+    selected: (fact.selectionTrace?.score ?? 0) > 0,
+    droppedReason: null,
+    surfacedIn: [],
+    trace: {
+      keywordMatched: fact.selectionTrace?.keywordMatched ?? false,
+      structuralManualMatch: fact.selectionTrace?.structuralManualMatch ?? false,
+      keywordScore: fact.selectionTrace?.keywordScore ?? 0,
+      riskScore: fact.selectionTrace?.riskScore ?? 0,
+      importanceScore: fact.selectionTrace?.importanceScore ?? 0,
+      recencyScore: fact.selectionTrace?.recencyScore ?? 0,
+      structuralBoost: fact.selectionTrace?.structuralBoost ?? 0,
+    },
+  }));
+}
+
+function buildObservedPersistedEvents(
+  events?: PersistedStoryEvent[],
+  funnel?: PersistedStoryEventSelectionObserved[],
+) {
+  if (funnel && funnel.length > 0) {
+    return funnel;
+  }
+
+  return (events ?? []).map((event) => ({
+    id: event.id,
+    chapterNo: event.chapterNo,
+    title: event.title,
+    unresolvedImpact: event.unresolvedImpact,
+    rank: 1,
+    score: event.selectionTrace?.score ?? 0,
+    selected: (event.selectionTrace?.score ?? 0) > 0,
+    droppedReason: null,
+    surfacedIn: [],
+    trace: {
+      keywordMatched: event.selectionTrace?.keywordMatched ?? false,
+      structuralManualMatch: event.selectionTrace?.structuralManualMatch ?? false,
+      keywordScore: event.selectionTrace?.keywordScore ?? 0,
+      unresolvedScore: event.selectionTrace?.unresolvedScore ?? 0,
+      recencyScore: event.selectionTrace?.recencyScore ?? 0,
+      structuralBoost: event.selectionTrace?.structuralBoost ?? 0,
+    },
+  }));
 }

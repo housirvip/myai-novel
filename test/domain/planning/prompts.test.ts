@@ -77,8 +77,8 @@ test("draft prompt treats retrieved context as hard constraints", () => {
         characters: [{ id: 1, name: "林夜", content: "current_location=青岳宗外门" }],
       },
       riskReminders: [
-        "注意人物当前位置连续性，避免人物在没有过渡的情况下突然更换场景。",
-        "注意关键物品的持有者与状态连续性，避免无交代易主、失踪或突然恢复。",
+        { text: "注意人物当前位置连续性，避免人物在没有过渡的情况下突然更换场景。" },
+        { text: "注意关键物品的持有者与状态连续性，避免无交代易主、失踪或突然恢复。" },
       ],
       characters: [{ id: 1, name: "林夜", content: "personality=冷静谨慎" }],
     },
@@ -165,7 +165,7 @@ test("plan prompt uses structured sections and explicit recall constraints", () 
           worldSettings: [],
         },
       },
-      riskReminders: ["注意承接上一章状态"],
+      riskReminders: [{ text: "注意承接上一章状态" }],
     },
   });
 
@@ -187,7 +187,7 @@ test("review prompt uses retrieved context as validation baseline", () => {
     draftContent: "章节草稿正文。",
     retrievedContext: {
       characters: [{ id: 1, name: "林夜", content: "status=alive" }],
-      riskReminders: ["注意人物位置变化"],
+      riskReminders: [{ text: "注意人物位置变化" }],
     },
   });
 
@@ -212,9 +212,9 @@ test("stage-specific context views keep review and approve prompts smaller than 
       worldSettings: [{ id: 4, title: "宗门制度", content: "外门弟子凭令牌登记" }],
     },
     riskReminders: [
-      "注意人物当前位置连续性，避免人物在没有过渡的情况下突然更换场景。",
-      "注意关键物品的持有者与状态连续性，避免无交代易主、失踪或突然恢复。",
-      "注意已激活的世界规则，避免直接违反既有制度与限制。",
+      { text: "注意人物当前位置连续性，避免人物在没有过渡的情况下突然更换场景。" },
+      { text: "注意关键物品的持有者与状态连续性，避免无交代易主、失踪或突然恢复。" },
+      { text: "注意已激活的世界规则，避免直接违反既有制度与限制。" },
     ],
     characters: [
       { id: 1, name: "林夜", content: "personality=冷静 goal=调查黑铁令" },

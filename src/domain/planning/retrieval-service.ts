@@ -6,8 +6,13 @@ import { buildRetrievedContext } from "./retrieval-context-builder.js";
 import { createConfiguredReranker } from "./retrieval-reranker-factory.js";
 import { EmbeddingCandidateProvider, type EmbeddingCandidateSearcher } from "./embedding-candidate-provider.js";
 import { summarizeRetrievalObservability } from "./retrieval-observability.js";
+import { buildReasons, scoreEntity } from "./retrieval-ranking.js";
 
 import type {
+  PersistedRetrievalFact,
+  PersistedRetrievalFactSelectionObserved,
+  PersistedStoryEvent,
+  PersistedStoryEventSelectionObserved,
   PlanRetrievedContext,
 } from "./types.js";
 import {
@@ -72,10 +77,25 @@ export class RetrievalQueryService {
           params,
           candidates,
         });
+        const [persistedFactsResult, persistedEventsResult] = await Promise.all([
+          loadPersistedRetrievalFacts(db, params),
+          loadPersistedStoryEvents(db, params),
+        ]);
 
         // 这里先产出完整上下文，再额外记录 observability 摘要；
         // 观测日志是为了调 retrieval 质量，不应反向影响实际写入 plan 的上下文内容。
-        const context = buildRetrievedContext({ params, book, candidates, reranked });
+        const context = buildRetrievedContext({
+          params,
+          book,
+          candidates,
+          reranked,
+          persistedFacts: persistedFactsResult.selected,
+          persistedEvents: persistedEventsResult.selected,
+          persistedSelectionFunnel: {
+            facts: persistedFactsResult.considered,
+            events: persistedEventsResult.considered,
+          },
+        });
         if (context.retrievalObservability) {
           this.logger.info(
             {
@@ -93,4 +113,328 @@ export class RetrievalQueryService {
     );
   }
 
+}
+
+async function loadPersistedRetrievalFacts(
+  db: import("kysely").Kysely<import("../../core/db/schema/database.js").DatabaseSchema>,
+  params: RetrievePlanContextParams,
+): Promise<{ selected: PersistedRetrievalFact[]; considered: PersistedRetrievalFactSelectionObserved[] }> {
+  const rows = await db
+    .selectFrom("retrieval_facts")
+    .select(["id", "chapter_no", "fact_type", "fact_text", "importance", "risk_level", "payload_json", "entity_type", "entity_id"])
+    .where("book_id", "=", params.bookId)
+    .where("status", "=", "active")
+    .where((eb) => eb.or([eb("chapter_no", "is", null), eb("chapter_no", "<", params.chapterNo)]))
+    .where((eb) => eb.or([eb("effective_from_chapter_no", "is", null), eb("effective_from_chapter_no", "<=", params.chapterNo)]))
+    .where((eb) => eb.or([eb("effective_to_chapter_no", "is", null), eb("effective_to_chapter_no", ">=", params.chapterNo)]))
+    .limit(24)
+    .execute();
+
+  const scored = rows
+    .map((row) => ({
+      row,
+      trace: scorePersistedFact(params, row),
+    }))
+    .sort((left, right) => right.trace.score - left.trace.score || (right.row.chapter_no ?? 0) - (left.row.chapter_no ?? 0) || left.row.id - right.row.id);
+
+  const selectedIds = new Set(scored.filter((item) => item.trace.score > 0).slice(0, 6).map((item) => item.row.id));
+  const considered = scored.map(({ row, trace }, index) => ({
+    id: row.id,
+    chapterNo: row.chapter_no,
+    factType: row.fact_type,
+    factText: row.fact_text,
+    rank: index + 1,
+    score: trace.score,
+    selected: selectedIds.has(row.id),
+    droppedReason: (
+      trace.score <= 0 ? "no_match" : selectedIds.has(row.id) ? null : "trimmed_by_top_k"
+    ) as "no_match" | "trimmed_by_top_k" | null,
+    surfacedIn: [],
+    trace,
+  }));
+
+  const selected = scored.filter((item) => selectedIds.has(item.row.id)).map(({ row, trace }) => ({
+    id: row.id,
+    chapterNo: row.chapter_no,
+    factType: row.fact_type,
+    factText: row.fact_text,
+    importance: row.importance,
+    riskLevel: row.risk_level,
+    selectionTrace: trace,
+  }));
+
+  return { selected, considered };
+}
+
+async function loadPersistedStoryEvents(
+  db: import("kysely").Kysely<import("../../core/db/schema/database.js").DatabaseSchema>,
+  params: RetrievePlanContextParams,
+): Promise<{ selected: PersistedStoryEvent[]; considered: PersistedStoryEventSelectionObserved[] }> {
+  const rows = await db
+    .selectFrom("story_events")
+    .select(["id", "chapter_no", "title", "summary", "unresolved_impact", "participant_entity_refs", "hook_refs"])
+    .where("book_id", "=", params.bookId)
+    .where("status", "=", "active")
+    .where((eb) => eb.or([eb("chapter_no", "is", null), eb("chapter_no", "<", params.chapterNo)]))
+    .limit(16)
+    .execute();
+
+  const scored = rows
+    .map((row) => ({
+      row,
+      trace: scorePersistedStoryEvent(params, row),
+    }))
+    .sort((left, right) => right.trace.score - left.trace.score || (right.row.chapter_no ?? 0) - (left.row.chapter_no ?? 0) || left.row.id - right.row.id);
+
+  const selectedIds = new Set(scored.filter((item) => item.trace.score > 0).slice(0, 4).map((item) => item.row.id));
+  const considered = scored.map(({ row, trace }, index) => ({
+    id: row.id,
+    chapterNo: row.chapter_no,
+    title: row.title,
+    unresolvedImpact: row.unresolved_impact,
+    rank: index + 1,
+    score: trace.score,
+    selected: selectedIds.has(row.id),
+    droppedReason: (
+      trace.score <= 0 ? "no_match" : selectedIds.has(row.id) ? null : "trimmed_by_top_k"
+    ) as "no_match" | "trimmed_by_top_k" | null,
+    surfacedIn: [],
+    trace,
+  }));
+
+  const selected = scored.filter((item) => selectedIds.has(item.row.id)).map(({ row, trace }) => ({
+    id: row.id,
+    chapterNo: row.chapter_no,
+    title: row.title,
+    summary: row.summary,
+    unresolvedImpact: row.unresolved_impact,
+    selectionTrace: trace,
+  }));
+
+  return { selected, considered };
+}
+
+function scorePersistedFact(
+  params: RetrievePlanContextParams,
+  row: {
+    id: number;
+    chapter_no: number | null;
+    fact_type: string;
+    fact_text: string;
+    importance: number | null;
+    risk_level: number | null;
+    payload_json: string | null;
+    entity_type: string | null;
+    entity_id: number | null;
+  },
+): {
+  score: number;
+  keywordMatched: boolean;
+  structuralManualMatch: boolean;
+  keywordScore: number;
+  riskScore: number;
+  importanceScore: number;
+  recencyScore: number;
+  structuralBoost: number;
+} {
+  const payloadText = row.payload_json ?? "";
+  const queryKeywords = buildSidecarKeywords(params);
+  const textSources = [row.fact_type, row.fact_text, payloadText, row.entity_type];
+  const weightedTextSources = [
+    { text: row.fact_text, weight: 18 },
+    { text: row.fact_type, weight: 10 },
+    { text: payloadText, weight: 8 },
+    { text: row.entity_type, weight: 6 },
+  ];
+  const manualIds = collectManualSidecarIds(params);
+  const structuralManualMatch = matchesManualEntityRef(params, row.entity_type, row.entity_id);
+
+  const keywordScore = scoreEntity({
+    manualIds,
+    entityId: row.entity_id ?? -row.id,
+    keywords: queryKeywords,
+    textSources,
+    weightedTextSources,
+  });
+  const reasonText = buildReasons({
+    manualIds,
+    entityId: row.entity_id ?? -row.id,
+    keywords: queryKeywords,
+    textSources,
+  }).join("+");
+  const recencyScore = Math.max(0, 24 - Math.max(0, params.chapterNo - (row.chapter_no ?? params.chapterNo)));
+  const riskScore = Math.floor((row.risk_level ?? 0) / 4);
+  const importanceScore = Math.floor((row.importance ?? 0) / 5);
+  const matched = reasonText.includes("keyword_hit") || reasonText.includes("manual_id");
+
+  const structuralBoost = structuralManualMatch ? 40 : 0;
+  const score = matched || structuralManualMatch
+    ? keywordScore + riskScore + importanceScore + recencyScore + structuralBoost
+    : 0;
+
+  return {
+    score,
+    keywordMatched: matched,
+    structuralManualMatch,
+    keywordScore,
+    riskScore,
+    importanceScore,
+    recencyScore,
+    structuralBoost,
+  };
+}
+
+function scorePersistedStoryEvent(
+  params: RetrievePlanContextParams,
+  row: {
+    id: number;
+    chapter_no: number | null;
+    title: string;
+    summary: string;
+    unresolved_impact: string | null;
+    participant_entity_refs: string | null;
+    hook_refs: string | null;
+  },
+): {
+  score: number;
+  keywordMatched: boolean;
+  structuralManualMatch: boolean;
+  keywordScore: number;
+  unresolvedScore: number;
+  recencyScore: number;
+  structuralBoost: number;
+} {
+  const participantRefs = row.participant_entity_refs ?? "";
+  const hookRefs = row.hook_refs ?? "";
+  const queryKeywords = buildSidecarKeywords(params);
+  const manualIds = collectManualSidecarIds(params);
+  const structuralManualMatch = matchesStoryEventRefs(params, row.participant_entity_refs, row.hook_refs);
+  const keywordScore = scoreEntity({
+    manualIds,
+    entityId: -row.id,
+    keywords: queryKeywords,
+    weightedTextSources: [
+      { text: row.title, weight: 14 },
+      { text: row.summary, weight: 16 },
+      { text: row.unresolved_impact, weight: 18 },
+      { text: participantRefs, weight: 10 },
+      { text: hookRefs, weight: 10 },
+    ],
+  });
+  const reasonText = buildReasons({
+    manualIds,
+    entityId: -row.id,
+    keywords: queryKeywords,
+    textSources: [row.title, row.summary, row.unresolved_impact, participantRefs, hookRefs],
+  }).join("+");
+  const unresolvedScore = row.unresolved_impact ? 18 : 0;
+  const recencyScore = Math.max(0, 22 - Math.max(0, params.chapterNo - (row.chapter_no ?? params.chapterNo)));
+  const matched = reasonText.includes("keyword_hit") || reasonText.includes("manual_id");
+
+  const structuralBoost = structuralManualMatch ? 45 : 0;
+  const score = matched || structuralManualMatch
+    ? keywordScore + unresolvedScore + recencyScore + structuralBoost
+    : 0;
+
+  return {
+    score,
+    keywordMatched: matched,
+    structuralManualMatch,
+    keywordScore,
+    unresolvedScore,
+    recencyScore,
+    structuralBoost,
+  };
+}
+
+function buildSidecarKeywords(params: RetrievePlanContextParams): string[] {
+  const queryTerms = params.queryText
+    .split(/[\s,，。；;、]+/)
+    .map((term) => term.trim())
+    .filter(Boolean);
+  return Array.from(new Set([...params.keywords, ...queryTerms]));
+}
+
+function collectManualSidecarIds(params: RetrievePlanContextParams): number[] {
+  return [
+    ...params.manualRefs.characterIds,
+    ...params.manualRefs.factionIds,
+    ...params.manualRefs.itemIds,
+    ...params.manualRefs.hookIds,
+    ...params.manualRefs.relationIds,
+    ...params.manualRefs.worldSettingIds,
+  ];
+}
+
+function matchesManualEntityRef(
+  params: RetrievePlanContextParams,
+  entityType: string | null,
+  entityId: number | null,
+): boolean {
+  if (!entityType || entityId === null) {
+    return false;
+  }
+
+  switch (entityType) {
+    case "character":
+      return params.manualRefs.characterIds.includes(entityId);
+    case "faction":
+      return params.manualRefs.factionIds.includes(entityId);
+    case "item":
+      return params.manualRefs.itemIds.includes(entityId);
+    case "hook":
+    case "story_hook":
+      return params.manualRefs.hookIds.includes(entityId);
+    case "relation":
+      return params.manualRefs.relationIds.includes(entityId);
+    case "world_setting":
+      return params.manualRefs.worldSettingIds.includes(entityId);
+    default:
+      return false;
+  }
+}
+
+function matchesStoryEventRefs(
+  params: RetrievePlanContextParams,
+  participantEntityRefs: string | null,
+  hookRefs: string | null,
+): boolean {
+  const participants = parseParticipantEntityRefs(participantEntityRefs);
+  if (participants.some((participant) => matchesManualEntityRef(params, participant.entityType, participant.entityId))) {
+    return true;
+  }
+
+  const hooks = parseHookRefs(hookRefs);
+  return hooks.some((hookId) => params.manualRefs.hookIds.includes(hookId));
+}
+
+function parseParticipantEntityRefs(value: string | null): Array<{ entityType: string; entityId: number }> {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Array<{ entityType?: string; entityId?: number }>;
+    return parsed.filter((item): item is { entityType: string; entityId: number } =>
+      typeof item?.entityType === "string" && typeof item?.entityId === "number"
+    );
+  } catch {
+    return [];
+  }
+}
+
+function parseHookRefs(value: string | null): number[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((item): item is number => typeof item === "number");
+  } catch {
+    return [];
+  }
 }

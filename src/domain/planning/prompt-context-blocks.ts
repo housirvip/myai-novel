@@ -5,6 +5,7 @@ import type {
   RetrievedEntity,
   RetrievedOutline,
   RetrievedPriorityContext,
+  RetrievedRecentChange,
 } from "./types.js";
 import { buildRecentChanges } from "./recent-changes.js";
 import { buildPriorityContext } from "./retrieval-facts.js";
@@ -34,7 +35,8 @@ type RetrievedContextViewLike = {
   hardConstraints?: Partial<PlanRetrievedContextEntityGroups>;
   priorityContext?: RetrievedPriorityContext;
   recentChapters?: RetrievedChapterSummary[];
-  riskReminders?: string[];
+  recentChanges?: RetrievedRecentChange[];
+  riskReminders?: Array<{ text: string }>;
   outlines?: RetrievedOutline[];
   supportingOutlines?: RetrievedOutline[];
   characters?: RetrievedEntity[];
@@ -82,20 +84,22 @@ export function buildPromptContextBlocks(
     [...priorityContext.decisionContext, ...priorityContext.supportingContext].filter((packet) => packet.entityType !== "hook"),
   );
 
-  const recentChanges = buildRecentChanges({
-    recentChapters: value.recentChapters,
-    riskReminders: value.riskReminders,
-    entities: [
-      ...(hardConstraints.characters ?? []),
-      ...(hardConstraints.items ?? []),
-      ...(hardConstraints.relations ?? []),
-      ...(hardConstraints.hooks ?? []),
-      ...(hardConstraints.worldSettings ?? []),
-    ],
-  })
+  const recentChanges = (value.recentChanges && value.recentChanges.length > 0
+    ? value.recentChanges
+    : buildRecentChanges({
+      recentChapters: value.recentChapters,
+      riskReminders: value.riskReminders,
+      entities: [
+        ...(hardConstraints.characters ?? []),
+        ...(hardConstraints.items ?? []),
+        ...(hardConstraints.relations ?? []),
+        ...(hardConstraints.hooks ?? []),
+        ...(hardConstraints.worldSettings ?? []),
+      ],
+    }))
     .map((item) => `${item.label}：${item.detail}`);
 
-  const forbiddenMoves = value.riskReminders ?? [];
+  const forbiddenMoves = (value.riskReminders ?? []).map((item) => item.text);
   const supportingBackground = [
     ...summarizeFactPackets(priorityContext.supportingContext),
     ...summarizeOutlines(value.supportingOutlines ?? value.outlines),

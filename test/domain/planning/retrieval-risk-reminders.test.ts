@@ -17,11 +17,11 @@ test("buildRiskReminders emits reminders for recent chapters, proximity hooks an
     }),
   });
 
-  assert.ok(reminders.some((item) => item.includes("接近回收节点的重要钩子")));
-  assert.ok(reminders.some((item) => item.includes("最近 1 章")));
-  assert.ok(reminders.some((item) => item.includes("人物当前位置连续性")));
-  assert.ok(reminders.some((item) => item.includes("关键物品的持有者与状态连续性")));
-  assert.ok(reminders.some((item) => item.includes("已激活的世界规则")));
+  assert.ok(reminders.some((item) => item.text.includes("接近回收节点的重要钩子")));
+  assert.ok(reminders.some((item) => item.text.includes("最近 1 章")));
+  assert.ok(reminders.some((item) => item.text.includes("人物当前位置连续性")));
+  assert.ok(reminders.some((item) => item.text.includes("关键物品的持有者与状态连续性")));
+  assert.ok(reminders.some((item) => item.text.includes("已激活的世界规则")));
 });
 
 test("buildRiskReminders dedupes repeated reminder categories", () => {
@@ -35,7 +35,7 @@ test("buildRiskReminders dedupes repeated reminder categories", () => {
     }),
   });
 
-  assert.equal(reminders.filter((item) => item.includes("关键物品的持有者与状态连续性")).length, 1);
+  assert.equal(reminders.filter((item) => item.text.includes("关键物品的持有者与状态连续性")).length, 1);
 });
 
 function createGroups(input: Partial<PlanRetrievedContextEntityGroups>): PlanRetrievedContextEntityGroups {

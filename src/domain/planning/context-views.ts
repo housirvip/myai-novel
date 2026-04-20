@@ -1,6 +1,7 @@
 import type {
   PlanRetrievedContext,
   PlanRetrievedContextEntityGroups,
+  RetrievedRiskReminder,
   RetrievedPriorityContext,
   RetrievedRecentChange,
 } from "./types.js";
@@ -86,6 +87,7 @@ function normalizePlanRetrievedContext(context: unknown): PlanRetrievedContext {
     };
     priorityContext?: RetrievedPriorityContext;
     recentChanges?: RetrievedRecentChange[];
+    riskReminders?: Array<string | RetrievedRiskReminder>;
   };
 
   const fallbackGroups = {
@@ -136,8 +138,12 @@ function normalizePlanRetrievedContext(context: unknown): PlanRetrievedContext {
         worldSettings: value.softReferences?.entities?.worldSettings ?? fallbackGroups.worldSettings,
       },
     },
-    riskReminders: value.riskReminders ?? [],
+    riskReminders: normalizeRiskReminders(value.riskReminders ?? []),
     priorityContext: value.priorityContext,
     recentChanges: value.recentChanges ?? [],
   };
+}
+
+function normalizeRiskReminders(value: Array<string | RetrievedRiskReminder>): RetrievedRiskReminder[] {
+  return value.map((item) => typeof item === "string" ? { text: item } : item);
 }

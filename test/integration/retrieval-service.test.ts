@@ -31,6 +31,8 @@ test("retrieval service skips placeholder chapters and returns richer entity con
     hardConstraintCharacterSelectedBy: string[];
     priorityBlockingAssignedBy: string[];
     recentChanges: Array<{ source: string; label: string; detail: string }>;
+    persistedFactReminderCount: number;
+    persistedEventChangeCount: number;
   }>(
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
@@ -71,10 +73,12 @@ test("retrieval service skips placeholder chapters and returns richer entity con
       "  await db.insertInto('story_hooks').values({",
       "    id: 1, book_id: 1, title: '黑铁令身份核验', hook_type: '伏笔', description: '执事会对黑铁令来源起疑', source_chapter_no: 2, target_chapter_no: 5, status: 'open', importance: 'high', append_notes: '第五章必须承接', keywords: '[\"黑铁令\",\"执事\"]', created_at: now, updated_at: now,",
       "  }).execute();",
-      "  await db.insertInto('world_settings').values({",
-      "    id: 1, book_id: 1, title: '宗门制度', category: '规则', content: '外门弟子凭令牌登记入门', status: 'active', append_notes: null, keywords: '[\"宗门\",\"令牌\"]', created_at: now, updated_at: now,",
-      "  }).execute();",
-      "  const service = new RetrievalQueryService(logger);",
+       "  await db.insertInto('world_settings').values({",
+       "    id: 1, book_id: 1, title: '宗门制度', category: '规则', content: '外门弟子凭令牌登记入门', status: 'active', append_notes: null, keywords: '[\"宗门\",\"令牌\"]', created_at: now, updated_at: now,",
+       "  }).execute();",
+       "  await db.insertInto('retrieval_facts').values({ id: 1, book_id: 1, chapter_no: 2, entity_type: null, entity_id: null, event_id: null, fact_type: 'chapter_summary', fact_key: 'chapter:1:2:summary', fact_text: '黑铁令旧案尚未收束。', payload_json: null, importance: 90, risk_level: 88, effective_from_chapter_no: 2, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now }).execute();",
+       "  await db.insertInto('story_events').values({ id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, event_type: 'investigation', title: '黑铁令旧案回收前兆', summary: '执事档案库再次提起黑铁令旧案。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '仍需确认黑铁副令来源。', hook_refs: null, status: 'active', created_at: now, updated_at: now }).execute();",
+       "  const service = new RetrievalQueryService(logger);",
        "  const context = await service.retrievePlanContext({",
        "    bookId: 1,",
        "    chapterNo: 5,",
@@ -105,10 +109,12 @@ test("retrieval service skips placeholder chapters and returns richer entity con
       "    priorityBlockingCount: context.priorityContext?.blockingConstraints.length ?? 0,",
       "    priorityDecisionCount: context.priorityContext?.decisionContext.length ?? 0,",
       "    candidateCharacterSource: context.retrievalObservability?.candidates.characters[0]?.source ?? null,",
-      "    hardConstraintCharacterSelectedBy: context.retrievalObservability?.hardConstraints.characters[0]?.selectedBy ?? [],",
-      "    priorityBlockingAssignedBy: context.retrievalObservability?.priorityContext.blockingConstraints[0]?.assignedBy ?? [],",
-      "    recentChanges: context.recentChanges ?? [],",
-      "  }));",
+       "    hardConstraintCharacterSelectedBy: context.retrievalObservability?.hardConstraints.characters[0]?.selectedBy ?? [],",
+       "    priorityBlockingAssignedBy: context.retrievalObservability?.priorityContext.blockingConstraints[0]?.assignedBy ?? [],",
+       "    recentChanges: context.recentChanges ?? [],",
+       "    persistedFactReminderCount: context.riskReminders.filter((item) => item.text.includes('黑铁令旧案尚未收束')).length,",
+       "    persistedEventChangeCount: context.recentChanges.filter((item) => item.source === 'story_event').length,",
+       "  }));",
       "} finally {",
       "  await manager.destroy();",
       "}",
@@ -144,10 +150,10 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.ok(result.hardConstraintWorldSetting);
   assert.match(result.hardConstraintWorldSetting.content, /category=规则/);
 
-  assert.ok(result.riskReminders.some((item) => item.includes("接近回收节点的重要钩子")));
-  assert.ok(result.riskReminders.some((item) => item.includes("人物当前位置连续性")));
-  assert.ok(result.riskReminders.some((item) => item.includes("关键物品的持有者与状态连续性")));
-  assert.ok(result.riskReminders.some((item) => item.includes("已激活的世界规则")));
+  assert.ok(result.riskReminders.some((item) => item.text.includes("接近回收节点的重要钩子")));
+  assert.ok(result.riskReminders.some((item) => item.text.includes("人物当前位置连续性")));
+  assert.ok(result.riskReminders.some((item) => item.text.includes("关键物品的持有者与状态连续性")));
+  assert.ok(result.riskReminders.some((item) => item.text.includes("已激活的世界规则")));
   assert.ok(result.priorityBlockingCount >= 4);
   assert.ok(result.priorityDecisionCount >= 1);
   assert.equal(result.candidateCharacterSource, "rule");
@@ -155,7 +161,11 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.ok(result.priorityBlockingAssignedBy.length >= 1);
   assert.ok(result.recentChanges.length >= 3);
   assert.ok(result.recentChanges.some((item) => item.source === "risk_reminder"));
+  assert.ok(result.recentChanges.some((item) => item.source === "retrieval_fact"));
+  assert.ok(result.recentChanges.some((item) => item.source === "story_event"));
   assert.ok(result.recentChanges.some((item) => item.source === "chapter_summary"));
+  assert.equal(result.persistedFactReminderCount, 1);
+  assert.ok(result.persistedEventChangeCount >= 1);
 });
 
 test("retrieval service keeps default rule-based behavior when reranker is pass-through", async () => {
@@ -250,6 +260,67 @@ test("retrieval service can apply heuristic reranker to promote continuity-heavy
   assert.equal(result.topHookTitle, "临近伏笔");
 });
 
+test("retrieval service selects persisted facts/events with query-aware preference, not raw risk alone", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-query-aware-"));
+  const env = createTestEnv(tempDir);
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    blockingNames: string[];
+    recentChangeDetails: string[];
+    persistedFactTrace: { keywordMatched: boolean; structuralManualMatch: boolean; structuralBoost: number } | null;
+    persistedEventTrace: { keywordMatched: boolean; structuralManualMatch: boolean; structuralBoost: number } | null;
+    droppedFactReason: string | null;
+    factSurfacedIn: string[];
+    eventSurfacedIn: string[];
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 100, current_chapter_count: 20, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values({ id: 1, book_id: 1, chapter_no: 19, title: '第十九章', summary: '上一章总结', word_count: 1800, status: 'approved', current_plan_id: null, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('characters').values({ id: 1, book_id: 1, name: '林夜', alias: null, gender: '男', age: 16, personality: '冷静谨慎', background: '寒门出身', current_location: '青岳宗外门', status: 'alive', professions: '[\"弟子\"]', levels: null, currencies: null, abilities: null, goal: '查清黑铁令旧案', append_notes: null, keywords: '[\"黑铁令\",\"旧案\"]', created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('retrieval_facts').values([",
+      "    { id: 1, book_id: 1, chapter_no: 7, entity_type: null, entity_id: null, event_id: null, fact_type: 'chapter_summary', fact_key: 'chapter:1:7:summary', fact_text: '灵田税改风波仍未收束。', payload_json: null, importance: 95, risk_level: 99, effective_from_chapter_no: 7, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_no: 12, entity_type: 'character', entity_id: 1, event_id: null, fact_type: 'chapter_summary', fact_key: 'chapter:1:12:summary', fact_text: '黑铁令旧案尚未收束，林夜仍在追查。', payload_json: null, importance: 80, risk_level: 82, effective_from_chapter_no: 12, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('story_events').values([",
+      "    { id: 1, book_id: 1, chapter_id: 1, chapter_no: 8, event_type: 'tax', title: '灵田税改', summary: '灵田税改引发争议。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '税改后续仍有争议。', hook_refs: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_id: 1, chapter_no: 13, event_type: 'investigation', title: '黑铁令旧案回收前兆', summary: '执事档案库再次提起黑铁令旧案。', participant_entity_refs: JSON.stringify([{ entityType: 'character', entityId: 1 }]), location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '仍需确认黑铁副令来源。', hook_refs: null, status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 20, keywords: ['林夜', '黑铁令', '旧案'], queryText: '林夜 黑铁令 旧案', manualRefs: { characterIds: [1], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({ blockingNames: (context.priorityContext?.blockingConstraints ?? []).map((item) => item.displayName), recentChangeDetails: (context.recentChanges ?? []).map((item) => item.detail), persistedFactTrace: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.trace ?? null, persistedEventTrace: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.trace ?? null, droppedFactReason: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 1)?.droppedReason ?? null, factSurfacedIn: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.surfacedIn ?? [], eventSurfacedIn: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.surfacedIn ?? [] }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.ok(result.blockingNames.includes("第12章事实"));
+  assert.ok(result.blockingNames.includes("第13章事件"));
+  assert.ok(!result.blockingNames.includes("第7章事实"));
+  assert.ok(result.recentChangeDetails.some((item) => item.includes("黑铁令旧案尚未收束")));
+  assert.equal(result.persistedFactTrace?.keywordMatched, true);
+  assert.equal(result.persistedFactTrace?.structuralManualMatch, true);
+  assert.ok((result.persistedFactTrace?.structuralBoost ?? 0) > 0);
+  assert.equal(result.persistedEventTrace?.keywordMatched, true);
+  assert.equal(result.droppedFactReason, "no_match");
+  assert.ok(result.factSurfacedIn.includes("blockingConstraints"));
+  assert.ok(result.factSurfacedIn.includes("recentChanges"));
+  assert.ok(result.factSurfacedIn.includes("riskReminders"));
+  assert.ok(result.eventSurfacedIn.includes("blockingConstraints"));
+  assert.ok(result.eventSurfacedIn.includes("recentChanges"));
+  assert.ok(result.eventSurfacedIn.includes("riskReminders"));
+});
+
 test("retrieval service can enable embedding candidate provider via config with injected searcher", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-embedding-"));
   const env = createTestEnv(tempDir, {
@@ -297,6 +368,93 @@ test("retrieval service can enable embedding candidate provider via config with 
 
   assert.equal(result.worldSettingCount, 1);
   assert.equal(result.topWorldSettingReason, "embedding_match");
+});
+
+test("retrieval service promotes story events via structured manual refs even when text is weak", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-typed-match-"));
+  const env = createTestEnv(tempDir);
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{ blockingNames: string[]; recentChangeLabels: string[]; persistedEventTrace: { keywordMatched: boolean; structuralManualMatch: boolean; structuralBoost: number } | null }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 50, current_chapter_count: 20, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('story_events').values([",
+      "    { id: 1, book_id: 1, chapter_id: null, chapter_no: 12, event_type: 'investigation', title: '模糊事件', summary: '局势出现波动。', participant_entity_refs: JSON.stringify([{ entityType: 'character', entityId: 9 }]), location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: null, hook_refs: JSON.stringify([99]), status: 'active', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_id: null, chapter_no: 13, event_type: 'investigation', title: '结构化命中事件', summary: '局势出现波动。', participant_entity_refs: JSON.stringify([{ entityType: 'character', entityId: 1 }]), location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '仍需继续观察。', hook_refs: JSON.stringify([5]), status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 20, keywords: ['局势'], queryText: '局势', manualRefs: { characterIds: [1], factionIds: [], itemIds: [], hookIds: [5], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({ blockingNames: (context.priorityContext?.blockingConstraints ?? []).map((item) => item.displayName), recentChangeLabels: (context.recentChanges ?? []).map((item) => item.label), persistedEventTrace: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.trace ?? null }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.ok(result.blockingNames.includes("第13章事件"));
+  assert.ok(!result.blockingNames.includes("第12章事件"));
+  assert.ok(result.recentChangeLabels.includes("第13章事件"));
+  assert.equal(result.persistedEventTrace?.keywordMatched, true);
+  assert.equal(result.persistedEventTrace?.structuralManualMatch, true);
+  assert.ok((result.persistedEventTrace?.structuralBoost ?? 0) > 0);
+});
+
+test("retrieval observability exposes considered-vs-selected persisted sidecar counts", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-funnel-"));
+  const env = createTestEnv(tempDir);
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    factsConsidered: number;
+    factsSelected: number;
+    factsDropped: number;
+    eventsConsidered: number;
+    eventsSelected: number;
+    eventsDropped: number;
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 50, current_chapter_count: 20, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('retrieval_facts').values([",
+      "    { id: 1, book_id: 1, chapter_no: 7, entity_type: null, entity_id: null, event_id: null, fact_type: 'chapter_summary', fact_key: 'chapter:1:7:summary', fact_text: '灵田税改风波仍未收束。', payload_json: null, importance: 95, risk_level: 99, effective_from_chapter_no: 7, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_no: 12, entity_type: 'character', entity_id: 1, event_id: null, fact_type: 'chapter_summary', fact_key: 'chapter:1:12:summary', fact_text: '黑铁令旧案尚未收束。', payload_json: null, importance: 80, risk_level: 82, effective_from_chapter_no: 12, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('story_events').values([",
+      "    { id: 1, book_id: 1, chapter_id: null, chapter_no: 8, event_type: 'tax', title: '灵田税改', summary: '灵田税改引发争议。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '税改后续仍有争议。', hook_refs: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_id: null, chapter_no: 13, event_type: 'investigation', title: '黑铁令旧案回收前兆', summary: '执事档案库再次提起黑铁令旧案。', participant_entity_refs: JSON.stringify([{ entityType: 'character', entityId: 1 }]), location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '仍需确认黑铁副令来源。', hook_refs: null, status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 20, keywords: ['林夜', '黑铁令', '旧案'], queryText: '林夜 黑铁令 旧案', manualRefs: { characterIds: [1], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({ factsConsidered: context.retrievalObservability?.persistedSidecarSelection.facts.length ?? 0, factsSelected: context.retrievalObservability?.persistedSidecarSelection.facts.filter((item) => item.selected).length ?? 0, factsDropped: context.retrievalObservability?.persistedSidecarSelection.facts.filter((item) => !item.selected).length ?? 0, eventsConsidered: context.retrievalObservability?.persistedSidecarSelection.events.length ?? 0, eventsSelected: context.retrievalObservability?.persistedSidecarSelection.events.filter((item) => item.selected).length ?? 0, eventsDropped: context.retrievalObservability?.persistedSidecarSelection.events.filter((item) => !item.selected).length ?? 0 }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.factsConsidered, 2);
+  assert.equal(result.factsSelected, 1);
+  assert.equal(result.factsDropped, 1);
+  assert.equal(result.eventsConsidered, 2);
+  assert.equal(result.eventsSelected, 1);
+  assert.equal(result.eventsDropped, 1);
 });
 
 test("retrieval service honors hybrid embedding mode with injected searcher", async () => {
@@ -496,9 +654,9 @@ test("retrieval ranking prefers stronger weighted hits and keeps continuity enti
   assert.ok(result.hardConstraintCharacterIds.includes(1));
   assert.deepEqual(result.hardConstraintItemIds, [1]);
   assert.deepEqual(result.hardConstraintWorldSettingIds, [1]);
-  assert.ok(result.riskReminders.some((item) => item.includes("人物当前位置连续性")));
-  assert.ok(result.riskReminders.some((item) => item.includes("关键物品的持有者与状态连续性")));
-  assert.ok(result.riskReminders.some((item) => item.includes("已激活的世界规则")));
+  assert.ok(result.riskReminders.some((item) => item.text.includes("人物当前位置连续性")));
+  assert.ok(result.riskReminders.some((item) => item.text.includes("关键物品的持有者与状态连续性")));
+  assert.ok(result.riskReminders.some((item) => item.text.includes("已激活的世界规则")));
 });
 
 test("retrieval service passes queryText through to embedding search", async () => {

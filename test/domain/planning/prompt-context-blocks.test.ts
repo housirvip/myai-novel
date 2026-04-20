@@ -54,11 +54,11 @@ test("buildPromptContextBlocks respects stage-specific char budgets", () => {
       { id: 5, chapterNo: 11, title: "余波", summary: "多方试探", status: "done" },
     ],
     riskReminders: [
-      "注意人物位置连续性",
-      "注意物品归属连续性",
-      "注意规则执行边界",
-      "注意观察者视角稳定",
-      "注意宗门反应递进",
+      { text: "注意人物位置连续性" },
+      { text: "注意物品归属连续性" },
+      { text: "注意规则执行边界" },
+      { text: "注意观察者视角稳定" },
+      { text: "注意宗门反应递进" },
     ],
     supportingOutlines: [
       { id: 20, title: "外门试炼", reason: "outline_hit", content: "考核升级" },
@@ -82,4 +82,31 @@ test("buildPromptContextBlocks respects stage-specific char budgets", () => {
   assert.ok(approveDiffBlocks.mustFollowFacts.length >= 1);
   assert.ok(reviewBlocks.supportingBackground.length <= draftBlocks.supportingBackground.length);
   assert.ok(approveDiffBlocks.supportingBackground.length <= draftBlocks.supportingBackground.length);
+});
+
+test("buildPromptContextBlocks prefers persisted recentChanges over recomputed carryover", () => {
+  const context = {
+    hardConstraints: {
+      characters: [],
+      factions: [],
+      items: [],
+      relations: [],
+      hooks: [],
+      worldSettings: [],
+    },
+    recentChapters: [
+      { id: 1, chapterNo: 11, title: "第十一章", summary: "最近承接", status: "approved" },
+    ],
+    riskReminders: [{ text: "注意默认风险提醒" }],
+    recentChanges: [
+      { source: "retrieval_fact", label: "第8章事实", detail: "黑铁令旧案尚未收束。", priority: 95 },
+      { source: "story_event", label: "第9章事件", detail: "执事档案库再次提起旧案。", priority: 90 },
+    ],
+  };
+
+  const blocks = buildPromptContextBlocks(context, { mode: "plan" });
+
+  assert.ok(blocks.recentChanges.some((item) => item.includes("第8章事实：黑铁令旧案尚未收束。")));
+  assert.ok(blocks.recentChanges.some((item) => item.includes("第9章事件：执事档案库再次提起旧案。")));
+  assert.ok(blocks.recentChanges.every((item) => !item.includes("第11章承接")));
 });

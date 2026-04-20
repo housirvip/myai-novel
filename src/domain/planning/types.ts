@@ -58,6 +58,10 @@ export interface RetrievedFactPacket {
   recentChanges: string[];
   continuityRisk: string[];
   relevanceReasons: string[];
+  sourceRef?: {
+    sourceType: "persisted_fact" | "persisted_event";
+    sourceId: number;
+  };
   scores: {
     matchScore: number;
     importanceScore: number;
@@ -126,6 +130,43 @@ export interface PlanRetrievalObservability {
       backgroundNoise: number;
     };
   };
+  persistedSidecarSelection: {
+    facts: Array<{
+      id: number;
+      chapterNo: number | null;
+      factType: string;
+      rank: number | null;
+      score: number;
+      selected: boolean;
+      droppedReason: "no_match" | "trimmed_by_top_k" | null;
+      trace: {
+        keywordMatched: boolean;
+        structuralManualMatch: boolean;
+        keywordScore: number;
+        riskScore: number;
+        importanceScore: number;
+        recencyScore: number;
+        structuralBoost: number;
+      };
+    }>;
+    events: Array<{
+      id: number;
+      chapterNo: number | null;
+      title: string;
+      rank: number | null;
+      score: number;
+      selected: boolean;
+      droppedReason: "no_match" | "trimmed_by_top_k" | null;
+      trace: {
+        keywordMatched: boolean;
+        structuralManualMatch: boolean;
+        keywordScore: number;
+        unresolvedScore: number;
+        recencyScore: number;
+        structuralBoost: number;
+      };
+    }>;
+  };
   candidates: Record<keyof PlanRetrievedContextEntityGroups, RetrievalObservedEntity[]>;
   hardConstraints: Record<keyof PlanRetrievedContextEntityGroups, RetrievalObservedHardConstraint[]>;
   priorityContext: {
@@ -144,10 +185,84 @@ export interface RetrievedPriorityContext {
 }
 
 export interface RetrievedRecentChange {
-  source: "chapter_summary" | "risk_reminder" | "entity_state";
+  source: "chapter_summary" | "risk_reminder" | "entity_state" | "retrieval_fact" | "story_event";
   label: string;
   detail: string;
   priority: number;
+  sourceRef?: {
+    sourceType: "persisted_fact" | "persisted_event";
+    sourceId: number;
+  };
+}
+
+export interface RetrievedRiskReminder {
+  text: string;
+  sourceRef?: {
+    sourceType: "persisted_fact" | "persisted_event";
+    sourceId: number;
+  };
+}
+
+export interface PersistedRetrievalFact {
+  id: number;
+  chapterNo: number | null;
+  factType: string;
+  factText: string;
+  importance: number | null;
+  riskLevel: number | null;
+  selectionTrace?: {
+    score: number;
+    keywordMatched: boolean;
+    structuralManualMatch: boolean;
+    keywordScore: number;
+    riskScore: number;
+    importanceScore: number;
+    recencyScore: number;
+    structuralBoost: number;
+  };
+}
+
+export interface PersistedRetrievalFactSelectionObserved {
+  id: number;
+  chapterNo: number | null;
+  factType: string;
+  factText: string;
+  rank: number | null;
+  score: number;
+  selected: boolean;
+  droppedReason: "no_match" | "trimmed_by_top_k" | null;
+  surfacedIn: Array<"blockingConstraints" | "decisionContext" | "riskReminders" | "recentChanges">;
+  trace: NonNullable<PersistedRetrievalFact["selectionTrace"]>;
+}
+
+export interface PersistedStoryEvent {
+  id: number;
+  chapterNo: number | null;
+  title: string;
+  summary: string;
+  unresolvedImpact: string | null;
+  selectionTrace?: {
+    score: number;
+    keywordMatched: boolean;
+    structuralManualMatch: boolean;
+    keywordScore: number;
+    unresolvedScore: number;
+    recencyScore: number;
+    structuralBoost: number;
+  };
+}
+
+export interface PersistedStoryEventSelectionObserved {
+  id: number;
+  chapterNo: number | null;
+  title: string;
+  unresolvedImpact: string | null;
+  rank: number | null;
+  score: number;
+  selected: boolean;
+  droppedReason: "no_match" | "trimmed_by_top_k" | null;
+  surfacedIn: Array<"blockingConstraints" | "decisionContext" | "riskReminders" | "recentChanges">;
+  trace: NonNullable<PersistedStoryEvent["selectionTrace"]>;
 }
 
 export interface RetrievedOutline {
@@ -196,7 +311,7 @@ export interface PlanRetrievedContext {
     recentChapters: RetrievedChapterSummary[];
     entities: PlanRetrievedContextEntityGroups;
   };
-  riskReminders: string[];
+  riskReminders: RetrievedRiskReminder[];
   priorityContext?: RetrievedPriorityContext;
   retrievalObservability?: PlanRetrievalObservability;
   recentChanges?: RetrievedRecentChange[];

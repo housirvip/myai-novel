@@ -230,6 +230,55 @@ test("mock workflow chain updates chapter facts and related entities", async () 
   assert.deepEqual(JSON.parse(chapter.actual_hook_ids), [hook.id, approve.createdEntities.hooks[0]]);
   assert.deepEqual(JSON.parse(chapter.actual_world_setting_ids), [world.id]);
 
+  const sidecarState = await runInlineModule<{
+    storyEventCount: number;
+    storyEventSummary: string | null;
+    segmentCount: number;
+    segmentSourceType: string | null;
+    eventDocumentCount: number;
+    segmentDocumentCount: number;
+    retrievalFactCount: number;
+    chapterSummaryFact: string | null;
+    updateFactCount: number;
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "try {",
+      `  const storyEvents = await manager.getClient().selectFrom('story_events').selectAll().where('book_id', '=', ${book.id}).where('chapter_no', '=', 2).execute();`,
+      `  const segments = await manager.getClient().selectFrom('chapter_segments').selectAll().where('book_id', '=', ${book.id}).where('chapter_no', '=', 2).execute();`,
+      `  const eventDocs = await manager.getClient().selectFrom('retrieval_documents').selectAll().where('book_id', '=', ${book.id}).where('layer', '=', 'event').where('chapter_no', '=', 2).execute();`,
+      `  const segmentDocs = await manager.getClient().selectFrom('retrieval_documents').selectAll().where('book_id', '=', ${book.id}).where('layer', '=', 'chapter_segment').where('chapter_no', '=', 2).execute();`,
+      `  const retrievalFacts = await manager.getClient().selectFrom('retrieval_facts').selectAll().where('book_id', '=', ${book.id}).where('chapter_no', '=', 2).orderBy('id', 'asc').execute();`,
+      "  console.log(JSON.stringify({",
+      "    storyEventCount: storyEvents.length,",
+      "    storyEventSummary: storyEvents[0]?.summary ?? null,",
+      "    segmentCount: segments.length,",
+      "    segmentSourceType: segments[0]?.source_type ?? null,",
+      "    eventDocumentCount: eventDocs.length,",
+      "    segmentDocumentCount: segmentDocs.length,",
+      "    retrievalFactCount: retrievalFacts.length,",
+      "    chapterSummaryFact: retrievalFacts.find((item) => item.fact_type === 'chapter_summary')?.fact_text ?? null,",
+      "    updateFactCount: retrievalFacts.filter((item) => item.fact_type !== 'chapter_summary').length,",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(sidecarState.storyEventCount, 1);
+  assert.ok((sidecarState.storyEventSummary ?? "").length > 0);
+  assert.equal(sidecarState.segmentCount, 1);
+  assert.equal(sidecarState.segmentSourceType, "approved");
+  assert.equal(sidecarState.eventDocumentCount, 1);
+  assert.equal(sidecarState.segmentDocumentCount, 1);
+  assert.ok(sidecarState.retrievalFactCount >= 2);
+  assert.ok((sidecarState.chapterSummaryFact ?? "").length > 0);
+  assert.ok(sidecarState.updateFactCount >= 1);
+
   const relationRecord = await runCliJson<{
     intensity: number;
     description: string;
@@ -299,4 +348,167 @@ test("approve rejects pointer changes before commit", async () => {
   );
 
   assert.equal(result.errorMessage, "Current draft pointer changed before commit");
+});
+
+test("approve rewrites sidecar artifacts for the same chapter instead of duplicating them", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-approve-sidecar-rewrite-"));
+  const env = createTestEnv(tempDir, {
+    LLM_PROVIDER: "openai",
+    OPENAI_API_KEY: "test-key",
+    OPENAI_MODEL: "test-model",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    firstFinalId: number;
+    secondFinalId: number;
+    finalVersionCount: number;
+    storyEventCount: number;
+    chapterSegmentCount: number;
+    eventDocCount: number;
+    segmentDocCount: number;
+    retrievalFactCount: number;
+    storyEventSummary: string | null;
+    segmentText: string | null;
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { ApproveChapterWorkflow } from './src/domain/workflows/approve-chapter-workflow.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-11T00:00:00.000Z';",
+      "const originalFetch = globalThis.fetch;",
+      "let callCount = 0;",
+      "const makeResponse = (content) => ({ ok: true, status: 200, json: async () => ({ model: 'test-model', choices: [{ message: { content } }] }), text: async () => JSON.stringify({ model: 'test-model', choices: [{ message: { content } }] }) });",
+      "globalThis.fetch = async () => {",
+      "  callCount += 1;",
+      "  if (callCount === 1) return makeResponse('第一次定稿正文');",
+      "  if (callCount === 2) return makeResponse('{\"chapterSummary\":\"第一次摘要\",\"actualCharacterIds\":[],\"actualFactionIds\":[],\"actualItemIds\":[],\"actualHookIds\":[],\"actualWorldSettingIds\":[],\"newCharacters\":[],\"newFactions\":[],\"newItems\":[],\"newHooks\":[],\"newWorldSettings\":[],\"newRelations\":[],\"updates\":[]}');",
+      "  if (callCount === 3) return makeResponse('第二次定稿正文');",
+      "  return makeResponse('{\"chapterSummary\":\"第二次摘要\",\"actualCharacterIds\":[],\"actualFactionIds\":[],\"actualItemIds\":[],\"actualHookIds\":[],\"actualWorldSettingIds\":[],\"newCharacters\":[],\"newFactions\":[],\"newItems\":[],\"newHooks\":[],\"newWorldSettings\":[],\"newRelations\":[],\"updates\":[]}');",
+      "};",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '重写测试', current_chapter_count: 0, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values({ id: 1, book_id: 1, chapter_no: 1, title: '第一章', summary: null, word_count: null, status: 'reviewed', current_plan_id: 1, current_draft_id: 1, current_review_id: 1, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapter_plans').values({ id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, version_no: 1, status: 'active', author_intent: '意图', intent_source: 'user_input', intent_keywords: '[]', manual_entity_refs: '{}', retrieved_context: '{}', content: '计划', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapter_drafts').values({ id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, version_no: 1, based_on_plan_id: 1, based_on_draft_id: null, based_on_review_id: null, status: 'active', content: '草稿', summary: null, word_count: 1000, model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapter_reviews').values({ id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, draft_id: 1, version_no: 1, status: 'active', summary: 'ok', issues: '[]', risks: '[]', continuity_checks: '[]', repair_suggestions: '[]', raw_result: '{\"summary\":\"ok\"}', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now }).execute();",
+      "  const workflow = new ApproveChapterWorkflow(logger);",
+      "  const first = await workflow.run({ bookId: 1, chapterNo: 1, provider: 'openai', model: 'test-model' });",
+      "  await db.updateTable('chapters').set({ status: 'reviewed', current_review_id: 1, updated_at: now }).where('id', '=', 1).execute();",
+      "  const second = await workflow.run({ bookId: 1, chapterNo: 1, provider: 'openai', model: 'test-model' });",
+      "  const finals = await db.selectFrom('chapter_finals').selectAll().where('chapter_id', '=', 1).execute();",
+      "  const storyEvents = await db.selectFrom('story_events').selectAll().where('book_id', '=', 1).where('chapter_id', '=', 1).execute();",
+      "  const chapterSegments = await db.selectFrom('chapter_segments').selectAll().where('book_id', '=', 1).where('chapter_id', '=', 1).execute();",
+      "  const eventDocs = await db.selectFrom('retrieval_documents').selectAll().where('book_id', '=', 1).where('layer', '=', 'event').where('chapter_no', '=', 1).execute();",
+      "  const segmentDocs = await db.selectFrom('retrieval_documents').selectAll().where('book_id', '=', 1).where('layer', '=', 'chapter_segment').where('chapter_no', '=', 1).execute();",
+      "  const retrievalFacts = await db.selectFrom('retrieval_facts').selectAll().where('book_id', '=', 1).where('chapter_no', '=', 1).execute();",
+      "  console.log(JSON.stringify({",
+      "    firstFinalId: first.finalId,",
+      "    secondFinalId: second.finalId,",
+      "    finalVersionCount: finals.length,",
+      "    storyEventCount: storyEvents.length,",
+      "    chapterSegmentCount: chapterSegments.length,",
+      "    eventDocCount: eventDocs.length,",
+      "    segmentDocCount: segmentDocs.length,",
+      "    retrievalFactCount: retrievalFacts.length,",
+      "    storyEventSummary: storyEvents[0]?.summary ?? null,",
+      "    segmentText: chapterSegments[0]?.text ?? null,",
+      "  }));",
+      "} finally {",
+      "  globalThis.fetch = originalFetch;",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.ok(result.firstFinalId > 0);
+  assert.ok(result.secondFinalId > result.firstFinalId);
+  assert.equal(result.finalVersionCount, 2);
+  assert.equal(result.storyEventCount, 1);
+  assert.equal(result.chapterSegmentCount, 1);
+  assert.equal(result.eventDocCount, 1);
+  assert.equal(result.segmentDocCount, 1);
+  assert.equal(result.retrievalFactCount, 1);
+  assert.equal(result.storyEventSummary, "第二次摘要");
+  assert.match(result.segmentText ?? "", /第二次定稿正文/);
+});
+
+test("approve rolls back final and sidecar writes when sidecar persistence fails", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-approve-sidecar-rollback-"));
+  const env = createTestEnv(tempDir, {
+    LLM_PROVIDER: "openai",
+    OPENAI_API_KEY: "test-key",
+    OPENAI_MODEL: "test-model",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    errorMessage: string;
+    finalCount: number;
+    storyEventCount: number;
+    chapterSegmentCount: number;
+    eventDocCount: number;
+    retrievalFactCount: number;
+    chapterStatus: string;
+    currentFinalId: number | null;
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { ApproveChapterWorkflow } from './src/domain/workflows/approve-chapter-workflow.ts';",
+      "import { StoryEventRepository } from './src/core/db/repositories/story-event-repository.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-11T00:00:00.000Z';",
+      "const originalFetch = globalThis.fetch;",
+      "const originalCreate = StoryEventRepository.prototype.create;",
+      "const makeResponse = (content) => ({ ok: true, status: 200, json: async () => ({ model: 'test-model', choices: [{ message: { content } }] }), text: async () => JSON.stringify({ model: 'test-model', choices: [{ message: { content } }] }) });",
+      "let llmCall = 0;",
+      "globalThis.fetch = async () => {",
+      "  llmCall += 1;",
+      "  if (llmCall === 1) return makeResponse('定稿正文');",
+      "  return makeResponse('{\"chapterSummary\":\"摘要\",\"actualCharacterIds\":[],\"actualFactionIds\":[],\"actualItemIds\":[],\"actualHookIds\":[],\"actualWorldSettingIds\":[],\"newCharacters\":[],\"newFactions\":[],\"newItems\":[],\"newHooks\":[],\"newWorldSettings\":[],\"newRelations\":[],\"updates\":[]}');",
+      "};",
+      "StoryEventRepository.prototype.create = async function () { throw new Error('SIDE_CAR_WRITE_FAILED'); };",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '回滚测试', current_chapter_count: 0, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values({ id: 1, book_id: 1, chapter_no: 1, title: '第一章', summary: null, word_count: null, status: 'reviewed', current_plan_id: 1, current_draft_id: 1, current_review_id: 1, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapter_plans').values({ id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, version_no: 1, status: 'active', author_intent: '意图', intent_source: 'user_input', intent_keywords: '[]', manual_entity_refs: '{}', retrieved_context: '{}', content: '计划', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapter_drafts').values({ id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, version_no: 1, based_on_plan_id: 1, based_on_draft_id: null, based_on_review_id: null, status: 'active', content: '草稿', summary: null, word_count: 1000, model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapter_reviews').values({ id: 1, book_id: 1, chapter_id: 1, chapter_no: 1, draft_id: 1, version_no: 1, status: 'active', summary: 'ok', issues: '[]', risks: '[]', continuity_checks: '[]', repair_suggestions: '[]', raw_result: '{\"summary\":\"ok\"}', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now }).execute();",
+      "  let errorMessage = 'NO_ERROR';",
+      "  try {",
+      "    await new ApproveChapterWorkflow(logger).run({ bookId: 1, chapterNo: 1, provider: 'openai', model: 'test-model' });",
+      "  } catch (error) {",
+      "    errorMessage = error instanceof Error ? error.message : String(error);",
+      "  }",
+      "  const finals = await db.selectFrom('chapter_finals').selectAll().where('chapter_id', '=', 1).execute();",
+      "  const storyEvents = await db.selectFrom('story_events').selectAll().where('chapter_id', '=', 1).execute();",
+      "  const chapterSegments = await db.selectFrom('chapter_segments').selectAll().where('chapter_id', '=', 1).execute();",
+      "  const eventDocs = await db.selectFrom('retrieval_documents').selectAll().where('book_id', '=', 1).where('layer', '=', 'event').execute();",
+      "  const retrievalFacts = await db.selectFrom('retrieval_facts').selectAll().where('book_id', '=', 1).execute();",
+      "  const chapter = await db.selectFrom('chapters').select(['status', 'current_final_id']).where('id', '=', 1).executeTakeFirstOrThrow();",
+      "  console.log(JSON.stringify({ errorMessage, finalCount: finals.length, storyEventCount: storyEvents.length, chapterSegmentCount: chapterSegments.length, eventDocCount: eventDocs.length, retrievalFactCount: retrievalFacts.length, chapterStatus: chapter.status, currentFinalId: chapter.current_final_id }));",
+      "} finally {",
+      "  StoryEventRepository.prototype.create = originalCreate;",
+      "  globalThis.fetch = originalFetch;",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.errorMessage, "SIDE_CAR_WRITE_FAILED");
+  assert.equal(result.finalCount, 0);
+  assert.equal(result.storyEventCount, 0);
+  assert.equal(result.chapterSegmentCount, 0);
+  assert.equal(result.eventDocCount, 0);
+  assert.equal(result.retrievalFactCount, 0);
+  assert.equal(result.chapterStatus, "reviewed");
+  assert.equal(result.currentFinalId, null);
 });

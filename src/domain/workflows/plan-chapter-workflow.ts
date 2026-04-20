@@ -324,7 +324,7 @@ function formatRiskReminders(context: PlanRetrievedContext): string {
     return "无";
   }
 
-  return context.riskReminders.slice(0, 3).map((item) => `- ${item}`).join("\n");
+  return context.riskReminders.slice(0, 3).map((item) => `- ${item.text}`).join("\n");
 }
 
 function toIntentConstraints(extractedIntent: ExtractedIntentPayload): PlanIntentConstraints {
