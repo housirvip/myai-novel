@@ -5,7 +5,7 @@ import type {
   RetrievedPriorityContext,
   RetrievedRecentChange,
 } from "./types.js";
-import { normalizeRecentChangeProvenance, normalizeRiskReminderProvenance } from "./provenance.js";
+import { normalizeFactPacketProvenance, normalizeRecentChangeProvenance, normalizeRiskReminderProvenance } from "./provenance.js";
 
 export function buildDraftContextView(context: PlanRetrievedContext | unknown) {
   // draft 阶段需要“约束 + 少量支撑背景”，所以会额外带上 supportingOutlines，
@@ -140,8 +140,21 @@ function normalizePlanRetrievedContext(context: unknown): PlanRetrievedContext {
       },
     },
     riskReminders: normalizeRiskReminders(value.riskReminders ?? []),
-    priorityContext: value.priorityContext,
+    priorityContext: normalizePriorityContext(value.priorityContext),
     recentChanges: normalizeRecentChanges(value.recentChanges ?? []),
+  };
+}
+
+function normalizePriorityContext(value: RetrievedPriorityContext | undefined): RetrievedPriorityContext | undefined {
+  if (!value) {
+    return value;
+  }
+
+  return {
+    blockingConstraints: value.blockingConstraints.map((item) => normalizeFactPacketProvenance(item)),
+    decisionContext: value.decisionContext.map((item) => normalizeFactPacketProvenance(item)),
+    supportingContext: value.supportingContext.map((item) => normalizeFactPacketProvenance(item)),
+    backgroundNoise: value.backgroundNoise.map((item) => normalizeFactPacketProvenance(item)),
   };
 }
 

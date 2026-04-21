@@ -34,8 +34,50 @@ test("context views normalize recentChanges provenance shapes", () => {
     ],
   });
 
-  assert.equal(view.recentChanges[0]?.sourceRefs?.length, 1);
-  assert.equal(view.recentChanges[0]?.sourceRef?.sourceId, 1);
-  assert.equal(view.recentChanges[1]?.sourceRefs?.length, 2);
-  assert.equal(view.recentChanges[1]?.sourceRef?.sourceId, 2);
+  assert.equal(view.recentChanges?.[0]?.sourceRefs?.length, 1);
+  assert.equal(view.recentChanges?.[0]?.sourceRef?.sourceId, 1);
+  assert.equal(view.recentChanges?.[1]?.sourceRefs?.length, 2);
+  assert.equal(view.recentChanges?.[1]?.sourceRef?.sourceId, 2);
+});
+
+test("context views normalize priorityContext packet provenance shapes", () => {
+  const view = buildDraftContextView({
+    priorityContext: {
+      blockingConstraints: [
+        {
+          entityType: "chapter",
+          entityId: -1,
+          displayName: "第8章事实",
+          identity: ["chapter_summary"],
+          currentState: ["旧案未收束"],
+          coreConflictOrGoal: [],
+          recentChanges: [],
+          continuityRisk: [],
+          relevanceReasons: ["persisted_fact"],
+          sourceRefs: [
+            { sourceType: "persisted_fact", sourceId: 1 },
+            { sourceType: "persisted_event", sourceId: 2 },
+            { sourceType: "persisted_fact", sourceId: 1 },
+          ],
+          scores: {
+            matchScore: 90,
+            importanceScore: 90,
+            continuityRiskScore: 88,
+            recencyScore: 48,
+            manualPriorityScore: 0,
+            finalScore: 90,
+          },
+        },
+      ],
+      decisionContext: [],
+      supportingContext: [],
+      backgroundNoise: [],
+    },
+  });
+
+  assert.equal(view.priorityContext?.blockingConstraints[0]?.sourceRef?.sourceType, "persisted_fact");
+  assert.equal(view.priorityContext?.blockingConstraints[0]?.sourceRef?.sourceId, 1);
+  assert.equal(view.priorityContext?.blockingConstraints[0]?.sourceRefs?.length, 2);
+  assert.equal(view.priorityContext?.blockingConstraints[0]?.sourceRefs?.[1]?.sourceType, "persisted_event");
+  assert.equal(view.priorityContext?.blockingConstraints[0]?.sourceRefs?.[1]?.sourceId, 2);
 });

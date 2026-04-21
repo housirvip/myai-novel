@@ -1,4 +1,4 @@
-import type { RetrievedRecentChange, RetrievedRiskReminder } from "./types.js";
+import type { RetrievedFactPacket, RetrievedRecentChange, RetrievedRiskReminder } from "./types.js";
 
 export type PersistedSourceRef = {
   sourceType: "persisted_fact" | "persisted_event";
@@ -59,6 +59,10 @@ export function createRecentChangeWithProvenance(input: RetrievedRecentChange): 
   return normalizeRecentChangeProvenance(input);
 }
 
+export function createFactPacketWithProvenance(input: RetrievedFactPacket): RetrievedFactPacket {
+  return normalizeFactPacketProvenance(input);
+}
+
 export function normalizeRiskReminderProvenance(reminder: string | RetrievedRiskReminder): RetrievedRiskReminder {
   if (typeof reminder === "string") {
     return { text: reminder };
@@ -89,8 +93,21 @@ export function normalizeRecentChangeProvenance(change: RetrievedRecentChange): 
   };
 }
 
+export function normalizeFactPacketProvenance(packet: RetrievedFactPacket): RetrievedFactPacket {
+  const sourceRefs = mergePersistedSourceRefs({
+    primary: packet.sourceRef,
+    refs: packet.sourceRefs,
+  });
+
+  return {
+    ...packet,
+    sourceRef: packet.sourceRef ?? sourceRefs[0],
+    sourceRefs: sourceRefs.length > 0 ? sourceRefs : undefined,
+  };
+}
+
 export function hasPersistedSourceRef(
-  value: { sourceRef?: PersistedSourceRef; sourceRefs?: PersistedSourceRef[] },
+  value: RetrievedRiskReminder | RetrievedRecentChange | RetrievedFactPacket,
   sourceType: PersistedSourceRef["sourceType"],
   sourceId: number,
 ): boolean {

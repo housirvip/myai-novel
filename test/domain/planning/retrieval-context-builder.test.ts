@@ -63,6 +63,51 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
     },
     candidates,
     reranked,
+    persistedSelectionFunnel: {
+      facts: [
+        {
+          id: 11,
+          chapterNo: 8,
+          factType: "chapter_summary",
+          factText: "黑铁令旧案尚未收束。",
+          rank: 1,
+          score: 90,
+          selected: true,
+          droppedReason: null,
+          surfacedIn: [],
+          trace: {
+            keywordMatched: true,
+            structuralManualMatch: false,
+            keywordScore: 20,
+            riskScore: 88,
+            importanceScore: 90,
+            recencyScore: 47,
+            structuralBoost: 0,
+          },
+        },
+      ],
+      events: [
+        {
+          id: 12,
+          chapterNo: 9,
+          title: "旧案回收前兆",
+          unresolvedImpact: "仍需确认黑铁副令来源。",
+          rank: 1,
+          score: 72,
+          selected: true,
+          droppedReason: null,
+          surfacedIn: [],
+          trace: {
+            keywordMatched: true,
+            structuralManualMatch: false,
+            keywordScore: 18,
+            unresolvedScore: 70,
+            recencyScore: 48,
+            structuralBoost: 0,
+          },
+        },
+      ],
+    },
     persistedFacts: [
       { id: 11, chapterNo: 8, factType: "chapter_summary", factText: "黑铁令旧案尚未收束。", importance: 90, riskLevel: 88 },
     ],
@@ -82,22 +127,28 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
   assert.ok(context.hardConstraints.worldSettings.some((item) => item.id === 7));
    assert.ok(context.riskReminders.some((item) => item.text.includes("接近回收节点的重要钩子")));
    assert.ok(context.riskReminders.some((item) => item.text.includes("人物当前位置连续性")));
-   assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "林夜"));
-   assert.ok(context.priorityContext?.decisionContext.some((packet) => packet.displayName === "青岳宗"));
-   assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "第8章事实"));
-   assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "第9章事件"));
-    assert.equal(context.retrievalObservability?.candidates.characters[0]?.source, "rule");
-   assert.equal(context.retrievalObservability?.query.chapterNo, 11);
-   assert.equal(context.retrievalObservability?.candidateVolumes.recentChaptersScanned, 5);
+    assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "林夜"));
+    assert.ok(context.priorityContext?.decisionContext.some((packet) => packet.displayName === "青岳宗"));
+    assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "第8章事实"));
+    assert.ok(context.priorityContext?.blockingConstraints.some((packet) => packet.displayName === "第9章事件"));
+    assert.equal(context.priorityContext?.blockingConstraints.find((packet) => packet.displayName === "第8章事实")?.sourceRef?.sourceId, 11);
+    assert.equal(context.priorityContext?.blockingConstraints.find((packet) => packet.displayName === "第8章事实")?.sourceRefs?.length, 1);
+    assert.equal(context.priorityContext?.blockingConstraints.find((packet) => packet.displayName === "第9章事件")?.sourceRef?.sourceId, 12);
+    assert.equal(context.priorityContext?.blockingConstraints.find((packet) => packet.displayName === "第9章事件")?.sourceRefs?.length, 1);
+     assert.equal(context.retrievalObservability?.candidates.characters[0]?.source, "rule");
+    assert.equal(context.retrievalObservability?.query.chapterNo, 11);
+    assert.equal(context.retrievalObservability?.candidateVolumes.recentChaptersScanned, 5);
    assert.equal(context.retrievalObservability?.candidateVolumes.recentChaptersKept, 1);
    assert.equal(context.retrievalObservability?.retention.hardConstraintPromotionCounts.characters.promoted > 0, true);
    assert.ok(context.retrievalObservability?.hardConstraints.characters[0]?.selectedBy.length);
    assert.ok(context.retrievalObservability?.priorityContext.blockingConstraints.some((packet) => packet.displayName === "林夜"));
    assert.ok(context.recentChanges?.some((item) => item.source === "risk_reminder"));
    assert.ok(context.recentChanges?.some((item) => item.source === "retrieval_fact"));
-   assert.ok(context.recentChanges?.some((item) => item.source === "story_event"));
-   assert.ok(context.recentChanges?.some((item) => item.source === "chapter_summary"));
-   assert.ok(context.riskReminders.some((item) => item.text.includes("黑铁令旧案尚未收束")));
+    assert.ok(context.recentChanges?.some((item) => item.source === "story_event"));
+    assert.ok(context.recentChanges?.some((item) => item.source === "chapter_summary"));
+    assert.ok(context.riskReminders.some((item) => item.text.includes("黑铁令旧案尚未收束")));
+    assert.deepEqual(context.retrievalObservability?.persistedSidecarSelection.facts[0]?.surfacedIn, ["blockingConstraints", "riskReminders", "recentChanges"]);
+    assert.deepEqual(context.retrievalObservability?.persistedSidecarSelection.events[0]?.surfacedIn, ["blockingConstraints", "riskReminders", "recentChanges"]);
 });
 
 test("buildRetrievedContext merges duplicate reminder text and preserves multiple provenance refs", () => {

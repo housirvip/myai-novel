@@ -1,3 +1,4 @@
+import { normalizeFactPacketProvenance } from "./provenance.js";
 import type { RetrievedFactPacket } from "./types.js";
 
 export function dedupeStrings(values: string[]): string[] {
@@ -19,7 +20,7 @@ export function dedupePackets(packets: RetrievedFactPacket[]): RetrievedFactPack
       continue;
     }
 
-    merged.set(key, {
+    merged.set(key, normalizeFactPacketProvenance({
       ...existing,
       relatedDisplayNames: dedupeStrings([...(existing.relatedDisplayNames ?? []), ...(packet.relatedDisplayNames ?? [])]),
       relationEndpoints: dedupeRelationEndpoints([...(existing.relationEndpoints ?? []), ...(packet.relationEndpoints ?? [])]),
@@ -30,6 +31,11 @@ export function dedupePackets(packets: RetrievedFactPacket[]): RetrievedFactPack
       recentChanges: dedupeStrings([...existing.recentChanges, ...packet.recentChanges]),
       continuityRisk: dedupeStrings([...existing.continuityRisk, ...packet.continuityRisk]),
       relevanceReasons: dedupeStrings([...existing.relevanceReasons, ...packet.relevanceReasons]),
+      sourceRef: existing.sourceRef ?? packet.sourceRef,
+      sourceRefs: [
+        ...(existing.sourceRefs ?? []),
+        ...(packet.sourceRefs ?? []),
+      ],
       scores: {
         ...existing.scores,
         importanceScore: Math.max(existing.scores.importanceScore, packet.scores.importanceScore),
@@ -40,7 +46,7 @@ export function dedupePackets(packets: RetrievedFactPacket[]): RetrievedFactPack
         finalScore: Math.max(existing.scores.finalScore, packet.scores.finalScore),
         matchScore: Math.max(existing.scores.matchScore, packet.scores.matchScore),
       },
-    });
+    }));
   }
 
   return Array.from(merged.values());

@@ -62,6 +62,10 @@ export interface RetrievedFactPacket {
     sourceType: "persisted_fact" | "persisted_event";
     sourceId: number;
   };
+  sourceRefs?: Array<{
+    sourceType: "persisted_fact" | "persisted_event";
+    sourceId: number;
+  }>;
   scores: {
     matchScore: number;
     importanceScore: number;

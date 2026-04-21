@@ -5,7 +5,7 @@ import { buildHardConstraints } from "./retrieval-hard-constraints.js";
 import { buildRiskReminders } from "./retrieval-risk-reminders.js";
 import { classifyPriorityPacket } from "./retrieval-priorities.js";
 import { dedupePackets } from "./fact-packet-merge.js";
-import { createPersistedEventRef, createPersistedFactRef, createRiskReminderWithProvenance, hasPersistedSourceRef, mergePersistedSourceRefs, normalizeRiskReminderProvenance } from "./provenance.js";
+import { createFactPacketWithProvenance, createPersistedEventRef, createPersistedFactRef, createRiskReminderWithProvenance, hasPersistedSourceRef, mergePersistedSourceRefs, normalizeRiskReminderProvenance } from "./provenance.js";
 import type { PersistedRetrievalFact, PersistedRetrievalFactSelectionObserved, PersistedStoryEvent, PersistedStoryEventSelectionObserved, PlanRetrievedContext, PlanRetrievalObservability, RetrievedRiskReminder } from "./types.js";
 import type { RetrievePlanContextParams, RetrievalCandidateBundle, RetrievalRerankerOutput } from "./retrieval-pipeline.js";
 
@@ -136,10 +136,10 @@ function applyPersistedSurfacingAttribution(input: {
   const events = input.observability.persistedSidecarSelection.events as PersistedStoryEventSelectionObserved[];
 
   for (const fact of facts) {
-    if (input.priorityContext.blockingConstraints.some((packet) => packet.sourceRef?.sourceType === "persisted_fact" && packet.sourceRef.sourceId === fact.id)) {
+    if (input.priorityContext.blockingConstraints.some((packet) => hasPersistedSourceRef(packet, "persisted_fact", fact.id))) {
       fact.surfacedIn.push("blockingConstraints");
     }
-    if (input.priorityContext.decisionContext.some((packet) => packet.sourceRef?.sourceType === "persisted_fact" && packet.sourceRef.sourceId === fact.id)) {
+    if (input.priorityContext.decisionContext.some((packet) => hasPersistedSourceRef(packet, "persisted_fact", fact.id))) {
       fact.surfacedIn.push("decisionContext");
     }
     if (input.persistedRiskReminderEntries.some((entry) => hasPersistedSourceRef(entry, "persisted_fact", fact.id))) {
@@ -151,10 +151,10 @@ function applyPersistedSurfacingAttribution(input: {
   }
 
   for (const event of events) {
-    if (input.priorityContext.blockingConstraints.some((packet) => packet.sourceRef?.sourceType === "persisted_event" && packet.sourceRef.sourceId === event.id)) {
+    if (input.priorityContext.blockingConstraints.some((packet) => hasPersistedSourceRef(packet, "persisted_event", event.id))) {
       event.surfacedIn.push("blockingConstraints");
     }
-    if (input.priorityContext.decisionContext.some((packet) => packet.sourceRef?.sourceType === "persisted_event" && packet.sourceRef.sourceId === event.id)) {
+    if (input.priorityContext.decisionContext.some((packet) => hasPersistedSourceRef(packet, "persisted_event", event.id))) {
       event.surfacedIn.push("decisionContext");
     }
     if (input.persistedRiskReminderEntries.some((entry) => hasPersistedSourceRef(entry, "persisted_event", event.id))) {
@@ -172,7 +172,7 @@ function buildPersistedPriorityPackets(input: {
   events?: PersistedStoryEvent[];
   currentChapterNo: number;
 }) {
-  const factPackets = (input.facts ?? []).slice(0, 3).map((fact) => ({
+  const factPackets = (input.facts ?? []).slice(0, 3).map((fact) => createFactPacketWithProvenance({
     entityType: "chapter" as const,
     entityId: -fact.id,
     displayName: fact.chapterNo ? `第${fact.chapterNo}章事实` : `历史事实#${fact.id}`,
@@ -182,10 +182,7 @@ function buildPersistedPriorityPackets(input: {
     recentChanges: [],
     continuityRisk: (fact.riskLevel ?? 0) >= 80 ? ["高风险已知事实需要承接"] : [],
     relevanceReasons: ["persisted_fact"],
-    sourceRef: {
-      sourceType: "persisted_fact" as const,
-      sourceId: fact.id,
-    },
+    sourceRef: createPersistedFactRef(fact.id),
     scores: {
       matchScore: fact.importance ?? 0,
       importanceScore: fact.importance ?? 0,
@@ -196,7 +193,7 @@ function buildPersistedPriorityPackets(input: {
     },
   }));
 
-  const eventPackets = (input.events ?? []).slice(0, 2).map((event) => ({
+  const eventPackets = (input.events ?? []).slice(0, 2).map((event) => createFactPacketWithProvenance({
     entityType: "chapter" as const,
     entityId: -(100000 + event.id),
     displayName: event.chapterNo ? `第${event.chapterNo}章事件` : event.title,
@@ -206,10 +203,7 @@ function buildPersistedPriorityPackets(input: {
     recentChanges: [],
     continuityRisk: event.unresolvedImpact ? ["未收束事件需要持续承接"] : [],
     relevanceReasons: ["persisted_event"],
-    sourceRef: {
-      sourceType: "persisted_event" as const,
-      sourceId: event.id,
-    },
+    sourceRef: createPersistedEventRef(event.id),
     scores: {
       matchScore: event.unresolvedImpact ? 60 : 45,
       importanceScore: event.unresolvedImpact ? 60 : 40,
