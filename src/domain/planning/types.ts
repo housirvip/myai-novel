@@ -193,6 +193,10 @@ export interface RetrievedRecentChange {
     sourceType: "persisted_fact" | "persisted_event";
     sourceId: number;
   };
+  sourceRefs?: Array<{
+    sourceType: "persisted_fact" | "persisted_event";
+    sourceId: number;
+  }>;
 }
 
 export interface RetrievedRiskReminder {
@@ -201,6 +205,10 @@ export interface RetrievedRiskReminder {
     sourceType: "persisted_fact" | "persisted_event";
     sourceId: number;
   };
+  sourceRefs?: Array<{
+    sourceType: "persisted_fact" | "persisted_event";
+    sourceId: number;
+  }>;
 }
 
 export interface PersistedRetrievalFact {

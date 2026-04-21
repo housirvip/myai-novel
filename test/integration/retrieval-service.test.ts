@@ -274,6 +274,7 @@ test("retrieval service selects persisted facts/events with query-aware preferen
     droppedFactReason: string | null;
     factSurfacedIn: string[];
     eventSurfacedIn: string[];
+    reminderSourceRefs: number;
   }>(
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
@@ -296,7 +297,7 @@ test("retrieval service selects persisted facts/events with query-aware preferen
       "  ]).execute();",
       "  const service = new RetrievalQueryService(logger);",
       "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 20, keywords: ['林夜', '黑铁令', '旧案'], queryText: '林夜 黑铁令 旧案', manualRefs: { characterIds: [1], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
-      "  console.log(JSON.stringify({ blockingNames: (context.priorityContext?.blockingConstraints ?? []).map((item) => item.displayName), recentChangeDetails: (context.recentChanges ?? []).map((item) => item.detail), persistedFactTrace: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.trace ?? null, persistedEventTrace: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.trace ?? null, droppedFactReason: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 1)?.droppedReason ?? null, factSurfacedIn: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.surfacedIn ?? [], eventSurfacedIn: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.surfacedIn ?? [] }));",
+      "  console.log(JSON.stringify({ blockingNames: (context.priorityContext?.blockingConstraints ?? []).map((item) => item.displayName), recentChangeDetails: (context.recentChanges ?? []).map((item) => item.detail), persistedFactTrace: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.trace ?? null, persistedEventTrace: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.trace ?? null, droppedFactReason: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 1)?.droppedReason ?? null, factSurfacedIn: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.surfacedIn ?? [], eventSurfacedIn: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.surfacedIn ?? [], reminderSourceRefs: context.recentChanges.find((item) => item.source === 'risk_reminder' && item.detail.includes('黑铁令旧案尚未收束'))?.sourceRefs?.length ?? 0 }));",
       "} finally {",
       "  await manager.destroy();",
       "}",
@@ -319,6 +320,7 @@ test("retrieval service selects persisted facts/events with query-aware preferen
   assert.ok(result.eventSurfacedIn.includes("blockingConstraints"));
   assert.ok(result.eventSurfacedIn.includes("recentChanges"));
   assert.ok(result.eventSurfacedIn.includes("riskReminders"));
+  assert.ok(result.reminderSourceRefs >= 1);
 });
 
 test("retrieval service can enable embedding candidate provider via config with injected searcher", async () => {

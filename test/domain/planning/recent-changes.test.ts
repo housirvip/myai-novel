@@ -51,3 +51,20 @@ test("buildRecentChanges includes persisted facts and story events ahead of plai
   assert.ok(changes.some((item) => item.source === "story_event"));
   assert.ok(changes.some((item) => item.source === "chapter_summary"));
 });
+
+test("buildRecentChanges preserves aggregated reminder provenance in sourceRefs", () => {
+  const changes = buildRecentChanges({
+    riskReminders: [{
+      text: "注意承接既有事实：黑铁令旧案尚未收束。",
+      sourceRefs: [
+        { sourceType: "persisted_fact", sourceId: 1 },
+        { sourceType: "persisted_event", sourceId: 2 },
+      ],
+    }],
+  });
+
+  const reminder = changes.find((item) => item.source === "risk_reminder");
+  assert.equal(reminder?.sourceRefs?.length, 2);
+  assert.ok(reminder?.sourceRefs?.some((source) => source.sourceType === "persisted_fact" && source.sourceId === 1));
+  assert.ok(reminder?.sourceRefs?.some((source) => source.sourceType === "persisted_event" && source.sourceId === 2));
+});

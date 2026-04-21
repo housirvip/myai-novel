@@ -5,6 +5,7 @@ import type {
   RetrievedPriorityContext,
   RetrievedRecentChange,
 } from "./types.js";
+import { normalizeRecentChangeProvenance, normalizeRiskReminderProvenance } from "./provenance.js";
 
 export function buildDraftContextView(context: PlanRetrievedContext | unknown) {
   // draft 阶段需要“约束 + 少量支撑背景”，所以会额外带上 supportingOutlines，
@@ -140,10 +141,14 @@ function normalizePlanRetrievedContext(context: unknown): PlanRetrievedContext {
     },
     riskReminders: normalizeRiskReminders(value.riskReminders ?? []),
     priorityContext: value.priorityContext,
-    recentChanges: value.recentChanges ?? [],
+    recentChanges: normalizeRecentChanges(value.recentChanges ?? []),
   };
 }
 
 function normalizeRiskReminders(value: Array<string | RetrievedRiskReminder>): RetrievedRiskReminder[] {
-  return value.map((item) => typeof item === "string" ? { text: item } : item);
+  return value.map((item) => normalizeRiskReminderProvenance(item));
+}
+
+function normalizeRecentChanges(value: RetrievedRecentChange[]): RetrievedRecentChange[] {
+  return value.map((item) => normalizeRecentChangeProvenance(item));
 }

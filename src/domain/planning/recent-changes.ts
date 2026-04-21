@@ -1,4 +1,5 @@
 import type { PersistedRetrievalFact, PersistedStoryEvent, RetrievedChapterSummary, RetrievedEntity, RetrievedRecentChange, RetrievedRiskReminder } from "./types.js";
+import { createPersistedEventRef, createPersistedFactRef, createRecentChangeWithProvenance } from "./provenance.js";
 
 export function buildRecentChanges(input: {
   recentChapters?: RetrievedChapterSummary[];
@@ -16,12 +17,13 @@ export function buildRecentChanges(input: {
     priority: 80 - index,
   }));
 
-  const riskChanges = (input.riskReminders ?? []).slice(0, 4).map((risk, index) => ({
+  const riskChanges = (input.riskReminders ?? []).slice(0, 4).map((risk, index) => createRecentChangeWithProvenance({
     source: "risk_reminder" as const,
     label: `高风险提醒${index + 1}`,
     detail: normalizeInline(risk.text),
     priority: 100 - index,
-    sourceRef: risk.sourceRef,
+    sourceRef: risk.sourceRef ?? risk.sourceRefs?.[0],
+    sourceRefs: risk.sourceRefs ?? (risk.sourceRef ? [risk.sourceRef] : undefined),
   }));
 
   const entityChanges = (input.entities ?? [])
@@ -34,26 +36,22 @@ export function buildRecentChanges(input: {
       priority: 70 - index,
     }));
 
-  const factChanges = (input.persistedFacts ?? []).slice(0, 4).map((fact, index) => ({
+  const factChanges = (input.persistedFacts ?? []).slice(0, 4).map((fact, index) => createRecentChangeWithProvenance({
     source: "retrieval_fact" as const,
     label: fact.chapterNo ? `第${fact.chapterNo}章事实` : `历史事实${index + 1}`,
     detail: normalizeInline(fact.factText),
     priority: 85 - index,
-    sourceRef: {
-      sourceType: "persisted_fact" as const,
-      sourceId: fact.id,
-    },
+    sourceRef: createPersistedFactRef(fact.id),
+    sourceRefs: [createPersistedFactRef(fact.id)],
   }));
 
-  const eventChanges = (input.persistedEvents ?? []).slice(0, 3).map((event, index) => ({
+  const eventChanges = (input.persistedEvents ?? []).slice(0, 3).map((event, index) => createRecentChangeWithProvenance({
     source: "story_event" as const,
     label: event.chapterNo ? `第${event.chapterNo}章事件` : event.title,
     detail: normalizeInline(event.unresolvedImpact || event.summary || event.title),
     priority: 78 - index,
-    sourceRef: {
-      sourceType: "persisted_event" as const,
-      sourceId: event.id,
-    },
+    sourceRef: createPersistedEventRef(event.id),
+    sourceRefs: [createPersistedEventRef(event.id)],
   }));
 
   return [...riskChanges, ...factChanges, ...eventChanges, ...entityChanges, ...chapterChanges]

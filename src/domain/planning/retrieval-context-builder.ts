@@ -5,6 +5,7 @@ import { buildHardConstraints } from "./retrieval-hard-constraints.js";
 import { buildRiskReminders } from "./retrieval-risk-reminders.js";
 import { classifyPriorityPacket } from "./retrieval-priorities.js";
 import { dedupePackets } from "./fact-packet-merge.js";
+import { createPersistedEventRef, createPersistedFactRef, createRiskReminderWithProvenance, hasPersistedSourceRef, mergePersistedSourceRefs, normalizeRiskReminderProvenance } from "./provenance.js";
 import type { PersistedRetrievalFact, PersistedRetrievalFactSelectionObserved, PersistedStoryEvent, PersistedStoryEventSelectionObserved, PlanRetrievedContext, PlanRetrievalObservability, RetrievedRiskReminder } from "./types.js";
 import type { RetrievePlanContextParams, RetrievalCandidateBundle, RetrievalRerankerOutput } from "./retrieval-pipeline.js";
 
@@ -41,22 +42,16 @@ export function buildRetrievedContext(input: {
     recentChapters,
   });
   const persistedRiskReminderEntries: RetrievedRiskReminder[] = [
-    ...(input.persistedFacts ?? []).slice(0, 3).map((fact) => ({
+    ...(input.persistedFacts ?? []).slice(0, 3).map((fact) => createRiskReminderWithProvenance({
       text: `注意承接既有事实：${fact.factText}`,
-      sourceRef: {
-        sourceType: "persisted_fact" as const,
-        sourceId: fact.id,
-      },
+      sourceRef: createPersistedFactRef(fact.id),
     })),
     ...(input.persistedEvents ?? [])
       .filter((event) => Boolean(event.unresolvedImpact?.trim()))
       .slice(0, 2)
-      .map((event) => ({
+      .map((event) => createRiskReminderWithProvenance({
         text: `注意未收束事件：${event.unresolvedImpact}`,
-        sourceRef: {
-          sourceType: "persisted_event" as const,
-          sourceId: event.id,
-        },
+        sourceRef: createPersistedEventRef(event.id),
       })),
   ];
   const riskReminders = dedupeRiskReminderEntries([...generatedRiskReminders, ...persistedRiskReminderEntries]);
@@ -147,10 +142,10 @@ function applyPersistedSurfacingAttribution(input: {
     if (input.priorityContext.decisionContext.some((packet) => packet.sourceRef?.sourceType === "persisted_fact" && packet.sourceRef.sourceId === fact.id)) {
       fact.surfacedIn.push("decisionContext");
     }
-    if (input.persistedRiskReminderEntries.some((entry) => entry.sourceRef?.sourceType === "persisted_fact" && entry.sourceRef.sourceId === fact.id)) {
+    if (input.persistedRiskReminderEntries.some((entry) => hasPersistedSourceRef(entry, "persisted_fact", fact.id))) {
       fact.surfacedIn.push("riskReminders");
     }
-    if (input.recentChanges.some((item) => item.sourceRef?.sourceType === "persisted_fact" && item.sourceRef.sourceId === fact.id)) {
+    if (input.recentChanges.some((item) => hasPersistedSourceRef(item, "persisted_fact", fact.id))) {
       fact.surfacedIn.push("recentChanges");
     }
   }
@@ -162,10 +157,10 @@ function applyPersistedSurfacingAttribution(input: {
     if (input.priorityContext.decisionContext.some((packet) => packet.sourceRef?.sourceType === "persisted_event" && packet.sourceRef.sourceId === event.id)) {
       event.surfacedIn.push("decisionContext");
     }
-    if (input.persistedRiskReminderEntries.some((entry) => entry.sourceRef?.sourceType === "persisted_event" && entry.sourceRef.sourceId === event.id)) {
+    if (input.persistedRiskReminderEntries.some((entry) => hasPersistedSourceRef(entry, "persisted_event", event.id))) {
       event.surfacedIn.push("riskReminders");
     }
-    if (input.recentChanges.some((item) => item.sourceRef?.sourceType === "persisted_event" && item.sourceRef.sourceId === event.id)) {
+    if (input.recentChanges.some((item) => hasPersistedSourceRef(item, "persisted_event", event.id))) {
       event.surfacedIn.push("recentChanges");
     }
   }
@@ -263,16 +258,38 @@ function mergePersistedPriorityPackets(
 }
 
 function dedupeRiskReminderEntries(reminders: RetrievedRiskReminder[]): RetrievedRiskReminder[] {
-  const seen = new Set<string>();
-  const result: RetrievedRiskReminder[] = [];
+  const grouped = new Map<string, RetrievedRiskReminder>();
 
   for (const reminder of reminders) {
-    if (seen.has(reminder.text)) {
+    const existing = grouped.get(reminder.text);
+    if (!existing) {
+      grouped.set(reminder.text, normalizeRiskReminderSources(reminder));
       continue;
     }
-    seen.add(reminder.text);
-    result.push(reminder);
+
+    const mergedSources = mergeRiskReminderSourceRefs(existing, reminder);
+    existing.sourceRefs = mergedSources;
+    if (!existing.sourceRef && mergedSources[0]) {
+      existing.sourceRef = mergedSources[0];
+    }
   }
 
-  return result;
+  return [...grouped.values()];
+}
+
+function normalizeRiskReminderSources(reminder: RetrievedRiskReminder): RetrievedRiskReminder {
+  return normalizeRiskReminderProvenance(reminder);
+}
+
+function mergeRiskReminderSourceRefs(
+  existing: RetrievedRiskReminder | undefined,
+  incoming: RetrievedRiskReminder,
+): Array<{ sourceType: "persisted_fact" | "persisted_event"; sourceId: number }> {
+  return mergePersistedSourceRefs({
+    refs: [
+      ...(existing?.sourceRefs ?? []),
+      ...(incoming.sourceRefs ?? []),
+    ],
+    primary: incoming.sourceRef ?? existing?.sourceRef,
+  });
 }

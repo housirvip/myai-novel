@@ -100,6 +100,49 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
    assert.ok(context.riskReminders.some((item) => item.text.includes("黑铁令旧案尚未收束")));
 });
 
+test("buildRetrievedContext merges duplicate reminder text and preserves multiple provenance refs", () => {
+  const context = buildRetrievedContext({
+    params: {
+      bookId: 1,
+      chapterNo: 20,
+      keywords: ["旧案"],
+      queryText: "旧案",
+      manualRefs: {
+        characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [],
+      },
+    },
+    book: {
+      id: 1,
+      title: "测试书",
+      summary: null,
+      target_chapter_count: 100,
+      current_chapter_count: 19,
+    },
+    candidates: {
+      outlines: [],
+      recentChapters: [],
+      entityGroups: { hooks: [], characters: [], factions: [], items: [], relations: [], worldSettings: [] },
+    },
+    reranked: {
+      outlines: [],
+      recentChapters: [],
+      entityGroups: { hooks: [], characters: [], factions: [], items: [], relations: [], worldSettings: [] },
+    },
+    persistedFacts: [
+      { id: 1, chapterNo: 8, factType: "chapter_summary", factText: "同一条提醒", importance: 90, riskLevel: 88 },
+      { id: 2, chapterNo: 9, factType: "chapter_summary", factText: "同一条提醒", importance: 85, riskLevel: 86 },
+    ],
+    persistedEvents: [],
+  });
+
+  const reminder = context.riskReminders.find((item) => item.text.includes("同一条提醒"));
+  assert.ok(reminder);
+  assert.equal(context.riskReminders.filter((item) => item.text.includes("同一条提醒")).length, 1);
+  assert.equal(reminder?.sourceRefs?.length, 2);
+  assert.ok(reminder?.sourceRefs?.some((source) => source.sourceType === "persisted_fact" && source.sourceId === 1));
+  assert.ok(reminder?.sourceRefs?.some((source) => source.sourceType === "persisted_fact" && source.sourceId === 2));
+});
+
 function createEntity(input: Partial<RetrievedEntity> & { id: number }): RetrievedEntity {
   return {
     id: input.id,
