@@ -18,19 +18,13 @@
 - [文档索引](docs/README.md)
 - [命令行使用指南](docs/cli-usage-guide.md)
 - [环境变量配置指南](docs/env-config-guide.md)
-- [Prompt 与工作流关系说明](docs/prompt-retrieval-relationship.md)
-- [Plan 工作流详解](docs/plan-workflow-guide.md)
-- [Draft 工作流详解](docs/draft-workflow-guide.md)
-- [Review 工作流详解](docs/review-workflow-guide.md)
-- [Repair 工作流详解](docs/repair-workflow-guide.md)
-- [Approve 工作流详解](docs/approve-workflow-guide.md)
 - [章节全流水线总览](docs/chapter-pipeline-overview.md)
-- [数据库表关系总览](docs/database-relationship-overview.md)
+- [Plan 工作流详解](docs/plan-workflow-guide.md)
+- [Approve 工作流详解](docs/approve-workflow-guide.md)
 - [Retrieval 全链路详解](docs/retrieval-pipeline-guide.md)
 - [Retrieval sidecar 与 provenance 说明](docs/retrieval-sidecar-provenance-guide.md)
-- [召回与打分规则说明](docs/retrieval-scoring-rules.md)
-- [Embedding 与 Rerank 实现说明](docs/embedding-rerank-architecture.md)
-- [工程总览](docs/engineering-overview.md)
+
+如果你想系统阅读完整文档树，直接从 [`docs/README.md`](docs/README.md) 进入会更合适。
 
 ## 为什么做这个
 
@@ -50,8 +44,8 @@
 - 召回机制：基于作者意图、近期大纲、前文章节、手工指定实体 ID 做规则式上下文召回
 - 阶段化上下文：`retrievedContext` 已拆分为 `hardConstraints`、`softReferences`、`riskReminders`、`priorityContext`、`recentChanges`
 - 事实回写：`approve` 后把人物、势力、关系、物品、钩子、世界设定的变更回灌到设定库
-- retrieval sidecar：`approve` 后还会写入 `retrieval_documents`、`retrieval_facts`、`story_events`、`chapter_segments`，供后续 `plan` 继续召回
-- provenance 与可观测性：`riskReminders / recentChanges / priorityContext` 已支持 `sourceRef / sourceRefs / surfacedIn`，可解释 sidecar 信号最终落到了哪层上下文
+- retrieval sidecar：`approve` 后还会写入 `retrieval_documents`、`retrieval_facts`、`story_events`、`chapter_segments`，作为后续检索与 `plan` 的补充输入
+- provenance 与可观测性：`riskReminders / recentChanges / priorityContext` 已支持 `sourceRef / sourceRefs / surfacedIn`，便于追踪 sidecar 信号如何进入上下文视图
 - Markdown 编辑：支持导出 `plan / draft / final` 为 Markdown，再导入生成新版本
 - 数据库支持：默认 SQLite，本地开发体验不变；同时支持 `DB_CLIENT=mysql`
 - 实验扩展：已支持 `HeuristicReranker`、embedding candidate provider、basic / hybrid embedding search mode；当前在线 embedding 候选链路接线实体为 `character / faction / item / hook / relation / world_setting`
@@ -59,25 +53,28 @@
 - retrieval 结构收敛：当前已拆分为 candidate provider、service factory、reranker factory、context builder、hard constraints、risk reminders 等模块
 - 日志体系：记录数据表 CRUD、工作流耗时、LLM 调用耗时、成功与否，AI 输入输出可选记录
 
-## V2 重点变化
+## 当前实现重点
 
 ### 1. `retrievedContext` 不再是扁平召回结果
 
-V2 把章节规划阶段保存的上下文拆成三层：
+当前章节规划阶段保存的上下文已经拆成五层：
 
 - `hardConstraints`：容易写错且会直接破坏连续性的硬约束
 - `softReferences`：可供不同阶段继续裁剪的完整召回结果
 - `riskReminders`：提示模型优先关注连续性高风险点
+- `priorityContext`：把事实按 prompt 优先级继续分层
+- `recentChanges`：把近期变化压成更适合 prompt 消费的视图
 
 这意味着：
 
 - `draft` 会优先消费强约束上下文
-- `review` 和 `approve` 会用更轻量的上下文视图减少噪声
+- `review` 和 `approve` 会按阶段消费更聚焦的上下文视图，减少噪声
 - `plan` 固化下来的上下文仍然是全流程共享基线
+- sidecar 信号也会继续进入这些层，而不是只停留在底层检索结果里
 
 ### 2. MySQL 已成为正式支持目标
 
-V2 不是只在配置里预留 `mysql`，而是已经支持：
+当前实现不是只在配置里预留 `mysql`，而是已经支持：
 
 - `DB_CLIENT=mysql` 启动
 - `db init` / `db check`
@@ -115,9 +112,9 @@ V2 不是只在配置里预留 `mysql`，而是已经支持：
 
 - 默认主链路仍稳定可用
 - embedding / rerank 实验不需要重写 workflow，正常 workflow 也可通过配置直接接入实验链路
-- benchmark 已可用来评估实验是否真的提升了召回质量
+- 已建立固定样本 benchmark，用于比较和回归验证实验链路效果
 
-## V2 里最重要的设计
+## 当前最重要的设计
 
 ### 1. 章节正文是版本化的
 
@@ -155,7 +152,7 @@ V2 不是只在配置里预留 `mysql`，而是已经支持：
 现在这条链路又往前走了一步：
 
 - `approve` 还会把章节摘要、事实更新、关键事件、章节片段沉淀成 retrieval sidecar
-- 下一章 `plan` 会继续读取这些 persisted facts / events
+- 后续 `plan` / 检索阶段会继续消费这些 persisted facts / events
 
 这意味着系统不仅会“回写设定”，还会把剧情推进本身变成可继续召回的长期记忆。
 
@@ -216,7 +213,7 @@ cp .env.example .env
 
 - [`docs/env-config-guide.md`](docs/env-config-guide.md)
 
-MySQL 集成测试默认不会依赖 `.env.example`。如果你要显式运行真实 MySQL 测试，请单独提供：
+MySQL 集成测试是可选的真实数据库验证，不依赖 `.env.example`。如果你要显式运行这类测试，请单独提供：
 
 - `MYSQL_TEST_HOST`
 - `MYSQL_TEST_PORT`
@@ -259,25 +256,23 @@ npm run dev -- repair --book 1 --chapter 1 --provider mock
 npm run dev -- approve --book 1 --chapter 1 --provider mock
 ```
 
-## 命令行文档
+## 测试与验证
 
-更完整的命令行使用方式、参数说明和示例，请查阅：
+常用检查命令：
 
-- [`docs/README.md`](docs/README.md)
-- [`docs/cli-usage-guide.md`](docs/cli-usage-guide.md)
-- [`docs/prompt-retrieval-relationship.md`](docs/prompt-retrieval-relationship.md)
-- [`docs/plan-workflow-guide.md`](docs/plan-workflow-guide.md)
-- [`docs/approve-workflow-guide.md`](docs/approve-workflow-guide.md)
-- [`docs/draft-workflow-guide.md`](docs/draft-workflow-guide.md)
-- [`docs/review-workflow-guide.md`](docs/review-workflow-guide.md)
-- [`docs/repair-workflow-guide.md`](docs/repair-workflow-guide.md)
-- [`docs/chapter-pipeline-overview.md`](docs/chapter-pipeline-overview.md)
-- [`docs/database-relationship-overview.md`](docs/database-relationship-overview.md)
-- [`docs/retrieval-pipeline-guide.md`](docs/retrieval-pipeline-guide.md)
-- [`docs/retrieval-sidecar-provenance-guide.md`](docs/retrieval-sidecar-provenance-guide.md)
-- [`docs/retrieval-scoring-rules.md`](docs/retrieval-scoring-rules.md)
-- [`docs/embedding-rerank-architecture.md`](docs/embedding-rerank-architecture.md)
-- [`docs/engineering-overview.md`](docs/engineering-overview.md)
+```bash
+npm run check
+npm run build
+npm test
+```
+
+如果你需要可选的真实 MySQL 集成验证，还可以执行：
+
+```bash
+npm run test:mysql
+```
+
+更完整的命令行与专题文档，请从 [`docs/README.md`](docs/README.md) 进入。
 
 ## 当前状态
 
@@ -297,9 +292,9 @@ npm run dev -- approve --book 1 --chapter 1 --provider mock
 - Markdown 导入导出
 - SQLite 与 MySQL 主链验证
 - `HeuristicReranker` 与 embedding 实验链路（当前在线接线实体为 `character / faction / item / hook / relation / world_setting`）
-- retrieval benchmark（当前固定 16 个样本已全部收口到 strict）
+- retrieval benchmark 基线，持续用于规则链路与实验链路的回归比较
 - retrieval 模块第二轮结构收敛（provider / factory / context builder 已拆出）
-- 自动化测试基线
+- 自动化测试与集成验证基线
 
 下一阶段比较自然的方向通常是：
 
