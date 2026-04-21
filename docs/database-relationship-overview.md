@@ -6,6 +6,7 @@
 - 哪些关系是数据库级强外键，哪些只是业务级软关联
 - 章节工作流相关版本表之间是怎么连起来的
 - 设定库实体和章节表之间如何发生关联
+- retrieval sidecar 表在这套模型里处于哪一层
 - 哪些字段是 `JSON string / ID list / polymorphic reference`，不能当普通外键理解
 
 如果你想看单个工作流怎么读写这些表，请直接看：
@@ -39,13 +40,14 @@
 
 ## 2. 一句话理解
 
-这套数据库模型可以分成三层：
+这套数据库模型可以分成四层：
 
 - `books` 作为根对象
 - 设定库实体和章节主表作为书下的核心业务对象
 - `chapter_plans / chapter_drafts / chapter_reviews / chapter_finals` 作为章节工作流版本层
+- `retrieval_documents / retrieval_facts / story_events / chapter_segments` 作为 retrieval sidecar 层
 
-同时，项目还刻意保留了一部分“软关联字段”，用来表达多态引用、版本指针和召回结果，而不是把所有关系都硬编码成数据库外键。
+同时，项目还刻意保留了一部分“软关联字段”，用来表达多态引用、版本指针和召回结果；而 retrieval sidecar 则承担“把章节推进中沉淀出的剧情状态重新接回 planning”这层职责。
 
 ## 3. 总体关系图
 
@@ -67,6 +69,11 @@ flowchart TD
     CR[chapter_reviews]
     CF[chapter_finals]
 
+    RD[retrieval_documents]
+    RF[retrieval_facts]
+    SE[story_events]
+    CS[chapter_segments]
+
     B --> O
     B --> W
     B --> C
@@ -75,6 +82,10 @@ flowchart TD
     B --> I
     B --> H
     B --> CH
+    B --> RD
+    B --> RF
+    B --> SE
+    B --> CS
 
     CH --> CP
     CH --> CD
@@ -449,6 +460,15 @@ flowchart TD
 - `chapter_reviews`
 - `chapter_finals`
 
+### 11.5 retrieval sidecar 层
+
+- `retrieval_documents`
+- `retrieval_facts`
+- `story_events`
+- `chapter_segments`
+
+这一层的职责不是保存当前正文版本，而是保存“后续章节 planning 仍然值得继续召回的结构化剧情状态”。
+
 ## 12. 最容易误解的几个点
 
 ### 12.1 `chapters` 不是正文内容表
@@ -482,6 +502,18 @@ flowchart TD
 它更像：
 
 - 章节侧的快速实体快照
+
+### 12.5 retrieval sidecar 不是章节版本表
+
+`retrieval_facts / story_events / chapter_segments / retrieval_documents` 和 `chapter_plans / chapter_drafts / chapter_reviews / chapter_finals` 的职责不同：
+
+- 版本表保存某一阶段的正文或结构化结果
+- sidecar 表保存可以跨章节继续参与 retrieval 的记忆资产
+
+它们不是“同一份数据的两种存法”，而是分别服务于：
+
+- 工作流版本追踪
+- 长篇 continuity 检索
 
 ## 13. 推荐阅读顺序
 

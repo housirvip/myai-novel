@@ -27,6 +27,7 @@
 - [章节全流水线总览](docs/chapter-pipeline-overview.md)
 - [数据库表关系总览](docs/database-relationship-overview.md)
 - [Retrieval 全链路详解](docs/retrieval-pipeline-guide.md)
+- [Retrieval sidecar 与 provenance 说明](docs/retrieval-sidecar-provenance-guide.md)
 - [召回与打分规则说明](docs/retrieval-scoring-rules.md)
 - [Embedding 与 Rerank 实现说明](docs/embedding-rerank-architecture.md)
 - [工程总览](docs/engineering-overview.md)
@@ -49,9 +50,11 @@
 - 召回机制：基于作者意图、近期大纲、前文章节、手工指定实体 ID 做规则式上下文召回
 - 阶段化上下文：`retrievedContext` 已拆分为 `hardConstraints`、`softReferences`、`riskReminders`、`priorityContext`、`recentChanges`
 - 事实回写：`approve` 后把人物、势力、关系、物品、钩子、世界设定的变更回灌到设定库
+- retrieval sidecar：`approve` 后还会写入 `retrieval_documents`、`retrieval_facts`、`story_events`、`chapter_segments`，供后续 `plan` 继续召回
+- provenance 与可观测性：`riskReminders / recentChanges / priorityContext` 已支持 `sourceRef / sourceRefs / surfacedIn`，可解释 sidecar 信号最终落到了哪层上下文
 - Markdown 编辑：支持导出 `plan / draft / final` 为 Markdown，再导入生成新版本
 - 数据库支持：默认 SQLite，本地开发体验不变；同时支持 `DB_CLIENT=mysql`
-- 实验扩展：已支持 `HeuristicReranker`、embedding candidate provider、basic / hybrid embedding search mode；当前在线 embedding 候选链路接线实体为 `character / hook / world_setting`
+- 实验扩展：已支持 `HeuristicReranker`、embedding candidate provider、basic / hybrid embedding search mode；当前在线 embedding 候选链路接线实体为 `character / faction / item / hook / relation / world_setting`
 - embedding provider：已支持本地 hash provider 与自定义远程 embedding provider（OpenAI-compatible `/embeddings`）
 - retrieval 结构收敛：当前已拆分为 candidate provider、service factory、reranker factory、context builder、hard constraints、risk reminders 等模块
 - 日志体系：记录数据表 CRUD、工作流耗时、LLM 调用耗时、成功与否，AI 输入输出可选记录
@@ -148,6 +151,13 @@ V2 不是只在配置里预留 `mysql`，而是已经支持：
 
 - `plan` 会召回设定，给 AI 提供稳定上下文
 - `approve` 会把最终正文里的新增事实回写进设定库
+
+现在这条链路又往前走了一步：
+
+- `approve` 还会把章节摘要、事实更新、关键事件、章节片段沉淀成 retrieval sidecar
+- 下一章 `plan` 会继续读取这些 persisted facts / events
+
+这意味着系统不仅会“回写设定”，还会把剧情推进本身变成可继续召回的长期记忆。
 
 这让系统不是“只会写一章”，而是能随着章节推进不断积累小说世界状态。
 
@@ -264,6 +274,7 @@ npm run dev -- approve --book 1 --chapter 1 --provider mock
 - [`docs/chapter-pipeline-overview.md`](docs/chapter-pipeline-overview.md)
 - [`docs/database-relationship-overview.md`](docs/database-relationship-overview.md)
 - [`docs/retrieval-pipeline-guide.md`](docs/retrieval-pipeline-guide.md)
+- [`docs/retrieval-sidecar-provenance-guide.md`](docs/retrieval-sidecar-provenance-guide.md)
 - [`docs/retrieval-scoring-rules.md`](docs/retrieval-scoring-rules.md)
 - [`docs/embedding-rerank-architecture.md`](docs/embedding-rerank-architecture.md)
 - [`docs/engineering-overview.md`](docs/engineering-overview.md)
@@ -280,9 +291,12 @@ npm run dev -- approve --book 1 --chapter 1 --provider mock
 - 可读 prompt 事实块
 - 正式稿版本化
 - 结构化事实回写
+- retrieval sidecar：`retrieval_documents / retrieval_facts / story_events / chapter_segments`
+- `approve -> sidecar -> next plan` 闭环
+- provenance 与 sidecar observability：`sourceRef / sourceRefs / surfacedIn`
 - Markdown 导入导出
 - SQLite 与 MySQL 主链验证
-- `HeuristicReranker` 与 embedding 实验链路（当前在线接线实体为 `character / hook / world_setting`）
+- `HeuristicReranker` 与 embedding 实验链路（当前在线接线实体为 `character / faction / item / hook / relation / world_setting`）
 - retrieval benchmark（当前固定 16 个样本已全部收口到 strict）
 - retrieval 模块第二轮结构收敛（provider / factory / context builder 已拆出）
 - 自动化测试基线

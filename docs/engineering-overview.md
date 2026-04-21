@@ -122,6 +122,9 @@ examples/             示例脚本
 - 可读 prompt 事实块
 - 正式稿版本化
 - 结构化事实回写
+- retrieval sidecar 已落地：`retrieval_documents / retrieval_facts / story_events / chapter_segments`
+- `approve -> sidecar -> next plan` 闭环已接通
+- provenance 已覆盖 `riskReminders / recentChanges / priorityContext`，支持 `sourceRef / sourceRefs / surfacedIn`
 - Markdown 导入导出
 - SQLite / MySQL 双方言主链验证
 - `HeuristicReranker` 已实现并可配置启用
@@ -130,6 +133,7 @@ examples/             示例脚本
 - relation embedding-only 命中已保留结构化 `relationEndpoints / relationMetadata`
 - relation embedding payload 已在 factory / refresh / index / text builder 之间统一为共享类型契约
 - retrieval observability 已落地：候选来源、hard constraint 解释、priority bucket 解释、count-only summary log
+- persisted sidecar selection 已可观测：considered / selected / dropped / surfacedIn
 - retrieval benchmark 已接入 observability explanation coverage 断言
 - retrieval benchmark 当前固定 16 个样本已全部收口到 strict
 - retrieval query-intent helpers 已开始从 `retrieval-service.ts` 收敛到 `retrieval-features.ts`

@@ -268,6 +268,19 @@ CLI 层本身不做业务判断，主要做三件事：
 - `recentChanges`
 - `retrievalObservability`（可选诊断层）
 
+并且这次正式 retrieval 已经不再只消费实时规则候选，还会额外读取 persisted sidecar，当前重点包括：
+
+- `retrieval_facts`
+- `story_events`
+
+这些 sidecar 信号会进一步进入：
+
+- `riskReminders`
+- `recentChanges`
+- `priorityContext`
+
+也就是说，`plan` 现在固化的已经不是“当场查出来的一次性召回结果”，而是“实时候选 + 长期 sidecar 记忆”共同收口后的章节事实边界。
+
 因此，`plan` 阶段真正做的是“上下文固化”，而不仅仅是“生成一段 planning 文本”。
 
 ### 6.6 第六步：生成章节规划正文
@@ -382,6 +395,7 @@ CLI 层本身不做业务判断，主要做三件事：
 - 用 schema 约束输入和关键词提取结果
 - 用两次召回把“意图生成”和“共享上下文固化”分开
 - 把规划正文、意图约束、召回上下文同时持久化
+- 第二次正式 retrieval 已开始接入 persisted facts/events，使 `plan` 真正消费前文章节沉淀下来的剧情状态
 - 为后续章节流水线提供稳定基线，而不是一次性临时结果
 
 ## 11. 建议阅读顺序

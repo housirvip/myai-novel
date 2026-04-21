@@ -569,7 +569,7 @@ flowchart LR
 - hybrid search 的权重和 bonus 仍然是手工启发式
 - rerank 仍然只基于规则特征，没有使用更强的 learned reranker
 - query-intent / boost / priority 特征虽然已经开始模块化，但还没有完全收敛成统一的策略层
-- 当前在线实验链路只对 `character / hook / world_setting` 建索引并补候选，faction / item / relation 模板仍处于未接线状态
+- 当前在线实验链路虽然已经覆盖 `character / faction / item / hook / relation / world_setting`，但 embedding 仍属于实验增强层，不是默认正式主链的替代方案
 
 ## 相关阅读
 

@@ -258,6 +258,13 @@ flowchart TD
 - `禁止改写与禁止新增`
 - `补充背景`
 
+这里一个已经发生的重要变化是：这些块里已经不只包含实时召回出的实体与最近章节信息，也会带上来自 persisted sidecar 的信号，当前重点包括：
+
+- `retrieval_facts`
+- `story_events`
+
+它们会先进入 `riskReminders / recentChanges / priorityContext`，再进入最终 prompt block，而不是直接裸露成数据库记录。
+
 同时，`plan` 和 `repair` 现在仍会带一份精简版 JSON 作为兜底，但已经不是整包 `retrievedContext` 原文，而是 compact 视图：
 
 - `hardConstraints`
@@ -283,6 +290,7 @@ flowchart TD
 - 当前会优先消费 `blockingConstraints`、`decisionContext`、`recentChanges` 与 `riskReminders` 组织出的事实块
 - 在真正进入 prompt 之前，workflow 会先通过 `buildDraftContextView()` 把 plan 中固化的 `retrievedContext` 裁成 draft 阶段使用的视图
 - `prompt-context-blocks.ts` 现在也已经按阶段显式区分 `plan / draft / review / repair / approve / approveDiff`，不再是一套固定上限打到底
+- 这也意味着 sidecar 信号进入后，会和普通 retrieval 结果一起被统一裁剪，而不是额外占一套独立 prompt 通道
 
 落库时还需要注意两点：
 
@@ -543,7 +551,7 @@ flowchart TD
 
 - 默认主链路并不依赖 embedding
 - embedding 目前主要用于实验和对照验证
-- 当前 workflow 在线接入的 embedding 实验链路只覆盖 `character / hook / world_setting`
+- 当前 workflow 在线接入的 embedding 实验链路已覆盖 `character / faction / item / hook / relation / world_setting`
 - `world-rule` 已在规则召回主链路中收口到 strict，embedding 仍保留为补充实验链路
 
 ### 7.0b 实验链路图：Relation Propagation 与 Hard-Fact Expansion

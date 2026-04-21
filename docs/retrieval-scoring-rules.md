@@ -111,12 +111,20 @@
 
 当前真正参与召回的是：
 
-- `keywords`
+- `buildRetrievalQueryPayload(...)` 压出的 retrieval keywords
 - `manualRefs`
 
 然后执行第二次召回，生成完整的 `retrievedContext`，保存到：
 
 - `chapter_plans.retrieved_context`
+
+这里已经不再是“原样使用 `extractedIntent.keywords`”，而是会把：
+
+- `intentSummary`
+- `mustInclude`
+- `keywords`
+
+一起压成更接近检索语言的 query payload，再送进第二次正式 retrieval。
 
 ## 5. Draft 阶段是否重新召回
 

@@ -8,6 +8,7 @@
 - 为什么 retrieval 只发生在 `plan`，而不是每个阶段都重新查库
 - candidate provider、reranker、context builder 各自负责什么
 - `hardConstraints / softReferences / priorityContext / riskReminders / recentChanges` 是怎么来的
+- persisted sidecar 是如何进入这条链路的
 - embedding 实验链路是怎么接进主流程的
 - retrieval observability 现在落在哪一层
 
@@ -15,6 +16,7 @@
 
 - 具体打分权重：看 `docs/retrieval-scoring-rules.md`
 - prompt 如何消费上下文：看 `docs/prompt-retrieval-relationship.md`
+- sidecar 与 provenance 如何接进 retrieval：看 `docs/retrieval-sidecar-provenance-guide.md`
 - 章节全流水线：看 `docs/chapter-pipeline-overview.md`
 
 ## 目录
@@ -423,6 +425,18 @@ plan -> draft/review/repair/approve]
 - 不只是告诉模型“有哪些事实”
 - 还告诉模型“哪些事实更应该先看”
 
+当前这一步还会额外接入 persisted sidecar packet：
+
+- `retrieval_facts` 会被转成 persisted fact packets
+- `story_events` 会被转成 persisted event packets
+
+这些 packet 会继续参与：
+
+- bucket 分类
+- 去重合并
+- prompt 层 priority block 消费
+- observability 中的 `surfacedIn` 解释
+
 ## 15. `riskReminders` 和 `recentChanges` 是怎么来的
 
 ### 15.1 `riskReminders`
@@ -441,6 +455,13 @@ plan -> draft/review/repair/approve]
 
 - 连续性防错提示层
 
+同时当前还会额外接入 persisted sidecar：
+
+- 高风险 persisted facts 会转成显式 reminder
+- 带 `unresolvedImpact` 的 story events 会转成显式 reminder
+
+因此当前 `riskReminders` 已经不再只来自实时实体候选，也会直接承接前文章节沉淀下来的剧情状态。
+
 ### 15.2 `recentChanges`
 
 `buildRecentChanges()` 会把：
@@ -448,8 +469,15 @@ plan -> draft/review/repair/approve]
 - 最近章节摘要
 - 风险提醒
 - 高优先实体状态变化
+- persisted facts
+- persisted story events
 
 再压成一层更适合 prompt 消费的近期变化视图。
+
+并且这些项当前已经支持 provenance：
+
+- `sourceRef`
+- `sourceRefs`
 
 ## 16. 工厂层：`createPlanningRetrievalService()`
 
@@ -538,6 +566,9 @@ retrieval 服务不是直接 new 出来的，而是通过工厂创建。
 - context builder 是 retrieval 和 workflow/prompt 之间的边界层
 - `retrievedContext` 的目标是共享上下文，而不是一次性搜索结果
 - `retrievedContext` 现在还会带一份可选的 `retrievalObservability`，用于解释来源、hard constraint 命中与 priority bucket 去向
+- persisted sidecar 已经接入 `plan` 主链，当前重点消费 `retrieval_facts` 与 `story_events`
+- `riskReminders / recentChanges / priorityContext` 已支持 provenance 与 `sourceRef/sourceRefs`
+- persisted selection funnel 已可观测：可追踪 considered / selected / dropped / surfacedIn
 
 ## 20. 推荐阅读顺序
 
@@ -554,6 +585,7 @@ retrieval 服务不是直接 new 出来的，而是通过工厂创建。
 - [`docs/prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
 - [`docs/plan-workflow-guide.md`](./plan-workflow-guide.md)
 - [`docs/embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
+- [`docs/retrieval-sidecar-provenance-guide.md`](./retrieval-sidecar-provenance-guide.md)
 
 ## 阅读导航
 

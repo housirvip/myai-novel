@@ -88,7 +88,7 @@ current_draft_id -> 新 repaired 版本]
 抽取结构化 diff]
     E3[chapter_finals
 current_final_id -> 新版本]
-    E4[设定库回写 + 章节字段更新]
+    E4[设定库回写 + sidecar 写入 + 章节字段更新]
 
     A1 --> A2 --> A3 --> B1 --> B2 --> C1 --> C2 --> D1 --> D2 --> E1 --> E2 --> E3 --> E4
 ```
@@ -289,7 +289,7 @@ stateDiagram-v2
 
 - 先生成 final 正文
 - 再抽取结构化 diff
-- 把实体变更、章节字段、书籍统计统一回写
+- 把实体变更、retrieval sidecar、章节字段、书籍统计统一回写
 
 读：
 
@@ -302,6 +302,7 @@ stateDiagram-v2
 
 - `chapter_finals`
 - 设定库实体表
+- `retrieval_documents / retrieval_facts / story_events / chapter_segments`
 - `chapters.current_final_id`
 - `chapters.summary`
 - `chapters.word_count`
@@ -423,6 +424,7 @@ stateDiagram-v2
 - 一条或多条 `chapter_finals`
 - 一组最新 `current_*_id`
 - 一组更新过的设定库实体与章节实体引用
+- 一组可供下一章 `plan` 继续消费的 retrieval sidecar 资产
 
 也就是说，系统留下的不是“最后那篇正文”，而是一整条可回放的生产轨迹。
 

@@ -51,6 +51,9 @@
 - [`retrieval-pipeline-guide.md`](./retrieval-pipeline-guide.md)
   - Retrieval 全链路详解
   - 适合查 `plan` 阶段从输入、候选获取、embedding 补候选、rerank 到 `retrievedContext` 装配的完整路径
+- [`retrieval-sidecar-provenance-guide.md`](./retrieval-sidecar-provenance-guide.md)
+  - Retrieval sidecar 与 provenance 说明
+  - 适合查 persisted facts/events/documents/segments 如何写入、如何参与 `plan`、以及 `sourceRef/sourceRefs/surfacedIn` 的解释链路
 - [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
   - 召回与打分规则说明
   - 适合查 `plan` 阶段的召回策略、打分细则、排序规则、实体匹配字段与相关配置项
@@ -78,10 +81,11 @@
 8. [`approve-workflow-guide.md`](./approve-workflow-guide.md)
 9. [`database-relationship-overview.md`](./database-relationship-overview.md)
 10. [`retrieval-pipeline-guide.md`](./retrieval-pipeline-guide.md)
-11. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
-12. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
-13. [`embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
-14. [`engineering-overview.md`](./engineering-overview.md)
+11. [`retrieval-sidecar-provenance-guide.md`](./retrieval-sidecar-provenance-guide.md)
+12. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+13. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
+14. [`embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
+15. [`engineering-overview.md`](./engineering-overview.md)
 
 ## 与根文档的关系
 

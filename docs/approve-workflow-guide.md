@@ -378,7 +378,30 @@ sequenceDiagram
 - 即使模型没把刚创建的新实体再手工列进 `actual*Ids`
 - 工作流也会把它们自动并入章节的真实涉及实体集合
 
-### 6.10 第十步：更新书籍统计
+### 6.10 第十步：写入 retrieval sidecar
+
+这轮升级之后，`approve` 还会继续把章节收口结果写入 retrieval sidecar，而不只是更新设定库。
+
+当前已经接入的 sidecar 包括：
+
+- `retrieval_documents`
+- `retrieval_facts`
+- `story_events`
+- `chapter_segments`
+
+其中最关键的是两类：
+
+- `retrieval_facts`
+  - 当前最小已覆盖 `chapter_summary` 与若干 `*_update` facts
+- `story_events`
+  - 保存关键事件及其 `unresolvedImpact`
+
+这一步的意义是：
+
+- `approve` 不只是把这一章“写完”
+- 还会把这一章中值得后续 planning 继续检索的剧情状态沉淀下来
+
+### 6.11 第十一步：更新书籍统计
 
 最后，工作流会重新统计当前书下状态为 `approved` 的章节数，并写回：
 
@@ -440,6 +463,15 @@ sequenceDiagram
 
 - `books.current_chapter_count`
 
+### 8.5 retrieval sidecar 更新
+
+包括：
+
+- 新的或覆盖后的 `retrieval_documents`
+- 新的或覆盖后的 `retrieval_facts`
+- 新的或覆盖后的 `story_events`
+- 新的或覆盖后的 `chapter_segments`
+
 所以 `approve` 真正是整个章节工作流的“收口事务”。
 
 ## 9. 错误与边界情况
@@ -470,6 +502,7 @@ sequenceDiagram
 - `dryRun` 只预览，不写任何库
 - 用事务把 final、实体更新、章节更新、书籍统计绑定成一个原子提交
 - 用 pointer 校验避免把提交落到过期上下文上
+- approve 结束后会同步刷新 retrieval sidecar，使章节结果能真正回流到下一章 `plan`
 
 ## 11. 建议阅读顺序
 
