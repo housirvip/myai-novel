@@ -59,25 +59,28 @@
 - retrieval 结构收敛：当前已拆分为 candidate provider、service factory、reranker factory、context builder、hard constraints、risk reminders 等模块
 - 日志体系：记录数据表 CRUD、工作流耗时、LLM 调用耗时、成功与否，AI 输入输出可选记录
 
-## V2 重点变化
+## 当前实现重点
 
 ### 1. `retrievedContext` 不再是扁平召回结果
 
-V2 把章节规划阶段保存的上下文拆成三层：
+当前章节规划阶段保存的上下文已经拆成五层：
 
 - `hardConstraints`：容易写错且会直接破坏连续性的硬约束
 - `softReferences`：可供不同阶段继续裁剪的完整召回结果
 - `riskReminders`：提示模型优先关注连续性高风险点
+- `priorityContext`：把事实按 prompt 优先级继续分层
+- `recentChanges`：把近期变化压成更适合 prompt 消费的视图
 
 这意味着：
 
 - `draft` 会优先消费强约束上下文
 - `review` 和 `approve` 会用更轻量的上下文视图减少噪声
 - `plan` 固化下来的上下文仍然是全流程共享基线
+- sidecar 信号也会继续进入这些层，而不是只停留在底层检索结果里
 
 ### 2. MySQL 已成为正式支持目标
 
-V2 不是只在配置里预留 `mysql`，而是已经支持：
+当前实现不是只在配置里预留 `mysql`，而是已经支持：
 
 - `DB_CLIENT=mysql` 启动
 - `db init` / `db check`
@@ -117,7 +120,7 @@ V2 不是只在配置里预留 `mysql`，而是已经支持：
 - embedding / rerank 实验不需要重写 workflow，正常 workflow 也可通过配置直接接入实验链路
 - benchmark 已可用来评估实验是否真的提升了召回质量
 
-## V2 里最重要的设计
+## 当前最重要的设计
 
 ### 1. 章节正文是版本化的
 
