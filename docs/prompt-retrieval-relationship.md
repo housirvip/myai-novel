@@ -23,7 +23,13 @@
 - 为什么某个人物/物品会被召回
 - 环境变量如何控制召回上限
 
+- 一个从 `plan` 输入到最终 prompt 的完整中文例子
+
 请直接看：[`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
+
+如果你想直接看“规则召回 → embedding → rerank → sidecar → context blocks → 最终 plan prompt”的完整 walkthrough，请看：
+
+- [`docs/retrieval-pipeline-guide.md`](./retrieval-pipeline-guide.md) 中的 `一个完整例子：从 plan 输入到最终 Prompt`
 
 ## 2. 总体流程
 
