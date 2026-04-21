@@ -39,8 +39,9 @@
 - [16. 工厂层：`createPlanningRetrievalService()`](#16-工厂层createplanningretrievalservice)
 - [17. 为什么 retrieval 只发生在 `plan`](#17-为什么-retrieval-只发生在-plan)
 - [18. 两次 retrieval 在 `plan` 里的位置](#18-两次-retrieval-在-plan-里的位置)
-- [19. 当前实现特征](#19-当前实现特征)
-- [20. 推荐阅读顺序](#20-推荐阅读顺序)
+- [19. 一个完整例子：从 `plan` 输入到最终 Prompt](#19-一个完整例子从-plan-输入到最终-prompt)
+- [20. 当前实现特征](#20-当前实现特征)
+- [21. 推荐阅读顺序](#21-推荐阅读顺序)
 - [相关阅读](#相关阅读)
 
 ## 1. 涉及文件
@@ -557,7 +558,369 @@ retrieval 服务不是直接 new 出来的，而是通过工厂创建。
 
 一起压成更接近检索语言的 query payload，再送进第二次 retrieval。
 
-## 19. 当前实现特征
+## 19. 一个完整例子：从 `plan` 输入到最终 Prompt
+
+下面用一个贴近当前实现与测试数据的例子，把 `plan` 阶段从输入到最终 prompt 的全过程串起来。
+
+### 19.1 场景
+
+假设当前要规划：
+
+- 书籍：`青岳入门录`
+- 章节：第 `11` 章
+- 作者意图：`让林夜带着黑铁令进入青岳宗外门，承接旧案线索，并埋下执事核验的压力。`
+
+库中已经存在：
+
+- 人物：`林夜`
+  - `current_location=山门外`
+  - `goal=查清黑铁令来历`
+- 势力：`青岳宗`
+- 物品：`黑铁令`
+  - `owner_type=character`
+  - `owner_id=林夜`
+- 钩子：`黑铁令旧案`
+  - `target_chapter_no=11`
+- 关系：`林夜 -> 青岳宗`
+  - `relation_type=member`
+- 世界设定：`外门登记核验规则`
+- persisted sidecar：
+  - `retrieval_facts`：`黑铁令旧案尚未收束`
+  - `story_events`：`执事档案库再次提起旧案，仍需确认副令来源`
+
+### 19.2 中文时序图
+
+```mermaid
+sequenceDiagram
+    participant CLI as CLI / 用户输入
+    participant WF as PlanChapterWorkflow
+    participant Factory as createPlanningRetrievalService
+    participant Service as RetrievalQueryService
+    participant Rule as RuleBasedCandidateProvider
+    participant Embed as EmbeddingCandidateProvider
+    participant Rerank as RetrievalReranker
+    participant Sidecar as Persisted Facts / Events
+    participant Builder as buildRetrievedContext
+    participant Blocks as buildPromptContextBlocks
+    participant Prompt as buildPlanPrompt
+    participant LLM as LLM
+
+    CLI->>WF: plan(bookId, chapterNo, authorIntent, manualRefs)
+    WF->>Factory: createPlanningRetrievalService(bookId)
+    Factory-->>WF: retrievalService
+
+    WF->>Service: retrievePlanContext(keywords=[], queryText="")
+    Service->>Rule: loadCandidates()
+    Rule-->>Service: 初始规则候选
+    Service->>Rerank: rerank()
+    Rerank-->>Service: 轻量重排结果
+    Service->>Sidecar: load persisted facts/events
+    Sidecar-->>Service: 初始 sidecar 结果
+    Service->>Builder: buildRetrievedContext()
+    Builder-->>WF: initialContext
+
+    alt 用户未传 authorIntent
+        WF->>LLM: buildIntentGenerationPrompt(initialContext)
+        LLM-->>WF: authorIntent 草案
+    else 用户已传 authorIntent
+        WF-->>WF: 直接使用用户输入
+    end
+
+    WF->>LLM: buildKeywordExtractionPrompt(authorIntent)
+    LLM-->>WF: intentSummary / keywords / mustInclude / mustAvoid / entityHints / cues
+    WF-->>WF: buildRetrievalQueryPayload()
+
+    WF->>Service: retrievePlanContext(keywords, queryText)
+    Service->>Rule: loadCandidates()
+    Rule-->>Service: 规则候选
+    opt 开启 embedding
+        Service->>Embed: semantic search + merge candidates
+        Embed-->>Service: embedding_support / embedding_match 候选
+    end
+    Service->>Rerank: rerank()
+    Rerank-->>Service: 最终候选顺序
+    Service->>Sidecar: load persisted facts/events
+    Sidecar-->>Service: selected sidecar
+    Service->>Builder: buildRetrievedContext()
+    Builder-->>WF: retrievedContext
+
+    WF->>Blocks: buildPromptContextBlocks(mode=plan)
+    Blocks-->>Prompt: mustFollowFacts / recentChanges / coreEntities / requiredHooks / forbiddenMoves / supportingBackground
+    WF->>Prompt: buildPlanPrompt(retrievedContext)
+    Prompt->>LLM: 最终 plan prompt
+    LLM-->>WF: 章节规划正文
+```
+
+### 19.3 第一步：第一次轻量 retrieval
+
+`PlanChapterWorkflow.run()` 里，先执行：
+
+```ts
+retrievePlanContext({
+  bookId,
+  chapterNo,
+  keywords: [],
+  queryText: "",
+  manualRefs,
+})
+```
+
+这一步不是为了生成最终共享上下文，而是为了给 author intent 生成提供最基本的背景。
+
+此时主要会拿到：
+
+- 当前章节附近的大纲
+- 最近章节摘要
+- 手工指定实体（如果有）
+- 一批基础规则候选
+
+### 19.4 第二步：把 author intent 压成 retrieval query
+
+当 author intent 确定后，系统会先通过 `buildKeywordExtractionPrompt()` 提取：
+
+- `intentSummary`
+- `keywords`
+- `mustInclude`
+- `mustAvoid`
+- `entityHints`
+- `continuityCues`
+- `settingCues`
+- `sceneCues`
+
+然后 `buildRetrievalQueryPayload()` 会把这些信息压成：
+
+- `keywords`
+- `queryText`
+
+对这个例子，最终可能形成类似：
+
+```txt
+keywords:
+林夜 / 黑铁令 / 青岳宗 / 外门 / 旧案 / 执事 / 核验 / 来历 / 入宗 / 登记
+
+queryText:
+林夜 黑铁令 青岳宗 外门 旧案 执事 核验 来历 入宗 登记 characters:林夜 factions:青岳宗 items:黑铁令
+```
+
+### 19.5 第三步：规则召回先打底
+
+正式 retrieval 时，先由 `RuleBasedCandidateProvider` 拉规则候选。
+
+对这个例子，规则召回大概率会命中：
+
+- 人物：`林夜`
+  - 因为命中 `name`、`goal`、`current_location`
+- 势力：`青岳宗`
+- 物品：`黑铁令`
+- 钩子：`黑铁令旧案`
+  - 且 `target_chapter_no=11`
+- 关系：`林夜 -> 青岳宗`
+- 世界设定：`外门登记核验规则`
+
+这些候选会先被转成 `RetrievedEntity`，带上：
+
+- `reason`
+- `content`
+- `score`
+
+例如：
+
+- `林夜`
+  - `reason = keyword_hit+continuity_risk`
+  - `score ≈ 80`
+- `黑铁令旧案`
+  - `reason = keyword_hit+chapter_proximity`
+  - `score ≈ 60`
+- `黑铁令`
+  - `reason = keyword_hit+continuity_risk`
+  - `score ≈ 55`
+
+### 19.6 第四步：可选 embedding 补候选
+
+如果开启了 embedding，`EmbeddingCandidateProvider` 会用：
+
+- `queryText`
+  - 若为空则退回 `keywords.join(" ")`
+
+去做 semantic search。
+
+它不会替代规则召回，而是只做两件事：
+
+#### 已存在候选
+
+如果某个实体原本就被规则召回命中了：
+
+- 追加 `embedding_support`
+- 小幅提高 `score`
+
+例如：
+
+- `青岳宗`
+  - 原来：`score = 52`
+  - semantic 支持后：`score = 59`
+  - `reason = keyword_hit+institution_context+embedding_support`
+
+#### 新补候选
+
+如果某个实体规则没命中，但语义相关性很高：
+
+- 会被补成 `embedding_match`
+- 作为 embedding-only 候选加入候选池
+
+### 19.7 第五步：本地 heuristic rerank
+
+如果 `PLANNING_RETRIEVAL_RERANKER=heuristic`，会进入 `HeuristicReranker`。
+
+它不是远程 API，而是本地启发式加分：
+
+```txt
+finalScore = baseScore + manualBoost + keywordBoost + embeddingBoost + continuityBoost + hookBonus
+```
+
+对这个例子：
+
+#### 林夜
+
+- `baseScore = 80`
+- `keywordBoost = +15`
+- `continuityBoost`
+  - 因为内容里有 `current_location`、`goal` 等连续性强字段
+
+所以林夜会被进一步抬高。
+
+#### 黑铁令旧案钩子
+
+- `baseScore = 60`
+- `keywordBoost = +15`
+- `hookBonus = +30`
+  - 因为 `target_chapter_no=11`，与当前章节正好一致
+
+所以它通常会进入前排。
+
+#### 外门登记规则
+
+- `baseScore = 48`
+- `keywordBoost = +15`
+- `continuityBoost`
+  - 因为命中“规则/制度”
+- 若是 `world_setting`，还有额外加成
+
+这会让规则类世界设定在当前章更容易被顶到前面。
+
+### 19.8 第六步：接入 persisted sidecar
+
+正式 retrieval 里，除了实时候选，还会额外加载：
+
+- `loadPersistedRetrievalFacts()`
+- `loadPersistedStoryEvents()`
+
+对这个例子：
+
+- `retrieval_facts`
+  - `黑铁令旧案尚未收束`
+- `story_events`
+  - `执事档案库再次提起旧案`
+  - `unresolvedImpact = 仍需确认副令来源`
+
+这些 sidecar 不是直接进 prompt，而是后面由 context builder 收口到派生层。
+
+### 19.9 第七步：`buildRetrievedContext()` 收口
+
+最后由 `buildRetrievedContext()` 把这些东西一起收口成：
+
+- `hardConstraints`
+- `softReferences`
+- `priorityContext`
+- `riskReminders`
+- `recentChanges`
+- `retrievalObservability`
+
+对这个例子，可能形成：
+
+#### `hardConstraints`
+
+- 林夜当前位置/目标
+- 黑铁令归属状态
+- 林夜与青岳宗的成员关系
+- 外门登记核验规则
+- 当前章要回收的旧案钩子
+
+#### `priorityContext.blockingConstraints`
+
+- 林夜
+- 黑铁令
+- 黑铁令旧案钩子
+- `第8章事实：黑铁令旧案尚未收束`
+- `第9章事件：仍需确认黑铁副令来源`
+
+#### `priorityContext.decisionContext`
+
+- 青岳宗
+- 入宗关系
+- 外门制度
+
+#### `riskReminders`
+
+- 注意承接既有事实：黑铁令旧案尚未收束
+- 注意未收束事件：仍需确认黑铁副令来源
+- 人物当前位置连续性不可丢
+- 关键物品持有者与状态不可漂移
+- 已激活世界规则需要承接
+
+#### `recentChanges`
+
+- 近期章节：林夜持黑铁令来到山门外
+- retrieval_fact：旧案尚未收束
+- story_event：执事重新提起旧案
+- risk_reminder：副令来源仍需核验
+
+### 19.10 第八步：压成最终 plan prompt 可读块
+
+在 `buildPlanPrompt()` 之前，系统会先执行：
+
+```ts
+buildPromptContextBlocks(retrievedContext, { mode: "plan" })
+```
+
+它会把大上下文压成 6 个固定区块：
+
+- `mustFollowFacts`
+- `recentChanges`
+- `coreEntities`
+- `requiredHooks`
+- `forbiddenMoves`
+- `supportingBackground`
+
+最终 plan prompt 里，模型会看到这些 section：
+
+- `章节信息`
+- `作者意图`
+- `意图约束`
+- `本章必须遵守的事实`
+- `最近承接的变化`
+- `本章核心人物/势力/关系`
+- `必须推进的钩子`
+- `禁止改写与禁止新增`
+- `补充背景`
+- `召回上下文（必须严格参考）`
+- `输出要求`
+
+其中 `召回上下文（必须严格参考）` 不是整包原始 JSON，而是一个 compact 视图，用来兜底关键事实块。
+
+### 19.11 一句话理解这个例子
+
+这个例子里，模型最后真正看到的重点不是“数据库原始行”，而是：
+
+- **意图层**：林夜入宗、旧案承接、执事核验压力
+- **约束层**：人物位置、物品归属、宗门规则、旧案未收束、事件未收尾
+- **推进层**：当前章必须推进旧案钩子
+- **背景层**：青岳宗外门环境与相关大纲
+
+也就是说，`plan` 阶段真正做的不是“查一堆数据给模型”，而是：
+
+> 先用规则召回打底，再用 embedding 补语义候选，再用本地 heuristic rerank 调顺序，最后把实时候选和 persisted facts/events 一起收口成可直接进入 prompt 的分层上下文。
+
+## 20. 当前实现特征
 
 - 默认稳定主链仍是规则式 retrieval
 - embedding 只做实验候选补充
@@ -570,7 +933,7 @@ retrieval 服务不是直接 new 出来的，而是通过工厂创建。
 - `riskReminders / recentChanges / priorityContext` 已支持 provenance 与 `sourceRef/sourceRefs`
 - persisted selection funnel 已可观测：可追踪 considered / selected / dropped / surfacedIn
 
-## 20. 推荐阅读顺序
+## 21. 推荐阅读顺序
 
 建议按下面顺序阅读：
 
