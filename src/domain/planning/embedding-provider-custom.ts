@@ -29,30 +29,53 @@ export class CustomRemoteEmbeddingProvider implements EmbeddingProvider {
       throw new Error("CUSTOM_EMBEDDING_API_KEY is required when PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom");
     }
 
-    const response = await fetch(buildEmbeddingUrl(baseUrl, env.CUSTOM_EMBEDDING_PATH), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: env.CUSTOM_EMBEDDING_MODEL,
-        input: texts,
-      }),
-    });
+    const chunks = chunkTexts(texts, env.CUSTOM_EMBEDDING_BATCH_SIZE);
+    const embeddings: number[][] = [];
 
-    if (!response.ok) {
-      throw new Error(`Custom embedding request failed: ${response.status} ${await response.text()}`);
+    for (const chunk of chunks) {
+      const response = await fetch(buildEmbeddingUrl(baseUrl, env.CUSTOM_EMBEDDING_PATH), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: env.CUSTOM_EMBEDDING_MODEL,
+          input: chunk,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Custom embedding request failed: ${response.status} ${await response.text()}`);
+      }
+
+      const raw = (await response.json()) as CustomEmbeddingResponse;
+      const chunkEmbeddings = normalizeEmbeddings(raw, chunk.length);
+      if (chunkEmbeddings.length !== chunk.length) {
+        throw new Error(
+          `Custom embedding response count mismatch: expected ${chunk.length}, got ${chunkEmbeddings.length}`,
+        );
+      }
+
+      embeddings.push(...chunkEmbeddings);
     }
 
-    const raw = (await response.json()) as CustomEmbeddingResponse;
-    const embeddings = normalizeEmbeddings(raw, texts.length);
     if (embeddings.length !== texts.length) {
       throw new Error(`Custom embedding response count mismatch: expected ${texts.length}, got ${embeddings.length}`);
     }
 
     return embeddings;
   }
+}
+
+function chunkTexts(texts: string[], batchSize: number): string[][] {
+  const chunks: string[][] = [];
+
+  for (let index = 0; index < texts.length; index += batchSize) {
+    chunks.push(texts.slice(index, index + batchSize));
+  }
+
+  return chunks;
 }
 
 function buildEmbeddingUrl(baseUrl: string, requestPath: string): string {

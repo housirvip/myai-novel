@@ -71,6 +71,7 @@ const envSchema = z.object({
   CUSTOM_EMBEDDING_API_KEY: z.string().optional(),
   CUSTOM_EMBEDDING_MODEL: z.string().default("custom-embedding-v1"),
   CUSTOM_EMBEDDING_PATH: z.string().default("/embeddings"),
+  CUSTOM_EMBEDDING_BATCH_SIZE: z.coerce.number().int().positive().default(10),
 }).superRefine((value, context) => {
   if (value.LLM_PROVIDER === "openai" && !value.OPENAI_API_KEY) {
     context.addIssue({
