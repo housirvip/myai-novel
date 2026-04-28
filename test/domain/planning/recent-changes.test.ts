@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { env } from "../../../src/config/env.js";
 import { buildRecentChanges } from "../../../src/domain/planning/recent-changes.js";
 
 test("buildRecentChanges prioritizes risk reminders and stateful entities", () => {
@@ -67,4 +68,57 @@ test("buildRecentChanges preserves aggregated reminder provenance in sourceRefs"
   assert.equal(reminder?.sourceRefs?.length, 2);
   assert.ok(reminder?.sourceRefs?.some((source) => source.sourceType === "persisted_fact" && source.sourceId === 1));
   assert.ok(reminder?.sourceRefs?.some((source) => source.sourceType === "persisted_event" && source.sourceId === 2));
+});
+
+test("buildRecentChanges uses expanded longform chapter window defaults", () => {
+  const changes = buildRecentChanges({
+    recentChapters: Array.from({ length: env.PLANNING_RECENT_CHANGES_CHAPTER_LIMIT + 2 }, (_, index) => ({
+      id: index + 1,
+      chapterNo: 200 - index,
+      title: `第${200 - index}章`,
+      summary: `第${200 - index}章承接`,
+      status: "approved" as const,
+    })),
+  });
+
+  const chapterChanges = changes.filter((item) => item.source === "chapter_summary");
+  assert.equal(chapterChanges.length, env.PLANNING_RECENT_CHANGES_CHAPTER_LIMIT);
+  assert.equal(chapterChanges[0]?.label, "第200章承接");
+  assert.equal(chapterChanges.at(-1)?.label, `第${200 - env.PLANNING_RECENT_CHANGES_CHAPTER_LIMIT + 1}章承接`);
+});
+
+test("buildRecentChanges keeps a larger total longform window across mixed sources", () => {
+  const changes = buildRecentChanges({
+    recentChapters: Array.from({ length: 4 }, (_, index) => ({
+      id: index + 1,
+      chapterNo: 120 - index,
+      title: `第${120 - index}章`,
+      summary: `章节${120 - index}承接`,
+      status: "approved" as const,
+    })),
+    riskReminders: Array.from({ length: env.PLANNING_RECENT_CHANGES_RISK_LIMIT }, (_, index) => ({
+      text: `风险提醒${index + 1}`,
+    })),
+    persistedFacts: Array.from({ length: 3 }, (_, index) => ({
+      id: index + 1,
+      chapterNo: 80 - index,
+      factType: "chapter_summary",
+      factText: `事实${index + 1}`,
+      importance: 90,
+      riskLevel: 80,
+    })),
+    persistedEvents: Array.from({ length: 2 }, (_, index) => ({
+      id: index + 1,
+      chapterNo: 60 - index,
+      title: `事件${index + 1}`,
+      summary: `事件摘要${index + 1}`,
+      unresolvedImpact: `未收束${index + 1}`,
+    })),
+  });
+
+  assert.equal(changes.length, env.PLANNING_RECENT_CHANGES_TOTAL_LIMIT);
+  assert.ok(changes.some((item) => item.source === "risk_reminder"));
+  assert.ok(changes.some((item) => item.source === "retrieval_fact"));
+  assert.ok(changes.some((item) => item.source === "story_event"));
+  assert.ok(changes.some((item) => item.source === "chapter_summary"));
 });

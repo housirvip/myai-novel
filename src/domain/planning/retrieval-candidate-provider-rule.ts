@@ -130,7 +130,8 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
     chapterNo: number,
   ): Promise<{ chapters: RetrievedChapterSummary[]; scanned: number }> {
     // 近期章节摘要优先复用 chapters 主表已有 summary；
-    // 如果主表还没同步完整，再依次回退到 final / draft / plan，尽量保住“前文发生了什么”的连续性线索。
+    // 如果主表还没同步完整，再依次回退到 final / draft；
+    // 这里刻意不再回退到 plan.author_intent，避免把“打算发生什么”混成“已经发生什么”。
     const rows = await db
       .selectFrom("chapters")
       .select([
@@ -150,14 +151,10 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
       .limit(RECENT_CHAPTER_SCAN_LIMIT)
       .execute();
 
-    const planIds = rows.map((row) => row.current_plan_id).filter((value): value is number => value !== null);
     const draftIds = rows.map((row) => row.current_draft_id).filter((value): value is number => value !== null);
     const finalIds = rows.map((row) => row.current_final_id).filter((value): value is number => value !== null);
 
-    const [planRows, draftRows, finalRows] = await Promise.all([
-      planIds.length > 0
-        ? db.selectFrom("chapter_plans").select(["id", "author_intent"]).where("id", "in", planIds).execute()
-        : Promise.resolve([]),
+    const [draftRows, finalRows] = await Promise.all([
       draftIds.length > 0
         ? db.selectFrom("chapter_drafts").select(["id", "summary"]).where("id", "in", draftIds).execute()
         : Promise.resolve([]),
@@ -166,7 +163,6 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
         : Promise.resolve([]),
     ]);
 
-    const planSummaryMap = new Map(planRows.map((row) => [row.id, row.author_intent]));
     const draftSummaryMap = new Map(draftRows.map((row) => [row.id, row.summary]));
     const finalSummaryMap = new Map(finalRows.map((row) => [row.id, row.summary]));
 
@@ -178,8 +174,7 @@ export class RuleBasedCandidateProvider implements RetrievalCandidateProvider {
         summary:
           row.summary
           ?? (row.current_final_id ? finalSummaryMap.get(row.current_final_id) ?? null : null)
-          ?? (row.current_draft_id ? draftSummaryMap.get(row.current_draft_id) ?? null : null)
-          ?? (row.current_plan_id ? planSummaryMap.get(row.current_plan_id) ?? null : null),
+          ?? (row.current_draft_id ? draftSummaryMap.get(row.current_draft_id) ?? null : null),
         status: row.status,
       }))
       .filter((row) => Boolean(row.summary?.trim()))

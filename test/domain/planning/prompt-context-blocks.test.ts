@@ -78,6 +78,12 @@ test("buildPromptContextBlocks respects stage-specific char budgets", () => {
   assert.ok(reviewChars <= env.PLANNING_PROMPT_CONTEXT_REVIEW_CHAR_BUDGET);
   assert.ok(approveDiffChars <= env.PLANNING_PROMPT_CONTEXT_APPROVE_DIFF_CHAR_BUDGET);
   assert.ok(draftBlocks.mustFollowFacts.length >= 1);
+  assert.ok(draftBlocks.mustFollowFacts.length <= env.PLANNING_PROMPT_CONTEXT_MUST_FOLLOW_LIMIT);
+  assert.ok(draftBlocks.recentChanges.length <= env.PLANNING_PROMPT_CONTEXT_RECENT_CHANGES_LIMIT);
+  assert.ok(draftBlocks.coreEntities.length <= env.PLANNING_PROMPT_CONTEXT_CORE_ENTITIES_LIMIT);
+  assert.ok(draftBlocks.requiredHooks.length <= env.PLANNING_PROMPT_CONTEXT_REQUIRED_HOOKS_LIMIT);
+  assert.ok(draftBlocks.forbiddenMoves.length <= env.PLANNING_PROMPT_CONTEXT_FORBIDDEN_MOVES_LIMIT);
+  assert.ok(draftBlocks.supportingBackground.length <= env.PLANNING_PROMPT_CONTEXT_SUPPORTING_BACKGROUND_LIMIT);
   assert.ok(reviewBlocks.mustFollowFacts.length >= 1);
   assert.ok(approveDiffBlocks.mustFollowFacts.length >= 1);
   assert.ok(reviewBlocks.supportingBackground.length <= draftBlocks.supportingBackground.length);
@@ -109,4 +115,97 @@ test("buildPromptContextBlocks prefers persisted recentChanges over recomputed c
   assert.ok(blocks.recentChanges.some((item) => item.includes("第8章事实：黑铁令旧案尚未收束。")));
   assert.ok(blocks.recentChanges.some((item) => item.includes("第9章事件：执事档案库再次提起旧案。")));
   assert.ok(blocks.recentChanges.every((item) => !item.includes("第11章承接")));
+});
+
+test("buildPromptContextBlocks keeps later sections when must-follow facts are extremely long", () => {
+  const longTail = "设定约束".repeat(300);
+  const context = {
+    priorityContext: {
+      blockingConstraints: Array.from({ length: env.PLANNING_PROMPT_CONTEXT_MUST_FOLLOW_LIMIT + 2 }, (_, index) => ({
+        entityType: index % 2 === 0 ? "world_setting" : "hook",
+        entityId: index + 1,
+        displayName: `强约束${index + 1}`,
+        identity: [`强约束${index + 1}`],
+        currentState: [`状态${index + 1}=${longTail}`],
+        coreConflictOrGoal: [],
+        recentChanges: [],
+        continuityRisk: [`风险${index + 1}=${longTail}`],
+        relevanceReasons: ["continuity_risk"],
+        scores: {
+          matchScore: 90,
+          importanceScore: 90,
+          continuityRiskScore: 90,
+          recencyScore: 60,
+          manualPriorityScore: 0,
+          finalScore: 95,
+        },
+      })),
+      decisionContext: [
+        {
+          entityType: "character",
+          entityId: 100,
+          displayName: "林夜",
+          identity: ["林夜"],
+          currentState: ["current_location=青岳宗外门", `goal=${longTail}`],
+          coreConflictOrGoal: ["查清黑铁令旧案"],
+          recentChanges: [],
+          continuityRisk: [],
+          relevanceReasons: ["high_match_score"],
+          scores: {
+            matchScore: 88,
+            importanceScore: 80,
+            continuityRiskScore: 40,
+            recencyScore: 55,
+            manualPriorityScore: 0,
+            finalScore: 90,
+          },
+        },
+      ],
+      supportingContext: [
+        {
+          entityType: "faction",
+          entityId: 101,
+          displayName: "青岳宗",
+          identity: ["青岳宗"],
+          currentState: ["core_goal=维持宗门秩序"],
+          coreConflictOrGoal: [],
+          recentChanges: [],
+          continuityRisk: [],
+          relevanceReasons: ["rule_relevant_faction"],
+          scores: {
+            matchScore: 72,
+            importanceScore: 75,
+            continuityRiskScore: 20,
+            recencyScore: 45,
+            manualPriorityScore: 0,
+            finalScore: 78,
+          },
+        },
+      ],
+      backgroundNoise: [],
+    },
+    recentChanges: Array.from({ length: env.PLANNING_PROMPT_CONTEXT_RECENT_CHANGES_LIMIT }, (_, index) => ({
+      source: "retrieval_fact" as const,
+      label: `第${index + 1}章事实`,
+      detail: `变化${index + 1}${longTail}`,
+      priority: 90 - index,
+    })),
+    riskReminders: Array.from({ length: env.PLANNING_PROMPT_CONTEXT_FORBIDDEN_MOVES_LIMIT }, (_, index) => ({
+      text: `风险提醒${index + 1}${longTail}`,
+    })),
+    supportingOutlines: Array.from({ length: env.PLANNING_PROMPT_CONTEXT_SUPPORTING_BACKGROUND_LIMIT }, (_, index) => ({
+      id: index + 1,
+      title: `提纲${index + 1}`,
+      reason: "outline_hit",
+      content: `背景${index + 1}${longTail}`,
+    })),
+  };
+
+  const blocks = buildPromptContextBlocks(context, { mode: "draft" });
+  assert.ok(blocks.mustFollowFacts.length >= 1);
+  assert.ok(blocks.mustFollowFacts.length <= env.PLANNING_PROMPT_CONTEXT_MUST_FOLLOW_LIMIT);
+  assert.ok(blocks.recentChanges.length >= 1);
+  assert.ok(blocks.coreEntities.length >= 1);
+  assert.ok(blocks.requiredHooks.length >= 1);
+  assert.ok(Object.values(blocks).flat().join("").length <= env.PLANNING_PROMPT_CONTEXT_DRAFT_CHAR_BUDGET);
 });

@@ -29,6 +29,22 @@ export type PromptContextMode =
 
 interface PromptContextBlockConfig {
   charBudget: number;
+  sectionLineLimits: {
+    mustFollowFacts: number;
+    recentChanges: number;
+    coreEntities: number;
+    requiredHooks: number;
+    forbiddenMoves: number;
+    supportingBackground: number;
+  };
+  sectionCharBudgets: {
+    mustFollowFacts: number;
+    recentChanges: number;
+    coreEntities: number;
+    requiredHooks: number;
+    forbiddenMoves: number;
+    supportingBackground: number;
+  };
 }
 
 type RetrievedContextViewLike = {
@@ -108,12 +124,17 @@ export function buildPromptContextBlocks(
   const budgeted = allocateBudget({
     charBudget: config.charBudget,
     sections: [
-      { key: "mustFollowFacts", lines: mustFollowFacts.length > 0 ? mustFollowFacts : forbiddenMoves.slice(0, 2), minCount: 1 },
-      { key: "recentChanges", lines: recentChanges, minCount: 0 },
-      { key: "coreEntities", lines: coreEntities, minCount: 0 },
-      { key: "requiredHooks", lines: requiredHooks, minCount: 0 },
-      { key: "forbiddenMoves", lines: forbiddenMoves, minCount: 0 },
-      { key: "supportingBackground", lines: supportingBackground, minCount: 0 },
+      {
+        key: "mustFollowFacts",
+        lines: (mustFollowFacts.length > 0 ? mustFollowFacts : forbiddenMoves.slice(0, 2)).slice(0, config.sectionLineLimits.mustFollowFacts),
+        maxChars: config.sectionCharBudgets.mustFollowFacts,
+        minCount: 1,
+      },
+      { key: "recentChanges", lines: recentChanges.slice(0, config.sectionLineLimits.recentChanges), maxChars: config.sectionCharBudgets.recentChanges, minCount: 0 },
+      { key: "coreEntities", lines: coreEntities.slice(0, config.sectionLineLimits.coreEntities), maxChars: config.sectionCharBudgets.coreEntities, minCount: 0 },
+      { key: "requiredHooks", lines: requiredHooks.slice(0, config.sectionLineLimits.requiredHooks), maxChars: config.sectionCharBudgets.requiredHooks, minCount: 0 },
+      { key: "forbiddenMoves", lines: forbiddenMoves.slice(0, config.sectionLineLimits.forbiddenMoves), maxChars: config.sectionCharBudgets.forbiddenMoves, minCount: 0 },
+      { key: "supportingBackground", lines: supportingBackground.slice(0, config.sectionLineLimits.supportingBackground), maxChars: config.sectionCharBudgets.supportingBackground, minCount: 0 },
     ],
   });
 
@@ -123,7 +144,7 @@ export function buildPromptContextBlocks(
   const remainingBudget = Math.max(0, config.charBudget - totalChars(Object.values(budgeted).flat()));
   const fallbackCoreWithinBudget = budgeted.coreEntities.length > 0
     ? budgeted.coreEntities
-    : takeLinesWithinBudget(fallbackCoreEntities, remainingBudget, 0);
+    : takeLinesWithinBudget(fallbackCoreEntities.slice(0, config.sectionLineLimits.coreEntities), remainingBudget, 0);
 
   return {
     mustFollowFacts: budgeted.mustFollowFacts,
@@ -140,29 +161,63 @@ function getPromptContextBlockConfig(mode: PromptContextMode): PromptContextBloc
     case "plan":
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_PLAN_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_PLAN_CHAR_BUDGET),
       };
     case "review":
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_REVIEW_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_REVIEW_CHAR_BUDGET),
       };
     case "repair":
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_REPAIR_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_REPAIR_CHAR_BUDGET),
       };
     case "approve":
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_APPROVE_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_APPROVE_CHAR_BUDGET),
       };
     case "approveDiff":
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_APPROVE_DIFF_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_APPROVE_DIFF_CHAR_BUDGET),
       };
     case "draft":
     default:
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_DRAFT_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_DRAFT_CHAR_BUDGET),
       };
   }
+}
+
+function buildSectionLineLimits(): PromptContextBlockConfig["sectionLineLimits"] {
+  return {
+    mustFollowFacts: env.PLANNING_PROMPT_CONTEXT_MUST_FOLLOW_LIMIT,
+    recentChanges: env.PLANNING_PROMPT_CONTEXT_RECENT_CHANGES_LIMIT,
+    coreEntities: env.PLANNING_PROMPT_CONTEXT_CORE_ENTITIES_LIMIT,
+    requiredHooks: env.PLANNING_PROMPT_CONTEXT_REQUIRED_HOOKS_LIMIT,
+    forbiddenMoves: env.PLANNING_PROMPT_CONTEXT_FORBIDDEN_MOVES_LIMIT,
+    supportingBackground: env.PLANNING_PROMPT_CONTEXT_SUPPORTING_BACKGROUND_LIMIT,
+  };
+}
+
+function buildSectionCharBudgets(totalBudget: number): PromptContextBlockConfig["sectionCharBudgets"] {
+  return {
+    mustFollowFacts: Math.max(120, Math.floor(totalBudget * 0.26)),
+    recentChanges: Math.max(100, Math.floor(totalBudget * 0.18)),
+    coreEntities: Math.max(100, Math.floor(totalBudget * 0.18)),
+    requiredHooks: Math.max(80, Math.floor(totalBudget * 0.14)),
+    forbiddenMoves: Math.max(70, Math.floor(totalBudget * 0.10)),
+    supportingBackground: Math.max(80, Math.floor(totalBudget * 0.14)),
+  };
 }
 
 function summarizeFactPackets(
@@ -193,7 +248,7 @@ function summarizeOutlines(outlines?: RetrievedOutline[]): string[] {
 
 function allocateBudget(input: {
   charBudget: number;
-  sections: Array<{ key: keyof PromptContextBlocks; lines: string[]; minCount: number }>;
+  sections: Array<{ key: keyof PromptContextBlocks; lines: string[]; maxChars: number; minCount: number }>;
 }): PromptContextBlocks {
   let remaining = input.charBudget;
   const result = {
@@ -206,7 +261,7 @@ function allocateBudget(input: {
   } as PromptContextBlocks;
 
   for (const section of input.sections) {
-    const selected = takeLinesWithinBudget(section.lines, remaining, section.minCount);
+    const selected = takeLinesWithinBudget(section.lines, Math.min(remaining, section.maxChars), section.minCount);
     assignSection(result, section.key, selected);
     remaining -= selected.reduce((sum, line) => sum + line.length, 0);
   }

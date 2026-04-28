@@ -24,7 +24,7 @@ test("retrieval service skips placeholder chapters and returns richer entity con
     hardConstraintItem: { content: string } | null;
     hardConstraintRelation: { content: string } | null;
     hardConstraintWorldSetting: { content: string } | null;
-    riskReminders: string[];
+    riskReminders: Array<{ text: string }>;
     priorityBlockingCount: number;
     priorityDecisionCount: number;
     candidateCharacterSource: string | null;
@@ -168,7 +168,7 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.ok(result.persistedEventChangeCount >= 1);
 });
 
-test("retrieval service keeps default rule-based behavior when reranker is pass-through", async () => {
+test("retrieval service defaults to heuristic reranker behavior", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-pipeline-"));
   const env = createTestEnv(tempDir);
 
@@ -178,7 +178,7 @@ test("retrieval service keeps default rule-based behavior when reranker is pass-
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
       "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
-      "import { DirectPassThroughReranker } from './src/domain/planning/retrieval-pipeline.ts';",
+      "import { HeuristicReranker } from './src/domain/planning/retrieval-reranker-heuristic.ts';",
       "const logger = { info() {}, error() {}, debug() {} };",
       "const manager = createDatabaseManager(logger);",
       "const db = manager.getClient();",
@@ -192,7 +192,7 @@ test("retrieval service keeps default rule-based behavior when reranker is pass-
       "  ]).execute();",
       "  await db.insertInto('items').values({ id: 1, book_id: 1, name: '黑铁令', category: '令牌', description: '身份凭证', owner_type: 'character', owner_id: 1, rarity: 'rare', status: 'active', append_notes: null, keywords: '[\"黑铁令\"]', created_at: now, updated_at: now }).execute();",
       "  const baseService = new RetrievalQueryService(logger);",
-      "  const pipelineService = new RetrievalQueryService(logger, { reranker: new DirectPassThroughReranker() });",
+      "  const pipelineService = new RetrievalQueryService(logger, { reranker: new HeuristicReranker() });",
        "  const params = { bookId: 1, chapterNo: 2, keywords: ['黑铁令', '林夜'], queryText: '黑铁令 林夜', manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } };",
       "  const baseContext = await baseService.retrievePlanContext(params);",
       "  const pipelineContext = await pipelineService.retrievePlanContext(params);",
@@ -209,6 +209,41 @@ test("retrieval service keeps default rule-based behavior when reranker is pass-
 
   assert.equal(result.sameCharacterOrder, true);
   assert.equal(result.sameRiskReminders, true);
+});
+
+test("retrieval service does not treat author intent as recent chapter factual summary", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-recent-summary-boundary-"));
+  const env = createTestEnv(tempDir);
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{ recentChapterNos: number[]; recentSummaries: Array<string | null> }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 20, current_chapter_count: 3, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values([",
+      "    { id: 1, book_id: 1, chapter_no: 1, title: '第一章', summary: '第一章正式总结', word_count: 1200, status: 'approved', current_plan_id: null, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_no: 2, title: '第二章', summary: null, word_count: 1200, status: 'planned', current_plan_id: 1, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('chapter_plans').values({ id: 1, book_id: 1, chapter_id: 2, chapter_no: 2, version_no: 1, status: 'active', author_intent: '第二章作者意图，不应被当作既成事实摘要', intent_source: 'user_input', intent_keywords: '[]', manual_entity_refs: null, retrieved_context: null, content: '第二章计划', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now }).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 3, keywords: ['作者意图'], queryText: '作者意图', manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({ recentChapterNos: context.recentChapters.map((item) => item.chapterNo), recentSummaries: context.recentChapters.map((item) => item.summary) }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.deepEqual(result.recentChapterNos, [1]);
+  assert.deepEqual(result.recentSummaries, ["第一章正式总结"]);
 });
 
 test("retrieval service can apply heuristic reranker to promote continuity-heavy candidates", async () => {
@@ -631,7 +666,7 @@ test("retrieval ranking prefers stronger weighted hits and keeps continuity enti
     hardConstraintCharacterIds: number[];
     hardConstraintItemIds: number[];
     hardConstraintWorldSettingIds: number[];
-    riskReminders: string[];
+    riskReminders: Array<{ text: string }>;
   }>(
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
