@@ -410,6 +410,39 @@ test("retrieval service promotes story events via structured manual refs even wh
   assert.ok((result.persistedEventTrace?.structuralBoost ?? 0) > 0);
 });
 
+test("retrieval service matches legacy grouped participant refs for story events", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-grouped-participants-"));
+  const env = createTestEnv(tempDir);
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{ blockingNames: string[]; persistedEventTrace: { keywordMatched: boolean; structuralManualMatch: boolean; structuralBoost: number } | null }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 50, current_chapter_count: 20, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('story_events').values({ id: 1, book_id: 1, chapter_id: null, chapter_no: 9, event_type: 'investigation', title: '旧格式事件', summary: '记录一条较弱的历史波动。', participant_entity_refs: JSON.stringify({ characters: [1], factions: [], items: [], hooks: [5], worldSettings: [] }), location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '仍需追查。', hook_refs: JSON.stringify([5]), status: 'active', created_at: now, updated_at: now }).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 20, keywords: ['无关词'], queryText: '无关词', manualRefs: { characterIds: [1], factionIds: [], itemIds: [], hookIds: [5], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({ blockingNames: (context.priorityContext?.blockingConstraints ?? []).map((item) => item.displayName), persistedEventTrace: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 1)?.trace ?? null }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.ok(result.blockingNames.includes("第9章事件"));
+  assert.equal(result.persistedEventTrace?.keywordMatched, false);
+  assert.equal(result.persistedEventTrace?.structuralManualMatch, true);
+  assert.ok((result.persistedEventTrace?.structuralBoost ?? 0) > 0);
+});
+
 test("retrieval observability exposes considered-vs-selected persisted sidecar counts", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-funnel-"));
   const env = createTestEnv(tempDir);

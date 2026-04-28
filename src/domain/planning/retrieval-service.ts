@@ -137,7 +137,12 @@ async function loadPersistedRetrievalFacts(
     }))
     .sort((left, right) => right.trace.score - left.trace.score || (right.row.chapter_no ?? 0) - (left.row.chapter_no ?? 0) || left.row.id - right.row.id);
 
-  const selectedIds = new Set(scored.filter((item) => item.trace.score > 0).slice(0, 6).map((item) => item.row.id));
+  const selectedIds = new Set(
+    scored
+      .filter((item) => item.trace.score > 0)
+      .slice(0, env.PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT)
+      .map((item) => item.row.id),
+  );
   const considered = scored.map(({ row, trace }, index) => ({
     id: row.id,
     chapterNo: row.chapter_no,
@@ -186,7 +191,12 @@ async function loadPersistedStoryEvents(
     }))
     .sort((left, right) => right.trace.score - left.trace.score || (right.row.chapter_no ?? 0) - (left.row.chapter_no ?? 0) || left.row.id - right.row.id);
 
-  const selectedIds = new Set(scored.filter((item) => item.trace.score > 0).slice(0, 4).map((item) => item.row.id));
+  const selectedIds = new Set(
+    scored
+      .filter((item) => item.trace.score > 0)
+      .slice(0, env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT)
+      .map((item) => item.row.id),
+  );
   const considered = scored.map(({ row, trace }, index) => ({
     id: row.id,
     chapterNo: row.chapter_no,
@@ -414,13 +424,47 @@ function parseParticipantEntityRefs(value: string | null): Array<{ entityType: s
   }
 
   try {
-    const parsed = JSON.parse(value) as Array<{ entityType?: string; entityId?: number }>;
-    return parsed.filter((item): item is { entityType: string; entityId: number } =>
-      typeof item?.entityType === "string" && typeof item?.entityId === "number"
-    );
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is { entityType: string; entityId: number } =>
+        typeof item === "object"
+          && item !== null
+          && typeof (item as { entityType?: unknown }).entityType === "string"
+          && typeof (item as { entityId?: unknown }).entityId === "number"
+      );
+    }
+    if (!parsed || typeof parsed !== "object") {
+      return [];
+    }
+
+    const grouped = parsed as {
+      characters?: unknown;
+      factions?: unknown;
+      items?: unknown;
+      hooks?: unknown;
+      worldSettings?: unknown;
+      world_settings?: unknown;
+    };
+    return [
+      ...expandParticipantIds("character", grouped.characters),
+      ...expandParticipantIds("faction", grouped.factions),
+      ...expandParticipantIds("item", grouped.items),
+      ...expandParticipantIds("hook", grouped.hooks),
+      ...expandParticipantIds("world_setting", grouped.worldSettings ?? grouped.world_settings),
+    ];
   } catch {
     return [];
   }
+}
+
+function expandParticipantIds(entityType: string, value: unknown): Array<{ entityType: string; entityId: number }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is number => typeof item === "number" && Number.isInteger(item) && item > 0)
+    .map((entityId) => ({ entityType, entityId }));
 }
 
 function parseHookRefs(value: string | null): number[] {

@@ -321,9 +321,10 @@ export function buildApproveDiffPrompt(input: {
         input.retrievedContext ? section("召回上下文（用于校对事实变更）", "以上事实块用于判断哪些变化属于真实、可回写的结构化事实。") : null,
         section("输出要求", [
           "请返回 JSON。",
-          "字段包含：chapterSummary, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, newRelations, updates。",
+          "字段包含：chapterSummary, unresolvedImpact, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, newRelations, updates。",
           "newRelations 用于新增关系，字段包含 sourceType, sourceId, targetType, targetId, relationType, intensity, status, description, keywords。",
           "updates 中的 entityType 支持 character, faction, relation, item, story_hook, world_setting；action 支持 update_fields, append_notes, status_change。",
+          "unresolvedImpact 用于记录本章结束后仍未收束、后续必须承接的影响；如果没有可填 null。",
           "actual*Ids 应只保留本章真实出场或真实产生影响的实体。",
         ]),
       ]),

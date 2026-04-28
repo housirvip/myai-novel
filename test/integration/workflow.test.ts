@@ -233,9 +233,12 @@ test("mock workflow chain updates chapter facts and related entities", async () 
   const sidecarState = await runInlineModule<{
     storyEventCount: number;
     storyEventSummary: string | null;
+    storyEventUnresolvedImpact: string | null;
+    storyEventParticipantEntityRefs: string | null;
     segmentCount: number;
     segmentSourceType: string | null;
     eventDocumentCount: number;
+    eventDocumentText: string | null;
     segmentDocumentCount: number;
     retrievalFactCount: number;
     chapterSummaryFact: string | null;
@@ -254,9 +257,12 @@ test("mock workflow chain updates chapter facts and related entities", async () 
       "  console.log(JSON.stringify({",
       "    storyEventCount: storyEvents.length,",
       "    storyEventSummary: storyEvents[0]?.summary ?? null,",
+      "    storyEventUnresolvedImpact: storyEvents[0]?.unresolved_impact ?? null,",
+      "    storyEventParticipantEntityRefs: storyEvents[0]?.participant_entity_refs ?? null,",
       "    segmentCount: segments.length,",
       "    segmentSourceType: segments[0]?.source_type ?? null,",
       "    eventDocumentCount: eventDocs.length,",
+      "    eventDocumentText: eventDocs[0]?.text ?? null,",
       "    segmentDocumentCount: segmentDocs.length,",
       "    retrievalFactCount: retrievalFacts.length,",
       "    chapterSummaryFact: retrievalFacts.find((item) => item.fact_type === 'chapter_summary')?.fact_text ?? null,",
@@ -271,9 +277,19 @@ test("mock workflow chain updates chapter facts and related entities", async () 
 
   assert.equal(sidecarState.storyEventCount, 1);
   assert.ok((sidecarState.storyEventSummary ?? "").length > 0);
+  assert.ok((sidecarState.storyEventUnresolvedImpact ?? "").length > 0);
+  assert.deepEqual(JSON.parse(sidecarState.storyEventParticipantEntityRefs ?? "[]"), [
+    { entityType: "character", entityId: character.id },
+    { entityType: "faction", entityId: faction.id },
+    { entityType: "item", entityId: item.id },
+    { entityType: "hook", entityId: hook.id },
+    { entityType: "hook", entityId: approve.createdEntities.hooks[0] },
+    { entityType: "world_setting", entityId: world.id },
+  ]);
   assert.equal(sidecarState.segmentCount, 1);
   assert.equal(sidecarState.segmentSourceType, "approved");
   assert.equal(sidecarState.eventDocumentCount, 1);
+  assert.match(sidecarState.eventDocumentText ?? "", /未收束影响：/);
   assert.equal(sidecarState.segmentDocumentCount, 1);
   assert.ok(sidecarState.retrievalFactCount >= 2);
   assert.ok((sidecarState.chapterSummaryFact ?? "").length > 0);
@@ -370,6 +386,9 @@ test("approve rewrites sidecar artifacts for the same chapter instead of duplica
     segmentDocCount: number;
     retrievalFactCount: number;
     storyEventSummary: string | null;
+    storyEventUnresolvedImpact: string | null;
+    storyEventParticipantEntityRefs: string | null;
+    eventDocumentText: string | null;
     segmentText: string | null;
   }>(
     [
@@ -385,9 +404,9 @@ test("approve rewrites sidecar artifacts for the same chapter instead of duplica
       "globalThis.fetch = async () => {",
       "  callCount += 1;",
       "  if (callCount === 1) return makeResponse('第一次定稿正文');",
-      "  if (callCount === 2) return makeResponse('{\"chapterSummary\":\"第一次摘要\",\"actualCharacterIds\":[],\"actualFactionIds\":[],\"actualItemIds\":[],\"actualHookIds\":[],\"actualWorldSettingIds\":[],\"newCharacters\":[],\"newFactions\":[],\"newItems\":[],\"newHooks\":[],\"newWorldSettings\":[],\"newRelations\":[],\"updates\":[]}');",
+      "  if (callCount === 2) return makeResponse('{\"chapterSummary\":\"第一次摘要\",\"unresolvedImpact\":\"第一次影响\",\"actualCharacterIds\":[],\"actualFactionIds\":[],\"actualItemIds\":[],\"actualHookIds\":[],\"actualWorldSettingIds\":[],\"newCharacters\":[],\"newFactions\":[],\"newItems\":[],\"newHooks\":[],\"newWorldSettings\":[],\"newRelations\":[],\"updates\":[]}');",
       "  if (callCount === 3) return makeResponse('第二次定稿正文');",
-      "  return makeResponse('{\"chapterSummary\":\"第二次摘要\",\"actualCharacterIds\":[],\"actualFactionIds\":[],\"actualItemIds\":[],\"actualHookIds\":[],\"actualWorldSettingIds\":[],\"newCharacters\":[],\"newFactions\":[],\"newItems\":[],\"newHooks\":[],\"newWorldSettings\":[],\"newRelations\":[],\"updates\":[]}');",
+      "  return makeResponse('{\"chapterSummary\":\"第二次摘要\",\"unresolvedImpact\":\"第二次影响\",\"actualCharacterIds\":[],\"actualFactionIds\":[],\"actualItemIds\":[],\"actualHookIds\":[],\"actualWorldSettingIds\":[],\"newCharacters\":[],\"newFactions\":[],\"newItems\":[],\"newHooks\":[],\"newWorldSettings\":[],\"newRelations\":[],\"updates\":[]}');",
       "};",
       "try {",
       "  await db.insertInto('books').values({ id: 1, title: '重写测试', current_chapter_count: 0, created_at: now, updated_at: now }).execute();",
@@ -415,6 +434,9 @@ test("approve rewrites sidecar artifacts for the same chapter instead of duplica
       "    segmentDocCount: segmentDocs.length,",
       "    retrievalFactCount: retrievalFacts.length,",
       "    storyEventSummary: storyEvents[0]?.summary ?? null,",
+      "    storyEventUnresolvedImpact: storyEvents[0]?.unresolved_impact ?? null,",
+      "    storyEventParticipantEntityRefs: storyEvents[0]?.participant_entity_refs ?? null,",
+      "    eventDocumentText: eventDocs[0]?.text ?? null,",
       "    segmentText: chapterSegments[0]?.text ?? null,",
       "  }));",
       "} finally {",
@@ -434,6 +456,9 @@ test("approve rewrites sidecar artifacts for the same chapter instead of duplica
   assert.equal(result.segmentDocCount, 1);
   assert.equal(result.retrievalFactCount, 1);
   assert.equal(result.storyEventSummary, "第二次摘要");
+  assert.equal(result.storyEventUnresolvedImpact, "第二次影响");
+  assert.deepEqual(JSON.parse(result.storyEventParticipantEntityRefs ?? "[]"), []);
+  assert.match(result.eventDocumentText ?? "", /未收束影响：第二次影响/);
   assert.match(result.segmentText ?? "", /第二次定稿正文/);
 });
 

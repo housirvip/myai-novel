@@ -1,3 +1,4 @@
+import { env } from "../../config/env.js";
 import { buildRecentChanges } from "./recent-changes.js";
 import { buildRetrievalObservability } from "./retrieval-observability.js";
 import { buildPriorityContext } from "./retrieval-facts.js";
@@ -42,13 +43,13 @@ export function buildRetrievedContext(input: {
     recentChapters,
   });
   const persistedRiskReminderEntries: RetrievedRiskReminder[] = [
-    ...(input.persistedFacts ?? []).slice(0, 3).map((fact) => createRiskReminderWithProvenance({
+    ...(input.persistedFacts ?? []).slice(0, env.PLANNING_RETRIEVAL_PERSISTED_RISK_FACT_LIMIT).map((fact) => createRiskReminderWithProvenance({
       text: `注意承接既有事实：${fact.factText}`,
       sourceRef: createPersistedFactRef(fact.id),
     })),
     ...(input.persistedEvents ?? [])
       .filter((event) => Boolean(event.unresolvedImpact?.trim()))
-      .slice(0, 2)
+      .slice(0, env.PLANNING_RETRIEVAL_PERSISTED_RISK_EVENT_LIMIT)
       .map((event) => createRiskReminderWithProvenance({
         text: `注意未收束事件：${event.unresolvedImpact}`,
         sourceRef: createPersistedEventRef(event.id),
@@ -172,7 +173,7 @@ function buildPersistedPriorityPackets(input: {
   events?: PersistedStoryEvent[];
   currentChapterNo: number;
 }) {
-  const factPackets = (input.facts ?? []).slice(0, 3).map((fact) => createFactPacketWithProvenance({
+  const factPackets = (input.facts ?? []).slice(0, env.PLANNING_RETRIEVAL_PERSISTED_PRIORITY_FACT_LIMIT).map((fact) => createFactPacketWithProvenance({
     entityType: "chapter" as const,
     entityId: -fact.id,
     displayName: fact.chapterNo ? `第${fact.chapterNo}章事实` : `历史事实#${fact.id}`,
@@ -193,7 +194,7 @@ function buildPersistedPriorityPackets(input: {
     },
   }));
 
-  const eventPackets = (input.events ?? []).slice(0, 2).map((event) => createFactPacketWithProvenance({
+  const eventPackets = (input.events ?? []).slice(0, env.PLANNING_RETRIEVAL_PERSISTED_PRIORITY_EVENT_LIMIT).map((event) => createFactPacketWithProvenance({
     entityType: "chapter" as const,
     entityId: -(100000 + event.id),
     displayName: event.chapterNo ? `第${event.chapterNo}章事件` : event.title,
