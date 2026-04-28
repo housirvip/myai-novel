@@ -209,3 +209,118 @@ test("buildPromptContextBlocks keeps later sections when must-follow facts are e
   assert.ok(blocks.requiredHooks.length >= 1);
   assert.ok(Object.values(blocks).flat().join("").length <= env.PLANNING_PROMPT_CONTEXT_DRAFT_CHAR_BUDGET);
 });
+
+test("buildPromptContextBlocks prioritizes persisted packets ahead of ordinary entities within prompt sections", () => {
+  const context = {
+    priorityContext: {
+      blockingConstraints: [
+        {
+          entityType: "character",
+          entityId: 1,
+          displayName: "林夜",
+          identity: ["林夜"],
+          currentState: ["current_location=青岳宗外门"],
+          coreConflictOrGoal: ["goal=调查黑铁令"],
+          recentChanges: [],
+          continuityRisk: [],
+          relevanceReasons: ["high_match_score"],
+          scores: {
+            matchScore: 96,
+            importanceScore: 90,
+            continuityRiskScore: 20,
+            recencyScore: 60,
+            manualPriorityScore: 0,
+            finalScore: 97,
+          },
+        },
+        {
+          entityType: "chapter",
+          entityId: -11,
+          displayName: "第8章事实",
+          identity: ["chapter_summary"],
+          currentState: ["黑铁令旧案尚未收束。"],
+          coreConflictOrGoal: [],
+          recentChanges: [],
+          continuityRisk: ["高风险已知事实需要承接"],
+          relevanceReasons: ["persisted_fact"],
+          sourceRef: { sourceType: "persisted_fact" as const, sourceId: 11 },
+          scores: {
+            matchScore: 80,
+            importanceScore: 90,
+            continuityRiskScore: 88,
+            recencyScore: 45,
+            manualPriorityScore: 0,
+            finalScore: 90,
+          },
+        },
+      ],
+      decisionContext: [
+        {
+          entityType: "character",
+          entityId: 2,
+          displayName: "顾沉舟",
+          identity: ["顾沉舟"],
+          currentState: ["current_location=内门"],
+          coreConflictOrGoal: ["goal=观察局势"],
+          recentChanges: [],
+          continuityRisk: [],
+          relevanceReasons: ["high_match_score"],
+          scores: {
+            matchScore: 92,
+            importanceScore: 86,
+            continuityRiskScore: 10,
+            recencyScore: 52,
+            manualPriorityScore: 0,
+            finalScore: 94,
+          },
+        },
+      ],
+      supportingContext: [
+        {
+          entityType: "chapter",
+          entityId: -(100000 + 12),
+          displayName: "第9章事件",
+          identity: ["旧案回收前兆"],
+          currentState: ["执事档案库再次提起旧案。"],
+          coreConflictOrGoal: ["仍需确认黑铁副令来源。"],
+          recentChanges: [],
+          continuityRisk: ["未收束事件需要持续承接"],
+          relevanceReasons: ["persisted_event"],
+          sourceRef: { sourceType: "persisted_event" as const, sourceId: 12 },
+          scores: {
+            matchScore: 60,
+            importanceScore: 60,
+            continuityRiskScore: 70,
+            recencyScore: 46,
+            manualPriorityScore: 0,
+            finalScore: 72,
+          },
+        },
+        {
+          entityType: "faction",
+          entityId: 3,
+          displayName: "青岳宗",
+          identity: ["青岳宗"],
+          currentState: ["core_goal=维持秩序"],
+          coreConflictOrGoal: [],
+          recentChanges: [],
+          continuityRisk: [],
+          relevanceReasons: ["rule_relevant_faction"],
+          scores: {
+            matchScore: 88,
+            importanceScore: 82,
+            continuityRiskScore: 5,
+            recencyScore: 40,
+            manualPriorityScore: 0,
+            finalScore: 89,
+          },
+        },
+      ],
+      backgroundNoise: [],
+    },
+  };
+
+  const blocks = buildPromptContextBlocks(context, { mode: "plan" });
+  assert.match(blocks.mustFollowFacts[0] ?? "", /第8章事实/);
+  assert.match(blocks.coreEntities[0] ?? "", /第9章事件/);
+});

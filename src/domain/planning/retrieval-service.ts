@@ -137,12 +137,7 @@ async function loadPersistedRetrievalFacts(
     }))
     .sort((left, right) => right.trace.score - left.trace.score || (right.row.chapter_no ?? 0) - (left.row.chapter_no ?? 0) || left.row.id - right.row.id);
 
-  const selectedIds = new Set(
-    scored
-      .filter((item) => item.trace.score > 0)
-      .slice(0, env.PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT)
-      .map((item) => item.row.id),
-  );
+  const selectedIds = selectPersistedFactIds(scored, params.chapterNo);
   const considered = scored.map(({ row, trace }, index) => ({
     id: row.id,
     chapterNo: row.chapter_no,
@@ -191,12 +186,7 @@ async function loadPersistedStoryEvents(
     }))
     .sort((left, right) => right.trace.score - left.trace.score || (right.row.chapter_no ?? 0) - (left.row.chapter_no ?? 0) || left.row.id - right.row.id);
 
-  const selectedIds = new Set(
-    scored
-      .filter((item) => item.trace.score > 0)
-      .slice(0, env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT)
-      .map((item) => item.row.id),
-  );
+  const selectedIds = selectPersistedEventIds(scored, params.chapterNo);
   const considered = scored.map(({ row, trace }, index) => ({
     id: row.id,
     chapterNo: row.chapter_no,
@@ -355,6 +345,100 @@ function scorePersistedStoryEvent(
     recencyScore,
     structuralBoost,
   };
+}
+
+function selectPersistedFactIds(
+  scored: Array<{
+    row: { id: number; chapter_no: number | null; risk_level: number | null };
+    trace: { score: number; structuralManualMatch: boolean };
+  }>,
+  currentChapterNo: number,
+): Set<number> {
+  const positive = scored.filter((item) => item.trace.score > 0);
+  const selected = positive.slice(0, env.PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT);
+  const selectedIds = new Set(selected.map((item) => item.row.id));
+
+  for (const item of positive) {
+    if (selectedIds.size >= env.PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT) {
+      break;
+    }
+    if (!isLongTailFactCandidate(item, currentChapterNo) || selectedIds.has(item.row.id)) {
+      continue;
+    }
+    selectedIds.add(item.row.id);
+  }
+
+  if (env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE <= 0) {
+    return selectedIds;
+  }
+
+  let reserved = 0;
+  for (const item of positive) {
+    if (reserved >= env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE) {
+      break;
+    }
+    if (!isLongTailFactCandidate(item, currentChapterNo) || selectedIds.has(item.row.id)) {
+      continue;
+    }
+    selectedIds.add(item.row.id);
+    reserved += 1;
+  }
+
+  return selectedIds;
+}
+
+function selectPersistedEventIds(
+  scored: Array<{
+    row: { id: number; chapter_no: number | null; unresolved_impact: string | null };
+    trace: { score: number; structuralManualMatch: boolean; unresolvedScore: number };
+  }>,
+  currentChapterNo: number,
+): Set<number> {
+  const positive = scored.filter((item) => item.trace.score > 0);
+  const selected = positive.slice(0, env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT);
+  const selectedIds = new Set(selected.map((item) => item.row.id));
+
+  if (env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE <= 0) {
+    return selectedIds;
+  }
+
+  let reserved = 0;
+  for (const item of positive) {
+    if (reserved >= env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE) {
+      break;
+    }
+    if (!isLongTailEventCandidate(item, currentChapterNo) || selectedIds.has(item.row.id)) {
+      continue;
+    }
+    selectedIds.add(item.row.id);
+    reserved += 1;
+  }
+
+  return selectedIds;
+}
+
+function isLongTailFactCandidate(
+  item: {
+    row: { chapter_no: number | null; risk_level: number | null };
+    trace: { score: number; structuralManualMatch: boolean };
+  },
+  currentChapterNo: number,
+): boolean {
+  const chapterGap = Math.max(0, currentChapterNo - (item.row.chapter_no ?? currentChapterNo));
+  return chapterGap >= env.PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP
+    && ((item.row.risk_level ?? 0) >= env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_MIN_RISK || item.trace.structuralManualMatch);
+}
+
+function isLongTailEventCandidate(
+  item: {
+    row: { chapter_no: number | null; unresolved_impact: string | null };
+    trace: { score: number; structuralManualMatch: boolean; unresolvedScore: number };
+  },
+  currentChapterNo: number,
+): boolean {
+  const chapterGap = Math.max(0, currentChapterNo - (item.row.chapter_no ?? currentChapterNo));
+  return chapterGap >= env.PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP
+    && (Boolean(item.row.unresolved_impact?.trim()) || item.trace.unresolvedScore > 0 || item.trace.structuralManualMatch);
 }
 
 function buildSidecarKeywords(params: RetrievePlanContextParams): string[] {

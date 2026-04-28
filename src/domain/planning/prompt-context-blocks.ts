@@ -1,5 +1,6 @@
 import { env } from "../../config/env.js";
 import type {
+  RetrievedFactPacket,
   PlanRetrievedContextEntityGroups,
   RetrievedChapterSummary,
   RetrievedEntity,
@@ -92,13 +93,16 @@ export function buildPromptContextBlocks(
     },
   });
 
-  const mustFollowFacts = summarizeFactPackets(priorityContext.blockingConstraints);
-  const requiredHooks = summarizeFactPackets(
-    priorityContext.blockingConstraints.filter((packet) => packet.entityType === "hook"),
-  );
-  const coreEntities = summarizeFactPackets(
+  const prioritizedBlockingPackets = prioritizePromptPackets(priorityContext.blockingConstraints);
+  const prioritizedCorePackets = prioritizePromptPackets(
     [...priorityContext.decisionContext, ...priorityContext.supportingContext].filter((packet) => packet.entityType !== "hook"),
   );
+  const prioritizedSupportingPackets = prioritizePromptPackets(priorityContext.supportingContext);
+  const mustFollowFacts = summarizeFactPackets(prioritizedBlockingPackets);
+  const requiredHooks = summarizeFactPackets(
+    prioritizedBlockingPackets.filter((packet) => packet.entityType === "hook"),
+  );
+  const coreEntities = summarizeFactPackets(prioritizedCorePackets);
 
   const recentChanges = (value.recentChanges && value.recentChanges.length > 0
     ? value.recentChanges
@@ -117,7 +121,7 @@ export function buildPromptContextBlocks(
 
   const forbiddenMoves = (value.riskReminders ?? []).map((item) => item.text);
   const supportingBackground = [
-    ...summarizeFactPackets(priorityContext.supportingContext),
+    ...summarizeFactPackets(prioritizedSupportingPackets),
     ...summarizeOutlines(value.supportingOutlines ?? value.outlines),
   ];
 
@@ -139,7 +143,7 @@ export function buildPromptContextBlocks(
   });
 
   const fallbackCoreEntities = summarizeFactPackets(
-    priorityContext.blockingConstraints.filter((packet) => packet.entityType !== "hook"),
+    prioritizePromptPackets(priorityContext.blockingConstraints.filter((packet) => packet.entityType !== "hook")),
   );
   const remainingBudget = Math.max(0, config.charBudget - totalChars(Object.values(budgeted).flat()));
   const fallbackCoreWithinBudget = budgeted.coreEntities.length > 0
@@ -221,13 +225,7 @@ function buildSectionCharBudgets(totalBudget: number): PromptContextBlockConfig[
 }
 
 function summarizeFactPackets(
-  packets: Array<{
-    entityType: string;
-    displayName: string;
-    currentState: string[];
-    coreConflictOrGoal: string[];
-    continuityRisk: string[];
-  }>,
+  packets: Array<Pick<RetrievedFactPacket, "entityType" | "displayName" | "currentState" | "coreConflictOrGoal" | "continuityRisk">>,
 ): string[] {
   return packets.map((packet) => {
     const label = mapEntityTypeLabel(packet.entityType);
@@ -388,6 +386,36 @@ function assignSection(
   value: string[],
 ): void {
   target[key] = value;
+}
+
+function prioritizePromptPackets(packets: RetrievedFactPacket[]): RetrievedFactPacket[] {
+  return packets
+    .map((packet, index) => ({ packet, index }))
+    .sort((left, right) => comparePromptPacketPriority(left.packet, right.packet) || left.index - right.index)
+    .map((entry) => entry.packet);
+}
+
+function comparePromptPacketPriority(left: RetrievedFactPacket, right: RetrievedFactPacket): number {
+  const persistedDelta = Number(hasPersistedSourceRefs(right)) - Number(hasPersistedSourceRefs(left));
+  if (persistedDelta !== 0) {
+    return persistedDelta;
+  }
+
+  const continuityDelta = (right.scores.continuityRiskScore ?? 0) - (left.scores.continuityRiskScore ?? 0);
+  if (continuityDelta !== 0) {
+    return continuityDelta;
+  }
+
+  const finalScoreDelta = (right.scores.finalScore ?? 0) - (left.scores.finalScore ?? 0);
+  if (finalScoreDelta !== 0) {
+    return finalScoreDelta;
+  }
+
+  return (right.scores.recencyScore ?? 0) - (left.scores.recencyScore ?? 0);
+}
+
+function hasPersistedSourceRefs(packet: RetrievedFactPacket): boolean {
+  return Boolean(packet.sourceRef) || Boolean(packet.sourceRefs && packet.sourceRefs.length > 0);
 }
 
 function totalChars(lines: string[]): number {
