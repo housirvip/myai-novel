@@ -122,3 +122,29 @@ test("buildRecentChanges keeps a larger total longform window across mixed sourc
   assert.ok(changes.some((item) => item.source === "story_event"));
   assert.ok(changes.some((item) => item.source === "chapter_summary"));
 });
+
+test("buildRecentChanges uses expanded persisted fact/event windows when only persisted sources are present", () => {
+  const changes = buildRecentChanges({
+    persistedFacts: Array.from({ length: env.PLANNING_RECENT_CHANGES_FACT_LIMIT + 2 }, (_, index) => ({
+      id: index + 1,
+      chapterNo: 90 - index,
+      factType: "chapter_summary",
+      factText: `事实${index + 1}`,
+      importance: 90,
+      riskLevel: 85,
+    })),
+    persistedEvents: Array.from({ length: env.PLANNING_RECENT_CHANGES_EVENT_LIMIT + 2 }, (_, index) => ({
+      id: index + 1,
+      chapterNo: 70 - index,
+      title: `事件${index + 1}`,
+      summary: `事件摘要${index + 1}`,
+      unresolvedImpact: `未收束${index + 1}`,
+    })),
+  });
+
+  const factChanges = changes.filter((item) => item.source === "retrieval_fact");
+  const eventChanges = changes.filter((item) => item.source === "story_event");
+
+  assert.equal(factChanges.length, env.PLANNING_RECENT_CHANGES_FACT_LIMIT);
+  assert.equal(eventChanges.length, env.PLANNING_RECENT_CHANGES_EVENT_LIMIT);
+});

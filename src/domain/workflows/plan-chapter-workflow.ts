@@ -15,6 +15,7 @@ import {
   buildKeywordExtractionPrompt,
   buildPlanPrompt,
 } from "../planning/prompts.js";
+import { summarizeRetrievalObservability } from "../planning/retrieval-observability.js";
 import { createPlanningRetrievalService } from "../planning/retrieval-service-factory.js";
 import { CHAPTER_SOURCE_TYPE, CHAPTER_STATUS, PLAN_INTENT_SOURCE } from "../shared/constants.js";
 import type {
@@ -129,6 +130,18 @@ export class PlanChapterWorkflow {
               retrievedContext,
             }),
           });
+
+          if (retrievedContext.retrievalObservability?.promptContext?.plan) {
+            this.logger.info(
+              {
+                event: "planning.prompt_context.observability",
+                bookId: payload.bookId,
+                chapterNo: payload.chapterNo,
+                promptContextPlan: summarizeRetrievalObservability(retrievedContext.retrievalObservability).promptContextPlan,
+              },
+              "Planning prompt context observability summary",
+            );
+          }
 
           return await manager.getClient().transaction().execute(async (trx) => {
             const chapterRepository = new ChapterRepository(trx);

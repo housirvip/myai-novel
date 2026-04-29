@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { env } from "../../../src/config/env.js";
 import { buildRetrievedContext } from "../../../src/domain/planning/retrieval-context-builder.js";
 import type { RetrievalCandidateBundle, RetrievalRerankerOutput } from "../../../src/domain/planning/retrieval-pipeline.js";
 import type { RetrievedEntity } from "../../../src/domain/planning/types.js";
@@ -76,6 +77,7 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
           droppedReason: null,
           surfacedIn: [],
           trace: {
+            score: 90,
             keywordMatched: true,
             structuralManualMatch: false,
             keywordScore: 20,
@@ -98,6 +100,7 @@ test("buildRetrievedContext assembles top-level, soft references and derived con
           droppedReason: null,
           surfacedIn: [],
           trace: {
+            score: 72,
             keywordMatched: true,
             structuralManualMatch: false,
             keywordScore: 18,
@@ -192,6 +195,78 @@ test("buildRetrievedContext merges duplicate reminder text and preserves multipl
   assert.equal(reminder?.sourceRefs?.length, 2);
   assert.ok(reminder?.sourceRefs?.some((source) => source.sourceType === "persisted_fact" && source.sourceId === 1));
   assert.ok(reminder?.sourceRefs?.some((source) => source.sourceType === "persisted_fact" && source.sourceId === 2));
+});
+
+test("buildRetrievedContext uses expanded persisted priority and risk windows by default", () => {
+  const persistedFacts = Array.from({ length: env.PLANNING_RETRIEVAL_PERSISTED_PRIORITY_FACT_LIMIT + 2 }, (_, index) => ({
+    id: index + 1,
+    chapterNo: 100 - index,
+    factType: "chapter_summary",
+    factText: `事实${index + 1}`,
+    importance: 90 - index,
+    riskLevel: 85,
+  }));
+  const persistedEvents = Array.from({ length: env.PLANNING_RETRIEVAL_PERSISTED_PRIORITY_EVENT_LIMIT + 2 }, (_, index) => ({
+    id: index + 1,
+    chapterNo: 80 - index,
+    title: `事件${index + 1}`,
+    summary: `事件摘要${index + 1}`,
+    unresolvedImpact: `未收束影响${index + 1}`,
+  }));
+
+  const context = buildRetrievedContext({
+    params: {
+      bookId: 1,
+      chapterNo: 120,
+      keywords: ["旧案"],
+      queryText: "旧案",
+      manualRefs: {
+        characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [],
+      },
+    },
+    book: {
+      id: 1,
+      title: "测试书",
+      summary: null,
+      target_chapter_count: 300,
+      current_chapter_count: 119,
+    },
+    candidates: {
+      outlines: [],
+      recentChapters: [],
+      entityGroups: { hooks: [], characters: [], factions: [], items: [], relations: [], worldSettings: [] },
+    },
+    reranked: {
+      outlines: [],
+      recentChapters: [],
+      entityGroups: { hooks: [], characters: [], factions: [], items: [], relations: [], worldSettings: [] },
+    },
+    persistedFacts,
+    persistedEvents,
+  });
+
+  const priorityPackets = [
+    ...(context.priorityContext?.blockingConstraints ?? []),
+    ...(context.priorityContext?.decisionContext ?? []),
+    ...(context.priorityContext?.supportingContext ?? []),
+    ...(context.priorityContext?.backgroundNoise ?? []),
+  ];
+  const priorityFactPackets = priorityPackets.filter((packet) => packet.sourceRef?.sourceType === "persisted_fact");
+  const priorityEventPackets = priorityPackets.filter((packet) => packet.sourceRef?.sourceType === "persisted_event");
+  const riskFactReminders = context.riskReminders.filter((item) => item.sourceRef?.sourceType === "persisted_fact");
+  const riskEventReminders = context.riskReminders.filter((item) => item.sourceRef?.sourceType === "persisted_event");
+  const recentFactChanges = (context.recentChanges ?? []).filter((item) => item.source === "retrieval_fact");
+  const recentEventChanges = (context.recentChanges ?? []).filter((item) => item.source === "story_event");
+
+  assert.equal(priorityFactPackets.length, env.PLANNING_RETRIEVAL_PERSISTED_PRIORITY_FACT_LIMIT);
+  assert.equal(priorityEventPackets.length, env.PLANNING_RETRIEVAL_PERSISTED_PRIORITY_EVENT_LIMIT);
+  assert.equal(riskFactReminders.length, env.PLANNING_RETRIEVAL_PERSISTED_RISK_FACT_LIMIT);
+  assert.equal(riskEventReminders.length, env.PLANNING_RETRIEVAL_PERSISTED_RISK_EVENT_LIMIT);
+  assert.ok(recentFactChanges.length >= 1);
+  assert.ok(recentFactChanges.length <= env.PLANNING_RECENT_CHANGES_FACT_LIMIT);
+  assert.ok(recentEventChanges.length >= 1);
+  assert.ok(recentEventChanges.length <= env.PLANNING_RECENT_CHANGES_EVENT_LIMIT);
+  assert.ok((context.recentChanges?.length ?? 0) <= env.PLANNING_RECENT_CHANGES_TOTAL_LIMIT);
 });
 
 function createEntity(input: Partial<RetrievedEntity> & { id: number }): RetrievedEntity {

@@ -11,6 +11,7 @@ import { buildReasons, scoreEntity } from "./retrieval-ranking.js";
 import type {
   PersistedRetrievalFact,
   PersistedRetrievalFactSelectionObserved,
+  PersistedSidecarSelectedBy,
   PersistedStoryEvent,
   PersistedStoryEventSelectionObserved,
   PlanRetrievedContext,
@@ -115,10 +116,56 @@ export class RetrievalQueryService {
 
 }
 
+type PersistedSelectionProvenance = Map<number, PersistedSidecarSelectedBy>;
+
+type ScoredPersistedFactSelection = {
+  row: {
+    id: number;
+    chapter_no: number | null;
+    fact_type: string;
+    fact_text: string;
+    importance: number | null;
+    risk_level: number | null;
+  };
+  trace: {
+    score: number;
+    keywordMatched: boolean;
+    structuralManualMatch: boolean;
+    keywordScore: number;
+    riskScore: number;
+    importanceScore: number;
+    recencyScore: number;
+    structuralBoost: number;
+  };
+};
+
+type ScoredPersistedEventSelection = {
+  row: {
+    id: number;
+    chapter_no: number | null;
+    title: string;
+    summary: string;
+    unresolved_impact: string | null;
+  };
+  trace: {
+    score: number;
+    keywordMatched: boolean;
+    structuralManualMatch: boolean;
+    keywordScore: number;
+    unresolvedScore: number;
+    recencyScore: number;
+    structuralBoost: number;
+  };
+};
+
 async function loadPersistedRetrievalFacts(
   db: import("kysely").Kysely<import("../../core/db/schema/database.js").DatabaseSchema>,
   params: RetrievePlanContextParams,
 ): Promise<{ selected: PersistedRetrievalFact[]; considered: PersistedRetrievalFactSelectionObserved[] }> {
+  const fetchLimit = Math.max(
+    24,
+    env.PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT * 2 + env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE,
+  );
   const rows = await db
     .selectFrom("retrieval_facts")
     .select(["id", "chapter_no", "fact_type", "fact_text", "importance", "risk_level", "payload_json", "entity_type", "entity_id"])
@@ -127,7 +174,7 @@ async function loadPersistedRetrievalFacts(
     .where((eb) => eb.or([eb("chapter_no", "is", null), eb("chapter_no", "<", params.chapterNo)]))
     .where((eb) => eb.or([eb("effective_from_chapter_no", "is", null), eb("effective_from_chapter_no", "<=", params.chapterNo)]))
     .where((eb) => eb.or([eb("effective_to_chapter_no", "is", null), eb("effective_to_chapter_no", ">=", params.chapterNo)]))
-    .limit(24)
+    .limit(fetchLimit)
     .execute();
 
   const scored = rows
@@ -137,23 +184,31 @@ async function loadPersistedRetrievalFacts(
     }))
     .sort((left, right) => right.trace.score - left.trace.score || (right.row.chapter_no ?? 0) - (left.row.chapter_no ?? 0) || left.row.id - right.row.id);
 
-  const selectedIds = selectPersistedFactIds(scored, params.chapterNo);
-  const considered = scored.map(({ row, trace }, index) => ({
-    id: row.id,
-    chapterNo: row.chapter_no,
-    factType: row.fact_type,
-    factText: row.fact_text,
-    rank: index + 1,
-    score: trace.score,
-    selected: selectedIds.has(row.id),
-    droppedReason: (
-      trace.score <= 0 ? "no_match" : selectedIds.has(row.id) ? null : "trimmed_by_top_k"
-    ) as "no_match" | "trimmed_by_top_k" | null,
-    surfacedIn: [],
-    trace,
-  }));
+  const selectedById = selectPersistedFactSelection(scored, params.chapterNo);
+  const considered = scored.map(({ row, trace }, index) => {
+    const chapterGap = getObservedChapterGap(row.chapter_no, params.chapterNo);
+    const selectedBy = selectedById.get(row.id) ?? null;
+    const longTailCandidate = isLongTailFactCandidate({ row, trace }, params.chapterNo);
+    return {
+      id: row.id,
+      chapterNo: row.chapter_no,
+      chapterGap,
+      factType: row.fact_type,
+      factText: row.fact_text,
+      rank: index + 1,
+      score: trace.score,
+      selected: selectedBy !== null,
+      selectedBy,
+      longTailCandidate,
+      droppedReason: (
+        trace.score <= 0 ? "no_match" : selectedBy !== null ? null : "trimmed_by_top_k"
+      ) as "no_match" | "trimmed_by_top_k" | null,
+      surfacedIn: [],
+      trace,
+    };
+  });
 
-  const selected = scored.filter((item) => selectedIds.has(item.row.id)).map(({ row, trace }) => ({
+  const selected = orderSelectedPersistedFacts(scored, selectedById, params.chapterNo).map(({ row, trace }) => ({
     id: row.id,
     chapterNo: row.chapter_no,
     factType: row.fact_type,
@@ -170,13 +225,17 @@ async function loadPersistedStoryEvents(
   db: import("kysely").Kysely<import("../../core/db/schema/database.js").DatabaseSchema>,
   params: RetrievePlanContextParams,
 ): Promise<{ selected: PersistedStoryEvent[]; considered: PersistedStoryEventSelectionObserved[] }> {
+  const fetchLimit = Math.max(
+    16,
+    env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT * 2 + env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE,
+  );
   const rows = await db
     .selectFrom("story_events")
     .select(["id", "chapter_no", "title", "summary", "unresolved_impact", "participant_entity_refs", "hook_refs"])
     .where("book_id", "=", params.bookId)
     .where("status", "=", "active")
     .where((eb) => eb.or([eb("chapter_no", "is", null), eb("chapter_no", "<", params.chapterNo)]))
-    .limit(16)
+    .limit(fetchLimit)
     .execute();
 
   const scored = rows
@@ -186,23 +245,31 @@ async function loadPersistedStoryEvents(
     }))
     .sort((left, right) => right.trace.score - left.trace.score || (right.row.chapter_no ?? 0) - (left.row.chapter_no ?? 0) || left.row.id - right.row.id);
 
-  const selectedIds = selectPersistedEventIds(scored, params.chapterNo);
-  const considered = scored.map(({ row, trace }, index) => ({
-    id: row.id,
-    chapterNo: row.chapter_no,
-    title: row.title,
-    unresolvedImpact: row.unresolved_impact,
-    rank: index + 1,
-    score: trace.score,
-    selected: selectedIds.has(row.id),
-    droppedReason: (
-      trace.score <= 0 ? "no_match" : selectedIds.has(row.id) ? null : "trimmed_by_top_k"
-    ) as "no_match" | "trimmed_by_top_k" | null,
-    surfacedIn: [],
-    trace,
-  }));
+  const selectedById = selectPersistedEventSelection(scored, params.chapterNo);
+  const considered = scored.map(({ row, trace }, index) => {
+    const chapterGap = getObservedChapterGap(row.chapter_no, params.chapterNo);
+    const selectedBy = selectedById.get(row.id) ?? null;
+    const longTailCandidate = isLongTailEventCandidate({ row, trace }, params.chapterNo);
+    return {
+      id: row.id,
+      chapterNo: row.chapter_no,
+      chapterGap,
+      title: row.title,
+      unresolvedImpact: row.unresolved_impact,
+      rank: index + 1,
+      score: trace.score,
+      selected: selectedBy !== null,
+      selectedBy,
+      longTailCandidate,
+      droppedReason: (
+        trace.score <= 0 ? "no_match" : selectedBy !== null ? null : "trimmed_by_top_k"
+      ) as "no_match" | "trimmed_by_top_k" | null,
+      surfacedIn: [],
+      trace,
+    };
+  });
 
-  const selected = scored.filter((item) => selectedIds.has(item.row.id)).map(({ row, trace }) => ({
+  const selected = orderSelectedPersistedEvents(scored, selectedById, params.chapterNo).map(({ row, trace }) => ({
     id: row.id,
     chapterNo: row.chapter_no,
     title: row.title,
@@ -347,98 +414,207 @@ function scorePersistedStoryEvent(
   };
 }
 
-function selectPersistedFactIds(
-  scored: Array<{
-    row: { id: number; chapter_no: number | null; risk_level: number | null };
-    trace: { score: number; structuralManualMatch: boolean };
-  }>,
+function selectPersistedFactSelection(
+  scored: ScoredPersistedFactSelection[],
   currentChapterNo: number,
-): Set<number> {
+): PersistedSelectionProvenance {
   const positive = scored.filter((item) => item.trace.score > 0);
   const selected = positive.slice(0, env.PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT);
-  const selectedIds = new Set(selected.map((item) => item.row.id));
-
-  for (const item of positive) {
-    if (selectedIds.size >= env.PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT) {
-      break;
-    }
-    if (!isLongTailFactCandidate(item, currentChapterNo) || selectedIds.has(item.row.id)) {
-      continue;
-    }
-    selectedIds.add(item.row.id);
-  }
+  const selectedById: PersistedSelectionProvenance = new Map<number, PersistedSidecarSelectedBy>(
+    selected.map<[number, PersistedSidecarSelectedBy]>((item) => [item.row.id, "top_k"]),
+  );
 
   if (env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE <= 0) {
-    return selectedIds;
+    return selectedById;
   }
 
-  let reserved = 0;
-  for (const item of positive) {
-    if (reserved >= env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE) {
-      break;
-    }
-    if (!isLongTailFactCandidate(item, currentChapterNo) || selectedIds.has(item.row.id)) {
-      continue;
-    }
-    selectedIds.add(item.row.id);
-    reserved += 1;
+  const reserveCandidates = positive
+    .filter((item) => !selectedById.has(item.row.id) && isLongTailFactCandidate(item, currentChapterNo))
+    .sort((left, right) => compareFactLongTailPriority(left, right, currentChapterNo))
+    .slice(0, env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE);
+
+  for (const item of reserveCandidates) {
+    selectedById.set(item.row.id, "long_tail_reserve");
   }
 
-  return selectedIds;
+  return selectedById;
 }
 
-function selectPersistedEventIds(
-  scored: Array<{
-    row: { id: number; chapter_no: number | null; unresolved_impact: string | null };
-    trace: { score: number; structuralManualMatch: boolean; unresolvedScore: number };
-  }>,
+function selectPersistedEventSelection(
+  scored: ScoredPersistedEventSelection[],
   currentChapterNo: number,
-): Set<number> {
+): PersistedSelectionProvenance {
   const positive = scored.filter((item) => item.trace.score > 0);
   const selected = positive.slice(0, env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT);
-  const selectedIds = new Set(selected.map((item) => item.row.id));
+  const selectedById: PersistedSelectionProvenance = new Map<number, PersistedSidecarSelectedBy>(
+    selected.map<[number, PersistedSidecarSelectedBy]>((item) => [item.row.id, "top_k"]),
+  );
 
   if (env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE <= 0) {
-    return selectedIds;
+    return selectedById;
   }
 
-  let reserved = 0;
-  for (const item of positive) {
-    if (reserved >= env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE) {
-      break;
-    }
-    if (!isLongTailEventCandidate(item, currentChapterNo) || selectedIds.has(item.row.id)) {
-      continue;
-    }
-    selectedIds.add(item.row.id);
-    reserved += 1;
+  const reserveCandidates = positive
+    .filter((item) => !selectedById.has(item.row.id) && isLongTailEventCandidate(item, currentChapterNo))
+    .sort((left, right) => compareEventLongTailPriority(left, right, currentChapterNo))
+    .slice(0, env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE);
+
+  for (const item of reserveCandidates) {
+    selectedById.set(item.row.id, "long_tail_reserve");
   }
 
-  return selectedIds;
+  return selectedById;
+}
+
+function orderSelectedPersistedFacts(
+  scored: ScoredPersistedFactSelection[],
+  selectedById: PersistedSelectionProvenance,
+  currentChapterNo: number,
+) {
+  return scored
+    .filter((item) => selectedById.has(item.row.id))
+    .sort((left, right) => compareFactSelectionOrder(left, right, selectedById, currentChapterNo));
+}
+
+function orderSelectedPersistedEvents(
+  scored: ScoredPersistedEventSelection[],
+  selectedById: PersistedSelectionProvenance,
+  currentChapterNo: number,
+) {
+  return scored
+    .filter((item) => selectedById.has(item.row.id))
+    .sort((left, right) => compareEventSelectionOrder(left, right, selectedById, currentChapterNo));
 }
 
 function isLongTailFactCandidate(
-  item: {
-    row: { chapter_no: number | null; risk_level: number | null };
-    trace: { score: number; structuralManualMatch: boolean };
-  },
+  item: ScoredPersistedFactSelection,
   currentChapterNo: number,
 ): boolean {
-  const chapterGap = Math.max(0, currentChapterNo - (item.row.chapter_no ?? currentChapterNo));
+  const chapterGap = getEffectiveChapterGap(item.row.chapter_no, currentChapterNo);
   return chapterGap >= env.PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP
     && ((item.row.risk_level ?? 0) >= env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_MIN_RISK || item.trace.structuralManualMatch);
 }
 
 function isLongTailEventCandidate(
-  item: {
-    row: { chapter_no: number | null; unresolved_impact: string | null };
-    trace: { score: number; structuralManualMatch: boolean; unresolvedScore: number };
-  },
+  item: ScoredPersistedEventSelection,
   currentChapterNo: number,
 ): boolean {
-  const chapterGap = Math.max(0, currentChapterNo - (item.row.chapter_no ?? currentChapterNo));
+  const chapterGap = getEffectiveChapterGap(item.row.chapter_no, currentChapterNo);
   return chapterGap >= env.PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP
     && (Boolean(item.row.unresolved_impact?.trim()) || item.trace.unresolvedScore > 0 || item.trace.structuralManualMatch);
+}
+
+function compareFactSelectionOrder(
+  left: ScoredPersistedFactSelection,
+  right: ScoredPersistedFactSelection,
+  selectedById: PersistedSelectionProvenance,
+  currentChapterNo: number,
+): number {
+  const reserveDelta = Number(selectedById.get(right.row.id) === "long_tail_reserve")
+    - Number(selectedById.get(left.row.id) === "long_tail_reserve");
+  if (reserveDelta !== 0) {
+    return reserveDelta;
+  }
+
+  if (selectedById.get(left.row.id) === "long_tail_reserve" && selectedById.get(right.row.id) === "long_tail_reserve") {
+    return compareFactLongTailPriority(left, right, currentChapterNo);
+  }
+
+  return comparePersistedSelectionScore(left, right);
+}
+
+function compareEventSelectionOrder(
+  left: ScoredPersistedEventSelection,
+  right: ScoredPersistedEventSelection,
+  selectedById: PersistedSelectionProvenance,
+  currentChapterNo: number,
+): number {
+  const reserveDelta = Number(selectedById.get(right.row.id) === "long_tail_reserve")
+    - Number(selectedById.get(left.row.id) === "long_tail_reserve");
+  if (reserveDelta !== 0) {
+    return reserveDelta;
+  }
+
+  if (selectedById.get(left.row.id) === "long_tail_reserve" && selectedById.get(right.row.id) === "long_tail_reserve") {
+    return compareEventLongTailPriority(left, right, currentChapterNo);
+  }
+
+  return comparePersistedSelectionScore(left, right);
+}
+
+function compareFactLongTailPriority(
+  left: ScoredPersistedFactSelection,
+  right: ScoredPersistedFactSelection,
+  currentChapterNo: number,
+): number {
+  const manualDelta = Number(right.trace.structuralManualMatch) - Number(left.trace.structuralManualMatch);
+  if (manualDelta !== 0) {
+    return manualDelta;
+  }
+
+  const highRiskDelta = Number((right.row.risk_level ?? 0) >= env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_MIN_RISK)
+    - Number((left.row.risk_level ?? 0) >= env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_MIN_RISK);
+  if (highRiskDelta !== 0) {
+    return highRiskDelta;
+  }
+
+  const chapterGapDelta = getEffectiveChapterGap(right.row.chapter_no, currentChapterNo)
+    - getEffectiveChapterGap(left.row.chapter_no, currentChapterNo);
+  if (chapterGapDelta !== 0) {
+    return chapterGapDelta;
+  }
+
+  const riskDelta = (right.row.risk_level ?? 0) - (left.row.risk_level ?? 0);
+  if (riskDelta !== 0) {
+    return riskDelta;
+  }
+
+  return comparePersistedSelectionScore(left, right);
+}
+
+function compareEventLongTailPriority(
+  left: ScoredPersistedEventSelection,
+  right: ScoredPersistedEventSelection,
+  currentChapterNo: number,
+): number {
+  const manualDelta = Number(right.trace.structuralManualMatch) - Number(left.trace.structuralManualMatch);
+  if (manualDelta !== 0) {
+    return manualDelta;
+  }
+
+  const unresolvedDelta = Number(Boolean(right.row.unresolved_impact?.trim()) || right.trace.unresolvedScore > 0)
+    - Number(Boolean(left.row.unresolved_impact?.trim()) || left.trace.unresolvedScore > 0);
+  if (unresolvedDelta !== 0) {
+    return unresolvedDelta;
+  }
+
+  const chapterGapDelta = getEffectiveChapterGap(right.row.chapter_no, currentChapterNo)
+    - getEffectiveChapterGap(left.row.chapter_no, currentChapterNo);
+  if (chapterGapDelta !== 0) {
+    return chapterGapDelta;
+  }
+
+  return comparePersistedSelectionScore(left, right);
+}
+
+function comparePersistedSelectionScore(
+  left: { row: { chapter_no: number | null; id: number }; trace: { score: number } },
+  right: { row: { chapter_no: number | null; id: number }; trace: { score: number } },
+): number {
+  return right.trace.score - left.trace.score
+    || (right.row.chapter_no ?? 0) - (left.row.chapter_no ?? 0)
+    || left.row.id - right.row.id;
+}
+
+function getObservedChapterGap(chapterNo: number | null, currentChapterNo: number): number | null {
+  if (chapterNo === null) {
+    return null;
+  }
+  return Math.max(0, currentChapterNo - chapterNo);
+}
+
+function getEffectiveChapterGap(chapterNo: number | null, currentChapterNo: number): number {
+  return Math.max(0, currentChapterNo - (chapterNo ?? currentChapterNo));
 }
 
 function buildSidecarKeywords(params: RetrievePlanContextParams): string[] {

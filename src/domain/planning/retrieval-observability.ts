@@ -6,6 +6,8 @@ import type {
   PersistedStoryEventSelectionObserved,
   PlanRetrievedContextEntityGroups,
   PlanRetrievalObservability,
+  PromptContextObserved,
+  PromptContextObservedSection,
   RetrievedEntity,
   RetrievedFactEntityType,
   RetrievedFactPacket,
@@ -17,6 +19,8 @@ import type {
 } from "./types.js";
 import { explainHardConstraintSelection } from "./retrieval-hard-constraints.js";
 import { classifyPriorityPacket } from "./retrieval-priorities.js";
+
+const FAR_CHAPTER_GAP = 8;
 
 const ENTITY_GROUP_TO_TYPE = {
   hooks: "hook",
@@ -67,8 +71,8 @@ export function buildRetrievalObservability(input: {
       priorityBucketCounts,
     },
     persistedSidecarSelection: {
-      facts: buildObservedPersistedFacts(input.persistedFacts, input.persistedSelectionFunnel?.facts),
-      events: buildObservedPersistedEvents(input.persistedEvents, input.persistedSelectionFunnel?.events),
+      facts: buildObservedPersistedFacts(input.params.chapterNo, input.persistedFacts, input.persistedSelectionFunnel?.facts),
+      events: buildObservedPersistedEvents(input.params.chapterNo, input.persistedEvents, input.persistedSelectionFunnel?.events),
     },
     candidates: buildObservedEntityGroups(input.reranked.entityGroups),
     hardConstraints: buildObservedHardConstraintGroups(input.hardConstraints),
@@ -77,6 +81,12 @@ export function buildRetrievalObservability(input: {
 }
 
 export function summarizeRetrievalObservability(observability: PlanRetrievalObservability) {
+  const factsSelected = observability.persistedSidecarSelection.facts.filter((item) => item.selected);
+  const eventsSelected = observability.persistedSidecarSelection.events.filter((item) => item.selected);
+  const promptContextPlan = observability.promptContext?.plan
+    ? summarizePromptContextObserved(observability.promptContext.plan)
+    : undefined;
+
   return {
     query: observability.query,
     candidateCountsBeforeRerank: observability.candidateVolumes.beforeRerank,
@@ -90,12 +100,60 @@ export function summarizeRetrievalObservability(observability: PlanRetrievalObse
     priorityBucketCounts: observability.retention.priorityBucketCounts,
     persistedSidecarSelection: {
       factsConsidered: observability.persistedSidecarSelection.facts.length,
-      factsSelected: observability.persistedSidecarSelection.facts.filter((item) => item.selected).length,
+      factsSelected: factsSelected.length,
       factsDropped: observability.persistedSidecarSelection.facts.filter((item) => !item.selected).length,
+      factsSelectedByTopK: factsSelected.filter((item) => item.selectedBy === "top_k").length,
+      factsSelectedByLongTailReserve: factsSelected.filter((item) => item.selectedBy === "long_tail_reserve").length,
+      factsLongTailCandidates: observability.persistedSidecarSelection.facts.filter((item) => item.longTailCandidate).length,
       eventsConsidered: observability.persistedSidecarSelection.events.length,
-      eventsSelected: observability.persistedSidecarSelection.events.filter((item) => item.selected).length,
+      eventsSelected: eventsSelected.length,
       eventsDropped: observability.persistedSidecarSelection.events.filter((item) => !item.selected).length,
+      eventsSelectedByTopK: eventsSelected.filter((item) => item.selectedBy === "top_k").length,
+      eventsSelectedByLongTailReserve: eventsSelected.filter((item) => item.selectedBy === "long_tail_reserve").length,
+      eventsLongTailCandidates: observability.persistedSidecarSelection.events.filter((item) => item.longTailCandidate).length,
     },
+    promptContextPlan,
+  };
+}
+
+export function summarizePromptContextObserved(observability: PromptContextObserved | undefined) {
+  if (!observability) {
+    return undefined;
+  }
+
+  const surfacedPersistedRefCount = observability.surfacedPersistedRefs.length;
+  const farChapterSurfacedPersistedRefCount = observability.surfacedPersistedRefs.filter((item) =>
+    typeof item.chapterGap === "number" && item.chapterGap >= FAR_CHAPTER_GAP
+  ).length;
+
+  const sections = Object.fromEntries(
+    (Object.entries(observability.sections) as Array<[string, PromptContextObservedSection]>).map(([section, value]) => [section, {
+      inputCount: value.inputCount,
+      outputCount: value.outputCount,
+      lineLimitDropped: value.lineLimitDropped,
+      budgetDropped: value.budgetDropped,
+      clippedCount: value.clippedCount,
+    }]),
+  );
+
+  const sectionLossTotals = (Object.values(observability.sections) as PromptContextObservedSection[]).reduce(
+    (totals, section) => ({
+      lineLimitDropped: totals.lineLimitDropped + section.lineLimitDropped,
+      budgetDropped: totals.budgetDropped + section.budgetDropped,
+      clippedCount: totals.clippedCount + section.clippedCount,
+    }),
+    { lineLimitDropped: 0, budgetDropped: 0, clippedCount: 0 },
+  );
+
+  return {
+    charBudget: observability.charBudget,
+    surfacedPersistedRefCount,
+    farChapterSurfacedPersistedRefCount,
+    farChapterSurfacedPersistedRefRatio: surfacedPersistedRefCount === 0
+      ? 0
+      : farChapterSurfacedPersistedRefCount / surfacedPersistedRefCount,
+    sections,
+    sectionLossTotals,
   };
 }
 
@@ -218,6 +276,7 @@ function summarizeHardConstraintRetention(
 }
 
 function buildObservedPersistedFacts(
+  currentChapterNo: number,
   facts?: PersistedRetrievalFact[],
   funnel?: PersistedRetrievalFactSelectionObserved[],
 ) {
@@ -228,14 +287,18 @@ function buildObservedPersistedFacts(
   return (facts ?? []).map((fact) => ({
     id: fact.id,
     chapterNo: fact.chapterNo,
+    chapterGap: fact.chapterNo === null ? null : Math.max(0, currentChapterNo - fact.chapterNo),
     factType: fact.factType,
     factText: fact.factText,
     rank: 1,
     score: fact.selectionTrace?.score ?? 0,
     selected: (fact.selectionTrace?.score ?? 0) > 0,
+    selectedBy: null,
+    longTailCandidate: false,
     droppedReason: null,
     surfacedIn: [],
     trace: {
+      score: fact.selectionTrace?.score ?? 0,
       keywordMatched: fact.selectionTrace?.keywordMatched ?? false,
       structuralManualMatch: fact.selectionTrace?.structuralManualMatch ?? false,
       keywordScore: fact.selectionTrace?.keywordScore ?? 0,
@@ -248,6 +311,7 @@ function buildObservedPersistedFacts(
 }
 
 function buildObservedPersistedEvents(
+  currentChapterNo: number,
   events?: PersistedStoryEvent[],
   funnel?: PersistedStoryEventSelectionObserved[],
 ) {
@@ -258,14 +322,18 @@ function buildObservedPersistedEvents(
   return (events ?? []).map((event) => ({
     id: event.id,
     chapterNo: event.chapterNo,
+    chapterGap: event.chapterNo === null ? null : Math.max(0, currentChapterNo - event.chapterNo),
     title: event.title,
     unresolvedImpact: event.unresolvedImpact,
     rank: 1,
     score: event.selectionTrace?.score ?? 0,
     selected: (event.selectionTrace?.score ?? 0) > 0,
+    selectedBy: null,
+    longTailCandidate: false,
     droppedReason: null,
     surfacedIn: [],
     trace: {
+      score: event.selectionTrace?.score ?? 0,
       keywordMatched: event.selectionTrace?.keywordMatched ?? false,
       structuralManualMatch: event.selectionTrace?.structuralManualMatch ?? false,
       keywordScore: event.selectionTrace?.keywordScore ?? 0,

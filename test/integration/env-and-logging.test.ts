@@ -63,7 +63,7 @@ test("env config resolves paths and keeps defaults", async () => {
   assert.equal(result.planningEmbeddingProvider, "hash");
   assert.equal(result.planningEmbeddingSearchMode, "hybrid");
   assert.equal(result.embeddingMinScore, 0.64);
-  assert.equal(result.promptPlanBudget, 4400);
+  assert.equal(result.promptPlanBudget, 5200);
   assert.equal(result.entityScanLimit, 1500);
   assert.equal(result.recentChapterLimit, 8);
   assert.equal(result.embeddingLimitBasic, 32);

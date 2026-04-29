@@ -181,6 +181,127 @@ test("plan prompt uses structured sections and explicit recall constraints", () 
   assert.match(messages[1]?.content ?? "", /输出要求：/);
 });
 
+test("plan prompt shows required hooks before core entities when both exist", () => {
+  const messages = buildPlanPrompt({
+    bookTitle: "青岳入门录",
+    chapterNo: 120,
+    authorIntent: "本章需要同时承接旧案事实并推进黑铁令钩子。",
+    retrievedContext: {
+      book: {
+        id: 1,
+        title: "青岳入门录",
+        summary: null,
+        targetChapterCount: 300,
+        currentChapterCount: 119,
+      },
+      outlines: [],
+      recentChapters: [],
+      hooks: [],
+      characters: [],
+      factions: [],
+      items: [],
+      relations: [],
+      worldSettings: [],
+      hardConstraints: {
+        hooks: [],
+        characters: [],
+        factions: [],
+        items: [],
+        relations: [],
+        worldSettings: [],
+      },
+      softReferences: {
+        outlines: [],
+        recentChapters: [],
+        entities: {
+          hooks: [],
+          characters: [],
+          factions: [],
+          items: [],
+          relations: [],
+          worldSettings: [],
+        },
+      },
+      riskReminders: [],
+      priorityContext: {
+        blockingConstraints: [
+          {
+            entityType: "world_setting",
+            entityId: 1,
+            displayName: "宗门制度",
+            identity: ["宗门制度"],
+            currentState: ["规则=凭令入门"],
+            coreConflictOrGoal: [],
+            recentChanges: [],
+            continuityRisk: ["规则不能失效"],
+            relevanceReasons: ["continuity_risk"],
+            scores: {
+              matchScore: 95,
+              importanceScore: 95,
+              continuityRiskScore: 95,
+              recencyScore: 60,
+              manualPriorityScore: 0,
+              finalScore: 98,
+            },
+          },
+          {
+            entityType: "hook",
+            entityId: 2,
+            displayName: "黑铁令旧案",
+            identity: ["黑铁令旧案"],
+            currentState: ["target_chapter_no=120"],
+            coreConflictOrGoal: [],
+            recentChanges: [],
+            continuityRisk: ["必须承接"],
+            relevanceReasons: ["continuity_risk"],
+            scores: {
+              matchScore: 90,
+              importanceScore: 90,
+              continuityRiskScore: 92,
+              recencyScore: 55,
+              manualPriorityScore: 0,
+              finalScore: 94,
+            },
+          },
+        ],
+        decisionContext: [
+          {
+            entityType: "character",
+            entityId: 3,
+            displayName: "顾沉舟",
+            identity: ["顾沉舟"],
+            currentState: ["current_location=执事区"],
+            coreConflictOrGoal: ["goal=持续试探林夜"],
+            recentChanges: [],
+            continuityRisk: [],
+            relevanceReasons: ["high_match_score"],
+            scores: {
+              matchScore: 88,
+              importanceScore: 84,
+              continuityRiskScore: 12,
+              recencyScore: 50,
+              manualPriorityScore: 0,
+              finalScore: 90,
+            },
+          },
+        ],
+        supportingContext: [],
+        backgroundNoise: [],
+      },
+    },
+  });
+
+  const content = messages[1]?.content ?? "";
+  const hookIndex = content.indexOf("必须推进的钩子：");
+  const coreIndex = content.indexOf("本章核心人物/势力/关系：");
+
+  assert.ok(hookIndex >= 0);
+  assert.ok(coreIndex >= 0);
+  assert.ok(hookIndex < coreIndex);
+  assert.match(content, /黑铁令旧案/);
+  assert.match(content, /顾沉舟/);
+});
+
 test("review prompt uses retrieved context as validation baseline", () => {
   const messages = buildReviewPrompt({
     planContent: "本章推进主角入宗。",

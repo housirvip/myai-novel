@@ -97,6 +97,40 @@ export interface RetrievalObservedPriorityPacket extends RetrievalObservedEntity
   assignedBy: string[];
 }
 
+export type PersistedSidecarSelectedBy = "top_k" | "long_tail_reserve";
+
+export type PromptContextBlockSection =
+  | "mustFollowFacts"
+  | "recentChanges"
+  | "coreEntities"
+  | "requiredHooks"
+  | "forbiddenMoves"
+  | "supportingBackground";
+
+export interface PromptContextObservedSection {
+  inputCount: number;
+  outputCount: number;
+  lineLimitDropped: number;
+  budgetDropped: number;
+  clippedCount: number;
+}
+
+export interface PromptContextSurfacedPersistedRefObserved {
+  section: PromptContextBlockSection;
+  source: {
+    sourceType: "persisted_fact" | "persisted_event";
+    sourceId: number;
+  };
+  chapterGap: number | null;
+  selectedBy: PersistedSidecarSelectedBy | null;
+}
+
+export interface PromptContextObserved {
+  charBudget: number;
+  sections: Record<PromptContextBlockSection, PromptContextObservedSection>;
+  surfacedPersistedRefs: PromptContextSurfacedPersistedRefObserved[];
+}
+
 export interface PlanRetrievalObservability {
   query: {
     chapterNo: number;
@@ -135,41 +169,8 @@ export interface PlanRetrievalObservability {
     };
   };
   persistedSidecarSelection: {
-    facts: Array<{
-      id: number;
-      chapterNo: number | null;
-      factType: string;
-      rank: number | null;
-      score: number;
-      selected: boolean;
-      droppedReason: "no_match" | "trimmed_by_top_k" | null;
-      trace: {
-        keywordMatched: boolean;
-        structuralManualMatch: boolean;
-        keywordScore: number;
-        riskScore: number;
-        importanceScore: number;
-        recencyScore: number;
-        structuralBoost: number;
-      };
-    }>;
-    events: Array<{
-      id: number;
-      chapterNo: number | null;
-      title: string;
-      rank: number | null;
-      score: number;
-      selected: boolean;
-      droppedReason: "no_match" | "trimmed_by_top_k" | null;
-      trace: {
-        keywordMatched: boolean;
-        structuralManualMatch: boolean;
-        keywordScore: number;
-        unresolvedScore: number;
-        recencyScore: number;
-        structuralBoost: number;
-      };
-    }>;
+    facts: PersistedRetrievalFactSelectionObserved[];
+    events: PersistedStoryEventSelectionObserved[];
   };
   candidates: Record<keyof PlanRetrievedContextEntityGroups, RetrievalObservedEntity[]>;
   hardConstraints: Record<keyof PlanRetrievedContextEntityGroups, RetrievalObservedHardConstraint[]>;
@@ -178,6 +179,9 @@ export interface PlanRetrievalObservability {
     decisionContext: RetrievalObservedPriorityPacket[];
     supportingContext: RetrievalObservedPriorityPacket[];
     backgroundNoise: RetrievalObservedPriorityPacket[];
+  };
+  promptContext?: {
+    plan?: PromptContextObserved;
   };
 }
 
@@ -237,11 +241,14 @@ export interface PersistedRetrievalFact {
 export interface PersistedRetrievalFactSelectionObserved {
   id: number;
   chapterNo: number | null;
+  chapterGap: number | null;
   factType: string;
   factText: string;
   rank: number | null;
   score: number;
   selected: boolean;
+  selectedBy: PersistedSidecarSelectedBy | null;
+  longTailCandidate: boolean;
   droppedReason: "no_match" | "trimmed_by_top_k" | null;
   surfacedIn: Array<"blockingConstraints" | "decisionContext" | "riskReminders" | "recentChanges">;
   trace: NonNullable<PersistedRetrievalFact["selectionTrace"]>;
@@ -267,11 +274,14 @@ export interface PersistedStoryEvent {
 export interface PersistedStoryEventSelectionObserved {
   id: number;
   chapterNo: number | null;
+  chapterGap: number | null;
   title: string;
   unresolvedImpact: string | null;
   rank: number | null;
   score: number;
   selected: boolean;
+  selectedBy: PersistedSidecarSelectedBy | null;
+  longTailCandidate: boolean;
   droppedReason: "no_match" | "trimmed_by_top_k" | null;
   surfacedIn: Array<"blockingConstraints" | "decisionContext" | "riskReminders" | "recentChanges">;
   trace: NonNullable<PersistedStoryEvent["selectionTrace"]>;
