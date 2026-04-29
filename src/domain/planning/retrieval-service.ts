@@ -158,24 +158,73 @@ type ScoredPersistedEventSelection = {
   };
 };
 
+type PersistedFactRow = {
+  id: number;
+  chapter_no: number | null;
+  fact_type: string;
+  fact_text: string;
+  importance: number | null;
+  risk_level: number | null;
+  payload_json: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+};
+
+type PersistedStoryEventRow = {
+  id: number;
+  chapter_no: number | null;
+  title: string;
+  summary: string;
+  unresolved_impact: string | null;
+  participant_entity_refs: string | null;
+  hook_refs: string | null;
+};
+
 async function loadPersistedRetrievalFacts(
   db: import("kysely").Kysely<import("../../core/db/schema/database.js").DatabaseSchema>,
   params: RetrievePlanContextParams,
 ): Promise<{ selected: PersistedRetrievalFact[]; considered: PersistedRetrievalFactSelectionObserved[] }> {
-  const fetchLimit = Math.max(
+  const recentFetchLimit = Math.max(
     24,
     env.PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT * 2 + env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE,
   );
-  const rows = await db
+  const reserveFetchLimit = Math.max(
+    8,
+    env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE * 6,
+  );
+  const longTailMinChapterNo = params.chapterNo - env.PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP;
+
+  const recentRowsQuery = db
     .selectFrom("retrieval_facts")
     .select(["id", "chapter_no", "fact_type", "fact_text", "importance", "risk_level", "payload_json", "entity_type", "entity_id"])
     .where("book_id", "=", params.bookId)
     .where("status", "=", "active")
     .where((eb) => eb.or([eb("chapter_no", "is", null), eb("chapter_no", "<", params.chapterNo)]))
     .where((eb) => eb.or([eb("effective_from_chapter_no", "is", null), eb("effective_from_chapter_no", "<=", params.chapterNo)]))
-    .where((eb) => eb.or([eb("effective_to_chapter_no", "is", null), eb("effective_to_chapter_no", ">=", params.chapterNo)]))
-    .limit(fetchLimit)
-    .execute();
+    .where((eb) => eb.or([eb("effective_to_chapter_no", "is", null), eb("effective_to_chapter_no", ">=", params.chapterNo)]));
+
+  const [recentRows, reserveRiskRows, reserveManualRows] = await Promise.all([
+    recentRowsQuery
+      .orderBy("chapter_no", "desc")
+      .orderBy("id", "asc")
+      .limit(recentFetchLimit)
+      .execute(),
+    env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE > 0
+      ? recentRowsQuery
+        .where("chapter_no", "<=", longTailMinChapterNo)
+        .where("risk_level", ">=", env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_MIN_RISK)
+        .orderBy("chapter_no", "asc")
+        .orderBy("risk_level", "desc")
+        .orderBy("id", "asc")
+        .limit(reserveFetchLimit)
+        .execute()
+      : Promise.resolve([] as PersistedFactRow[]),
+    env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE > 0
+      ? loadFarManualPersistedFactRows(db, params, longTailMinChapterNo, reserveFetchLimit)
+      : Promise.resolve([] as PersistedFactRow[]),
+  ]);
+
+  const rows = mergeRowsById([...recentRows, ...reserveRiskRows, ...reserveManualRows]);
 
   const scored = rows
     .map((row) => ({
@@ -225,18 +274,45 @@ async function loadPersistedStoryEvents(
   db: import("kysely").Kysely<import("../../core/db/schema/database.js").DatabaseSchema>,
   params: RetrievePlanContextParams,
 ): Promise<{ selected: PersistedStoryEvent[]; considered: PersistedStoryEventSelectionObserved[] }> {
-  const fetchLimit = Math.max(
+  const recentFetchLimit = Math.max(
     16,
     env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT * 2 + env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE,
   );
-  const rows = await db
+  const reserveFetchLimit = Math.max(
+    8,
+    env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE * 8,
+  );
+  const longTailMinChapterNo = params.chapterNo - env.PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP;
+
+  const recentRowsQuery = db
     .selectFrom("story_events")
     .select(["id", "chapter_no", "title", "summary", "unresolved_impact", "participant_entity_refs", "hook_refs"])
     .where("book_id", "=", params.bookId)
     .where("status", "=", "active")
-    .where((eb) => eb.or([eb("chapter_no", "is", null), eb("chapter_no", "<", params.chapterNo)]))
-    .limit(fetchLimit)
-    .execute();
+    .where((eb) => eb.or([eb("chapter_no", "is", null), eb("chapter_no", "<", params.chapterNo)]));
+
+  const [recentRows, reserveUnresolvedRows, reserveManualRows] = await Promise.all([
+    recentRowsQuery
+      .orderBy("chapter_no", "desc")
+      .orderBy("id", "asc")
+      .limit(recentFetchLimit)
+      .execute(),
+    env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE > 0
+      ? recentRowsQuery
+        .where("chapter_no", "<=", longTailMinChapterNo)
+        .where("unresolved_impact", "is not", null)
+        .where("unresolved_impact", "!=", "")
+        .orderBy("chapter_no", "asc")
+        .orderBy("id", "asc")
+        .limit(reserveFetchLimit)
+        .execute()
+      : Promise.resolve([] as PersistedStoryEventRow[]),
+    env.PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE > 0
+      ? loadFarManualPersistedStoryEventRows(db, params, longTailMinChapterNo, reserveFetchLimit)
+      : Promise.resolve([] as PersistedStoryEventRow[]),
+  ]);
+
+  const rows = mergeRowsById([...recentRows, ...reserveUnresolvedRows, ...reserveManualRows]);
 
   const scored = rows
     .map((row) => ({
@@ -313,7 +389,7 @@ function scorePersistedFact(
     { text: payloadText, weight: 8 },
     { text: row.entity_type, weight: 6 },
   ];
-  const manualIds = collectManualSidecarIds(params);
+  const manualIds = collectManualSidecarIdsForEntityType(params, row.entity_type);
   const structuralManualMatch = matchesManualEntityRef(params, row.entity_type, row.entity_id);
 
   const keywordScore = scoreEntity({
@@ -634,6 +710,209 @@ function collectManualSidecarIds(params: RetrievePlanContextParams): number[] {
     ...params.manualRefs.relationIds,
     ...params.manualRefs.worldSettingIds,
   ];
+}
+
+function collectManualSidecarIdsForEntityType(
+  params: RetrievePlanContextParams,
+  entityType: string | null,
+): number[] {
+  switch (entityType) {
+    case "character":
+      return params.manualRefs.characterIds;
+    case "faction":
+      return params.manualRefs.factionIds;
+    case "item":
+      return params.manualRefs.itemIds;
+    case "hook":
+    case "story_hook":
+      return params.manualRefs.hookIds;
+    case "relation":
+      return params.manualRefs.relationIds;
+    case "world_setting":
+      return params.manualRefs.worldSettingIds;
+    default:
+      return [];
+  }
+}
+
+function countManualSidecarIds(params: RetrievePlanContextParams): number {
+  return collectManualSidecarIds(params).length;
+}
+
+function mergeRowsById<Row extends { id: number }>(rows: Row[]): Row[] {
+  const byId = new Map<number, Row>();
+  for (const row of rows) {
+    if (!byId.has(row.id)) {
+      byId.set(row.id, row);
+    }
+  }
+  return Array.from(byId.values());
+}
+
+async function loadFarManualPersistedFactRows(
+  db: import("kysely").Kysely<import("../../core/db/schema/database.js").DatabaseSchema>,
+  params: RetrievePlanContextParams,
+  longTailMinChapterNo: number,
+  limit: number,
+): Promise<PersistedFactRow[]> {
+  if (countManualSidecarIds(params) === 0) {
+    return [];
+  }
+
+  return db
+    .selectFrom("retrieval_facts")
+    .select(["id", "chapter_no", "fact_type", "fact_text", "importance", "risk_level", "payload_json", "entity_type", "entity_id"])
+    .where("book_id", "=", params.bookId)
+    .where("status", "=", "active")
+    .where("chapter_no", "<=", longTailMinChapterNo)
+    .where((eb) => eb.or([eb("effective_from_chapter_no", "is", null), eb("effective_from_chapter_no", "<=", params.chapterNo)]))
+    .where((eb) => eb.or([eb("effective_to_chapter_no", "is", null), eb("effective_to_chapter_no", ">=", params.chapterNo)]))
+    .where((eb) => {
+      const manualPredicates = buildPersistedFactManualPredicates(eb, params);
+      return eb.or(manualPredicates);
+    })
+    .orderBy("chapter_no", "asc")
+    .orderBy("id", "asc")
+    .limit(limit)
+    .execute();
+}
+
+function buildPersistedFactManualPredicates(
+  eb: import("kysely").ExpressionBuilder<import("../../core/db/schema/database.js").DatabaseSchema, "retrieval_facts">,
+  params: RetrievePlanContextParams,
+) {
+  const predicates = [];
+
+  if (params.manualRefs.characterIds.length > 0) {
+    predicates.push(eb.and([
+      eb("entity_type", "=", "character"),
+      eb("entity_id", "in", params.manualRefs.characterIds),
+    ]));
+  }
+  if (params.manualRefs.factionIds.length > 0) {
+    predicates.push(eb.and([
+      eb("entity_type", "=", "faction"),
+      eb("entity_id", "in", params.manualRefs.factionIds),
+    ]));
+  }
+  if (params.manualRefs.itemIds.length > 0) {
+    predicates.push(eb.and([
+      eb("entity_type", "=", "item"),
+      eb("entity_id", "in", params.manualRefs.itemIds),
+    ]));
+  }
+  if (params.manualRefs.hookIds.length > 0) {
+    predicates.push(eb.and([
+      eb("entity_type", "in", ["hook", "story_hook"]),
+      eb("entity_id", "in", params.manualRefs.hookIds),
+    ]));
+  }
+  if (params.manualRefs.relationIds.length > 0) {
+    predicates.push(eb.and([
+      eb("entity_type", "=", "relation"),
+      eb("entity_id", "in", params.manualRefs.relationIds),
+    ]));
+  }
+  if (params.manualRefs.worldSettingIds.length > 0) {
+    predicates.push(eb.and([
+      eb("entity_type", "=", "world_setting"),
+      eb("entity_id", "in", params.manualRefs.worldSettingIds),
+    ]));
+  }
+
+  return predicates;
+}
+
+async function loadFarManualPersistedStoryEventRows(
+  db: import("kysely").Kysely<import("../../core/db/schema/database.js").DatabaseSchema>,
+  params: RetrievePlanContextParams,
+  longTailMinChapterNo: number,
+  limit: number,
+): Promise<PersistedStoryEventRow[]> {
+  const manualLikePatterns = buildStoryEventManualLikePatterns(params);
+  if (manualLikePatterns.length === 0) {
+    return [];
+  }
+
+  const baseQuery = db
+    .selectFrom("story_events")
+    .select(["id", "chapter_no", "title", "summary", "unresolved_impact", "participant_entity_refs", "hook_refs"])
+    .where("book_id", "=", params.bookId)
+    .where("status", "=", "active")
+    .where("chapter_no", "<=", longTailMinChapterNo)
+    .where((eb) => eb.or(buildStoryEventManualPrefetchPredicates(eb, manualLikePatterns)))
+    .orderBy("chapter_no", "asc")
+    .orderBy("id", "asc");
+
+  const batchSize = Math.max(limit * 4, 16);
+  const matchedRows = new Map<number, PersistedStoryEventRow>();
+
+  for (let offset = 0; matchedRows.size < limit; offset += batchSize) {
+    const rows = await baseQuery
+      .limit(batchSize)
+      .offset(offset)
+      .execute();
+    if (rows.length === 0) {
+      break;
+    }
+
+    for (const row of rows) {
+      if (!matchesStoryEventRefs(params, row.participant_entity_refs, row.hook_refs)) {
+        continue;
+      }
+      if (!matchedRows.has(row.id)) {
+        matchedRows.set(row.id, row);
+      }
+      if (matchedRows.size >= limit) {
+        break;
+      }
+    }
+
+    if (rows.length < batchSize) {
+      break;
+    }
+  }
+
+  return Array.from(matchedRows.values());
+}
+
+function buildStoryEventManualLikePatterns(params: RetrievePlanContextParams): Array<{ field: "participant_entity_refs" | "hook_refs"; value: string }> {
+  const patterns = new Map<string, { field: "participant_entity_refs" | "hook_refs"; value: string }>();
+
+  const addPattern = (field: "participant_entity_refs" | "hook_refs", value: string) => {
+    patterns.set(`${field}:${value}`, { field, value });
+  };
+
+  for (const characterId of params.manualRefs.characterIds) {
+    addPattern("participant_entity_refs", `%\"entityType\":\"character\",\"entityId\":${characterId}%`);
+    addPattern("participant_entity_refs", `%\"characters\":[%${characterId}%`);
+  }
+  for (const factionId of params.manualRefs.factionIds) {
+    addPattern("participant_entity_refs", `%\"entityType\":\"faction\",\"entityId\":${factionId}%`);
+    addPattern("participant_entity_refs", `%\"factions\":[%${factionId}%`);
+  }
+  for (const itemId of params.manualRefs.itemIds) {
+    addPattern("participant_entity_refs", `%\"entityType\":\"item\",\"entityId\":${itemId}%`);
+    addPattern("participant_entity_refs", `%\"items\":[%${itemId}%`);
+  }
+  for (const hookId of params.manualRefs.hookIds) {
+    addPattern("participant_entity_refs", `%\"hooks\":[%${hookId}%`);
+    addPattern("hook_refs", `%${hookId}%`);
+  }
+  for (const worldSettingId of params.manualRefs.worldSettingIds) {
+    addPattern("participant_entity_refs", `%\"entityType\":\"world_setting\",\"entityId\":${worldSettingId}%`);
+    addPattern("participant_entity_refs", `%\"worldSettings\":[%${worldSettingId}%`);
+    addPattern("participant_entity_refs", `%\"world_settings\":[%${worldSettingId}%`);
+  }
+
+  return Array.from(patterns.values());
+}
+
+function buildStoryEventManualPrefetchPredicates(
+  eb: import("kysely").ExpressionBuilder<import("../../core/db/schema/database.js").DatabaseSchema, "story_events">,
+  patterns: Array<{ field: "participant_entity_refs" | "hook_refs"; value: string }>,
+) {
+  return patterns.map((pattern) => eb(pattern.field, "like", pattern.value));
 }
 
 function matchesManualEntityRef(
