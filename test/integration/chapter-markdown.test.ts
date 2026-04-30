@@ -9,8 +9,8 @@ import { createTestEnv, runCli, runCliJson, runInlineModule } from "../helpers/c
 test("chapter markdown export/import creates new versions instead of overwriting", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-markdown-"));
   const env = createTestEnv(tempDir);
-  const planPath = path.join(tempDir, "chapter-plan.md");
-  const finalPath = path.join(tempDir, "chapter-final.md");
+  const planPath = path.join(tempDir, "chapter-0001-plan.md");
+  const finalPath = path.join(tempDir, "chapter-0001-final.md");
 
   await runCli(["db", "init"], env);
 

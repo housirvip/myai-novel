@@ -1,11 +1,17 @@
 import { env } from "../../config/env.js";
 import type {
+  PlanRetrievalObservability,
+  PromptContextBlockSection,
+  PromptContextObserved,
+  PromptContextObservedSection,
+  RetrievedFactPacket,
   PlanRetrievedContextEntityGroups,
   RetrievedChapterSummary,
   RetrievedEntity,
   RetrievedOutline,
   RetrievedPriorityContext,
   RetrievedRecentChange,
+  RetrievedRiskReminder,
 } from "./types.js";
 import { buildRecentChanges } from "./recent-changes.js";
 import { buildPriorityContext } from "./retrieval-facts.js";
@@ -27,8 +33,51 @@ export type PromptContextMode =
   | "approve"
   | "approveDiff";
 
+export interface PromptContextBlocksObserved {
+  blocks: PromptContextBlocks;
+  observability: PromptContextObserved;
+}
+
+interface PromptContextLineEntry {
+  text: string;
+  sourceRefs: Array<{
+    sourceType: "persisted_fact" | "persisted_event";
+    sourceId: number;
+  }>;
+}
+
+interface PreparedPromptContextSection {
+  key: PromptContextBlockSection;
+  inputEntries: PromptContextLineEntry[];
+  limitedEntries: PromptContextLineEntry[];
+  maxChars: number;
+  minCount: number;
+  observability: PromptContextObservedSection;
+}
+
+interface AllocatedPromptContextSection {
+  entries: PromptContextLineEntry[];
+  observability: PromptContextObservedSection;
+}
+
 interface PromptContextBlockConfig {
   charBudget: number;
+  sectionLineLimits: {
+    mustFollowFacts: number;
+    recentChanges: number;
+    coreEntities: number;
+    requiredHooks: number;
+    forbiddenMoves: number;
+    supportingBackground: number;
+  };
+  sectionCharBudgets: {
+    mustFollowFacts: number;
+    recentChanges: number;
+    coreEntities: number;
+    requiredHooks: number;
+    forbiddenMoves: number;
+    supportingBackground: number;
+  };
 }
 
 type RetrievedContextViewLike = {
@@ -36,7 +85,7 @@ type RetrievedContextViewLike = {
   priorityContext?: RetrievedPriorityContext;
   recentChapters?: RetrievedChapterSummary[];
   recentChanges?: RetrievedRecentChange[];
-  riskReminders?: Array<{ text: string }>;
+  riskReminders?: RetrievedRiskReminder[];
   outlines?: RetrievedOutline[];
   supportingOutlines?: RetrievedOutline[];
   characters?: RetrievedEntity[];
@@ -45,12 +94,20 @@ type RetrievedContextViewLike = {
   relations?: RetrievedEntity[];
   hooks?: RetrievedEntity[];
   worldSettings?: RetrievedEntity[];
+  retrievalObservability?: PlanRetrievalObservability;
 };
 
 export function buildPromptContextBlocks(
   context: unknown,
   options: { mode?: PromptContextMode } = {},
 ): PromptContextBlocks {
+  return buildPromptContextBlocksObserved(context, options).blocks;
+}
+
+export function buildPromptContextBlocksObserved(
+  context: unknown,
+  options: { mode?: PromptContextMode } = {},
+): PromptContextBlocksObserved {
   // 这里负责把 retrieved context 压成 prompt 真正消费的几个固定区块。
   // 目标不是“尽量全”，而是在有限 token 预算里把最该先看的事实排进正确栏目。
   const value = (context ?? {}) as RetrievedContextViewLike;
@@ -76,13 +133,20 @@ export function buildPromptContextBlocks(
     },
   });
 
-  const mustFollowFacts = summarizeFactPackets(priorityContext.blockingConstraints);
-  const requiredHooks = summarizeFactPackets(
-    priorityContext.blockingConstraints.filter((packet) => packet.entityType === "hook"),
-  );
-  const coreEntities = summarizeFactPackets(
+  const prioritizedBlockingPackets = prioritizePromptPackets(priorityContext.blockingConstraints);
+  const blockingHookPackets = prioritizedBlockingPackets.filter((packet) => packet.entityType === "hook");
+  const blockingNonHookPackets = prioritizedBlockingPackets.filter((packet) => packet.entityType !== "hook");
+  const prioritizedCorePackets = prioritizePromptPackets(
     [...priorityContext.decisionContext, ...priorityContext.supportingContext].filter((packet) => packet.entityType !== "hook"),
   );
+  const prioritizedSupportingPackets = prioritizePromptPackets(priorityContext.supportingContext);
+  const mustFollowFacts = summarizeFactPacketEntries(blockingNonHookPackets);
+  const requiredHooks = summarizeFactPacketEntries(blockingHookPackets);
+  const mustFollowFactsHookFallback = requiredHooks.length > 0 ? requiredHooks.slice(0, 1) : [];
+  const planRequiredHooks = mustFollowFacts.length > 0
+    ? requiredHooks
+    : requiredHooks.slice(mustFollowFactsHookFallback.length);
+  const coreEntities = summarizeFactPacketEntries(prioritizedCorePackets);
 
   const recentChanges = (value.recentChanges && value.recentChanges.length > 0
     ? value.recentChanges
@@ -96,42 +160,153 @@ export function buildPromptContextBlocks(
         ...(hardConstraints.hooks ?? []),
         ...(hardConstraints.worldSettings ?? []),
       ],
-    }))
-    .map((item) => `${item.label}：${item.detail}`);
+    }));
 
-  const forbiddenMoves = (value.riskReminders ?? []).map((item) => item.text);
+  const forbiddenMoves = summarizeRiskReminderEntries(value.riskReminders ?? []);
   const supportingBackground = [
-    ...summarizeFactPackets(priorityContext.supportingContext),
-    ...summarizeOutlines(value.supportingOutlines ?? value.outlines),
+    ...summarizeFactPacketEntries(prioritizedSupportingPackets),
+    ...summarizeOutlineEntries(value.supportingOutlines ?? value.outlines),
   ];
 
-  const budgeted = allocateBudget({
+  const prioritizedRecentChanges = options.mode === "plan"
+    ? prioritizePlanRecentChanges(recentChanges)
+    : recentChanges;
+
+  const budgeted = allocateBudgetObserved({
     charBudget: config.charBudget,
-    sections: [
-      { key: "mustFollowFacts", lines: mustFollowFacts.length > 0 ? mustFollowFacts : forbiddenMoves.slice(0, 2), minCount: 1 },
-      { key: "recentChanges", lines: recentChanges, minCount: 0 },
-      { key: "coreEntities", lines: coreEntities, minCount: 0 },
-      { key: "requiredHooks", lines: requiredHooks, minCount: 0 },
-      { key: "forbiddenMoves", lines: forbiddenMoves, minCount: 0 },
-      { key: "supportingBackground", lines: supportingBackground, minCount: 0 },
+    sections: options.mode === "plan"
+      ? [
+        preparePromptContextSection({
+          key: "mustFollowFacts",
+          entries: mustFollowFacts.length > 0
+            ? mustFollowFacts
+            : mustFollowFactsHookFallback.length > 0
+              ? mustFollowFactsHookFallback
+              : forbiddenMoves.slice(0, 2),
+          lineLimit: config.sectionLineLimits.mustFollowFacts,
+          maxChars: config.sectionCharBudgets.mustFollowFacts,
+          minCount: 1,
+        }),
+        preparePromptContextSection({
+          key: "recentChanges",
+          entries: summarizeRecentChangeEntries(prioritizedRecentChanges),
+          lineLimit: config.sectionLineLimits.recentChanges,
+          maxChars: config.sectionCharBudgets.recentChanges,
+          minCount: 0,
+        }),
+        preparePromptContextSection({
+          key: "requiredHooks",
+          entries: planRequiredHooks,
+          lineLimit: config.sectionLineLimits.requiredHooks,
+          maxChars: config.sectionCharBudgets.requiredHooks,
+          minCount: 0,
+        }),
+        preparePromptContextSection({
+          key: "forbiddenMoves",
+          entries: forbiddenMoves,
+          lineLimit: config.sectionLineLimits.forbiddenMoves,
+          maxChars: config.sectionCharBudgets.forbiddenMoves,
+          minCount: 0,
+        }),
+        preparePromptContextSection({
+          key: "coreEntities",
+          entries: coreEntities,
+          lineLimit: config.sectionLineLimits.coreEntities,
+          maxChars: config.sectionCharBudgets.coreEntities,
+          minCount: 0,
+        }),
+        preparePromptContextSection({
+          key: "supportingBackground",
+          entries: supportingBackground,
+          lineLimit: config.sectionLineLimits.supportingBackground,
+          maxChars: config.sectionCharBudgets.supportingBackground,
+          minCount: 0,
+        }),
+      ]
+      : [
+      preparePromptContextSection({
+        key: "mustFollowFacts",
+        entries: mustFollowFacts.length > 0 ? mustFollowFacts : forbiddenMoves.slice(0, 2),
+        lineLimit: config.sectionLineLimits.mustFollowFacts,
+        maxChars: config.sectionCharBudgets.mustFollowFacts,
+        minCount: 1,
+      }),
+      preparePromptContextSection({
+        key: "recentChanges",
+        entries: summarizeRecentChangeEntries(prioritizedRecentChanges),
+        lineLimit: config.sectionLineLimits.recentChanges,
+        maxChars: config.sectionCharBudgets.recentChanges,
+        minCount: 0,
+      }),
+      preparePromptContextSection({
+        key: "coreEntities",
+        entries: coreEntities,
+        lineLimit: config.sectionLineLimits.coreEntities,
+        maxChars: config.sectionCharBudgets.coreEntities,
+        minCount: 0,
+      }),
+      preparePromptContextSection({
+        key: "requiredHooks",
+        entries: requiredHooks,
+        lineLimit: config.sectionLineLimits.requiredHooks,
+        maxChars: config.sectionCharBudgets.requiredHooks,
+        minCount: 0,
+      }),
+      preparePromptContextSection({
+        key: "forbiddenMoves",
+        entries: forbiddenMoves,
+        lineLimit: config.sectionLineLimits.forbiddenMoves,
+        maxChars: config.sectionCharBudgets.forbiddenMoves,
+        minCount: 0,
+      }),
+      preparePromptContextSection({
+        key: "supportingBackground",
+        entries: supportingBackground,
+        lineLimit: config.sectionLineLimits.supportingBackground,
+        maxChars: config.sectionCharBudgets.supportingBackground,
+        minCount: 0,
+      }),
     ],
   });
 
-  const fallbackCoreEntities = summarizeFactPackets(
-    priorityContext.blockingConstraints.filter((packet) => packet.entityType !== "hook"),
+  const fallbackCoreEntities = summarizeFactPacketEntries(
+    prioritizePromptPackets(priorityContext.blockingConstraints.filter((packet) => packet.entityType !== "hook")),
   );
-  const remainingBudget = Math.max(0, config.charBudget - totalChars(Object.values(budgeted).flat()));
-  const fallbackCoreWithinBudget = budgeted.coreEntities.length > 0
+  const remainingBudget = Math.max(0, config.charBudget - totalChars(flattenAllocatedSectionTexts(budgeted)));
+  const fallbackCoreAllocation = preparePromptContextSection({
+    key: "coreEntities",
+    entries: fallbackCoreEntities,
+    lineLimit: config.sectionLineLimits.coreEntities,
+    maxChars: config.sectionCharBudgets.coreEntities,
+    minCount: 0,
+  });
+  const fallbackCoreWithinBudget = budgeted.coreEntities.entries.length > 0
     ? budgeted.coreEntities
-    : takeLinesWithinBudget(fallbackCoreEntities, remainingBudget, 0);
+    : allocateSinglePromptContextSection(fallbackCoreAllocation, remainingBudget);
+
+  const finalSections = {
+    ...budgeted,
+    coreEntities: fallbackCoreWithinBudget,
+  } satisfies Record<PromptContextBlockSection, AllocatedPromptContextSection>;
+
+  const blocks = {
+    mustFollowFacts: finalSections.mustFollowFacts.entries.map((item) => item.text),
+    recentChanges: finalSections.recentChanges.entries.map((item) => item.text),
+    coreEntities: finalSections.coreEntities.entries.map((item) => item.text),
+    requiredHooks: finalSections.requiredHooks.entries.map((item) => item.text),
+    forbiddenMoves: finalSections.forbiddenMoves.entries.map((item) => item.text),
+    supportingBackground: finalSections.supportingBackground.entries.map((item) => item.text),
+  } satisfies PromptContextBlocks;
 
   return {
-    mustFollowFacts: budgeted.mustFollowFacts,
-    recentChanges: budgeted.recentChanges,
-    coreEntities: fallbackCoreWithinBudget,
-    requiredHooks: budgeted.requiredHooks,
-    forbiddenMoves: budgeted.forbiddenMoves,
-    supportingBackground: budgeted.supportingBackground,
+    blocks,
+    observability: {
+      charBudget: config.charBudget,
+      sections: Object.fromEntries(
+        (Object.keys(finalSections) as PromptContextBlockSection[]).map((key) => [key, finalSections[key].observability]),
+      ) as Record<PromptContextBlockSection, PromptContextObservedSection>,
+      surfacedPersistedRefs: collectSurfacedPersistedRefs(finalSections, value.retrievalObservability),
+    },
   };
 }
 
@@ -140,100 +315,222 @@ function getPromptContextBlockConfig(mode: PromptContextMode): PromptContextBloc
     case "plan":
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_PLAN_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildPlanSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_PLAN_CHAR_BUDGET),
       };
     case "review":
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_REVIEW_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_REVIEW_CHAR_BUDGET),
       };
     case "repair":
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_REPAIR_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_REPAIR_CHAR_BUDGET),
       };
     case "approve":
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_APPROVE_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_APPROVE_CHAR_BUDGET),
       };
     case "approveDiff":
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_APPROVE_DIFF_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_APPROVE_DIFF_CHAR_BUDGET),
       };
     case "draft":
     default:
       return {
         charBudget: env.PLANNING_PROMPT_CONTEXT_DRAFT_CHAR_BUDGET,
+        sectionLineLimits: buildSectionLineLimits(),
+        sectionCharBudgets: buildSectionCharBudgets(env.PLANNING_PROMPT_CONTEXT_DRAFT_CHAR_BUDGET),
       };
   }
 }
 
-function summarizeFactPackets(
-  packets: Array<{
-    entityType: string;
-    displayName: string;
-    currentState: string[];
-    coreConflictOrGoal: string[];
-    continuityRisk: string[];
-  }>,
-): string[] {
+function buildSectionLineLimits(): PromptContextBlockConfig["sectionLineLimits"] {
+  return {
+    mustFollowFacts: env.PLANNING_PROMPT_CONTEXT_MUST_FOLLOW_LIMIT,
+    recentChanges: env.PLANNING_PROMPT_CONTEXT_RECENT_CHANGES_LIMIT,
+    coreEntities: env.PLANNING_PROMPT_CONTEXT_CORE_ENTITIES_LIMIT,
+    requiredHooks: env.PLANNING_PROMPT_CONTEXT_REQUIRED_HOOKS_LIMIT,
+    forbiddenMoves: env.PLANNING_PROMPT_CONTEXT_FORBIDDEN_MOVES_LIMIT,
+    supportingBackground: env.PLANNING_PROMPT_CONTEXT_SUPPORTING_BACKGROUND_LIMIT,
+  };
+}
+
+function buildSectionCharBudgets(totalBudget: number): PromptContextBlockConfig["sectionCharBudgets"] {
+  return {
+    mustFollowFacts: Math.max(120, Math.floor(totalBudget * 0.26)),
+    recentChanges: Math.max(100, Math.floor(totalBudget * 0.18)),
+    coreEntities: Math.max(100, Math.floor(totalBudget * 0.18)),
+    requiredHooks: Math.max(80, Math.floor(totalBudget * 0.14)),
+    forbiddenMoves: Math.max(70, Math.floor(totalBudget * 0.10)),
+    supportingBackground: Math.max(80, Math.floor(totalBudget * 0.14)),
+  };
+}
+
+function buildPlanSectionCharBudgets(totalBudget: number): PromptContextBlockConfig["sectionCharBudgets"] {
+  return {
+    mustFollowFacts: Math.max(120, Math.floor(totalBudget * 0.30)),
+    recentChanges: Math.max(100, Math.floor(totalBudget * 0.22)),
+    coreEntities: Math.max(100, Math.floor(totalBudget * 0.10)),
+    requiredHooks: Math.max(80, Math.floor(totalBudget * 0.18)),
+    forbiddenMoves: Math.max(70, Math.floor(totalBudget * 0.08)),
+    supportingBackground: Math.max(80, Math.floor(totalBudget * 0.12)),
+  };
+}
+
+function prioritizePlanRecentChanges(changes: RetrievedRecentChange[]): RetrievedRecentChange[] {
+  const persistedCarryover = changes.filter((item) => item.source === "retrieval_fact" || item.source === "story_event");
+  const reservedPersisted = persistedCarryover.slice(0, 2);
+  if (reservedPersisted.length === 0) {
+    return changes;
+  }
+
+  const reservedKeys = new Set(reservedPersisted.map((item) => `${item.source}:${item.label}:${item.detail}`));
+  const others = changes.filter((item) => !reservedKeys.has(`${item.source}:${item.label}:${item.detail}`));
+  return [...reservedPersisted, ...others];
+}
+
+function summarizeFactPacketEntries(
+  packets: Array<Pick<RetrievedFactPacket, "entityType" | "displayName" | "currentState" | "coreConflictOrGoal" | "continuityRisk" | "sourceRef" | "sourceRefs">>,
+): PromptContextLineEntry[] {
   return packets.map((packet) => {
     const label = mapEntityTypeLabel(packet.entityType);
     const details = selectPacketDetails(packet);
-    return details.length > 0
-      ? `${label}：${packet.displayName}；${details.join("；")}`
-      : `${label}：${packet.displayName}`;
+    return {
+      text: details.length > 0
+        ? `${label}：${packet.displayName}；${details.join("；")}`
+        : `${label}：${packet.displayName}`,
+      sourceRefs: collectPersistedSourceRefs(packet),
+    };
   });
 }
 
-function summarizeOutlines(outlines?: RetrievedOutline[]): string[] {
-  return (outlines ?? [])
-    .map((outline) => {
-      const summary = normalizeInline(outline.content);
-      return summary ? `${outline.title}：${summary}` : outline.title;
-    });
+function summarizeRecentChangeEntries(changes: RetrievedRecentChange[]): PromptContextLineEntry[] {
+  return changes.map((item) => ({
+    text: `${item.label}：${item.detail}`,
+    sourceRefs: collectPersistedSourceRefs(item),
+  }));
 }
 
-function allocateBudget(input: {
+function summarizeRiskReminderEntries(reminders: RetrievedRiskReminder[]): PromptContextLineEntry[] {
+  return reminders.map((item) => ({
+    text: item.text,
+    sourceRefs: collectPersistedSourceRefs(item),
+  }));
+}
+
+function summarizeOutlineEntries(outlines?: RetrievedOutline[]): PromptContextLineEntry[] {
+  return (outlines ?? []).map((outline) => {
+    const summary = normalizeInline(outline.content);
+    return {
+      text: summary ? `${outline.title}：${summary}` : outline.title,
+      sourceRefs: [],
+    };
+  });
+}
+
+function preparePromptContextSection(input: {
+  key: PromptContextBlockSection;
+  entries: PromptContextLineEntry[];
+  lineLimit: number;
+  maxChars: number;
+  minCount: number;
+}): PreparedPromptContextSection {
+  const limitedEntries = input.entries.slice(0, input.lineLimit);
+  return {
+    key: input.key,
+    inputEntries: input.entries,
+    limitedEntries,
+    maxChars: input.maxChars,
+    minCount: input.minCount,
+    observability: {
+      inputCount: input.entries.length,
+      outputCount: 0,
+      lineLimitDropped: Math.max(0, input.entries.length - limitedEntries.length),
+      budgetDropped: 0,
+      clippedCount: 0,
+    },
+  };
+}
+
+function allocateBudgetObserved(input: {
   charBudget: number;
-  sections: Array<{ key: keyof PromptContextBlocks; lines: string[]; minCount: number }>;
-}): PromptContextBlocks {
+  sections: PreparedPromptContextSection[];
+}): Record<PromptContextBlockSection, AllocatedPromptContextSection> {
   let remaining = input.charBudget;
   const result = {
-    mustFollowFacts: [],
-    recentChanges: [],
-    coreEntities: [],
-    requiredHooks: [],
-    forbiddenMoves: [],
-    supportingBackground: [],
-  } as PromptContextBlocks;
+    mustFollowFacts: createEmptyAllocatedSection(),
+    recentChanges: createEmptyAllocatedSection(),
+    coreEntities: createEmptyAllocatedSection(),
+    requiredHooks: createEmptyAllocatedSection(),
+    forbiddenMoves: createEmptyAllocatedSection(),
+    supportingBackground: createEmptyAllocatedSection(),
+  } satisfies Record<PromptContextBlockSection, AllocatedPromptContextSection>;
 
   for (const section of input.sections) {
-    const selected = takeLinesWithinBudget(section.lines, remaining, section.minCount);
-    assignSection(result, section.key, selected);
-    remaining -= selected.reduce((sum, line) => sum + line.length, 0);
+    const allocated = allocateSinglePromptContextSection(section, Math.min(remaining, section.maxChars));
+    result[section.key] = allocated;
+    remaining -= allocated.entries.reduce((sum, item) => sum + item.text.length, 0);
   }
 
   return result;
 }
 
-function takeLinesWithinBudget(lines: string[], budget: number, minCount: number): string[] {
-  if (lines.length === 0) {
-    return [];
+function allocateSinglePromptContextSection(
+  section: PreparedPromptContextSection,
+  budget: number,
+): AllocatedPromptContextSection {
+  const allocation = takeLineEntriesWithinBudget(section.limitedEntries, budget, section.minCount);
+  return {
+    entries: allocation.entries,
+    observability: {
+      ...section.observability,
+      outputCount: allocation.entries.length,
+      budgetDropped: Math.max(0, section.limitedEntries.length - allocation.entries.length),
+      clippedCount: allocation.clippedCount,
+    },
+  };
+}
+
+function takeLineEntriesWithinBudget(
+  entries: PromptContextLineEntry[],
+  budget: number,
+  minCount: number,
+): { entries: PromptContextLineEntry[]; clippedCount: number } {
+  if (entries.length === 0) {
+    return { entries: [], clippedCount: 0 };
   }
 
-  const selected: string[] = [];
+  const selected: PromptContextLineEntry[] = [];
+  let clippedCount = 0;
   let used = 0;
 
-  for (const line of lines) {
+  for (const entry of entries) {
     const remaining = Math.max(0, budget - used);
     if (remaining === 0 && selected.length >= minCount) {
       break;
     }
 
-    const truncated = truncateLine(line, remaining);
+    const truncated = truncateLine(entry.text, remaining);
     if (!truncated) {
       break;
     }
 
-    selected.push(truncated);
+    if (truncated.length < entry.text.length) {
+      clippedCount += 1;
+    }
+
+    selected.push({
+      text: truncated,
+      sourceRefs: entry.sourceRefs,
+    });
     used += truncated.length;
 
     if (selected.length >= minCount && used >= budget) {
@@ -241,7 +538,10 @@ function takeLinesWithinBudget(lines: string[], budget: number, minCount: number
     }
   }
 
-  return selected;
+  return {
+    entries: selected,
+    clippedCount,
+  };
 }
 
 function truncateLine(line: string, budget: number): string {
@@ -327,12 +627,120 @@ function scoreDetailPriority(value: string, priorities: string[]): number {
   return index === -1 ? 0 : priorities.length - index;
 }
 
-function assignSection(
-  target: PromptContextBlocks,
-  key: keyof PromptContextBlocks,
-  value: string[],
-): void {
-  target[key] = value;
+function createEmptyAllocatedSection(): AllocatedPromptContextSection {
+  return {
+    entries: [],
+    observability: {
+      inputCount: 0,
+      outputCount: 0,
+      lineLimitDropped: 0,
+      budgetDropped: 0,
+      clippedCount: 0,
+    },
+  };
+}
+
+function flattenAllocatedSectionTexts(sections: Record<PromptContextBlockSection, AllocatedPromptContextSection>): string[] {
+  return (Object.keys(sections) as PromptContextBlockSection[])
+    .flatMap((key) => sections[key].entries.map((item) => item.text));
+}
+
+function collectPersistedSourceRefs(value: {
+  sourceRef?: { sourceType: "persisted_fact" | "persisted_event"; sourceId: number };
+  sourceRefs?: Array<{ sourceType: "persisted_fact" | "persisted_event"; sourceId: number }>;
+}): Array<{ sourceType: "persisted_fact" | "persisted_event"; sourceId: number }> {
+  const refs = [
+    ...(value.sourceRef ? [value.sourceRef] : []),
+    ...(value.sourceRefs ?? []),
+  ];
+  const seen = new Set<string>();
+  const deduped: Array<{ sourceType: "persisted_fact" | "persisted_event"; sourceId: number }> = [];
+
+  for (const ref of refs) {
+    const key = `${ref.sourceType}:${ref.sourceId}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(ref);
+  }
+
+  return deduped;
+}
+
+function collectSurfacedPersistedRefs(
+  sections: Record<PromptContextBlockSection, AllocatedPromptContextSection>,
+  retrievalObservability?: PlanRetrievalObservability,
+) {
+  const observedSelections = new Map<string, { chapterGap: number | null; selectedBy: PlanRetrievalObservability["persistedSidecarSelection"]["facts"][number]["selectedBy"] }>();
+
+  for (const fact of retrievalObservability?.persistedSidecarSelection.facts ?? []) {
+    observedSelections.set(`persisted_fact:${fact.id}`, {
+      chapterGap: fact.chapterGap,
+      selectedBy: fact.selectedBy,
+    });
+  }
+
+  for (const event of retrievalObservability?.persistedSidecarSelection.events ?? []) {
+    observedSelections.set(`persisted_event:${event.id}`, {
+      chapterGap: event.chapterGap,
+      selectedBy: event.selectedBy,
+    });
+  }
+
+  const seen = new Set<string>();
+  const surfaced = [];
+
+  for (const key of Object.keys(sections) as PromptContextBlockSection[]) {
+    for (const entry of sections[key].entries) {
+      for (const ref of entry.sourceRefs) {
+        const observedKey = `${key}:${ref.sourceType}:${ref.sourceId}`;
+        if (seen.has(observedKey)) {
+          continue;
+        }
+        seen.add(observedKey);
+        const selection = observedSelections.get(`${ref.sourceType}:${ref.sourceId}`);
+        surfaced.push({
+          section: key,
+          source: ref,
+          chapterGap: selection?.chapterGap ?? null,
+          selectedBy: selection?.selectedBy ?? null,
+        });
+      }
+    }
+  }
+
+  return surfaced;
+}
+
+function prioritizePromptPackets(packets: RetrievedFactPacket[]): RetrievedFactPacket[] {
+  return packets
+    .map((packet, index) => ({ packet, index }))
+    .sort((left, right) => comparePromptPacketPriority(left.packet, right.packet) || left.index - right.index)
+    .map((entry) => entry.packet);
+}
+
+function comparePromptPacketPriority(left: RetrievedFactPacket, right: RetrievedFactPacket): number {
+  const persistedDelta = Number(hasPersistedSourceRefs(right)) - Number(hasPersistedSourceRefs(left));
+  if (persistedDelta !== 0) {
+    return persistedDelta;
+  }
+
+  const continuityDelta = (right.scores.continuityRiskScore ?? 0) - (left.scores.continuityRiskScore ?? 0);
+  if (continuityDelta !== 0) {
+    return continuityDelta;
+  }
+
+  const finalScoreDelta = (right.scores.finalScore ?? 0) - (left.scores.finalScore ?? 0);
+  if (finalScoreDelta !== 0) {
+    return finalScoreDelta;
+  }
+
+  return (right.scores.recencyScore ?? 0) - (left.scores.recencyScore ?? 0);
+}
+
+function hasPersistedSourceRefs(packet: RetrievedFactPacket): boolean {
+  return Boolean(packet.sourceRef) || Boolean(packet.sourceRefs && packet.sourceRefs.length > 0);
 }
 
 function totalChars(lines: string[]): number {

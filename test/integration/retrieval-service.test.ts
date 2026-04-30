@@ -24,7 +24,7 @@ test("retrieval service skips placeholder chapters and returns richer entity con
     hardConstraintItem: { content: string } | null;
     hardConstraintRelation: { content: string } | null;
     hardConstraintWorldSetting: { content: string } | null;
-    riskReminders: string[];
+    riskReminders: Array<{ text: string }>;
     priorityBlockingCount: number;
     priorityDecisionCount: number;
     candidateCharacterSource: string | null;
@@ -168,7 +168,7 @@ test("retrieval service skips placeholder chapters and returns richer entity con
   assert.ok(result.persistedEventChangeCount >= 1);
 });
 
-test("retrieval service keeps default rule-based behavior when reranker is pass-through", async () => {
+test("retrieval service defaults to heuristic reranker behavior", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-pipeline-"));
   const env = createTestEnv(tempDir);
 
@@ -178,7 +178,7 @@ test("retrieval service keeps default rule-based behavior when reranker is pass-
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",
       "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
-      "import { DirectPassThroughReranker } from './src/domain/planning/retrieval-pipeline.ts';",
+      "import { HeuristicReranker } from './src/domain/planning/retrieval-reranker-heuristic.ts';",
       "const logger = { info() {}, error() {}, debug() {} };",
       "const manager = createDatabaseManager(logger);",
       "const db = manager.getClient();",
@@ -192,7 +192,7 @@ test("retrieval service keeps default rule-based behavior when reranker is pass-
       "  ]).execute();",
       "  await db.insertInto('items').values({ id: 1, book_id: 1, name: '黑铁令', category: '令牌', description: '身份凭证', owner_type: 'character', owner_id: 1, rarity: 'rare', status: 'active', append_notes: null, keywords: '[\"黑铁令\"]', created_at: now, updated_at: now }).execute();",
       "  const baseService = new RetrievalQueryService(logger);",
-      "  const pipelineService = new RetrievalQueryService(logger, { reranker: new DirectPassThroughReranker() });",
+      "  const pipelineService = new RetrievalQueryService(logger, { reranker: new HeuristicReranker() });",
        "  const params = { bookId: 1, chapterNo: 2, keywords: ['黑铁令', '林夜'], queryText: '黑铁令 林夜', manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } };",
       "  const baseContext = await baseService.retrievePlanContext(params);",
       "  const pipelineContext = await pipelineService.retrievePlanContext(params);",
@@ -209,6 +209,41 @@ test("retrieval service keeps default rule-based behavior when reranker is pass-
 
   assert.equal(result.sameCharacterOrder, true);
   assert.equal(result.sameRiskReminders, true);
+});
+
+test("retrieval service does not treat author intent as recent chapter factual summary", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-recent-summary-boundary-"));
+  const env = createTestEnv(tempDir);
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{ recentChapterNos: number[]; recentSummaries: Array<string | null> }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 20, current_chapter_count: 3, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values([",
+      "    { id: 1, book_id: 1, chapter_no: 1, title: '第一章', summary: '第一章正式总结', word_count: 1200, status: 'approved', current_plan_id: null, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_no: 2, title: '第二章', summary: null, word_count: 1200, status: 'planned', current_plan_id: 1, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('chapter_plans').values({ id: 1, book_id: 1, chapter_id: 2, chapter_no: 2, version_no: 1, status: 'active', author_intent: '第二章作者意图，不应被当作既成事实摘要', intent_source: 'user_input', intent_keywords: '[]', manual_entity_refs: null, retrieved_context: null, content: '第二章计划', model: null, provider: null, source_type: 'ai_generated', created_at: now, updated_at: now }).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 3, keywords: ['作者意图'], queryText: '作者意图', manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({ recentChapterNos: context.recentChapters.map((item) => item.chapterNo), recentSummaries: context.recentChapters.map((item) => item.summary) }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.deepEqual(result.recentChapterNos, [1]);
+  assert.deepEqual(result.recentSummaries, ["第一章正式总结"]);
 });
 
 test("retrieval service can apply heuristic reranker to promote continuity-heavy candidates", async () => {
@@ -323,6 +358,365 @@ test("retrieval service selects persisted facts/events with query-aware preferen
   assert.ok(result.reminderSourceRefs >= 1);
 });
 
+test("retrieval service preserves older high-risk facts and unresolved events via long-tail reserve", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-long-tail-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE: "1",
+    PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE: "1",
+    PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP: "8",
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_MIN_RISK: "80",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    selectedFactIds: number[];
+    selectedEventIds: number[];
+    oldFactDroppedReason: string | null;
+    oldEventDroppedReason: string | null;
+    oldFactSelectedBy: string | null;
+    oldEventSelectedBy: string | null;
+    recentFactSelectedBy: string | null;
+    recentEventSelectedBy: string | null;
+    oldFactLongTailCandidate: boolean;
+    oldEventLongTailCandidate: boolean;
+    oldFactChapterGap: number | null;
+    oldEventChapterGap: number | null;
+    oldFactRecencyScore: number;
+    recentFactRecencyScore: number;
+    oldEventRecencyScore: number;
+    recentEventRecencyScore: number;
+    planSurfacedRefs: Array<{ section: string; sourceType: string; sourceId: number; selectedBy: string | null }>;
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "import { buildPlanPrompt } from './src/domain/planning/prompts.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 200, current_chapter_count: 30, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('retrieval_facts').values([",
+      "    { id: 1, book_id: 1, chapter_no: 29, entity_type: 'character', entity_id: 1, event_id: null, fact_type: 'character_update', fact_key: 'fact:1', fact_text: '黑铁令旧案出现新线索，林夜继续追查。', payload_json: null, importance: 100, risk_level: 20, effective_from_chapter_no: 29, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_no: 10, entity_type: 'character', entity_id: 1, event_id: null, fact_type: 'character_update', fact_key: 'fact:2', fact_text: '黑铁令旧案主谋未明，仍需长期承接。', payload_json: null, importance: 60, risk_level: 96, effective_from_chapter_no: 10, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('story_events').values([",
+      "    { id: 1, book_id: 1, chapter_id: null, chapter_no: 28, event_type: 'investigation', title: '近期旧案推进', summary: '黑铁令旧案近期出现推进。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '林夜马上要核对最新线索。', hook_refs: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_id: null, chapter_no: 11, event_type: 'investigation', title: '早期旧案悬而未决', summary: '黑铁令旧案在更早章节埋下疑点。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '真正主谋仍未现身。', hook_refs: null, status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 30, keywords: ['黑铁令', '旧案', '林夜'], queryText: '黑铁令 旧案 林夜', manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
+      "  buildPlanPrompt({ bookTitle: '测试书', chapterNo: 30, authorIntent: '承接黑铁令旧案', retrievedContext: context });",
+      "  console.log(JSON.stringify({",
+      "    selectedFactIds: context.retrievalObservability?.persistedSidecarSelection.facts.filter((item) => item.selected).map((item) => item.id) ?? [],",
+      "    selectedEventIds: context.retrievalObservability?.persistedSidecarSelection.events.filter((item) => item.selected).map((item) => item.id) ?? [],",
+      "    oldFactDroppedReason: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.droppedReason ?? null,",
+      "    oldEventDroppedReason: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.droppedReason ?? null,",
+      "    oldFactSelectedBy: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.selectedBy ?? null,",
+      "    oldEventSelectedBy: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.selectedBy ?? null,",
+      "    recentFactSelectedBy: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 1)?.selectedBy ?? null,",
+      "    recentEventSelectedBy: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 1)?.selectedBy ?? null,",
+      "    oldFactLongTailCandidate: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.longTailCandidate ?? false,",
+      "    oldEventLongTailCandidate: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.longTailCandidate ?? false,",
+      "    oldFactChapterGap: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.chapterGap ?? null,",
+      "    oldEventChapterGap: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.chapterGap ?? null,",
+      "    oldFactRecencyScore: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.trace.recencyScore ?? -1,",
+      "    recentFactRecencyScore: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 1)?.trace.recencyScore ?? -1,",
+      "    oldEventRecencyScore: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.trace.recencyScore ?? -1,",
+      "    recentEventRecencyScore: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 1)?.trace.recencyScore ?? -1,",
+      "    planSurfacedRefs: (context.retrievalObservability?.promptContext?.plan?.surfacedPersistedRefs ?? []).map((item) => ({ section: item.section, sourceType: item.source.sourceType, sourceId: item.source.sourceId, selectedBy: item.selectedBy })),",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.deepEqual(result.selectedFactIds, [1, 2]);
+  assert.deepEqual(result.selectedEventIds, [1, 2]);
+  assert.equal(result.oldFactDroppedReason, null);
+  assert.equal(result.oldEventDroppedReason, null);
+  assert.equal(result.oldFactSelectedBy, "long_tail_reserve");
+  assert.equal(result.oldEventSelectedBy, "long_tail_reserve");
+  assert.equal(result.recentFactSelectedBy, "top_k");
+  assert.equal(result.recentEventSelectedBy, "top_k");
+  assert.equal(result.oldFactLongTailCandidate, true);
+  assert.equal(result.oldEventLongTailCandidate, true);
+  assert.equal(result.oldFactChapterGap, 20);
+  assert.equal(result.oldEventChapterGap, 19);
+  assert.ok(result.oldFactRecencyScore < result.recentFactRecencyScore);
+  assert.ok(result.oldEventRecencyScore < result.recentEventRecencyScore);
+  assert.ok(result.planSurfacedRefs.some((item) => item.section === "mustFollowFacts" && item.sourceType === "persisted_fact" && item.sourceId === 2 && item.selectedBy === "long_tail_reserve"));
+  assert.ok(result.planSurfacedRefs.some((item) => item.section === "mustFollowFacts" && item.sourceType === "persisted_event" && item.sourceId === 2 && item.selectedBy === "long_tail_reserve"));
+});
+
+test("retrieval service prioritizes manual-ref far memory inside long-tail reserve and keeps it surfaced", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-manual-long-tail-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT: "2",
+    PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT: "2",
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE: "1",
+    PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE: "1",
+    PLANNING_RETRIEVAL_PERSISTED_PRIORITY_FACT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_PRIORITY_EVENT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_RISK_FACT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_RISK_EVENT_LIMIT: "1",
+    PLANNING_RECENT_CHANGES_FACT_LIMIT: "1",
+    PLANNING_RECENT_CHANGES_EVENT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP: "8",
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_MIN_RISK: "80",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    selectedFactIds: number[];
+    selectedEventIds: number[];
+    manualFactSelectedBy: string | null;
+    manualEventSelectedBy: string | null;
+    competingFactDroppedReason: string | null;
+    competingEventDroppedReason: string | null;
+    manualFactLongTailCandidate: boolean;
+    manualEventLongTailCandidate: boolean;
+    manualFactTrace: { keywordMatched: boolean; structuralManualMatch: boolean } | null;
+    manualEventTrace: { keywordMatched: boolean; structuralManualMatch: boolean } | null;
+    manualFactSurfacedIn: string[];
+    manualEventSurfacedIn: string[];
+    recentChangeLabels: string[];
+    riskReminderTexts: string[];
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 200, current_chapter_count: 30, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('retrieval_facts').values([",
+      "    { id: 1, book_id: 1, chapter_no: 29, entity_type: null, entity_id: null, event_id: null, fact_type: 'chapter_summary', fact_key: 'fact:1', fact_text: '黑铁令旧案近期推进，林夜继续追查黑铁令。', payload_json: null, importance: 100, risk_level: 25, effective_from_chapter_no: 29, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 4, book_id: 1, chapter_no: 27, entity_type: null, entity_id: null, event_id: null, fact_type: 'chapter_summary', fact_key: 'fact:4', fact_text: '林夜在近期章节继续围绕黑铁令旧案行动。', payload_json: null, importance: 90, risk_level: 20, effective_from_chapter_no: 27, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_no: 10, entity_type: null, entity_id: null, event_id: null, fact_type: 'chapter_summary', fact_key: 'fact:2', fact_text: '旧案牵涉执事。', payload_json: null, importance: 10, risk_level: 80, effective_from_chapter_no: 10, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 3, book_id: 1, chapter_no: 9, entity_type: 'character', entity_id: 1, event_id: null, fact_type: 'character_update', fact_key: 'fact:3', fact_text: '远期线索仍需记住。', payload_json: null, importance: 5, risk_level: 10, effective_from_chapter_no: 9, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('story_events').values([",
+      "    { id: 1, book_id: 1, chapter_id: null, chapter_no: 28, event_type: 'investigation', title: '近期黑铁令旧案推进', summary: '黑铁令旧案近期有新发现，林夜继续追查。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '需要立刻核对黑铁令旧案最新线索。', hook_refs: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 4, book_id: 1, chapter_id: null, chapter_no: 26, event_type: 'investigation', title: '近期旧案回响', summary: '林夜近期再次触碰黑铁令旧案。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '这条近期线索仍需继续承接。', hook_refs: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_id: null, chapter_no: 11, event_type: 'investigation', title: '高风险远期事件', summary: '执事层面的旧案争议再起。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '旧案主谋仍未浮出。', hook_refs: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 3, book_id: 1, chapter_id: null, chapter_no: 8, event_type: 'investigation', title: '结构化远期事件', summary: '无明显关键词。', participant_entity_refs: JSON.stringify([{ entityType: 'character', entityId: 1 }]), location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '与林夜相关的远期旧案仍未完结。', hook_refs: null, status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 30, keywords: ['黑铁令', '旧案', '林夜'], queryText: '黑铁令 旧案 林夜', manualRefs: { characterIds: [1], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({",
+      "    selectedFactIds: context.retrievalObservability?.persistedSidecarSelection.facts.filter((item) => item.selected).map((item) => item.id) ?? [],",
+      "    selectedEventIds: context.retrievalObservability?.persistedSidecarSelection.events.filter((item) => item.selected).map((item) => item.id) ?? [],",
+      "    manualFactSelectedBy: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 3)?.selectedBy ?? null,",
+      "    manualEventSelectedBy: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 3)?.selectedBy ?? null,",
+      "    competingFactDroppedReason: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.droppedReason ?? null,",
+      "    competingEventDroppedReason: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 2)?.droppedReason ?? null,",
+      "    manualFactLongTailCandidate: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 3)?.longTailCandidate ?? false,",
+      "    manualEventLongTailCandidate: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 3)?.longTailCandidate ?? false,",
+      "    manualFactTrace: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 3)?.trace ?? null,",
+      "    manualEventTrace: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 3)?.trace ?? null,",
+      "    manualFactSurfacedIn: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 3)?.surfacedIn ?? [],",
+      "    manualEventSurfacedIn: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 3)?.surfacedIn ?? [],",
+      "    recentChangeLabels: (context.recentChanges ?? []).map((item) => item.label),",
+      "    riskReminderTexts: context.riskReminders.map((item) => item.text),",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.selectedFactIds.length, 3);
+  assert.equal(result.selectedEventIds.length, 3);
+  assert.ok(result.selectedFactIds.includes(3));
+  assert.ok(result.selectedEventIds.includes(3));
+  assert.ok(result.manualFactSelectedBy !== null);
+  assert.ok(result.manualEventSelectedBy !== null);
+  assert.equal(result.manualFactLongTailCandidate, true);
+  assert.equal(result.manualEventLongTailCandidate, true);
+  assert.equal(result.manualFactTrace?.structuralManualMatch, true);
+  assert.equal(result.manualEventTrace?.structuralManualMatch, true);
+});
+
+test("retrieval service keeps far reserve candidates even when recent persisted windows exceed raw fetch caps", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-over-cap-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE: "1",
+    PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE: "1",
+    PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP: "8",
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_MIN_RISK: "80",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    selectedFactIds: number[];
+    selectedEventIds: number[];
+    farFactSelectedBy: string | null;
+    farEventSelectedBy: string | null;
+    farFactLongTailCandidate: boolean;
+    farEventLongTailCandidate: boolean;
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 500, current_chapter_count: 40, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  const factRows = [];",
+      "  for (let index = 0; index < 30; index += 1) {",
+      "    factRows.push({ id: index + 1, book_id: 1, chapter_no: 39 - index, entity_type: null, entity_id: null, event_id: null, fact_type: 'chapter_summary', fact_key: `fact:${index + 1}`, fact_text: `近期黑铁令旧案进展-${index + 1}` , payload_json: null, importance: 70, risk_level: 20, effective_from_chapter_no: 39 - index, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now });",
+      "  }",
+      "  factRows.push({ id: 999, book_id: 1, chapter_no: 1, entity_type: 'character', entity_id: 1, event_id: null, fact_type: 'character_update', fact_key: 'fact:999', fact_text: '旧案主谋始终未明，需要长期承接。', payload_json: null, importance: 20, risk_level: 80, effective_from_chapter_no: 1, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now });",
+      "  await db.insertInto('retrieval_facts').values(factRows).execute();",
+      "  const eventRows = [];",
+      "  for (let index = 0; index < 20; index += 1) {",
+      "    eventRows.push({ id: index + 1, book_id: 1, chapter_id: null, chapter_no: 39 - index, event_type: 'investigation', title: `近期事件-${index + 1}`, summary: `黑铁令旧案近期推进-${index + 1}`, participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: `近期事件影响-${index + 1}`, hook_refs: null, status: 'active', created_at: now, updated_at: now });",
+      "  }",
+      "  eventRows.push({ id: 888, book_id: 1, chapter_id: null, chapter_no: 2, event_type: 'investigation', title: '远期未决', summary: '旧案在极早章节埋下真正主谋线索。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '真正主谋至今仍未现身。', hook_refs: null, status: 'active', created_at: now, updated_at: now });",
+      "  await db.insertInto('story_events').values(eventRows).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 40, keywords: ['黑铁令', '旧案'], queryText: '黑铁令 旧案', manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({",
+      "    selectedFactIds: context.retrievalObservability?.persistedSidecarSelection.facts.filter((item) => item.selected).map((item) => item.id) ?? [],",
+      "    selectedEventIds: context.retrievalObservability?.persistedSidecarSelection.events.filter((item) => item.selected).map((item) => item.id) ?? [],",
+      "    farFactSelectedBy: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 999)?.selectedBy ?? null,",
+      "    farEventSelectedBy: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 888)?.selectedBy ?? null,",
+      "    farFactLongTailCandidate: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 999)?.longTailCandidate ?? false,",
+      "    farEventLongTailCandidate: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 888)?.longTailCandidate ?? false,",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.ok(result.selectedFactIds.includes(999));
+  assert.ok(result.selectedEventIds.includes(888));
+  assert.equal(result.farFactSelectedBy, "long_tail_reserve");
+  assert.equal(result.farEventSelectedBy, "long_tail_reserve");
+  assert.equal(result.farFactLongTailCandidate, true);
+  assert.equal(result.farEventLongTailCandidate, true);
+});
+
+test("retrieval service scopes persisted fact manual matches by entity type", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-manual-type-scope-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE: "1",
+    PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP: "8",
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_MIN_RISK: "80",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    selectedFactIds: number[];
+    crossTypeDroppedReason: string | null;
+    crossTypeTrace: { keywordMatched: boolean; structuralManualMatch: boolean } | null;
+    typedFactSelectedBy: string | null;
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 80, current_chapter_count: 20, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('retrieval_facts').values([",
+      "    { id: 1, book_id: 1, chapter_no: 8, entity_type: 'item', entity_id: 1, event_id: null, fact_type: 'item_update', fact_key: 'fact:1', fact_text: '一件无关物品发生轻微变化。', payload_json: null, importance: 10, risk_level: 10, effective_from_chapter_no: 8, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 2, book_id: 1, chapter_no: 7, entity_type: 'character', entity_id: 1, event_id: null, fact_type: 'character_update', fact_key: 'fact:2', fact_text: '林夜这条远期身份线索仍需记住。', payload_json: null, importance: 10, risk_level: 10, effective_from_chapter_no: 7, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 20, keywords: ['无关词'], queryText: '无关词', manualRefs: { characterIds: [1], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({",
+      "    selectedFactIds: context.retrievalObservability?.persistedSidecarSelection.facts.filter((item) => item.selected).map((item) => item.id) ?? [],",
+      "    crossTypeDroppedReason: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 1)?.droppedReason ?? null,",
+      "    crossTypeTrace: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 1)?.trace ?? null,",
+      "    typedFactSelectedBy: context.retrievalObservability?.persistedSidecarSelection.facts.find((item) => item.id === 2)?.selectedBy ?? null,",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.ok(!result.selectedFactIds.includes(1));
+  assert.ok(result.selectedFactIds.includes(2));
+  assert.equal(result.crossTypeDroppedReason, "no_match");
+  assert.equal(result.crossTypeTrace?.keywordMatched, false);
+  assert.equal(result.crossTypeTrace?.structuralManualMatch, false);
+  assert.ok(result.typedFactSelectedBy !== null);
+});
+
+test("retrieval service pages through false-positive manual event prefetch rows to keep exact structured matches", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-manual-event-paging-"));
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE: "1",
+    PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP: "8",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    selectedEventIds: number[];
+    exactEventSelectedBy: string | null;
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 120, current_chapter_count: 30, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('story_events').values({ id: 1, book_id: 1, chapter_id: null, chapter_no: 29, event_type: 'investigation', title: '近期主线推进', summary: '黑铁令旧案近期推进。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '近期推进仍需继续承接。', hook_refs: null, status: 'active', created_at: now, updated_at: now }).execute();",
+      "  const falsePositiveRows = [];",
+      "  for (let index = 0; index < 12; index += 1) {",
+      "    falsePositiveRows.push({ id: index + 10, book_id: 1, chapter_id: null, chapter_no: index + 1, event_type: 'investigation', title: `误命中事件-${index + 1}`, summary: '无关事件。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '仍未收束。', hook_refs: JSON.stringify([15]), status: 'active', created_at: now, updated_at: now });",
+      "  }",
+      "  falsePositiveRows.push({ id: 999, book_id: 1, chapter_id: null, chapter_no: 20, event_type: 'investigation', title: '精确结构化命中事件', summary: '文本本身没有明显关键词。', participant_entity_refs: null, location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '与手工 hook 直接关联的远期事件仍未完结。', hook_refs: JSON.stringify([5]), status: 'active', created_at: now, updated_at: now });",
+      "  await db.insertInto('story_events').values(falsePositiveRows).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 30, keywords: ['黑铁令'], queryText: '黑铁令', manualRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [5], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({",
+      "    selectedEventIds: context.retrievalObservability?.persistedSidecarSelection.events.filter((item) => item.selected).map((item) => item.id) ?? [],",
+      "    exactEventSelectedBy: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 999)?.selectedBy ?? null,",
+      "  }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.ok(result.selectedEventIds.includes(999));
+  assert.ok(result.exactEventSelectedBy !== null);
+  assert.ok(!result.selectedEventIds.includes(10));
+  assert.ok(!result.selectedEventIds.includes(11));
+});
+
 test("retrieval service can enable embedding candidate provider via config with injected searcher", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-embedding-"));
   const env = createTestEnv(tempDir, {
@@ -406,6 +800,39 @@ test("retrieval service promotes story events via structured manual refs even wh
   assert.ok(!result.blockingNames.includes("第12章事件"));
   assert.ok(result.recentChangeLabels.includes("第13章事件"));
   assert.equal(result.persistedEventTrace?.keywordMatched, true);
+  assert.equal(result.persistedEventTrace?.structuralManualMatch, true);
+  assert.ok((result.persistedEventTrace?.structuralBoost ?? 0) > 0);
+});
+
+test("retrieval service matches legacy grouped participant refs for story events", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-retrieval-sidecar-grouped-participants-"));
+  const env = createTestEnv(tempDir);
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{ blockingNames: string[]; persistedEventTrace: { keywordMatched: boolean; structuralManualMatch: boolean; structuralBoost: number } | null }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-10T15:00:00.000Z';",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '测试书', summary: null, target_chapter_count: 50, current_chapter_count: 20, status: 'writing', metadata: null, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('story_events').values({ id: 1, book_id: 1, chapter_id: null, chapter_no: 9, event_type: 'investigation', title: '旧格式事件', summary: '记录一条较弱的历史波动。', participant_entity_refs: JSON.stringify({ characters: [1], factions: [], items: [], hooks: [5], worldSettings: [] }), location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '仍需追查。', hook_refs: JSON.stringify([5]), status: 'active', created_at: now, updated_at: now }).execute();",
+      "  const service = new RetrievalQueryService(logger);",
+      "  const context = await service.retrievePlanContext({ bookId: 1, chapterNo: 20, keywords: ['无关词'], queryText: '无关词', manualRefs: { characterIds: [1], factionIds: [], itemIds: [], hookIds: [5], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({ blockingNames: (context.priorityContext?.blockingConstraints ?? []).map((item) => item.displayName), persistedEventTrace: context.retrievalObservability?.persistedSidecarSelection.events.find((item) => item.id === 1)?.trace ?? null }));",
+      "} finally {",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.ok(result.blockingNames.includes("第9章事件"));
+  assert.equal(result.persistedEventTrace?.keywordMatched, false);
   assert.equal(result.persistedEventTrace?.structuralManualMatch, true);
   assert.ok((result.persistedEventTrace?.structuralBoost ?? 0) > 0);
 });
@@ -598,7 +1025,7 @@ test("retrieval ranking prefers stronger weighted hits and keeps continuity enti
     hardConstraintCharacterIds: number[];
     hardConstraintItemIds: number[];
     hardConstraintWorldSettingIds: number[];
-    riskReminders: string[];
+    riskReminders: Array<{ text: string }>;
   }>(
     [
       "import { createDatabaseManager } from './src/core/db/client.ts';",

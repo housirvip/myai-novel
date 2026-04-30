@@ -1,6 +1,6 @@
 import type { LlmMessage } from "../../core/llm/types.js";
 import type { PlanIntentConstraints, PlanRetrievedContext } from "./types.js";
-import { buildPromptContextBlocks } from "./prompt-context-blocks.js";
+import { buildPromptContextBlocks, buildPromptContextBlocksObserved } from "./prompt-context-blocks.js";
 
 export function buildIntentGenerationPrompt(input: {
   bookTitle: string;
@@ -60,6 +60,7 @@ export function buildKeywordExtractionPrompt(input: {
           "请从作者意图中提取检索与约束信息，并返回 JSON。",
           "字段必须包含：intentSummary, keywords, mustInclude, mustAvoid, entityHints, continuityCues, settingCues, sceneCues。",
           "entityHints 必须是对象，字段为 characters, factions, items, relations, hooks, worldSettings。",
+          "entityHints 的每个子字段都必须是字符串数组；continuityCues、settingCues、sceneCues 也都必须是字符串数组，即使只有 1 项也必须用数组表示，禁止返回对象或单个字符串。",
           "keywords 中每个词不超过 8 个字；其余 cue 字段用于检索，可稍长，但应简洁。",
         ].join(""),
     },
@@ -77,7 +78,14 @@ export function buildPlanPrompt(input: {
   intentConstraints?: PlanIntentConstraints;
   retrievedContext: PlanRetrievedContext;
 }): LlmMessage[] {
-  const contextBlocks = buildPromptContextBlocks(input.retrievedContext, { mode: "plan" });
+  const observedContextBlocks = buildPromptContextBlocksObserved(input.retrievedContext, { mode: "plan" });
+  const contextBlocks = observedContextBlocks.blocks;
+  if (input.retrievedContext.retrievalObservability) {
+    input.retrievedContext.retrievalObservability.promptContext = {
+      ...input.retrievedContext.retrievalObservability.promptContext,
+      plan: observedContextBlocks.observability,
+    };
+  }
   // plan prompt 的职责是把“本章想写什么”和“本章不能写错什么”同时交给模型。
   // 其中 retrievedContext 是后续所有阶段共享的事实边界，因此在 plan 阶段就必须显式固化。
   return [
@@ -101,7 +109,7 @@ export function buildPlanPrompt(input: {
         ]),
         section("作者意图", input.authorIntent),
         buildIntentConstraintsSection(input.intentConstraints),
-        ...buildReadableContextSections(contextBlocks),
+        ...buildReadableContextSections(contextBlocks, "plan"),
         jsonSection(
           "召回上下文（必须严格参考）",
           buildCompactRetrievedContextForPrompt({
@@ -321,9 +329,10 @@ export function buildApproveDiffPrompt(input: {
         input.retrievedContext ? section("召回上下文（用于校对事实变更）", "以上事实块用于判断哪些变化属于真实、可回写的结构化事实。") : null,
         section("输出要求", [
           "请返回 JSON。",
-          "字段包含：chapterSummary, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, newRelations, updates。",
+          "字段包含：chapterSummary, unresolvedImpact, actualCharacterIds, actualFactionIds, actualItemIds, actualHookIds, actualWorldSettingIds, newCharacters, newFactions, newItems, newHooks, newWorldSettings, newRelations, updates。",
           "newRelations 用于新增关系，字段包含 sourceType, sourceId, targetType, targetId, relationType, intensity, status, description, keywords。",
           "updates 中的 entityType 支持 character, faction, relation, item, story_hook, world_setting；action 支持 update_fields, append_notes, status_change。",
+          "unresolvedImpact 用于记录本章结束后仍未收束、后续必须承接的影响；如果没有可填 null。",
           "actual*Ids 应只保留本章真实出场或真实产生影响的实体。",
         ]),
       ]),
@@ -344,19 +353,31 @@ function jsonSection(title: string, content: unknown): string {
   return section(title, JSON.stringify(content, null, 2));
 }
 
-function buildReadableContextSections(contextBlocks: ReturnType<typeof buildPromptContextBlocks> | null): Array<string | null> {
+function buildReadableContextSections(
+  contextBlocks: ReturnType<typeof buildPromptContextBlocks> | null,
+  mode: "plan" | "default" = "default",
+): Array<string | null> {
   if (!contextBlocks) {
     return [];
   }
 
-  return [
-    buildListSection("本章必须遵守的事实", contextBlocks.mustFollowFacts),
-    buildListSection("最近承接的变化", contextBlocks.recentChanges),
-    buildListSection("本章核心人物/势力/关系", contextBlocks.coreEntities),
-    buildListSection("必须推进的钩子", contextBlocks.requiredHooks),
-    buildListSection("禁止改写与禁止新增", contextBlocks.forbiddenMoves),
-    buildListSection("补充背景", contextBlocks.supportingBackground),
-  ];
+  return mode === "plan"
+    ? [
+      buildListSection("本章必须遵守的事实", contextBlocks.mustFollowFacts),
+      buildListSection("最近承接的变化", contextBlocks.recentChanges),
+      buildListSection("必须推进的钩子", contextBlocks.requiredHooks),
+      buildListSection("本章核心人物/势力/关系", contextBlocks.coreEntities),
+      buildListSection("禁止改写与禁止新增", contextBlocks.forbiddenMoves),
+      buildListSection("补充背景", contextBlocks.supportingBackground),
+    ]
+    : [
+      buildListSection("本章必须遵守的事实", contextBlocks.mustFollowFacts),
+      buildListSection("最近承接的变化", contextBlocks.recentChanges),
+      buildListSection("本章核心人物/势力/关系", contextBlocks.coreEntities),
+      buildListSection("必须推进的钩子", contextBlocks.requiredHooks),
+      buildListSection("禁止改写与禁止新增", contextBlocks.forbiddenMoves),
+      buildListSection("补充背景", contextBlocks.supportingBackground),
+    ];
 }
 
 function buildListSection(title: string, lines: string[]): string | null {

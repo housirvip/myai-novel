@@ -41,6 +41,7 @@ import {
 
 const approveDiffSchema = z.object({
   chapterSummary: z.string().min(1),
+  unresolvedImpact: z.string().min(1).nullable().default(null),
   actualCharacterIds: z.array(z.number().int().positive()).default([]),
   actualFactionIds: z.array(z.number().int().positive()).default([]),
   actualItemIds: z.array(z.number().int().positive()).default([]),
@@ -121,6 +122,7 @@ const approveDiffSchema = z.object({
 
 const approveDiffLooseSchema = z.object({
   chapterSummary: z.string().min(1),
+  unresolvedImpact: z.union([z.string(), z.null()]).optional().default(null),
   actualCharacterIds: z.array(z.union([z.number(), z.string()])).default([]),
   actualFactionIds: z.array(z.union([z.number(), z.string()])).default([]),
   actualItemIds: z.array(z.union([z.number(), z.string()])).default([]),
@@ -512,12 +514,14 @@ export class ApproveChapterWorkflow {
             }
 
             let updatedCount = 0;
+            const skippedUpdates: Array<{ entityType: string; entityId: number; reason: string }> = [];
             for (const update of diff.updates) {
               // diff 允许模型引用已经不存在的实体；这里选择静默跳过，
               // 目的是让 approve 能尽量提交其余稳定部分，而不是因为一条脏引用导致整批更新报废。
               if (update.entityType === "character") {
                 const existing = await characterRepository.getById(update.entityId);
                 if (!existing) {
+                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
                   continue;
                 }
                 updatedCount += 1;
@@ -527,6 +531,7 @@ export class ApproveChapterWorkflow {
               if (update.entityType === "faction") {
                 const existing = await factionRepository.getById(update.entityId);
                 if (!existing) {
+                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
                   continue;
                 }
                 updatedCount += 1;
@@ -536,6 +541,7 @@ export class ApproveChapterWorkflow {
               if (update.entityType === "item") {
                 const existing = await itemRepository.getById(update.entityId);
                 if (!existing) {
+                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
                   continue;
                 }
                 updatedCount += 1;
@@ -545,6 +551,7 @@ export class ApproveChapterWorkflow {
               if (update.entityType === "relation") {
                 const existing = await relationRepository.getById(update.entityId);
                 if (!existing) {
+                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
                   continue;
                 }
                 updatedCount += 1;
@@ -557,6 +564,7 @@ export class ApproveChapterWorkflow {
               if (update.entityType === "story_hook") {
                 const existing = await hookRepository.getById(update.entityId);
                 if (!existing) {
+                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
                   continue;
                 }
                 updatedCount += 1;
@@ -566,11 +574,25 @@ export class ApproveChapterWorkflow {
               if (update.entityType === "world_setting") {
                 const existing = await worldSettingRepository.getById(update.entityId);
                 if (!existing) {
+                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
                   continue;
                 }
                 updatedCount += 1;
                 await worldSettingRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
               }
+            }
+
+            if (skippedUpdates.length > 0) {
+              this.logger.warn(
+                {
+                  event: "workflow.approve.skipped_updates",
+                  bookId: payload.bookId,
+                  chapterNo: payload.chapterNo,
+                  skippedCount: skippedUpdates.length,
+                  skippedUpdates,
+                },
+                "Approve skipped updates due to missing entity references",
+              );
             }
 
             const finalDraft = await chapterDraftRepository.getById(chapterBeforeCommit.current_draft_id!);
@@ -614,6 +636,13 @@ export class ApproveChapterWorkflow {
               ...diff.actualWorldSettingIds,
               ...createdEntities.worldSettings,
             ]);
+            const participantEntityRefs = buildStoryEventParticipantRefs({
+              actualCharacterIds,
+              actualFactionIds,
+              actualItemIds,
+              actualHookIds,
+              actualWorldSettingIds,
+            });
 
             const updatedChapter = await chapterRepository.updateByBookAndChapterNo(
               payload.bookId,
@@ -663,17 +692,11 @@ export class ApproveChapterWorkflow {
               event_type: "chapter_approval",
               title: `第${payload.chapterNo}章定稿事件`,
               summary: diff.chapterSummary,
-              participant_entity_refs: JSON.stringify({
-                characters: actualCharacterIds,
-                factions: actualFactionIds,
-                items: actualItemIds,
-                hooks: actualHookIds,
-                worldSettings: actualWorldSettingIds,
-              }),
+              participant_entity_refs: JSON.stringify(participantEntityRefs),
               location_label: null,
               trigger_text: `approve:${finalRecord.id}`,
               outcome_text: diff.chapterSummary,
-              unresolved_impact: null,
+              unresolved_impact: diff.unresolvedImpact,
               hook_refs: JSON.stringify(actualHookIds),
               status: "active",
               created_at: timestamp,
@@ -708,15 +731,19 @@ export class ApproveChapterWorkflow {
               payload_json: JSON.stringify({
                 chapterId: chapterBeforeCommit.id,
                 storyEventId: approvedStoryEvent.id,
-                participantEntityRefs: {
+                participantEntityRefs: participantEntityRefs,
+                participantEntityRefGroups: {
                   characters: actualCharacterIds,
                   factions: actualFactionIds,
                   items: actualItemIds,
                   hooks: actualHookIds,
                   worldSettings: actualWorldSettingIds,
                 },
+                unresolvedImpact: diff.unresolvedImpact,
               }),
-              text: diff.chapterSummary,
+              text: diff.unresolvedImpact
+                ? `${diff.chapterSummary}\n未收束影响：${diff.unresolvedImpact}`
+                : diff.chapterSummary,
               embedding_model: null,
               embedding_vector_ref: null,
               status: "active",
@@ -881,18 +908,85 @@ async function persistApproveRetrievalFacts(input: {
 }
 
 function buildUpdateFactText(update: z.infer<typeof approveDiffSchema>["updates"][number]): string | null {
-  const note =
+  const parts: string[] = [];
+  const directNote =
     typeof update.payload.note === "string" ? update.payload.note
       : typeof update.payload.append_notes === "string" ? update.payload.append_notes
       : typeof update.payload.description === "string" ? update.payload.description
-      : typeof update.payload.status === "string" ? `状态变更为：${update.payload.status}`
       : null;
 
-  if (!note || note.trim().length === 0) {
+  if (typeof directNote === "string" && directNote.trim().length > 0) {
+    parts.push(directNote.trim());
+  }
+
+  if (typeof update.payload.status === "string" && update.payload.status.trim().length > 0) {
+    parts.push(`状态变更为：${update.payload.status.trim()}`);
+  }
+
+  if (typeof update.payload.current_location === "string" && update.payload.current_location.trim().length > 0) {
+    parts.push(`当前位置变更为：${update.payload.current_location.trim()}`);
+  }
+
+  if (typeof update.payload.goal === "string" && update.payload.goal.trim().length > 0) {
+    parts.push(`目标变更为：${update.payload.goal.trim()}`);
+  }
+
+  if (typeof update.payload.content === "string" && update.payload.content.trim().length > 0) {
+    parts.push(`内容更新：${update.payload.content.trim()}`);
+  }
+
+  if (typeof update.payload.core_goal === "string" && update.payload.core_goal.trim().length > 0) {
+    parts.push(`核心目标变更为：${update.payload.core_goal.trim()}`);
+  }
+
+  if (typeof update.payload.owner_type === "string" || typeof update.payload.owner_id === "number") {
+    const ownerType = typeof update.payload.owner_type === "string" ? update.payload.owner_type : "unknown";
+    const ownerId = typeof update.payload.owner_id === "number" ? update.payload.owner_id : null;
+    parts.push(ownerId === null ? `归属类型变更为：${ownerType}` : `归属变更为：${ownerType}#${ownerId}`);
+  }
+
+  if (typeof update.payload.leader_character_id === "number") {
+    parts.push(`首领角色变更为：character#${update.payload.leader_character_id}`);
+  }
+
+  if (typeof update.payload.intensity === "number") {
+    parts.push(`关系强度调整为：${update.payload.intensity}`);
+  }
+
+  const consumedKeys = new Set([
+    "note",
+    "append_notes",
+    "description",
+    "status",
+    "current_location",
+    "goal",
+    "content",
+    "core_goal",
+    "owner_type",
+    "owner_id",
+    "leader_character_id",
+    "intensity",
+  ]);
+  for (const [key, value] of Object.entries(update.payload)) {
+    if (consumedKeys.has(key)) {
+      continue;
+    }
+    const rendered = renderUpdateFactValue(value);
+    if (!rendered) {
+      continue;
+    }
+    parts.push(`${humanizeUpdateFactKey(key)}：${rendered}`);
+    if (parts.length >= 4) {
+      break;
+    }
+  }
+
+  const uniqueParts = Array.from(new Set(parts.map((item) => item.trim()).filter((item) => item.length > 0)));
+  if (uniqueParts.length === 0) {
     return null;
   }
 
-  return note.trim();
+  return uniqueParts.join("；");
 }
 
 function normalizeFactEntityType(entityType: z.infer<typeof approveDiffSchema>["updates"][number]["entityType"]): string {
@@ -937,6 +1031,7 @@ function normalizeApproveDiff(input: z.infer<typeof approveDiffLooseSchema>): z.
   // 这里先做“宽进严出”的归一化，再交给严格 schema 兜底，减少因为格式小偏差导致 approve 整体失败。
   return {
     chapterSummary: input.chapterSummary.trim(),
+    unresolvedImpact: pickNullableString(input as Record<string, unknown>, ["unresolvedImpact", "unresolved_impact"]),
     actualCharacterIds: normalizeNumberList(input.actualCharacterIds),
     actualFactionIds: normalizeNumberList(input.actualFactionIds),
     actualItemIds: normalizeNumberList(input.actualItemIds),
@@ -1151,4 +1246,65 @@ function normalizeKeywords(value: unknown): string[] {
 
 function isTruthy<T>(value: T | null): value is T {
   return value !== null;
+}
+
+function buildStoryEventParticipantRefs(input: {
+  actualCharacterIds: number[];
+  actualFactionIds: number[];
+  actualItemIds: number[];
+  actualHookIds: number[];
+  actualWorldSettingIds: number[];
+}): Array<{ entityType: string; entityId: number }> {
+  return [
+    ...input.actualCharacterIds.map((entityId) => ({ entityType: "character", entityId })),
+    ...input.actualFactionIds.map((entityId) => ({ entityType: "faction", entityId })),
+    ...input.actualItemIds.map((entityId) => ({ entityType: "item", entityId })),
+    ...input.actualHookIds.map((entityId) => ({ entityType: "hook", entityId })),
+    ...input.actualWorldSettingIds.map((entityId) => ({ entityType: "world_setting", entityId })),
+  ];
+}
+
+function humanizeUpdateFactKey(key: string): string {
+  const dictionary: Record<string, string> = {
+    category: "类别",
+    relation_type: "关系类型",
+    source_type: "来源类型",
+    target_type: "目标类型",
+    source_id: "来源ID",
+    target_id: "目标ID",
+    keywords: "关键词",
+    title: "标题",
+    name: "名称",
+    status_note: "状态说明",
+  };
+  return dictionary[key] ?? key.replace(/_/g, " ");
+}
+
+function renderUpdateFactValue(value: unknown): string | null {
+  if (typeof value === "string") {
+    return value.trim().length > 0 ? value.trim() : null;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const rendered = value.map((item) => renderUpdateFactValue(item)).filter((item): item is string => Boolean(item)).join(", ");
+    return rendered.length > 0 ? rendered : null;
+  }
+  if (value && typeof value === "object") {
+    const compact = JSON.stringify(value);
+    return compact.length > 120 ? `${compact.slice(0, 117)}...` : compact;
+  }
+  return null;
+}
+
+function pickNullableString(item: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return null;
 }

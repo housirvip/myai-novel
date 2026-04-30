@@ -76,6 +76,7 @@ export class MockLlmClient implements LlmClient {
       return JSON.stringify(
         {
           chapterSummary: "林夜入宗并获得黑铁令，正式察觉其背后隐藏的异常线索。",
+          unresolvedImpact: "黑铁令与宗门旧案的关联仍未查清，后续必须继续追索来源。",
           actualCharacterIds: [1],
           actualFactionIds: [1],
           actualItemIds: [1],

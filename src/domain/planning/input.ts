@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { env } from "../../config/env.js";
 import { parseRequiredNumber } from "../../shared/utils/cli.js";
-import type { ManualEntityRefs } from "./types.js";
+import type { ExtractedIntentPayload, ManualEntityRefs } from "./types.js";
 
 const keywordSchema = z.string().min(1).max(env.PLANNING_KEYWORD_MAX_LENGTH);
 const retrievalCueSchema = z.string().min(1).max(32);
@@ -80,6 +80,21 @@ export function createManualEntityRefs(input?: Partial<ManualEntityRefs>): Manua
   });
 }
 
+export function normalizeExtractedIntent(raw: unknown): ExtractedIntentPayload {
+  const source = isRecord(raw) ? raw : {};
+
+  return extractedIntentSchema.parse({
+    intentSummary: normalizeScalarText(source.intentSummary),
+    keywords: normalizeStringList(source.keywords),
+    mustInclude: normalizeStringList(source.mustInclude),
+    mustAvoid: normalizeStringList(source.mustAvoid),
+    entityHints: normalizeEntityHints(source.entityHints),
+    continuityCues: normalizeCueList(source.continuityCues),
+    settingCues: normalizeCueList(source.settingCues),
+    sceneCues: normalizeCueList(source.sceneCues),
+  });
+}
+
 function parseJsonNumberArray(value: string, fieldName: string): Array<string | number> {
   try {
     const parsed = JSON.parse(value) as unknown;
@@ -94,4 +109,73 @@ function parseJsonNumberArray(value: string, fieldName: string): Array<string | 
       `Invalid JSON array for ${fieldName}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+function normalizeEntityHints(value: unknown): ExtractedIntentPayload["entityHints"] {
+  const source = isRecord(value) ? value : {};
+
+  return {
+    characters: normalizeHintList(source.characters),
+    factions: normalizeHintList(source.factions),
+    items: normalizeHintList(source.items),
+    relations: normalizeHintList(source.relations),
+    hooks: normalizeHintList(source.hooks),
+    worldSettings: normalizeHintList(source.worldSettings),
+  };
+}
+
+function normalizeCueList(value: unknown): string[] {
+  if (typeof value === "string") {
+    return normalizeStrings([value]);
+  }
+
+  if (Array.isArray(value)) {
+    return normalizeStrings(value.flatMap((item) => (typeof item === "string" ? [item] : [])));
+  }
+
+  return [];
+}
+
+function normalizeHintList(value: unknown): string[] {
+  return normalizeStrings(collectStringLeaves(value));
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (typeof value === "string") {
+    return normalizeStrings([value]);
+  }
+
+  if (Array.isArray(value)) {
+    return normalizeStrings(value.flatMap((item) => (typeof item === "string" ? [item] : [])));
+  }
+
+  return [];
+}
+
+function normalizeStrings(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function normalizeScalarText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function collectStringLeaves(value: unknown): string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectStringLeaves(item));
+  }
+
+  if (isRecord(value)) {
+    return Object.values(value).flatMap((item) => collectStringLeaves(item));
+  }
+
+  return [];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

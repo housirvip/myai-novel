@@ -5,23 +5,33 @@ import path from "node:path";
 import test from "node:test";
 
 import type { PlanRetrievedContext } from "../../src/domain/planning/types.js";
+import type { RetrievalBenchmarkResult } from "../helpers/retrieval-benchmark.js";
 import { createTestEnv, runCli, runInlineModule } from "../helpers/cli.js";
 import {
+  assertRetrievalBenchmarkExpectation,
   evaluateRetrievalBenchmark,
+  getRetrievalBenchmarkFixtureBookId,
   loadRetrievalBenchmarkFixture,
+  LONGFORM_RETRIEVAL_BENCHMARK_FIXTURE_NAMES,
   RETRIEVAL_BENCHMARK_FIXTURE_NAMES,
+  summarizeRetrievalBenchmarkGroup,
 } from "../helpers/retrieval-benchmark.js";
-
-const LONGFORM_FIXTURE_NAMES = new Set([
-  "long-distance-callback",
-  "long-distance-motivation",
-  "long-distance-world-rule",
-  "dense-entity-ambiguity",
-]);
 
 test("retrieval benchmark fixtures keep blocking recall high and noise bounded", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-benchmark-"));
-  const env = createTestEnv(tempDir);
+  const env = createTestEnv(tempDir, {
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE: "1",
+    PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE: "1",
+    PLANNING_RETRIEVAL_PERSISTED_PRIORITY_FACT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_PRIORITY_EVENT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_RISK_FACT_LIMIT: "1",
+    PLANNING_RETRIEVAL_PERSISTED_RISK_EVENT_LIMIT: "1",
+    PLANNING_RECENT_CHANGES_FACT_LIMIT: "1",
+    PLANNING_RECENT_CHANGES_EVENT_LIMIT: "1",
+  });
+  const results: RetrievalBenchmarkResult[] = [];
 
   await runCli(["db", "init"], env);
 
@@ -31,7 +41,7 @@ test("retrieval benchmark fixtures keep blocking recall high and noise bounded",
   for (const fixtureName of RETRIEVAL_BENCHMARK_FIXTURE_NAMES) {
     const fixture = await loadRetrievalBenchmarkFixture(fixtureName);
     const chapterNo = fixture.query.chapterNo ?? 5;
-    const bookId = LONGFORM_FIXTURE_NAMES.has(fixtureName) ? 2 : 1;
+    const bookId = getRetrievalBenchmarkFixtureBookId(fixtureName);
     const context = await runInlineModule<PlanRetrievedContext>(
       [
         "import { RetrievalQueryService } from './src/domain/planning/retrieval-service.ts';",
@@ -44,31 +54,32 @@ test("retrieval benchmark fixtures keep blocking recall high and noise bounded",
     );
 
     const result = evaluateRetrievalBenchmark(fixture, context);
+    results.push(result);
 
-    assert.equal(result.fixtureName, fixture.name);
-
-    if (fixture.expectationMode === "baseline_gap") {
-      // baseline_gap means the fixture is intentionally kept as a known miss.
-      // The benchmark should prove that recall is still incomplete or noise is still too high,
-      // so we can track the gap without treating it as a regression failure yet.
-      assert.ok(
-        result.blockingRecall < 1
-          || result.decisionRecall < 1
-          || result.noiseRatio > (fixture.expected.maxNoiseRatio ?? 1),
-        `${fixture.name} should currently expose a retrieval gap`,
-      );
-      continue;
-    }
-
-    // strict means this fixture is now part of the protected baseline.
-    // Blocking recall must stay perfect, decision recall must remain usable,
-    // and noise must stay within the fixture-specific bound.
-    assert.equal(result.blockingRecall, 1, `${fixture.name} blocking recall should stay at 1`);
-    assert.ok(result.decisionRecall >= 0.5, `${fixture.name} decision recall should stay usable`);
-    assert.ok(result.noiseRatio <= (fixture.expected.maxNoiseRatio ?? 1), `${fixture.name} noise ratio too high`);
-    assert.equal(result.observability.hardConstraintExplainedRatio, 1, `${fixture.name} hard constraints should stay explained`);
-    assert.equal(result.observability.priorityAssignmentExplainedRatio, 1, `${fixture.name} priority packets should stay explained`);
+    assertRetrievalBenchmarkExpectation(fixture, result);
   }
+
+  const longformSummary = summarizeRetrievalBenchmarkGroup(results, "longform");
+
+  assert.equal(longformSummary.group, "longform");
+  assert.equal(longformSummary.fixtureCount, LONGFORM_RETRIEVAL_BENCHMARK_FIXTURE_NAMES.length);
+  assert.equal(longformSummary.strictCount, 1, "longform group should keep one protected strict fixture");
+  assert.equal(longformSummary.baselineGapCount, 3, "longform group should keep three tracked known-gap fixtures");
+  assert.equal(longformSummary.averageBlockingRecall, 1, "longform group should keep blocking recall intact overall");
+  assert.ok(longformSummary.averageDecisionRecall < 1, "longform group should still expose long-range decision recall gaps");
+  assert.ok(longformSummary.averageFarChapterSurfacedPersistedRefRatio > 0, "longform group should expose prompt-level far-chapter observability");
+  assert.ok(longformSummary.averageFactsSelectedByLongTailReserve > 0, "longform group should expose fact long-tail provenance");
+  assert.ok(longformSummary.averageEventsSelectedByLongTailReserve > 0, "longform group should expose event long-tail provenance");
+  assert.equal(
+    longformSummary.averageHardConstraintExplainedRatio,
+    1,
+    "longform group hard constraints should stay fully explained",
+  );
+  assert.equal(
+    longformSummary.averagePriorityAssignmentExplainedRatio,
+    1,
+    "longform group priority packets should stay fully explained",
+  );
 });
 
 test("hybrid embedding experiment stays non-regressive across representative strict fixtures", async () => {
@@ -214,6 +225,16 @@ async function seedLongformBenchmarkData(env: NodeJS.ProcessEnv): Promise<void> 
       "  await db.insertInto('world_settings').values([",
       "    { id: 101, book_id: 2, title: '宗门制度', category: '规则', content: '外门弟子凭令牌登记入门', status: 'active', append_notes: null, keywords: '[\"宗门\",\"令牌\"]', created_at: now, updated_at: now },",
       "    { id: 102, book_id: 2, title: '档案封存律', category: '规则', content: '涉及旧案的卷宗只有执事档案库核准后方可调阅，擅开者视为重罪', status: 'active', append_notes: '与黑铁令旧案直接相关', keywords: '[\"封存\",\"旧案\",\"规则\"]', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('retrieval_facts').values([",
+      "    { id: 201, book_id: 2, chapter_no: 101, entity_type: 'hook', entity_id: 101, event_id: null, fact_type: 'chapter_summary', fact_key: 'chapter:2:101:summary', fact_text: '黑铁令旧案回收仍未完成，执事档案库继续封存关键卷宗。', payload_json: null, importance: 92, risk_level: 95, effective_from_chapter_no: 101, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 202, book_id: 2, chapter_no: 79, entity_type: 'character', entity_id: 102, event_id: null, fact_type: 'character_update', fact_key: 'chapter:2:79:summary', fact_text: '顾沉舟因背叛旧案持续试探林夜，动机尚未松动。', payload_json: null, importance: 88, risk_level: 90, effective_from_chapter_no: 79, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now },",
+      "    { id: 203, book_id: 2, chapter_no: 37, entity_type: 'world_setting', entity_id: 102, event_id: null, fact_type: 'world_rule', fact_key: 'chapter:2:37:rule', fact_text: '档案封存律禁止私自调阅旧案卷宗，违者视为重罪。', payload_json: null, importance: 90, risk_level: 94, effective_from_chapter_no: 37, effective_to_chapter_no: null, superseded_by_fact_id: null, status: 'active', created_at: now, updated_at: now }",
+      "  ]).execute();",
+      "  await db.insertInto('story_events').values([",
+      "    { id: 201, book_id: 2, chapter_id: null, chapter_no: 58, event_type: 'investigation', title: '黑铁副令现身', summary: '黑铁副令在旧案链路中现身。', participant_entity_refs: JSON.stringify([{ entityType: 'character', entityId: 101 }, { entityType: 'character', entityId: 102 }]), location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '黑铁副令与黑铁令旧案的真实关系仍未厘清。', hook_refs: JSON.stringify([101]), status: 'active', created_at: now, updated_at: now },",
+      "    { id: 202, book_id: 2, chapter_id: null, chapter_no: 12, event_type: 'investigation', title: '旧案首次封存', summary: '执事档案库首次对黑铁令旧案做封存处理。', participant_entity_refs: JSON.stringify([{ entityType: 'faction', entityId: 102 }]), location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '封存决定的真实原因至今仍未公开。', hook_refs: JSON.stringify([101]), status: 'active', created_at: now, updated_at: now },",
+      "    { id: 203, book_id: 2, chapter_id: null, chapter_no: 79, event_type: 'relationship', title: '顾沉舟持续试探', summary: '顾沉舟因为背叛旧案对林夜保持试探。', participant_entity_refs: JSON.stringify([{ entityType: 'character', entityId: 101 }, { entityType: 'character', entityId: 102 }]), location_label: null, trigger_text: null, outcome_text: null, unresolved_impact: '顾沉舟的试探动机仍会影响后续合作。', hook_refs: null, status: 'active', created_at: now, updated_at: now }",
       "  ]).execute();",
       "  console.log(JSON.stringify({ ok: true }));",
       "} finally {",

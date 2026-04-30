@@ -44,7 +44,7 @@ export async function runWorkflowFixture(input: {
   importContentLine?: string;
 }): Promise<WorkflowSnapshot> {
   const { env, tempDir, chapterNo, titlePrefix } = input;
-  const finalPath = path.join(tempDir, `${titlePrefix}-final.md`);
+  const finalPath = path.join(tempDir, `chapter-${String(chapterNo).padStart(4, "0")}-final.md`);
 
   await runCli(["db", "init"], env);
 
