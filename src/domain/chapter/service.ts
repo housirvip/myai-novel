@@ -55,14 +55,14 @@ const exportChapterSchema = z.object({
   bookId: z.number().int().positive(),
   chapterNo: z.number().int().positive(),
   stage: z.enum(["plan", "draft", "final"]),
-  outputPath: z.string().min(1),
+  outputPath: z.string().min(1).optional(),
 });
 
 const importChapterSchema = z.object({
   bookId: z.number().int().positive(),
   chapterNo: z.number().int().positive(),
   stage: z.enum(["plan", "draft", "final"]),
-  inputPath: z.string().min(1),
+  inputPath: z.string().min(1).optional(),
   force: z.boolean().default(false),
 });
 
@@ -192,6 +192,7 @@ export class ChapterService {
 
   async exportStage(input: z.input<typeof exportChapterSchema>): Promise<{ outputPath: string }> {
     const payload = exportChapterSchema.parse(input);
+    const outputPath = payload.outputPath ?? buildDefaultChapterStagePath(payload.chapterNo, payload.stage);
 
     return executeDbAction(
       this.logger,
@@ -220,16 +221,17 @@ export class ChapterService {
           content: artifact.content,
         });
 
-        await fs.mkdir(path.dirname(payload.outputPath), { recursive: true });
-        await fs.writeFile(payload.outputPath, markdown, "utf8");
+        await fs.mkdir(path.dirname(outputPath), { recursive: true });
+        await fs.writeFile(outputPath, markdown, "utf8");
 
-        return { outputPath: payload.outputPath };
+        return { outputPath };
       },
     );
   }
 
   async importStage(input: z.input<typeof importChapterSchema>): Promise<ChapterRow> {
     const payload = importChapterSchema.parse(input);
+    const inputPath = payload.inputPath ?? buildDefaultChapterStagePath(payload.chapterNo, payload.stage);
 
     return executeDbAction(
       this.logger,
@@ -242,7 +244,7 @@ export class ChapterService {
         stage: payload.stage,
       },
       async (db) => {
-        const rawMarkdown = await fs.readFile(payload.inputPath, "utf8");
+        const rawMarkdown = await fs.readFile(inputPath, "utf8");
         const parsed = parseChapterMarkdown(rawMarkdown);
 
         if (parsed.metadata.bookId !== payload.bookId) {
@@ -474,4 +476,12 @@ export class ChapterService {
 
     return { row, content: row.content, summary: row.summary, wordCount: row.word_count };
   }
+}
+
+function buildDefaultChapterStagePath(chapterNo: number, stage: ChapterStage): string {
+  return path.resolve(process.cwd(), `chapter-${formatChapterNo(chapterNo)}-${stage}.md`);
+}
+
+function formatChapterNo(chapterNo: number): string {
+  return String(chapterNo).padStart(4, "0");
 }

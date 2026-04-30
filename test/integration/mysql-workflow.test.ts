@@ -14,7 +14,7 @@ test("mysql workflow chain and markdown import/export work end-to-end", async (t
 
   const context = await createMysqlTestContext("myai-novel-mysql-workflow");
   const { env, tempDir, cleanup } = context;
-  const finalPath = path.join(tempDir, "mysql-final.md");
+  const finalPath = path.join(tempDir, "chapter-0001-final.md");
 
   try {
     await runCli(["db", "init"], env);

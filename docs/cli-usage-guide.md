@@ -476,22 +476,23 @@ npm run dev -- approve --book 1 --chapter 12 --provider mock --dryRun
 支持导出 `plan`、`draft`、`final` 三个阶段：
 
 ```bash
-npm run dev -- chapter export --book 1 --chapter 12 --stage plan --output ./exports/ch12-plan.md
-npm run dev -- chapter export --book 1 --chapter 12 --stage draft --output ./exports/ch12-draft.md
-npm run dev -- chapter export --book 1 --chapter 12 --stage final --output ./exports/ch12-final.md
+npm run dev -- chapter export --book 1 --chapter 12 --stage plan --output ./exports/chapter-0012-plan.md
+npm run dev -- chapter export --book 1 --chapter 12 --stage draft --output ./exports/chapter-0012-draft.md
+npm run dev -- chapter export --book 1 --chapter 12 --stage final --output ./exports/chapter-0012-final.md
 ```
 
 ### 导入章节内容
 
 ```bash
-npm run dev -- chapter import --book 1 --chapter 12 --stage plan --input ./exports/ch12-plan.md
-npm run dev -- chapter import --book 1 --chapter 12 --stage draft --input ./exports/ch12-draft.md
-npm run dev -- chapter import --book 1 --chapter 12 --stage final --input ./exports/ch12-final.md
+npm run dev -- chapter import --book 1 --chapter 12 --stage plan --input ./exports/chapter-0012-plan.md
+npm run dev -- chapter import --book 1 --chapter 12 --stage draft --input ./exports/chapter-0012-draft.md
+npm run dev -- chapter import --book 1 --chapter 12 --stage final --input ./exports/chapter-0012-final.md
 ```
 
 补充说明：
 
 - `--stage` 只支持 `plan | draft | final`
+- 不传 `--output` / `--input` 时，默认使用当前目录下的 `chapter-0001-plan.md` 这类 4 位零填充命名
 - 导入会生成新版本，不是直接覆盖旧数据
 - `--force` 可忽略状态保护并强制导入
 - 正式稿 `final` 导入通常应在章节已经处于允许状态时使用

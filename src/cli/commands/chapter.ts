@@ -145,7 +145,7 @@ export function registerChapterCommands(program: Command): void {
     .requiredOption("--book <id>", "书籍 ID")
     .requiredOption("--chapter <number>", "章节号")
     .requiredOption("--stage <stage>", "阶段：plan | draft | final")
-    .requiredOption("--output <path>", "输出路径")
+    .option("--output <path>", "输出路径，默认使用当前目录下的 chapter-0001-plan.md 命名")
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("chapter.export", async (logger) => {
@@ -153,7 +153,7 @@ export function registerChapterCommands(program: Command): void {
           bookId: parseRequiredNumber(options.book as string, "book"),
           chapterNo: parseRequiredNumber(options.chapter as string, "chapter"),
           stage: options.stage as "plan" | "draft" | "final",
-          outputPath: options.output as string,
+          outputPath: options.output as string | undefined,
         });
         printData(result, Boolean(options.json));
       });
@@ -165,7 +165,7 @@ export function registerChapterCommands(program: Command): void {
     .requiredOption("--book <id>", "书籍 ID")
     .requiredOption("--chapter <number>", "章节号")
     .requiredOption("--stage <stage>", "阶段：plan | draft | final")
-    .requiredOption("--input <path>", "输入路径")
+    .option("--input <path>", "输入路径，默认使用当前目录下的 chapter-0001-plan.md 命名")
     .option("--force", "忽略状态保护并强制导入")
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
@@ -176,7 +176,7 @@ export function registerChapterCommands(program: Command): void {
           bookId: parseRequiredNumber(options.book as string, "book"),
           chapterNo: parseRequiredNumber(options.chapter as string, "chapter"),
           stage: options.stage as "plan" | "draft" | "final",
-          inputPath: options.input as string,
+          inputPath: options.input as string | undefined,
           force: Boolean(options.force),
         });
         printData(result, Boolean(options.json));
