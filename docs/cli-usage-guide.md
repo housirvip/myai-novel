@@ -501,23 +501,7 @@ npm run dev -- chapter import --book 1 --chapter 12 --stage final --input ./expo
 
 如果你想快速打通一遍流程，可以按下面顺序操作。
 
-### 方案 A：使用仓库示例脚本
-
-```bash
-bash ./examples/minimal-seed.sh
-```
-
-然后继续：
-
-```bash
-npm run dev -- plan --book 1 --chapter 1 --provider mock --authorIntent "让林夜带着黑铁令入宗，并引出宗门旧案线索。"
-npm run dev -- draft --book 1 --chapter 1 --provider mock
-npm run dev -- review --book 1 --chapter 1 --provider mock
-npm run dev -- repair --book 1 --chapter 1 --provider mock
-npm run dev -- approve --book 1 --chapter 1 --provider mock
-```
-
-### 方案 B：手动创建最小资源
+### 方案：手动创建最小资源
 
 ```bash
 npm run dev -- db init
@@ -530,6 +514,16 @@ npm run dev -- faction create --book 1 --name "青岳宗" --keywords "青岳宗,
 npm run dev -- relation create --book 1 --sourceType character --sourceId 1 --targetType faction --targetId 1 --relationType member --keywords "林夜,外门"
 npm run dev -- item create --book 1 --name "黑铁令" --ownerType none --keywords "黑铁令,令牌"
 npm run dev -- hook create --book 1 --title "黑铁令异常" --hookType mystery --keywords "黑铁令,异常"
+```
+
+然后继续执行完整章节工作流：
+
+```bash
+npm run dev -- plan --book 1 --chapter 1 --provider mock --authorIntent "让林夜带着黑铁令入宗，并引出宗门旧案线索。"
+npm run dev -- draft --book 1 --chapter 1 --provider mock
+npm run dev -- review --book 1 --chapter 1 --provider mock
+npm run dev -- repair --book 1 --chapter 1 --provider mock
+npm run dev -- approve --book 1 --chapter 1 --provider mock
 ```
 
 ## 14. 常见建议

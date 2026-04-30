@@ -315,7 +315,10 @@ CUSTOM_LLM_MODEL=custom-default
 
 - 作者意图关键词提取
 - `plan` 阶段的召回数量与扫描范围
-- 各类实体最终进入 `retrievedContext` 的上限
+- persisted facts / events 的保留与长尾召回
+- `recentChanges` 的聚合范围
+- reranker 与 embedding 检索行为
+- 各类实体最终进入 `retrievedContext` 与 prompt context 的上限
 
 ### 7.1 关键词提取限制
 
@@ -371,7 +374,59 @@ PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT=1500
 - 先扫描一批候选
 - 再按规则打分、排序、截断
 
-### 7.4 Embedding 检索配置
+### 7.4 persisted sidecar 召回配置
+
+```dotenv
+PLANNING_RETRIEVAL_PERSISTED_FACT_LIMIT=14
+PLANNING_RETRIEVAL_PERSISTED_EVENT_LIMIT=8
+PLANNING_RETRIEVAL_PERSISTED_PRIORITY_FACT_LIMIT=7
+PLANNING_RETRIEVAL_PERSISTED_PRIORITY_EVENT_LIMIT=5
+PLANNING_RETRIEVAL_PERSISTED_RISK_FACT_LIMIT=5
+PLANNING_RETRIEVAL_PERSISTED_RISK_EVENT_LIMIT=4
+PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE=1
+PLANNING_RETRIEVAL_PERSISTED_EVENT_LONG_TAIL_RESERVE=1
+PLANNING_RETRIEVAL_PERSISTED_LONG_TAIL_MIN_CHAPTER_GAP=8
+PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_MIN_RISK=80
+```
+
+说明：
+
+- 这组配置控制 `approve` 沉淀下来的 `persisted facts / story events` 在后续 `plan` 里如何被再次检索
+- `..._LIMIT` 控制事实与事件的基础选入上限
+- `..._PRIORITY_*` 控制进入 `priorityContext` 的重点事实/事件上限
+- `..._RISK_*` 控制更偏连续性风险的事实/事件上限
+- `..._LONG_TAIL_*` 用于保留少量“章节距离较远但仍高风险/高价值”的历史信息，避免长篇里重要旧事实被完全淹没
+
+### 7.5 `recentChanges` 聚合配置
+
+```dotenv
+PLANNING_RECENT_CHANGES_CHAPTER_LIMIT=8
+PLANNING_RECENT_CHANGES_RISK_LIMIT=6
+PLANNING_RECENT_CHANGES_ENTITY_LIMIT=5
+PLANNING_RECENT_CHANGES_FACT_LIMIT=8
+PLANNING_RECENT_CHANGES_EVENT_LIMIT=5
+PLANNING_RECENT_CHANGES_TOTAL_LIMIT=15
+```
+
+说明：
+
+- 这组配置控制 `recentChanges` 视图里最多保留多少条近期章节承接、风险提醒、实体状态、persisted facts 与 story events
+- `..._TOTAL_LIMIT` 是最终总上限，其余配置控制不同来源在进入总池前的分项保留数量
+- 如果你发现 planning prompt 过于偏向近期变化或噪声过多，可以优先调这组值
+
+### 7.6 reranker 配置
+
+```dotenv
+PLANNING_RETRIEVAL_RERANKER=heuristic
+```
+
+说明：
+
+- 当前支持 `none | heuristic`
+- 当前默认值是 `heuristic`，不是 `none`
+- `heuristic` 会在规则候选与 embedding 补候选之后，再按业务启发式规则做一次重排，更适合长篇场景下的连续性优先排序
+
+### 7.7 Embedding 检索配置
 
 ```dotenv
 PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=none
@@ -398,10 +453,11 @@ PLANNING_RETRIEVAL_EMBEDDING_LIMIT_HYBRID=40
   - `CUSTOM_EMBEDDING_API_KEY`
   - `CUSTOM_EMBEDDING_MODEL`（可使用默认值）
   - `CUSTOM_EMBEDDING_PATH`（默认 `/embeddings`）
+  - `CUSTOM_EMBEDDING_BATCH_SIZE`（默认 `10`，控制单次远程 embedding 请求的批量大小）
 
 更详细的召回规则请看：[`docs/retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
 
-### 7.4.1 长篇模式说明
+### 7.7.1 长篇模式说明
 
 当前 `.env.example` 中给出的 planning / retrieval 默认值，已经偏向**长篇小说 planning 场景**，目的是降低 1000+ 章项目中过早漏召回的问题。
 
@@ -412,7 +468,7 @@ PLANNING_RETRIEVAL_EMBEDDING_LIMIT_HYBRID=40
 3. 它不能根治当前“一实体一语义文档”的粒度问题。
 4. 如果要真正支撑百万字长篇，后续仍然需要 fact / event / chapter-segment 检索升级。
 
-### 7.5 Prompt 上下文预算配置
+### 7.8 Prompt 上下文预算配置
 
 ```dotenv
 PLANNING_PROMPT_CONTEXT_PLAN_CHAR_BUDGET=5200
@@ -428,6 +484,23 @@ PLANNING_PROMPT_CONTEXT_APPROVE_DIFF_CHAR_BUDGET=3000
 - 这些值控制不同阶段可注入 prompt 的上下文总字符预算
 - 当前系统会优先保留 `mustFollowFacts / recentChanges / coreEntities`，再分配剩余预算给背景信息
 - 如果你在长篇中发现 prompt 过长或背景噪声偏多，优先调这些预算，而不是盲目增加召回上限
+
+### 7.9 Prompt 上下文分块上限
+
+```dotenv
+PLANNING_PROMPT_CONTEXT_MUST_FOLLOW_LIMIT=8
+PLANNING_PROMPT_CONTEXT_RECENT_CHANGES_LIMIT=6
+PLANNING_PROMPT_CONTEXT_CORE_ENTITIES_LIMIT=8
+PLANNING_PROMPT_CONTEXT_REQUIRED_HOOKS_LIMIT=6
+PLANNING_PROMPT_CONTEXT_FORBIDDEN_MOVES_LIMIT=5
+PLANNING_PROMPT_CONTEXT_SUPPORTING_BACKGROUND_LIMIT=6
+```
+
+说明：
+
+- 这组配置不是控制总字符预算，而是控制不同 prompt context block 最多保留多少条事实
+- `MUST_FOLLOW` 更偏硬约束，`RECENT_CHANGES` 更偏章节承接，`CORE_ENTITIES` 更偏主要人物/势力/物品，`REQUIRED_HOOKS` 与 `FORBIDDEN_MOVES` 分别对应必须推进与必须规避的内容
+- 当你想减少某一类上下文在 prompt 里的“刷屏”现象时，优先调这里；当你想整体缩短 prompt，再去调上一节的 char budget
 
 ## 8. 推荐配置示例
 

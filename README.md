@@ -46,7 +46,7 @@
 - 事实回写：`approve` 后把人物、势力、关系、物品、钩子、世界设定的变更回灌到设定库
 - retrieval sidecar：`approve` 后还会写入 `retrieval_documents`、`retrieval_facts`、`story_events`、`chapter_segments`，作为后续检索与 `plan` 的补充输入
 - provenance 与可观测性：`riskReminders / recentChanges / priorityContext` 已支持 `sourceRef / sourceRefs / surfacedIn`，便于追踪 sidecar 信号如何进入上下文视图
-- Markdown 编辑：支持导出 `plan / draft / final` 为 Markdown，再导入生成新版本
+- Markdown 编辑：支持导出 `plan / draft / final` 为 Markdown，再导入生成新版本；省略路径时默认使用当前目录下的 `chapter-0001-plan.md` 这类 4 位零填充文件名
 - 数据库支持：默认 SQLite，本地开发体验不变；同时支持 `DB_CLIENT=mysql`
 - 实验扩展：已支持 `HeuristicReranker`、embedding candidate provider、basic / hybrid embedding search mode；当前在线 embedding 候选链路接线实体为 `character / faction / item / hook / relation / world_setting`
 - embedding provider：已支持本地 hash provider 与自定义远程 embedding provider（OpenAI-compatible `/embeddings`）
@@ -240,10 +240,18 @@ npm run dev -- db init
 npm run dev -- db check
 ```
 
-使用最小示例数据：
+创建一套最小资源：
 
 ```bash
-bash ./examples/minimal-seed.sh
+npm run dev -- book create --title "青岳入门录" --targetChapters 200
+npm run dev -- chapter create --book 1 --chapter 1 --title "黑铁令"
+npm run dev -- outline create --book 1 --title "入宗篇" --chapterStart 1 --chapterEnd 10 --storyCore "主角带着异常令牌进入宗门"
+npm run dev -- world create --book 1 --title "宗门制度" --category "势力规则" --content "外门弟子通过令牌登记入门" --keywords "宗门,外门,令牌"
+npm run dev -- character create --book 1 --name "林夜" --background "出身寒门" --keywords "林夜,主角"
+npm run dev -- faction create --book 1 --name "青岳宗" --keywords "青岳宗,外门"
+npm run dev -- relation create --book 1 --sourceType character --sourceId 1 --targetType faction --targetId 1 --relationType member --keywords "林夜,外门"
+npm run dev -- item create --book 1 --name "黑铁令" --ownerType none --keywords "黑铁令,令牌"
+npm run dev -- hook create --book 1 --title "黑铁令异常" --hookType mystery --keywords "黑铁令,异常"
 ```
 
 然后执行一遍章节工作流：
