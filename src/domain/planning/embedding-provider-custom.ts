@@ -1,6 +1,8 @@
 import { env } from "../../config/env.js";
 import type { EmbeddingProvider } from "./embedding-types.js";
 
+const MAX_CUSTOM_EMBEDDING_INPUT_CHARS = 8192;
+
 interface CustomEmbeddingResponse {
   data?: Array<{
     index?: number;
@@ -19,6 +21,8 @@ export class CustomRemoteEmbeddingProvider implements EmbeddingProvider {
       return [];
     }
 
+    const sanitizedTexts = texts.map((text) => sanitizeEmbeddingInput(text));
+
     const baseUrl = env.CUSTOM_EMBEDDING_BASE_URL;
     if (!baseUrl) {
       throw new Error("CUSTOM_EMBEDDING_BASE_URL is required when PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom");
@@ -29,7 +33,7 @@ export class CustomRemoteEmbeddingProvider implements EmbeddingProvider {
       throw new Error("CUSTOM_EMBEDDING_API_KEY is required when PLANNING_RETRIEVAL_EMBEDDING_PROVIDER=custom");
     }
 
-    const chunks = chunkTexts(texts, env.CUSTOM_EMBEDDING_BATCH_SIZE);
+    const chunks = chunkTexts(sanitizedTexts, env.CUSTOM_EMBEDDING_BATCH_SIZE);
     const embeddings: number[][] = [];
 
     for (const chunk of chunks) {
@@ -60,12 +64,19 @@ export class CustomRemoteEmbeddingProvider implements EmbeddingProvider {
       embeddings.push(...chunkEmbeddings);
     }
 
-    if (embeddings.length !== texts.length) {
-      throw new Error(`Custom embedding response count mismatch: expected ${texts.length}, got ${embeddings.length}`);
+    if (embeddings.length !== sanitizedTexts.length) {
+      throw new Error(
+        `Custom embedding response count mismatch: expected ${sanitizedTexts.length}, got ${embeddings.length}`,
+      );
     }
 
     return embeddings;
   }
+}
+
+function sanitizeEmbeddingInput(text: string): string {
+  const normalized = text.trim().slice(0, MAX_CUSTOM_EMBEDDING_INPUT_CHARS);
+  return normalized.length > 0 ? normalized : " ";
 }
 
 function chunkTexts(texts: string[], batchSize: number): string[][] {

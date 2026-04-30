@@ -26,10 +26,16 @@ export class EmbeddingCandidateProvider implements RetrievalCandidateProvider {
     params: RetrievePlanContextParams,
   ): Promise<RetrievalCandidateBundle> {
     const baseCandidates = await this.baseProvider.loadCandidates(db, params);
+    const semanticQuery = params.queryText.trim() || params.keywords.join(" ").trim();
+
+    if (!semanticQuery) {
+      return baseCandidates;
+    }
+
     // embedding 查询这里只消费已经整理过的关键词串，
     // 而不是直接把整段作者意图原文丢给向量搜索，避免语义召回被长文本噪声主导。
     const semanticMatches = await this.searcher.search({
-      queryText: params.queryText.trim() || params.keywords.join(" ").trim(),
+      queryText: semanticQuery,
       limit: this.options.limit ?? 10,
     });
 

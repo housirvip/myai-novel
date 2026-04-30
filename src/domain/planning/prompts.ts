@@ -60,6 +60,7 @@ export function buildKeywordExtractionPrompt(input: {
           "请从作者意图中提取检索与约束信息，并返回 JSON。",
           "字段必须包含：intentSummary, keywords, mustInclude, mustAvoid, entityHints, continuityCues, settingCues, sceneCues。",
           "entityHints 必须是对象，字段为 characters, factions, items, relations, hooks, worldSettings。",
+          "entityHints 的每个子字段都必须是字符串数组；continuityCues、settingCues、sceneCues 也都必须是字符串数组，即使只有 1 项也必须用数组表示，禁止返回对象或单个字符串。",
           "keywords 中每个词不超过 8 个字；其余 cue 字段用于检索，可稍长，但应简洁。",
         ].join(""),
     },
