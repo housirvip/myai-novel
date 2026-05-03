@@ -32,6 +32,7 @@ tmp*/
 
 # Local sandbox / agent state
 test-project/
+release/
 .sisyphus/
 .claude/
 .trae/

@@ -21,6 +21,7 @@ import { StoryHookRepository } from "../../core/db/repositories/story-hook-repos
 import { StoryEventRepository } from "../../core/db/repositories/story-event-repository.js";
 import { WorldSettingRepository } from "../../core/db/repositories/world-setting-repository.js";
 import { createLlmFactory } from "../../core/llm/factory.js";
+import { resolveLlmModel } from "../../core/llm/model-routing.js";
 import type { LlmProviderName } from "../../core/llm/types.js";
 import type { AppLogger } from "../../core/logger/index.js";
 import { withTimingLog } from "../../core/logger/index.js";
@@ -214,7 +215,7 @@ export class ApproveChapterWorkflow {
           const approveContextView = buildApproveContextView(retrievedContext as import("../planning/types.js").PlanRetrievedContext);
           const approveDiffContextView = buildApproveDiffContextView(retrievedContext as import("../planning/types.js").PlanRetrievedContext);
           const finalResponse = await llmClient.generate({
-            model: payload.model,
+            model: resolveLlmModel({ explicitModel: payload.model, tier: "high" }),
             messages: buildApprovePrompt({
               planContent: currentPlan.content,
               draftContent: currentDraft.content,
@@ -228,7 +229,7 @@ export class ApproveChapterWorkflow {
           // 第一次只负责产出最终正文，第二次再基于 final 抽取结构化 diff。
           // 这样可以把“写作质量”与“结构化回写”分开约束，减少一个 prompt 同时承担两种任务带来的漂移。
           const diffResponse = await llmClient.generate({
-            model: payload.model,
+            model: resolveLlmModel({ explicitModel: payload.model, tier: "low" }),
             messages: buildApproveDiffPrompt({
               finalContent: finalResponse.content,
               planContent: currentPlan.content,

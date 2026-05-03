@@ -68,6 +68,25 @@
 
 ### 3.2 工作流输出
 
+### 3.1.1 当前默认模型档位映射
+
+`plan` 当前不是只调用一次 LLM，而是按阶段拆成三次调用，并默认走不同档位：
+
+- 自动生成 `authorIntent` 草案：`mid`
+- 提取 `intentSummary / keywords / mustInclude / mustAvoid`：`low`
+- 生成最终章节 plan 正文：`mid`
+
+这里有两个边界需要特别注意：
+
+- 如果 CLI 显式传了 `--model`，这三次调用都会优先使用该模型
+- 如果没有显式传 `--model`，工作流会先尝试档位模型，再回退到当前 provider 默认模型
+
+也就是说，`plan` 当前的模型选择优先级是：
+
+- `--model`
+- `mid / low` 档位模型
+- provider 默认模型
+
 `PlanChapterWorkflow.run()` 返回：
 
 - `chapterId`

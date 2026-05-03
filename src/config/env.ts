@@ -40,6 +40,11 @@ const envSchema = z.object({
   CUSTOM_LLM_BASE_URL: z.string().optional(),
   CUSTOM_LLM_API_KEY: z.string().optional(),
   CUSTOM_LLM_MODEL: z.string().default("custom-default"),
+  LLM_LOW_MODEL: z.string().optional(),
+  LLM_MID_MODEL: z.string().optional(),
+  LLM_HIGH_MODEL: z.string().optional(),
+  LLM_LIGHT_MODEL: z.string().optional(),
+  LLM_MEDIUM_MODEL: z.string().optional(),
   PLANNING_KEYWORD_MAX_LENGTH: z.coerce.number().int().positive().default(8),
   PLANNING_INTENT_KEYWORD_LIMIT: z.coerce.number().int().positive().default(20),
   PLANNING_INTENT_MUST_INCLUDE_LIMIT: z.coerce.number().int().positive().default(20),
@@ -152,6 +157,10 @@ export const env = {
   MOCK_LLM_FIXTURE_PATH: parsedEnv.MOCK_LLM_FIXTURE_PATH
     ? path.resolve(parsedEnv.MOCK_LLM_FIXTURE_PATH)
     : undefined,
+  // low/mid/high 是当前推荐命名；保留 light/medium 兼容旧配置，避免已有 .env 立即失效。
+  LLM_LOW_MODEL: parsedEnv.LLM_LOW_MODEL ?? parsedEnv.LLM_LIGHT_MODEL,
+  LLM_MID_MODEL: parsedEnv.LLM_MID_MODEL ?? parsedEnv.LLM_MEDIUM_MODEL,
+  LLM_HIGH_MODEL: parsedEnv.LLM_HIGH_MODEL,
 };
 
 export type AppEnv = typeof env;

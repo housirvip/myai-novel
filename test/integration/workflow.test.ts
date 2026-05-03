@@ -6,6 +6,131 @@ import test from "node:test";
 
 import { createTestEnv, runCli, runCliJson, runInlineModule } from "../helpers/cli.js";
 
+test("workflow tier routing picks low mid and high models before provider defaults", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-workflow-routing-"));
+  const env = createTestEnv(tempDir, {
+    LLM_PROVIDER: "openai",
+    OPENAI_API_KEY: "test-key",
+    OPENAI_MODEL: "provider-default-model",
+    LLM_LOW_MODEL: "low-tier-model",
+    LLM_MID_MODEL: "mid-tier-model",
+    LLM_HIGH_MODEL: "high-tier-model",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    models: string[];
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { PlanChapterWorkflow } from './src/domain/workflows/plan-chapter-workflow.ts';",
+      "import { DraftChapterWorkflow } from './src/domain/workflows/draft-chapter-workflow.ts';",
+      "import { ReviewChapterWorkflow } from './src/domain/workflows/review-chapter-workflow.ts';",
+      "import { RepairChapterWorkflow } from './src/domain/workflows/repair-chapter-workflow.ts';",
+      "import { ApproveChapterWorkflow } from './src/domain/workflows/approve-chapter-workflow.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-11T00:00:00.000Z';",
+      "const originalFetch = globalThis.fetch;",
+      "const models = [];",
+      "globalThis.fetch = async (_url, init) => {",
+      "  const body = JSON.parse(String(init?.body ?? '{}'));",
+      "  models.push(body.model);",
+      "  const combined = Array.isArray(body.messages) ? body.messages.map((message) => String(message.content ?? '')).join('\\n') : '';",
+      "  let content = '默认输出';",
+      "  if (combined.includes('intentSummary') && combined.includes('mustInclude')) {",
+      "    content = JSON.stringify({ intentSummary: '推进当前章节主线并埋下后续冲突', keywords: ['主角', '线索'], mustInclude: ['主角', '关键线索'], mustAvoid: ['设定冲突', '人物失真'] });",
+      "  } else if (combined.includes('小说审校助手') || combined.includes('修复建议')) {",
+      "    content = JSON.stringify({ summary: '审校摘要', issues: ['问题一'], risks: ['风险一'], continuity_checks: ['校验一'], repair_suggestions: ['建议一'] });",
+      "  } else if (combined.includes('结构化事实变更') || combined.includes('updates 中的 entityType')) {",
+      "    content = JSON.stringify({ chapterSummary: '摘要', unresolvedImpact: '影响', actualCharacterIds: [], actualFactionIds: [], actualItemIds: [], actualHookIds: [], actualWorldSettingIds: [], newCharacters: [], newFactions: [], newItems: [], newHooks: [], newWorldSettings: [], newRelations: [], updates: [] });",
+      "  } else if (combined.includes('小说修稿助手')) {",
+      "    content = '修稿正文';",
+      "  } else {",
+      "    content = '正文输出';",
+      "  }",
+      "  return new Response(JSON.stringify({ model: body.model, choices: [{ message: { content } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });",
+      "};",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '路由测试', current_chapter_count: 0, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values({ id: 1, book_id: 1, chapter_no: 1, title: '第一章', summary: null, word_count: null, status: 'planned', current_plan_id: null, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }).execute();",
+      "  const plan = await new PlanChapterWorkflow(logger).run({ bookId: 1, chapterNo: 1, provider: 'openai', manualEntityRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
+      "  const draft = await new DraftChapterWorkflow(logger).run({ bookId: 1, chapterNo: 1, provider: 'openai' });",
+      "  const review = await new ReviewChapterWorkflow(logger).run({ bookId: 1, chapterNo: 1, provider: 'openai' });",
+      "  const repair = await new RepairChapterWorkflow(logger).run({ bookId: 1, chapterNo: 1, provider: 'openai' });",
+      "  await db.updateTable('chapters').set({ status: 'reviewed', current_plan_id: plan.planId, current_draft_id: repair.draftId, current_review_id: review.reviewId, updated_at: now }).where('id', '=', 1).execute();",
+      "  await new ApproveChapterWorkflow(logger).run({ bookId: 1, chapterNo: 1, provider: 'openai' });",
+      "  console.log(JSON.stringify({ models }));",
+      "} finally {",
+      "  globalThis.fetch = originalFetch;",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.deepEqual(result.models, [
+    "mid-tier-model",
+    "low-tier-model",
+    "mid-tier-model",
+    "high-tier-model",
+    "low-tier-model",
+    "high-tier-model",
+    "high-tier-model",
+    "low-tier-model",
+  ]);
+});
+
+test("workflow explicit model override beats tier routing", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-workflow-routing-explicit-"));
+  const env = createTestEnv(tempDir, {
+    LLM_PROVIDER: "openai",
+    OPENAI_API_KEY: "test-key",
+    OPENAI_MODEL: "provider-default-model",
+    LLM_LOW_MODEL: "low-tier-model",
+    LLM_MID_MODEL: "mid-tier-model",
+    LLM_HIGH_MODEL: "high-tier-model",
+  });
+
+  await runCli(["db", "init"], env);
+
+  const result = await runInlineModule<{
+    models: string[];
+  }>(
+    [
+      "import { createDatabaseManager } from './src/core/db/client.ts';",
+      "import { PlanChapterWorkflow } from './src/domain/workflows/plan-chapter-workflow.ts';",
+      "const logger = { info() {}, error() {}, debug() {} };",
+      "const manager = createDatabaseManager(logger);",
+      "const db = manager.getClient();",
+      "const now = '2026-04-11T00:00:00.000Z';",
+      "const originalFetch = globalThis.fetch;",
+      "const models = [];",
+      "globalThis.fetch = async (_url, init) => {",
+      "  const body = JSON.parse(String(init?.body ?? '{}'));",
+      "  models.push(body.model);",
+      "  const combined = Array.isArray(body.messages) ? body.messages.map((message) => String(message.content ?? '')).join('\\n') : '';",
+      "  const content = combined.includes('intentSummary') && combined.includes('mustInclude') ? JSON.stringify({ intentSummary: '摘要', keywords: ['主角'], mustInclude: ['主角'], mustAvoid: ['失真'] }) : '正文输出';",
+      "  return new Response(JSON.stringify({ model: body.model, choices: [{ message: { content } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });",
+      "};",
+      "try {",
+      "  await db.insertInto('books').values({ id: 1, title: '显式模型覆盖', current_chapter_count: 0, created_at: now, updated_at: now }).execute();",
+      "  await db.insertInto('chapters').values({ id: 1, book_id: 1, chapter_no: 1, title: '第一章', summary: null, word_count: null, status: 'planned', current_plan_id: null, current_draft_id: null, current_review_id: null, current_final_id: null, actual_character_ids: null, actual_faction_ids: null, actual_item_ids: null, actual_hook_ids: null, actual_world_setting_ids: null, created_at: now, updated_at: now }).execute();",
+      "  await new PlanChapterWorkflow(logger).run({ bookId: 1, chapterNo: 1, provider: 'openai', model: 'manual-model', manualEntityRefs: { characterIds: [], factionIds: [], itemIds: [], hookIds: [], relationIds: [], worldSettingIds: [] } });",
+      "  console.log(JSON.stringify({ models }));",
+      "} finally {",
+      "  globalThis.fetch = originalFetch;",
+      "  await manager.destroy();",
+      "}",
+    ].join("\n"),
+    env,
+  );
+
+  assert.deepEqual(result.models, ["manual-model", "manual-model", "manual-model"]);
+});
+
 test("mock workflow chain updates chapter facts and related entities", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-workflow-"));
   const env = createTestEnv(tempDir);

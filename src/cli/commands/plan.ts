@@ -23,7 +23,7 @@ export function registerPlanCommands(program: Command): void {
     .option("--relationIds <ids>", "关联关系 ID，支持 JSON 数组或逗号分隔")
     .option("--worldSettingIds <ids>", "关联世界设定 ID，支持 JSON 数组或逗号分隔")
     .option("--provider <provider>", "覆盖默认 LLM provider")
-    .option("--model <model>", "覆盖默认模型")
+    .option("--model <model>", "覆盖当前模型选择结果（优先于档位路由和 provider 默认模型）")
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {
       await runCliCommand("plan", async (logger) => {

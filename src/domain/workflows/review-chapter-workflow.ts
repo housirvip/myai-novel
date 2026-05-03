@@ -1,11 +1,10 @@
 import { z } from "zod";
 
 import { createDatabaseManager } from "../../core/db/client.js";
-import { ChapterDraftRepository } from "../../core/db/repositories/chapter-draft-repository.js";
-import { ChapterPlanRepository } from "../../core/db/repositories/chapter-plan-repository.js";
 import { ChapterRepository } from "../../core/db/repositories/chapter-repository.js";
 import { ChapterReviewRepository } from "../../core/db/repositories/chapter-review-repository.js";
 import { createLlmFactory } from "../../core/llm/factory.js";
+import { resolveLlmModel } from "../../core/llm/model-routing.js";
 import type { LlmProviderName } from "../../core/llm/types.js";
 import type { AppLogger } from "../../core/logger/index.js";
 import { withTimingLog } from "../../core/logger/index.js";
@@ -26,12 +25,14 @@ const reviewResultSchema = z.object({
 
 const reviewResultLooseSchema = z.object({
   summary: z.string().min(1),
-  issues: z.array(z.union([z.string(), z.record(z.unknown())])).default([]),
-  risks: z.array(z.union([z.string(), z.record(z.unknown())])).default([]),
+  issues: z.union([z.string(), z.array(z.union([z.string(), z.record(z.unknown())]))]).default([]),
+  risks: z.union([z.string(), z.array(z.union([z.string(), z.record(z.unknown())]))]).default([]),
   continuity_checks: z
     .union([z.array(z.union([z.string(), z.record(z.unknown())])), z.record(z.unknown())])
     .default([]),
-  repair_suggestions: z.array(z.union([z.string(), z.record(z.unknown())])).default([]),
+  repair_suggestions: z
+    .union([z.string(), z.array(z.union([z.string(), z.record(z.unknown())]))])
+    .default([]),
 });
 
 const runReviewWorkflowSchema = z.object({
@@ -107,7 +108,7 @@ export class ReviewChapterWorkflow {
           const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
           const reviewContextView = buildReviewContextView(retrievedContext as import("../planning/types.js").PlanRetrievedContext);
           const reviewResponse = await llmClient.generate({
-            model: payload.model,
+            model: resolveLlmModel({ explicitModel: payload.model, tier: "low" }),
             messages: buildReviewPrompt({
               planContent: currentPlan.content,
               draftContent: currentDraft.content,
@@ -203,8 +204,10 @@ function normalizeReviewResult(input: z.infer<typeof reviewResultLooseSchema>): 
   };
 }
 
-function normalizeReviewList(items: Array<string | Record<string, unknown>>): string[] {
-  return items
+function normalizeReviewList(items: string | Array<string | Record<string, unknown>>): string[] {
+  const normalizedItems = typeof items === "string" ? [items] : items;
+
+  return normalizedItems
     .map((item) => normalizeReviewItem(item))
     .filter((item): item is string => Boolean(item));
 }

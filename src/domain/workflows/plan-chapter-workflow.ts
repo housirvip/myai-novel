@@ -4,6 +4,7 @@ import { createDatabaseManager } from "../../core/db/client.js";
 import { ChapterPlanRepository } from "../../core/db/repositories/chapter-plan-repository.js";
 import { ChapterRepository } from "../../core/db/repositories/chapter-repository.js";
 import { createLlmFactory } from "../../core/llm/factory.js";
+import { resolveLlmModel } from "../../core/llm/model-routing.js";
 import type { LlmProviderName } from "../../core/llm/types.js";
 import type { AppLogger } from "../../core/logger/index.js";
 import { withTimingLog } from "../../core/logger/index.js";
@@ -82,7 +83,7 @@ export class PlanChapterWorkflow {
             payload.authorIntent ??
             (
               await llmClient.generate({
-                model: payload.model,
+                model: resolveLlmModel({ explicitModel: payload.model, tier: "mid" }),
                 messages: buildIntentGenerationPrompt({
                   bookTitle: initialContext.book.title,
                   chapterNo: payload.chapterNo,
@@ -98,7 +99,7 @@ export class PlanChapterWorkflow {
             ? PLAN_INTENT_SOURCE.USER_INPUT
             : PLAN_INTENT_SOURCE.AI_GENERATED;
           const keywordResult = await llmClient.generate({
-            model: payload.model,
+            model: resolveLlmModel({ explicitModel: payload.model, tier: "low" }),
             messages: buildKeywordExtractionPrompt({ authorIntent }),
             responseFormat: "json",
           });
@@ -121,7 +122,7 @@ export class PlanChapterWorkflow {
           });
 
           const planResult = await llmClient.generate({
-            model: payload.model,
+            model: resolveLlmModel({ explicitModel: payload.model, tier: "mid" }),
             messages: buildPlanPrompt({
               bookTitle: retrievedContext.book.title,
               chapterNo: payload.chapterNo,

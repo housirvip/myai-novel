@@ -125,7 +125,7 @@ npm run dev -- chapter help create
 
 - 大多数查询类和工作流命令支持 `--json`
 - `--provider` 可覆盖默认 LLM provider
-- `--model` 可覆盖默认模型
+- `--model` 可覆盖当前模型选择结果（优先于档位路由和 provider 默认模型）
 - 需要传多个 ID 的参数，通常支持两种形式：
   - 逗号分隔：`1,2,3`
   - JSON 数组：`[1,2,3]`

@@ -24,6 +24,9 @@ test("env config resolves paths and keeps defaults", async () => {
     logDir: string;
     sqlitePath: string;
     provider: string;
+    lowModel?: string;
+    midModel?: string;
+    highModel?: string;
     planningCharacterLimit: number;
     llmDefaultMaxTokens: number;
     planningReranker: string;
@@ -40,23 +43,29 @@ test("env config resolves paths and keeps defaults", async () => {
       "console.log(JSON.stringify({",
       "  logDir: env.LOG_DIR,",
       "  sqlitePath: env.DB_SQLITE_PATH,",
-        "  provider: env.LLM_PROVIDER,",
-        "  planningCharacterLimit: env.PLANNING_RETRIEVAL_CHARACTER_LIMIT,",
-        "  llmDefaultMaxTokens: env.LLM_DEFAULT_MAX_TOKENS,",
-        "  planningReranker: env.PLANNING_RETRIEVAL_RERANKER,",
-        "  planningEmbeddingProvider: env.PLANNING_RETRIEVAL_EMBEDDING_PROVIDER,",
-        "  planningEmbeddingSearchMode: env.PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE,",
-        "  embeddingMinScore: env.PLANNING_RETRIEVAL_EMBEDDING_MIN_SCORE,",
-        "  promptPlanBudget: env.PLANNING_PROMPT_CONTEXT_PLAN_CHAR_BUDGET,",
-        "  entityScanLimit: env.PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT,",
-        "  recentChapterLimit: env.PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT,",
-        "  embeddingLimitBasic: env.PLANNING_RETRIEVAL_EMBEDDING_LIMIT_BASIC,",
-        "}));",
+      "  provider: env.LLM_PROVIDER,",
+      "  lowModel: env.LLM_LOW_MODEL,",
+      "  midModel: env.LLM_MID_MODEL,",
+      "  highModel: env.LLM_HIGH_MODEL,",
+      "  planningCharacterLimit: env.PLANNING_RETRIEVAL_CHARACTER_LIMIT,",
+      "  llmDefaultMaxTokens: env.LLM_DEFAULT_MAX_TOKENS,",
+      "  planningReranker: env.PLANNING_RETRIEVAL_RERANKER,",
+      "  planningEmbeddingProvider: env.PLANNING_RETRIEVAL_EMBEDDING_PROVIDER,",
+      "  planningEmbeddingSearchMode: env.PLANNING_RETRIEVAL_EMBEDDING_SEARCH_MODE,",
+      "  embeddingMinScore: env.PLANNING_RETRIEVAL_EMBEDDING_MIN_SCORE,",
+      "  promptPlanBudget: env.PLANNING_PROMPT_CONTEXT_PLAN_CHAR_BUDGET,",
+      "  entityScanLimit: env.PLANNING_RETRIEVAL_ENTITY_SCAN_LIMIT,",
+      "  recentChapterLimit: env.PLANNING_RETRIEVAL_RECENT_CHAPTER_LIMIT,",
+      "  embeddingLimitBasic: env.PLANNING_RETRIEVAL_EMBEDDING_LIMIT_BASIC,",
+      "}));",
     ].join("\n"),
     env,
   );
 
   assert.equal(result.provider, "mock");
+  assert.equal(result.lowModel, undefined);
+  assert.equal(result.midModel, undefined);
+  assert.equal(result.highModel, undefined);
   assert.equal(result.planningCharacterLimit, 9);
   assert.equal(result.llmDefaultMaxTokens, 2048);
   assert.equal(result.planningReranker, "heuristic");
@@ -69,6 +78,37 @@ test("env config resolves paths and keeps defaults", async () => {
   assert.equal(result.embeddingLimitBasic, 32);
   assert.match(result.logDir, /tmp-logs$/);
   assert.match(result.sqlitePath, /tmp-db\/novel\.sqlite$/);
+});
+
+test("env config keeps new tiered model names and legacy aliases compatible", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "myai-novel-env-tiered-models-"));
+  const env = createTestEnv(tempDir, {
+    LLM_LOW_MODEL: "low-tier",
+    LLM_MID_MODEL: "mid-tier",
+    LLM_HIGH_MODEL: "high-tier",
+    LLM_LIGHT_MODEL: "legacy-light",
+    LLM_MEDIUM_MODEL: "legacy-medium",
+  });
+
+  const result = await runInlineModule<{
+    lowModel?: string;
+    midModel?: string;
+    highModel?: string;
+  }>(
+    [
+      "import { env } from './src/config/env.ts';",
+      "console.log(JSON.stringify({",
+      "  lowModel: env.LLM_LOW_MODEL,",
+      "  midModel: env.LLM_MID_MODEL,",
+      "  highModel: env.LLM_HIGH_MODEL,",
+      "}));",
+    ].join("\n"),
+    env,
+  );
+
+  assert.equal(result.lowModel, "low-tier");
+  assert.equal(result.midModel, "mid-tier");
+  assert.equal(result.highModel, "high-tier");
 });
 
 test("env config resolves mysql settings", async () => {

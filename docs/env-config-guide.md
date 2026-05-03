@@ -267,6 +267,49 @@ MOCK_LLM_MODEL=mock-v1
 LLM_DEFAULT_MAX_TOKENS=2048
 ```
 
+### 统一模型档位路由
+
+当前工作流支持一层统一的 low / mid / high 模型档位路由，用来把不同复杂度的任务映射到不同模型。
+
+优先级如下：
+
+1. 命令行或 workflow 显式传入的 `--model`
+2. 档位对应的环境变量
+3. provider 自己的默认模型（如 `OPENAI_MODEL`、`ANTHROPIC_MODEL`、`CUSTOM_LLM_MODEL`、`MOCK_LLM_MODEL`）
+
+也就是说：
+
+- 你如果显式传了 `--model`，会覆盖所有档位配置
+- 你如果没有显式传 `--model`，workflow 会先尝试 low / mid / high 对应的档位模型
+- 档位模型未设置时，才回退到 provider 默认模型
+
+推荐配置：
+
+```dotenv
+LLM_LOW_MODEL=
+LLM_MID_MODEL=
+LLM_HIGH_MODEL=
+```
+
+兼容旧字段：
+
+```dotenv
+LLM_LIGHT_MODEL=
+LLM_MEDIUM_MODEL=
+```
+
+说明：
+
+- 新字段 `LLM_LOW_MODEL` / `LLM_MID_MODEL` / `LLM_HIGH_MODEL` 是当前推荐命名
+- 旧字段 `LLM_LIGHT_MODEL` / `LLM_MEDIUM_MODEL` 仍保留兼容
+- 如果新旧字段同时存在，优先读取新字段
+
+当前工作流的大致档位分配是：
+
+- `low`：关键词提取、review 结构化审校、approve diff 抽取
+- `mid`：作者意图生成、章节 plan 生成
+- `high`：draft 正文、repair 修稿、approve 最终定稿
+
 ### 6.2 OpenAI provider
 
 ```dotenv

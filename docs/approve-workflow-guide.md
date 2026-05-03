@@ -56,6 +56,24 @@
 
 ### 3.2 工作流输出
 
+### 3.1.1 当前默认模型档位映射
+
+`approve` 当前会拆成两次 LLM 调用，并默认走不同档位：
+
+- 生成最终正文 `finalContent`：`high`
+- 抽取结构化 `diff`：`low`
+
+优先级规则是：
+
+- 如果显式传了 `--model`，这两次调用都会优先使用该模型
+- 如果没有显式传 `--model`，工作流会先按 `high / low` 档位选择模型
+- 对应档位未配置时，再回退到当前 provider 默认模型
+
+这也是 `approve` 要拆成两次调用的一个实现层原因：
+
+- final 正文更偏写作质量，默认用 `high`
+- diff 抽取更偏结构化核对，默认用 `low`
+
 `ApproveChapterWorkflow.run()` 返回：
 
 - `chapterId`

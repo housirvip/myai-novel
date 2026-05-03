@@ -12,7 +12,7 @@ export function registerApproveCommands(program: Command): void {
     .requiredOption("--book <id>", "书籍 ID")
     .requiredOption("--chapter <number>", "章节号")
     .option("--provider <provider>", "覆盖默认 LLM provider")
-    .option("--model <model>", "覆盖默认模型")
+    .option("--model <model>", "覆盖当前模型选择结果（优先于档位路由和 provider 默认模型）")
     .option("--dryRun", "仅生成正式稿和 diff，不写入数据库")
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {

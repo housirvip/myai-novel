@@ -12,7 +12,7 @@ export function registerDraftCommands(program: Command): void {
     .requiredOption("--book <id>", "书籍 ID")
     .requiredOption("--chapter <number>", "章节号")
     .option("--provider <provider>", "覆盖默认 LLM provider")
-    .option("--model <model>", "覆盖默认模型")
+    .option("--model <model>", "覆盖当前模型选择结果（优先于档位路由和 provider 默认模型）")
     .option("--targetWords <number>", "目标字数")
     .option("--json", "以 JSON 输出结果")
     .action(async (options) => {

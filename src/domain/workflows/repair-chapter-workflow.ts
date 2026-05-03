@@ -6,6 +6,7 @@ import { ChapterPlanRepository } from "../../core/db/repositories/chapter-plan-r
 import { ChapterRepository } from "../../core/db/repositories/chapter-repository.js";
 import { ChapterReviewRepository } from "../../core/db/repositories/chapter-review-repository.js";
 import { createLlmFactory } from "../../core/llm/factory.js";
+import { resolveLlmModel } from "../../core/llm/model-routing.js";
 import type { LlmProviderName } from "../../core/llm/types.js";
 import type { AppLogger } from "../../core/logger/index.js";
 import { withTimingLog } from "../../core/logger/index.js";
@@ -99,7 +100,7 @@ export class RepairChapterWorkflow {
           const retrievedContext = parseStoredJson(currentPlan.retrieved_context);
           const repairContextView = buildRepairContextView(retrievedContext as import("../planning/types.js").PlanRetrievedContext);
           const repairResult = await llmClient.generate({
-            model: payload.model,
+            model: resolveLlmModel({ explicitModel: payload.model, tier: "high" }),
             messages: buildRepairPrompt({
               planContent: currentPlan.content,
               draftContent: currentDraft.content,
