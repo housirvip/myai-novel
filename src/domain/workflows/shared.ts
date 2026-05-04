@@ -33,6 +33,15 @@ export function appendChapterNote(
     return prefix;
   }
 
+  const lines = existing
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.includes(prefix)) {
+    return existing;
+  }
+
   return `${existing}\n${prefix}`;
 }
 

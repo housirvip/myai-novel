@@ -175,6 +175,8 @@ function buildPersistedPriorityPackets(input: {
 }) {
   const factPackets = (input.facts ?? []).slice(0, env.PLANNING_RETRIEVAL_PERSISTED_PRIORITY_FACT_LIMIT).map((fact) => createFactPacketWithProvenance({
     entityType: "chapter" as const,
+    // 用负数占位，避免和真实 chapter 实体 ID 空间冲突；
+    // 这些 packet 只是 prompt 上下文载体，不应被后续逻辑误认成真实章节记录。
     entityId: -fact.id,
     displayName: fact.chapterNo ? `第${fact.chapterNo}章事实` : `历史事实#${fact.id}`,
     identity: [fact.factType],

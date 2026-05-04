@@ -10,16 +10,40 @@ import { ChapterFinalRepository } from "../../core/db/repositories/chapter-final
 import { ChapterPlanRepository } from "../../core/db/repositories/chapter-plan-repository.js";
 import { ChapterRepository } from "../../core/db/repositories/chapter-repository.js";
 import { ChapterReviewRepository } from "../../core/db/repositories/chapter-review-repository.js";
-import { CharacterRepository } from "../../core/db/repositories/character-repository.js";
+import {
+  CharacterRepository,
+  type CharacterRow,
+  type CharacterUpdateRow,
+} from "../../core/db/repositories/character-repository.js";
 import { ChapterSegmentRepository } from "../../core/db/repositories/chapter-segment-repository.js";
-import { FactionRepository } from "../../core/db/repositories/faction-repository.js";
-import { ItemRepository } from "../../core/db/repositories/item-repository.js";
-import { RelationRepository } from "../../core/db/repositories/relation-repository.js";
+import {
+  FactionRepository,
+  type FactionRow,
+  type FactionUpdateRow,
+} from "../../core/db/repositories/faction-repository.js";
+import {
+  ItemRepository,
+  type ItemRow,
+  type ItemUpdateRow,
+} from "../../core/db/repositories/item-repository.js";
+import {
+  RelationRepository,
+  type RelationRow,
+  type RelationUpdateRow,
+} from "../../core/db/repositories/relation-repository.js";
 import { RetrievalDocumentRepository } from "../../core/db/repositories/retrieval-document-repository.js";
 import { RetrievalFactRepository } from "../../core/db/repositories/retrieval-fact-repository.js";
-import { StoryHookRepository } from "../../core/db/repositories/story-hook-repository.js";
+import {
+  StoryHookRepository,
+  type StoryHookRow,
+  type StoryHookUpdateRow,
+} from "../../core/db/repositories/story-hook-repository.js";
 import { StoryEventRepository } from "../../core/db/repositories/story-event-repository.js";
-import { WorldSettingRepository } from "../../core/db/repositories/world-setting-repository.js";
+import {
+  WorldSettingRepository,
+  type WorldSettingRow,
+  type WorldSettingUpdateRow,
+} from "../../core/db/repositories/world-setting-repository.js";
 import { createLlmFactory } from "../../core/llm/factory.js";
 import { resolveLlmModel } from "../../core/llm/model-routing.js";
 import type { LlmProviderName } from "../../core/llm/types.js";
@@ -146,6 +170,42 @@ const runApproveWorkflowSchema = z.object({
   dryRun: z.boolean().default(false),
 });
 
+type ApproveDiff = z.infer<typeof approveDiffSchema>;
+type ApproveUpdate = ApproveDiff["updates"][number];
+type ApproveEntityType = ApproveUpdate["entityType"];
+type ApproveSkippedUpdateReason =
+  | "entity_not_found"
+  | "cross_book_reference"
+  | "no_allowed_fields"
+  | "invalid_owner_reference"
+  | "invalid_leader_reference";
+type ApproveSkippedRelationReason =
+  | "source_not_found"
+  | "target_not_found"
+  | "cross_book_reference"
+  | "endpoint_type_mismatch";
+
+type ApproveAppliedUpdate = {
+  entityType: ApproveEntityType;
+  entityId: number;
+  action: ApproveUpdate["action"];
+  payload: Record<string, unknown>;
+};
+
+type ApproveSkippedUpdate = {
+  entityType: ApproveEntityType;
+  entityId: number;
+  reason: ApproveSkippedUpdateReason;
+};
+
+type ApproveSkippedRelation = {
+  sourceType: "character" | "faction";
+  sourceId: number;
+  targetType: "character" | "faction";
+  targetId: number;
+  reason: ApproveSkippedRelationReason;
+};
+
 export class ApproveChapterWorkflow {
   constructor(private readonly logger: AppLogger) {}
 
@@ -192,6 +252,8 @@ export class ApproveChapterWorkflow {
               `Chapter needs current plan, draft and review before approve: book=${payload.bookId}, chapter=${payload.chapterNo}`,
             );
           }
+
+          assertChapterApprovableStatus(chapter.status);
 
           const currentPlan = await chapterPlanRepository.getById(chapter.current_plan_id);
           const currentDraft = await chapterDraftRepository.getById(chapter.current_draft_id);
@@ -295,6 +357,7 @@ export class ApproveChapterWorkflow {
               currentDraftId: chapter.current_draft_id,
               currentReviewId: chapter.current_review_id,
             });
+            assertChapterApprovableStatus(chapterBeforeCommit.status);
 
             for (const item of diff.newCharacters) {
               // 这里先按同书同名复用已有人物，而不是每次 approve 都机械插入新记录。
@@ -471,7 +534,31 @@ export class ApproveChapterWorkflow {
               createdEntities.worldSettings.push(created.id);
             }
 
+            const skippedRelations: ApproveSkippedRelation[] = [];
             for (const item of diff.newRelations) {
+              const sourceRecord = await getRelationEndpointEntity(trx, item.sourceType, item.sourceId);
+              const targetRecord = await getRelationEndpointEntity(trx, item.targetType, item.targetId);
+              const relationSkipReason = getSkippedRelationReason({
+                sourceType: item.sourceType,
+                sourceId: item.sourceId,
+                sourceRecord,
+                targetType: item.targetType,
+                targetId: item.targetId,
+                targetRecord,
+                bookId: payload.bookId,
+              });
+
+              if (relationSkipReason) {
+                skippedRelations.push({
+                  sourceType: item.sourceType,
+                  sourceId: item.sourceId,
+                  targetType: item.targetType,
+                  targetId: item.targetId,
+                  reason: relationSkipReason,
+                });
+                continue;
+              }
+
               // 关系没有简单的名称键，所以复用逻辑走 source/target/relationType 这组复合身份。
               // 这样 approve 多次运行时会倾向于更新同一条关系，而不是裂变出多条近似关系记录。
               const existing = await relationRepository.findByComposite({
@@ -515,72 +602,52 @@ export class ApproveChapterWorkflow {
             }
 
             let updatedCount = 0;
-            const skippedUpdates: Array<{ entityType: string; entityId: number; reason: string }> = [];
+            const appliedUpdates: ApproveAppliedUpdate[] = [];
+            const skippedUpdates: ApproveSkippedUpdate[] = [];
             for (const update of diff.updates) {
-              // diff 允许模型引用已经不存在的实体；这里选择静默跳过，
-              // 目的是让 approve 能尽量提交其余稳定部分，而不是因为一条脏引用导致整批更新报废。
-              if (update.entityType === "character") {
-                const existing = await characterRepository.getById(update.entityId);
-                if (!existing) {
-                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
-                  continue;
-                }
-                updatedCount += 1;
-                await characterRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
+              const outcome = await applyApproveUpdate({
+                trx,
+                characterRepository,
+                factionRepository,
+                itemRepository,
+                relationRepository,
+                hookRepository,
+                worldSettingRepository,
+                update,
+                bookId: payload.bookId,
+                chapterNo: payload.chapterNo,
+                timestamp,
+              });
+
+              if (outcome.status === "skipped") {
+                skippedUpdates.push({
+                  entityType: update.entityType,
+                  entityId: update.entityId,
+                  reason: outcome.reason,
+                });
+                continue;
               }
 
-              if (update.entityType === "faction") {
-                const existing = await factionRepository.getById(update.entityId);
-                if (!existing) {
-                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
-                  continue;
-                }
-                updatedCount += 1;
-                await factionRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
-              }
+              appliedUpdates.push({
+                entityType: update.entityType,
+                entityId: update.entityId,
+                action: update.action,
+                payload: outcome.appliedPayload,
+              });
+              updatedCount += 1;
+            }
 
-              if (update.entityType === "item") {
-                const existing = await itemRepository.getById(update.entityId);
-                if (!existing) {
-                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
-                  continue;
-                }
-                updatedCount += 1;
-                await itemRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
-              }
-
-              if (update.entityType === "relation") {
-                const existing = await relationRepository.getById(update.entityId);
-                if (!existing) {
-                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
-                  continue;
-                }
-                updatedCount += 1;
-                await relationRepository.updateById(
-                  update.entityId,
-                  mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp),
-                );
-              }
-
-              if (update.entityType === "story_hook") {
-                const existing = await hookRepository.getById(update.entityId);
-                if (!existing) {
-                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
-                  continue;
-                }
-                updatedCount += 1;
-                await hookRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
-              }
-
-              if (update.entityType === "world_setting") {
-                const existing = await worldSettingRepository.getById(update.entityId);
-                if (!existing) {
-                  skippedUpdates.push({ entityType: update.entityType, entityId: update.entityId, reason: "entity_not_found" });
-                  continue;
-                }
-                updatedCount += 1;
-                await worldSettingRepository.updateById(update.entityId, mapEntityUpdate(existing, update.action, update.payload, payload.chapterNo, timestamp));
-              }
+            if (skippedRelations.length > 0) {
+              this.logger.warn(
+                {
+                  event: "workflow.approve.skipped_relations",
+                  bookId: payload.bookId,
+                  chapterNo: payload.chapterNo,
+                  skippedCount: skippedRelations.length,
+                  skippedRelations,
+                },
+                "Approve skipped invalid relation writes",
+              );
             }
 
             if (skippedUpdates.length > 0) {
@@ -592,7 +659,7 @@ export class ApproveChapterWorkflow {
                   skippedCount: skippedUpdates.length,
                   skippedUpdates,
                 },
-                "Approve skipped updates due to missing entity references",
+                "Approve skipped invalid updates",
               );
             }
 
@@ -602,38 +669,46 @@ export class ApproveChapterWorkflow {
             }
 
             const versionNo = (await chapterFinalRepository.getLatestVersionNo(chapterBeforeCommit.id)) + 1;
-            const finalRecord = await chapterFinalRepository.create({
-              book_id: payload.bookId,
-              chapter_id: chapterBeforeCommit.id,
-              chapter_no: payload.chapterNo,
-              version_no: versionNo,
-              based_on_draft_id: finalDraft.id,
-              status: "active",
-              content: finalResponse.content,
-              summary: diff.chapterSummary,
-              word_count: finalWordCount,
-              source_type: CHAPTER_SOURCE_TYPE.APPROVED,
-              created_at: timestamp,
-              updated_at: timestamp,
-            });
+            let finalRecord;
+            try {
+              finalRecord = await chapterFinalRepository.create({
+                book_id: payload.bookId,
+                chapter_id: chapterBeforeCommit.id,
+                chapter_no: payload.chapterNo,
+                version_no: versionNo,
+                based_on_draft_id: finalDraft.id,
+                status: "active",
+                content: finalResponse.content,
+                summary: diff.chapterSummary,
+                word_count: finalWordCount,
+                source_type: CHAPTER_SOURCE_TYPE.APPROVED,
+                created_at: timestamp,
+                updated_at: timestamp,
+              });
+            } catch (error) {
+              if (isChapterFinalVersionConflict(error)) {
+                throw new Error("Chapter final version changed during approve, please retry");
+              }
+              throw error;
+            }
 
-            const actualCharacterIds = dedupeNumberList([
+            const actualCharacterIds = await filterBookScopedIds(trx, "characters", payload.bookId, [
               ...diff.actualCharacterIds,
               ...createdEntities.characters,
             ]);
-            const actualFactionIds = dedupeNumberList([
+            const actualFactionIds = await filterBookScopedIds(trx, "factions", payload.bookId, [
               ...diff.actualFactionIds,
               ...createdEntities.factions,
             ]);
-            const actualItemIds = dedupeNumberList([
+            const actualItemIds = await filterBookScopedIds(trx, "items", payload.bookId, [
               ...diff.actualItemIds,
               ...createdEntities.items,
             ]);
-            const actualHookIds = dedupeNumberList([
+            const actualHookIds = await filterBookScopedIds(trx, "story_hooks", payload.bookId, [
               ...diff.actualHookIds,
               ...createdEntities.hooks,
             ]);
-            const actualWorldSettingIds = dedupeNumberList([
+            const actualWorldSettingIds = await filterBookScopedIds(trx, "world_settings", payload.bookId, [
               ...diff.actualWorldSettingIds,
               ...createdEntities.worldSettings,
             ]);
@@ -782,7 +857,7 @@ export class ApproveChapterWorkflow {
               storyEventId: approvedStoryEvent.id,
               chapterSegmentId: approvedSegment.id,
               chapterSummary: diff.chapterSummary,
-              updates: diff.updates,
+              updates: appliedUpdates,
               actualCharacterIds,
               actualFactionIds,
               actualItemIds,
@@ -825,9 +900,32 @@ async function clearApproveSidecarArtifacts(input: {
     )
     .executeTakeFirst();
 
-  await input.trx.deleteFrom("story_events").where("book_id", "=", input.bookId).where("chapter_id", "=", input.chapterId).executeTakeFirst();
-  await input.trx.deleteFrom("chapter_segments").where("book_id", "=", input.bookId).where("chapter_id", "=", input.chapterId).executeTakeFirst();
-  await input.trx.deleteFrom("retrieval_facts").where("book_id", "=", input.bookId).where("chapter_no", "=", input.chapterNo).executeTakeFirst();
+  await input.trx
+    .deleteFrom("story_events")
+    .where("book_id", "=", input.bookId)
+    .where("chapter_id", "=", input.chapterId)
+    .where("event_type", "=", "chapter_approval")
+    .where("trigger_text", "like", "approve:%")
+    .executeTakeFirst();
+
+  await input.trx
+    .deleteFrom("chapter_segments")
+    .where("book_id", "=", input.bookId)
+    .where("chapter_id", "=", input.chapterId)
+    .where("source_type", "=", CHAPTER_SOURCE_TYPE.APPROVED)
+    .executeTakeFirst();
+
+  await input.trx
+    .deleteFrom("retrieval_facts")
+    .where("book_id", "=", input.bookId)
+    .where("chapter_no", "=", input.chapterNo)
+    .where((expressionBuilder) =>
+      expressionBuilder.or([
+        expressionBuilder("fact_key", "=", buildApproveSummaryFactKey(input.bookId, input.chapterId)),
+        expressionBuilder("fact_key", "like", buildApproveUpdateFactKeyPrefix(input.chapterNo)),
+      ]),
+    )
+    .executeTakeFirst();
 }
 
 async function persistApproveRetrievalFacts(input: {
@@ -839,7 +937,7 @@ async function persistApproveRetrievalFacts(input: {
   storyEventId: number;
   chapterSegmentId: number;
   chapterSummary: string;
-  updates: z.infer<typeof approveDiffSchema>["updates"];
+  updates: ApproveAppliedUpdate[];
   actualCharacterIds: number[];
   actualFactionIds: number[];
   actualItemIds: number[];
@@ -854,9 +952,10 @@ async function persistApproveRetrievalFacts(input: {
     entity_id: null,
     event_id: input.storyEventId,
     fact_type: "chapter_summary",
-    fact_key: `chapter:${input.bookId}:${input.chapterId}:summary`,
+    fact_key: buildApproveSummaryFactKey(input.bookId, input.chapterId),
     fact_text: input.chapterSummary,
     payload_json: JSON.stringify({
+      sourceType: CHAPTER_SOURCE_TYPE.APPROVED,
       finalId: input.finalId,
       chapterSegmentId: input.chapterSegmentId,
       actualEntityRefs: {
@@ -890,9 +989,11 @@ async function persistApproveRetrievalFacts(input: {
       entity_id: update.entityId,
       event_id: input.storyEventId,
       fact_type: `${normalizeFactEntityType(update.entityType)}_update`,
-      fact_key: `${normalizeFactEntityType(update.entityType)}:${update.entityId}:chapter_update:${input.chapterNo}`,
+      fact_key: buildApproveUpdateFactKey(update, input.chapterNo),
       fact_text: note,
       payload_json: JSON.stringify({
+        sourceType: CHAPTER_SOURCE_TYPE.APPROVED,
+        finalId: input.finalId,
         action: update.action,
         payload: update.payload,
       }),
@@ -908,7 +1009,180 @@ async function persistApproveRetrievalFacts(input: {
   }
 }
 
-function buildUpdateFactText(update: z.infer<typeof approveDiffSchema>["updates"][number]): string | null {
+function buildApproveSummaryFactKey(bookId: number, chapterId: number): string {
+  return `chapter:${bookId}:${chapterId}:approved:summary`;
+}
+
+function buildApproveUpdateFactKey(update: ApproveAppliedUpdate, chapterNo: number): string {
+  return `${normalizeFactEntityType(update.entityType)}:${update.entityId}:approved:chapter_update:${chapterNo}`;
+}
+
+function buildApproveUpdateFactKeyPrefix(chapterNo: number): string {
+  return `%:approved:chapter_update:${chapterNo}`;
+}
+
+function assertChapterApprovableStatus(status: string): void {
+  if (
+    status !== CHAPTER_STATUS.REVIEWED
+    && status !== CHAPTER_STATUS.REPAIRED
+    && status !== CHAPTER_STATUS.APPROVED
+  ) {
+    throw new Error(`Chapter status does not allow approve: ${status}`);
+  }
+}
+
+async function filterBookScopedIds(
+  trx: Kysely<DatabaseSchema>,
+  table: "characters" | "factions" | "items" | "story_hooks" | "world_settings",
+  bookId: number,
+  ids: number[],
+): Promise<number[]> {
+  const uniqueIds = dedupeNumberList(ids);
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const rows = await trx
+    .selectFrom(table)
+    .select(["id"])
+    .where("book_id", "=", bookId)
+    .where("id", "in", uniqueIds)
+    .execute();
+
+  return rows.map((row) => row.id).sort((a, b) => uniqueIds.indexOf(a) - uniqueIds.indexOf(b));
+}
+
+type RelationEndpointRecord = {
+  id: number;
+  book_id: number;
+  entityType: "character" | "faction";
+};
+
+async function getRelationEndpointEntity(
+  trx: Kysely<DatabaseSchema>,
+  entityType: "character" | "faction",
+  entityId: number,
+): Promise<RelationEndpointRecord | null> {
+  if (entityType === "character") {
+    const record = await trx.selectFrom("characters").select(["id", "book_id"]).where("id", "=", entityId).executeTakeFirst();
+    return record ? { ...record, entityType } : null;
+  }
+
+  const record = await trx.selectFrom("factions").select(["id", "book_id"]).where("id", "=", entityId).executeTakeFirst();
+  return record ? { ...record, entityType } : null;
+}
+
+function getSkippedRelationReason(input: {
+  sourceType: "character" | "faction";
+  sourceId: number;
+  sourceRecord: RelationEndpointRecord | null;
+  targetType: "character" | "faction";
+  targetId: number;
+  targetRecord: RelationEndpointRecord | null;
+  bookId: number;
+}): ApproveSkippedRelationReason | null {
+  if (!input.sourceRecord) {
+    return "source_not_found";
+  }
+  if (!input.targetRecord) {
+    return "target_not_found";
+  }
+  if (input.sourceRecord.book_id !== input.bookId || input.targetRecord.book_id !== input.bookId) {
+    return "cross_book_reference";
+  }
+  if (input.sourceRecord.entityType !== input.sourceType || input.targetRecord.entityType !== input.targetType) {
+    return "endpoint_type_mismatch";
+  }
+  return null;
+}
+
+async function validateLeaderCharacter(
+  trx: Kysely<DatabaseSchema>,
+  bookId: number,
+  payload: Record<string, unknown>,
+): Promise<"valid" | "invalid"> {
+  if (payload.leader_character_id === undefined || payload.leader_character_id === null) {
+    return "valid";
+  }
+
+  const leaderId = typeof payload.leader_character_id === "number"
+    ? payload.leader_character_id
+    : typeof payload.leader_character_id === "string"
+      ? Number.parseInt(payload.leader_character_id, 10)
+      : Number.NaN;
+  if (!Number.isInteger(leaderId) || leaderId <= 0) {
+    return "invalid";
+  }
+
+  const leader = await trx
+    .selectFrom("characters")
+    .select(["id"])
+    .where("book_id", "=", bookId)
+    .where("id", "=", leaderId)
+    .executeTakeFirst();
+  return leader ? "valid" : "invalid";
+}
+
+async function validateItemOwner(
+  trx: Kysely<DatabaseSchema>,
+  bookId: number,
+  payload: Record<string, unknown>,
+): Promise<"valid" | "invalid"> {
+  const ownerTypeRaw = payload.owner_type;
+  const ownerIdRaw = payload.owner_id;
+
+  if (ownerTypeRaw === undefined && ownerIdRaw === undefined) {
+    return "valid";
+  }
+
+  const ownerType = typeof ownerTypeRaw === "string" ? ownerTypeRaw.trim() : undefined;
+  const ownerId = typeof ownerIdRaw === "number"
+    ? ownerIdRaw
+    : typeof ownerIdRaw === "string"
+      ? Number.parseInt(ownerIdRaw, 10)
+      : null;
+
+  if (!ownerType || ownerType === "none") {
+    return ownerId == null ? "valid" : "invalid";
+  }
+
+  const normalizedOwnerId = Number.isInteger(ownerId) ? ownerId : null;
+  if (normalizedOwnerId == null || normalizedOwnerId <= 0) {
+    return "invalid";
+  }
+
+  if (ownerType === "character") {
+    const record = await trx
+      .selectFrom("characters")
+      .select(["id"])
+      .where("book_id", "=", bookId)
+      .where("id", "=", normalizedOwnerId)
+      .executeTakeFirst();
+    return record ? "valid" : "invalid";
+  }
+
+  if (ownerType === "faction") {
+    const record = await trx
+      .selectFrom("factions")
+      .select(["id"])
+      .where("book_id", "=", bookId)
+      .where("id", "=", normalizedOwnerId)
+      .executeTakeFirst();
+    return record ? "valid" : "invalid";
+  }
+
+  return "invalid";
+}
+
+function isChapterFinalVersionConflict(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return /uniq_chapter_finals_chapter_version|UNIQUE constraint failed: chapter_finals\.chapter_id, chapter_finals\.version_no|Duplicate entry .*chapter_finals/i.test(error.message);
+}
+
+function buildUpdateFactText(update: ApproveAppliedUpdate): string | null {
   const parts: string[] = [];
   const directNote =
     typeof update.payload.note === "string" ? update.payload.note
@@ -990,41 +1264,343 @@ function buildUpdateFactText(update: z.infer<typeof approveDiffSchema>["updates"
   return uniqueParts.join("；");
 }
 
-function normalizeFactEntityType(entityType: z.infer<typeof approveDiffSchema>["updates"][number]["entityType"]): string {
+function normalizeFactEntityType(entityType: ApproveEntityType): string {
   return entityType === "story_hook" ? "hook" : entityType;
 }
 
-function mapEntityUpdate<T extends { append_notes?: string | null; status?: string | null }>(
-  existing: T,
-  action: "update_fields" | "append_notes" | "status_change",
-  payload: Record<string, unknown>,
-  chapterNo: number,
-  timestamp: string,
-): Record<string, unknown> {
-  // update action 先被压成统一语义，再映射到各 repository 的 update payload。
-  // 这样 approve diff 只需要表达“想做什么”，而不用感知每张表的具体字段组合差异。
-  if (action === "append_notes") {
-    return {
-      append_notes: appendChapterNote(existing.append_notes ?? null, chapterNo, String(payload.note ?? payload.append_notes ?? "")),
-      updated_at: timestamp,
-    };
+async function applyApproveUpdate(input: {
+  trx: Kysely<DatabaseSchema>;
+  characterRepository: CharacterRepository;
+  factionRepository: FactionRepository;
+  itemRepository: ItemRepository;
+  relationRepository: RelationRepository;
+  hookRepository: StoryHookRepository;
+  worldSettingRepository: WorldSettingRepository;
+  update: ApproveUpdate;
+  bookId: number;
+  chapterNo: number;
+  timestamp: string;
+}): Promise<
+  | { status: "applied"; appliedPayload: Record<string, unknown> }
+  | { status: "skipped"; reason: ApproveSkippedUpdateReason }
+> {
+  const { update } = input;
+
+  if (update.entityType === "character") {
+    const existing = await input.characterRepository.getById(update.entityId);
+    if (!existing) {
+      return { status: "skipped", reason: "entity_not_found" };
+    }
+    if (existing.book_id !== input.bookId) {
+      return { status: "skipped", reason: "cross_book_reference" };
+    }
+
+    const patch = buildCharacterUpdatePatch(existing, update, input.chapterNo, input.timestamp);
+    if (!patch) {
+      return { status: "skipped", reason: "no_allowed_fields" };
+    }
+
+    await input.characterRepository.updateById(update.entityId, patch);
+    return { status: "applied", appliedPayload: patchToFactPayload(patch) };
   }
 
-  if (action === "status_change") {
-    return {
-      status: typeof payload.status === "string" ? payload.status : existing.status,
-      append_notes:
-        payload.note || payload.append_notes
-          ? appendChapterNote(existing.append_notes ?? null, chapterNo, String(payload.note ?? payload.append_notes))
-          : existing.append_notes,
-      updated_at: timestamp,
-    };
+  if (update.entityType === "faction") {
+    const existing = await input.factionRepository.getById(update.entityId);
+    if (!existing) {
+      return { status: "skipped", reason: "entity_not_found" };
+    }
+    if (existing.book_id !== input.bookId) {
+      return { status: "skipped", reason: "cross_book_reference" };
+    }
+
+    const leaderValidation = await validateLeaderCharacter(input.trx, input.bookId, update.payload);
+    if (leaderValidation === "invalid") {
+      return { status: "skipped", reason: "invalid_leader_reference" };
+    }
+
+    const patch = buildFactionUpdatePatch(existing, update, input.chapterNo, input.timestamp);
+    if (!patch) {
+      return { status: "skipped", reason: "no_allowed_fields" };
+    }
+
+    await input.factionRepository.updateById(update.entityId, patch);
+    return { status: "applied", appliedPayload: patchToFactPayload(patch) };
+  }
+
+  if (update.entityType === "item") {
+    const existing = await input.itemRepository.getById(update.entityId);
+    if (!existing) {
+      return { status: "skipped", reason: "entity_not_found" };
+    }
+    if (existing.book_id !== input.bookId) {
+      return { status: "skipped", reason: "cross_book_reference" };
+    }
+
+    const ownerValidation = await validateItemOwner(input.trx, input.bookId, update.payload);
+    if (ownerValidation === "invalid") {
+      return { status: "skipped", reason: "invalid_owner_reference" };
+    }
+
+    const patch = buildItemUpdatePatch(existing, update, input.chapterNo, input.timestamp);
+    if (!patch) {
+      return { status: "skipped", reason: "no_allowed_fields" };
+    }
+
+    await input.itemRepository.updateById(update.entityId, patch);
+    return { status: "applied", appliedPayload: patchToFactPayload(patch) };
+  }
+
+  if (update.entityType === "relation") {
+    const existing = await input.relationRepository.getById(update.entityId);
+    if (!existing) {
+      return { status: "skipped", reason: "entity_not_found" };
+    }
+    if (existing.book_id !== input.bookId) {
+      return { status: "skipped", reason: "cross_book_reference" };
+    }
+
+    const patch = buildRelationUpdatePatch(existing, update, input.chapterNo, input.timestamp);
+    if (!patch) {
+      return { status: "skipped", reason: "no_allowed_fields" };
+    }
+
+    await input.relationRepository.updateById(update.entityId, patch);
+    return { status: "applied", appliedPayload: patchToFactPayload(patch) };
+  }
+
+  if (update.entityType === "story_hook") {
+    const existing = await input.hookRepository.getById(update.entityId);
+    if (!existing) {
+      return { status: "skipped", reason: "entity_not_found" };
+    }
+    if (existing.book_id !== input.bookId) {
+      return { status: "skipped", reason: "cross_book_reference" };
+    }
+
+    const patch = buildStoryHookUpdatePatch(existing, update, input.chapterNo, input.timestamp);
+    if (!patch) {
+      return { status: "skipped", reason: "no_allowed_fields" };
+    }
+
+    await input.hookRepository.updateById(update.entityId, patch);
+    return { status: "applied", appliedPayload: patchToFactPayload(patch) };
+  }
+
+  const existing = await input.worldSettingRepository.getById(update.entityId);
+  if (!existing) {
+    return { status: "skipped", reason: "entity_not_found" };
+  }
+  if (existing.book_id !== input.bookId) {
+    return { status: "skipped", reason: "cross_book_reference" };
+  }
+
+  const patch = buildWorldSettingUpdatePatch(existing, update, input.chapterNo, input.timestamp);
+  if (!patch) {
+    return { status: "skipped", reason: "no_allowed_fields" };
+  }
+
+  await input.worldSettingRepository.updateById(update.entityId, patch);
+  return { status: "applied", appliedPayload: patchToFactPayload(patch) };
+}
+
+function buildCharacterUpdatePatch(
+  existing: CharacterRow,
+  update: ApproveUpdate,
+  chapterNo: number,
+  timestamp: string,
+): CharacterUpdateRow | null {
+  if (update.action === "append_notes") {
+    return buildNotesOnlyPatch(existing.append_notes, chapterNo, update.payload, timestamp);
+  }
+
+  if (update.action === "status_change") {
+    return buildStatusAndNotePatch(existing.status, existing.append_notes, update.payload, chapterNo, timestamp);
+  }
+
+  const patch = buildAllowedFieldPatch(update.payload, ["background", "personality", "current_location", "status", "goal"]);
+  return finalizePatchWithNote(patch, existing.append_notes, chapterNo, update.payload, timestamp);
+}
+
+function buildFactionUpdatePatch(
+  existing: FactionRow,
+  update: ApproveUpdate,
+  chapterNo: number,
+  timestamp: string,
+): FactionUpdateRow | null {
+  if (update.action === "append_notes") {
+    return buildNotesOnlyPatch(existing.append_notes, chapterNo, update.payload, timestamp);
+  }
+
+  if (update.action === "status_change") {
+    return buildStatusAndNotePatch(existing.status, existing.append_notes, update.payload, chapterNo, timestamp);
+  }
+
+  const patch = buildAllowedFieldPatch(update.payload, ["description", "core_goal", "leader_character_id", "status"]);
+  return finalizePatchWithNote(patch, existing.append_notes, chapterNo, update.payload, timestamp);
+}
+
+function buildItemUpdatePatch(
+  existing: ItemRow,
+  update: ApproveUpdate,
+  chapterNo: number,
+  timestamp: string,
+): ItemUpdateRow | null {
+  if (update.action === "append_notes") {
+    return buildNotesOnlyPatch(existing.append_notes, chapterNo, update.payload, timestamp);
+  }
+
+  if (update.action === "status_change") {
+    return buildStatusAndNotePatch(existing.status, existing.append_notes, update.payload, chapterNo, timestamp);
+  }
+
+  const patch = buildAllowedFieldPatch(update.payload, ["description", "owner_type", "owner_id", "status"]);
+  return finalizePatchWithNote(patch, existing.append_notes, chapterNo, update.payload, timestamp);
+}
+
+function buildRelationUpdatePatch(
+  existing: RelationRow,
+  update: ApproveUpdate,
+  chapterNo: number,
+  timestamp: string,
+): RelationUpdateRow | null {
+  if (update.action === "append_notes") {
+    return buildNotesOnlyPatch(existing.append_notes, chapterNo, update.payload, timestamp);
+  }
+
+  if (update.action === "status_change") {
+    return buildStatusAndNotePatch(existing.status, existing.append_notes, update.payload, chapterNo, timestamp);
+  }
+
+  const patch = buildAllowedFieldPatch(update.payload, ["description", "intensity", "status"]);
+  return finalizePatchWithNote(patch, existing.append_notes, chapterNo, update.payload, timestamp);
+}
+
+function buildStoryHookUpdatePatch(
+  existing: StoryHookRow,
+  update: ApproveUpdate,
+  chapterNo: number,
+  timestamp: string,
+): StoryHookUpdateRow | null {
+  if (update.action === "append_notes") {
+    return buildNotesOnlyPatch(existing.append_notes, chapterNo, update.payload, timestamp);
+  }
+
+  if (update.action === "status_change") {
+    return buildStatusAndNotePatch(existing.status, existing.append_notes, update.payload, chapterNo, timestamp);
+  }
+
+  const patch = buildAllowedFieldPatch(update.payload, ["description", "status", "target_chapter_no"]);
+  return finalizePatchWithNote(patch, existing.append_notes, chapterNo, update.payload, timestamp);
+}
+
+function buildWorldSettingUpdatePatch(
+  existing: WorldSettingRow,
+  update: ApproveUpdate,
+  chapterNo: number,
+  timestamp: string,
+): WorldSettingUpdateRow | null {
+  if (update.action === "append_notes") {
+    return buildNotesOnlyPatch(existing.append_notes, chapterNo, update.payload, timestamp);
+  }
+
+  if (update.action === "status_change") {
+    return buildStatusAndNotePatch(existing.status, existing.append_notes, update.payload, chapterNo, timestamp);
+  }
+
+  const patch = buildAllowedFieldPatch(update.payload, ["content", "category", "status"]);
+  return finalizePatchWithNote(patch, existing.append_notes, chapterNo, update.payload, timestamp);
+}
+
+function buildNotesOnlyPatch(
+  existingNotes: string | null,
+  chapterNo: number,
+  payload: Record<string, unknown>,
+  timestamp: string,
+): { append_notes: string | null; updated_at: string } | null {
+  const nextNotes = readPatchedNote(existingNotes, chapterNo, payload);
+  if (nextNotes === existingNotes) {
+    return null;
   }
 
   return {
-    ...payload,
+    append_notes: nextNotes,
     updated_at: timestamp,
   };
+}
+
+function buildStatusAndNotePatch(
+  existingStatus: string | null,
+  existingNotes: string | null,
+  payload: Record<string, unknown>,
+  chapterNo: number,
+  timestamp: string,
+): { status?: string; append_notes?: string | null; updated_at: string } | null {
+  const patch: { status?: string; append_notes?: string | null } = {};
+
+  if (typeof payload.status === "string") {
+    const nextStatus = payload.status.trim();
+    if (nextStatus.length > 0 && nextStatus !== existingStatus) {
+      patch.status = nextStatus;
+    }
+  }
+
+  const nextNotes = readPatchedNote(existingNotes, chapterNo, payload);
+  if (nextNotes !== existingNotes) {
+    patch.append_notes = nextNotes;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return null;
+  }
+
+  return {
+    ...patch,
+    updated_at: timestamp,
+  };
+}
+
+function buildAllowedFieldPatch(payload: Record<string, unknown>, allowedKeys: string[]): Record<string, unknown> {
+  return Object.fromEntries(
+    allowedKeys.flatMap((key) => {
+      const value = payload[key];
+      return value === undefined ? [] : [[key, value]];
+    }),
+  );
+}
+
+function finalizePatchWithNote(
+  patch: Record<string, unknown>,
+  existingNotes: string | null,
+  chapterNo: number,
+  payload: Record<string, unknown>,
+  timestamp: string,
+): Record<string, unknown> | null {
+  const nextNotes = readPatchedNote(existingNotes, chapterNo, payload);
+  if (nextNotes !== existingNotes) {
+    patch.append_notes = nextNotes;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return null;
+  }
+
+  return {
+    ...patch,
+    updated_at: timestamp,
+  };
+}
+
+function readPatchedNote(existingNotes: string | null, chapterNo: number, payload: Record<string, unknown>): string | null {
+  const rawNote =
+    typeof payload.note === "string" ? payload.note
+      : typeof payload.append_notes === "string" ? payload.append_notes
+      : undefined;
+  return appendChapterNote(existingNotes, chapterNo, rawNote);
+}
+
+function patchToFactPayload(patch: Record<string, unknown>): Record<string, unknown> {
+  const { updated_at: _updatedAt, ...rest } = patch;
+  return rest;
 }
 
 function normalizeApproveDiff(input: z.infer<typeof approveDiffLooseSchema>): z.infer<typeof approveDiffSchema> {

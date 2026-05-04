@@ -209,6 +209,8 @@ async function loadPersistedRetrievalFacts(
       .orderBy("id", "asc")
       .limit(recentFetchLimit)
       .execute(),
+    // long-tail reserve 不是替代近期事实，而是强行捞回“够老但仍高风险”的事实，
+    // 避免它们因为 recency 吃亏后永远进不了候选池。
     env.PLANNING_RETRIEVAL_PERSISTED_FACT_LONG_TAIL_RESERVE > 0
       ? recentRowsQuery
         .where("chapter_no", "<=", longTailMinChapterNo)
