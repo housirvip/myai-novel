@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1020" viewBox="0 0 1600 1020" role="img" aria-labelledby="title desc">
   <title id="title">myai-novel 系统架构图</title>
   <desc id="desc">展示本地优先 CLI 写作系统的入口链、命令族、工作流层、planning retrieval context 层、基础设施层、外部适配器与数据层。</desc>
   <defs>
@@ -40,8 +40,8 @@
     </style>
   </defs>
 
-  <rect width="1600" height="980" fill="url(#bg)"/>
-  <rect width="1600" height="980" fill="url(#grid)" opacity="0.75"/>
+  <rect width="1600" height="1020" fill="url(#bg)"/>
+  <rect width="1600" height="1020" fill="url(#grid)" opacity="0.75"/>
 
   <text x="80" y="72" class="title">myai-novel 系统架构</text>
   <text x="80" y="102" class="subtitle">本地优先 CLI 写作系统 · 入口链、章节工作流、retrieval 闭环与版本化数据层</text>
@@ -159,8 +159,8 @@
   <text x="1274" y="760" text-anchor="middle" class="tiny">CRUD / workflow / LLM 耗时与结果</text>
 
   <g filter="url(#shadow)">
-    <rect x="80" y="822" width="670" height="118" rx="28" class="card"/>
-    <rect x="780" y="822" width="740" height="118" rx="28" class="card"/>
+    <rect x="80" y="822" width="670" height="156" rx="28" class="card"/>
+    <rect x="780" y="822" width="740" height="156" rx="28" class="card"/>
   </g>
 
   <text x="108" y="858" class="card-title">External Adapters</text>
@@ -174,19 +174,22 @@
   <text x="642" y="901" text-anchor="middle" class="label">local Markdown files</text>
 
   <text x="808" y="858" class="card-title">Persistence / Data Layer</text>
-  <rect x="808" y="878" width="92" height="36" rx="16" class="pill"/>
-  <rect x="912" y="878" width="208" height="36" rx="16" class="pill"/>
-  <rect x="1132" y="878" width="104" height="36" rx="16" class="pill-green"/>
-  <rect x="1248" y="878" width="156" height="36" rx="16" class="pill-green"/>
-  <rect x="1416" y="878" width="82" height="36" rx="16" class="pill-amber"/>
-  <text x="854" y="901" text-anchor="middle" class="label">books</text>
-  <text x="1016" y="901" text-anchor="middle" class="label">setting entities</text>
-  <text x="1016" y="917" text-anchor="middle" class="tiny">world_settings · characters · factions · relations · items · story_hooks</text>
-  <text x="1184" y="901" text-anchor="middle" class="label">chapters</text>
-  <text x="1326" y="901" text-anchor="middle" class="label">version tables</text>
-  <text x="1326" y="917" text-anchor="middle" class="tiny">chapter_plans · chapter_drafts · chapter_reviews · chapter_finals</text>
-  <text x="1457" y="901" text-anchor="middle" class="label">sidecar</text>
-  <text x="1457" y="917" text-anchor="middle" class="tiny">retrieval_documents · retrieval_facts · story_events · chapter_segments</text>
+  <rect x="808" y="876" width="92" height="36" rx="16" class="pill"/>
+  <rect x="912" y="876" width="104" height="36" rx="16" class="pill-green"/>
+  <rect x="1028" y="868" width="470" height="52" rx="18" class="pill"/>
+  <rect x="912" y="928" width="276" height="48" rx="18" class="pill-green"/>
+  <rect x="1200" y="928" width="298" height="48" rx="18" class="pill-amber"/>
+  <text x="854" y="899" text-anchor="middle" class="label">books</text>
+  <text x="964" y="899" text-anchor="middle" class="label">chapters</text>
+  <text x="1263" y="889" text-anchor="middle" class="label">setting entities</text>
+  <text x="1263" y="905" text-anchor="middle" class="tiny">world_settings · characters · factions</text>
+  <text x="1263" y="919" text-anchor="middle" class="tiny">relations · items · story_hooks</text>
+  <text x="1050" y="947" text-anchor="middle" class="label">version tables</text>
+  <text x="1050" y="963" text-anchor="middle" class="tiny">chapter_plans · chapter_drafts</text>
+  <text x="1050" y="977" text-anchor="middle" class="tiny">chapter_reviews · chapter_finals</text>
+  <text x="1349" y="947" text-anchor="middle" class="label">sidecar</text>
+  <text x="1349" y="963" text-anchor="middle" class="tiny">retrieval_documents · retrieval_facts</text>
+  <text x="1349" y="977" text-anchor="middle" class="tiny">story_events · chapter_segments</text>
 
   <path d="M800 408 V446" class="soft-line"/>
   <path d="M1260 408 V446" class="soft-line"/>
@@ -199,5 +202,5 @@
   <path d="M294 792 V822" class="soft-line"/>
   <path d="M770 792 V822" class="soft-line"/>
 
-  <text x="80" y="964" class="tiny">事实来源：docs/project-architecture-overview.md、docs/chapter-pipeline-overview.md、docs/retrieval-pipeline-guide.md、docs/retrieval-sidecar-provenance-guide.md</text>
+  <text x="80" y="1004" class="tiny">事实来源：docs/project-architecture-overview.md、docs/chapter-pipeline-overview.md、docs/retrieval-pipeline-guide.md、docs/retrieval-sidecar-provenance-guide.md</text>
 </svg>

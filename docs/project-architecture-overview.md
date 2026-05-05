@@ -54,7 +54,7 @@
 
 ## 3. 分层架构图
 
-![项目架构图](./project-architecture-overview.svg)
+![项目架构图](./project-architecture-overview.png)
 
 ```mermaid
 flowchart TD
