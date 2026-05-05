@@ -177,11 +177,23 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A[plan]\n生成 authorIntent\n两次召回\n固化 retrievedContext
-    B[draft]\n复用 plan context\n生成草稿
-    C[review]\n基于 plan + draft\n生成结构化审阅
-    D[repair]\n基于 plan + draft + review\n生成新 draft 版本
-    E[approve]\n生成 final\n抽取 diff\n回写事实
+    A[plan
+生成 authorIntent
+两次召回
+固化 retrievedContext]
+    B[draft
+复用 plan context
+生成草稿]
+    C[review
+基于 plan + draft
+生成结构化审阅]
+    D[repair
+基于 plan + draft + review
+生成新 draft 版本]
+    E[approve
+生成 final
+抽取 diff
+回写事实]
 
     P1[chapter_plans]
     P2[chapter_drafts]
