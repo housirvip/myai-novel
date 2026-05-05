@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="980" viewBox="0 0 1700 980" role="img" aria-labelledby="title desc">
+  <title id="title">Retrieval 与 sidecar 流程图</title>
+  <desc id="desc">展示 plan 输入如何经过 RetrievalQueryService、规则候选、可选 embedding 候选、reranker、五类 builder 函数组装成 PlanRetrievedContext 并落库到 chapter_plans.retrieved_context，同时显示 approve 写入 sidecar 并在后续 plan 中重新进入 retrieval 的闭环。</desc>
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbfdff"/>
+      <stop offset="100%" stop-color="#f6f8fc"/>
+    </linearGradient>
+    <linearGradient id="blue3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+    <pattern id="mesh" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M 36 0 L 0 0 0 36" fill="none" stroke="#e9eef7" stroke-width="1"/>
+      <circle cx="0" cy="0" r="1.2" fill="#dbeafe"/>
+    </pattern>
+    <filter id="shadow3" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#94a3b8" flood-opacity="0.16"/>
+    </filter>
+    <marker id="arrow3" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#94a3b8"/>
+    </marker>
+    <style>
+      .title { font: 700 34px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #0f172a; }
+      .subtitle { font: 500 16px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #475569; }
+      .card { fill: #ffffff; stroke: #dbe7f3; stroke-width: 1.2; }
+      .soft { fill: #f8fbff; stroke: #dbe7f3; stroke-width: 1.1; }
+      .accent { fill: url(#blue3); }
+      .h { font: 700 20px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #0f172a; }
+      .l { font: 600 13px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #0f172a; }
+      .b { font: 500 13px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #475569; }
+      .t { font: 600 12px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #64748b; }
+      .mono { font: 700 12px 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace; fill: #1d4ed8; }
+      .tab { font: 700 15px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #ffffff; }
+      .line { stroke: #94a3b8; stroke-width: 2; fill: none; marker-end: url(#arrow3); }
+      .dashed { stroke: #94a3b8; stroke-width: 2; fill: none; stroke-dasharray: 8 7; marker-end: url(#arrow3); }
+      .pill-blue { fill: #eff6ff; stroke: #bfdbfe; stroke-width: 1.1; }
+      .pill-green { fill: #ecfeff; stroke: #99f6e4; stroke-width: 1.1; }
+      .pill-amber { fill: #fff7ed; stroke: #fed7aa; stroke-width: 1.1; }
+      .pill-purple { fill: #f8f4ff; stroke: #ddd6fe; stroke-width: 1.1; }
+    </style>
+  </defs>
+
+  <rect width="1700" height="980" fill="url(#bg3)"/>
+  <rect width="1700" height="980" fill="url(#mesh)" opacity="0.82"/>
+
+  <text x="70" y="70" class="title">Retrieval 与 retrieval sidecar 闭环</text>
+  <text x="70" y="99" class="subtitle">plan 阶段把候选召回、可选 embedding、rerank 与上下文装配收敛为 PlanRetrievedContext；approve 再把 sidecar 写回，为后续 plan 提供长期记忆与 provenance</text>
+
+  <rect x="70" y="124" width="1560" height="54" rx="24" class="pill-green"/>
+  <text x="98" y="147" class="l">当前设计要点</text>
+  <text x="98" y="166" class="b">规则候选是主链，EmbeddingCandidateProvider 是可选补候选，最终目标不是返回一堆命中项，而是落成可复用的</text>
+  <text x="1256" y="158" text-anchor="middle" class="mono">chapter_plans.retrieved_context</text>
+
+  <g filter="url(#shadow3)">
+    <rect x="70" y="216" width="220" height="132" rx="28" class="card"/>
+    <rect x="330" y="216" width="240" height="132" rx="28" class="card"/>
+    <rect x="610" y="216" width="260" height="132" rx="28" class="card"/>
+    <rect x="910" y="216" width="260" height="132" rx="28" class="card"/>
+    <rect x="1210" y="216" width="220" height="132" rx="28" class="card"/>
+  </g>
+
+  <rect x="92" y="234" width="120" height="28" rx="14" class="accent"/>
+  <text x="152" y="253" text-anchor="middle" class="tab">plan input</text>
+  <text x="92" y="290" class="h">输入信号</text>
+  <text x="92" y="316" class="b">bookId · chapterNo</text>
+  <text x="92" y="338" class="b">keywords · manualRefs</text>
+
+  <rect x="352" y="234" width="162" height="28" rx="14" class="accent"/>
+  <text x="433" y="253" text-anchor="middle" class="tab">service entry</text>
+  <text x="352" y="290" class="h">RetrievalQueryService</text>
+  <text x="352" y="316" class="b">读取 books 基础信息</text>
+  <text x="352" y="338" class="b">调 provider → rerank → builder</text>
+
+  <rect x="632" y="234" width="176" height="28" rx="14" class="accent"/>
+  <text x="720" y="253" text-anchor="middle" class="tab">candidate layer</text>
+  <text x="632" y="290" class="h">RuleBasedCandidateProvider</text>
+  <text x="632" y="316" class="b">大纲 · 最近章节 · 六类实体组</text>
+  <text x="632" y="338" class="b">reason / score / content</text>
+
+  <rect x="932" y="234" width="186" height="28" rx="14" class="accent"/>
+  <text x="1025" y="253" text-anchor="middle" class="tab">optional add-on</text>
+  <text x="932" y="290" class="h">EmbeddingCandidateProvider</text>
+  <text x="932" y="316" class="b">补候选，不替代规则主链</text>
+  <text x="932" y="338" class="b">embedding_match / embedding_support</text>
+
+  <rect x="1232" y="234" width="120" height="28" rx="14" class="accent"/>
+  <text x="1292" y="253" text-anchor="middle" class="tab">rerank</text>
+  <text x="1232" y="290" class="h">Reranker</text>
+  <text x="1232" y="316" class="b">none 或 heuristic</text>
+  <text x="1232" y="338" class="b">manual_id · keyword_hit · continuity bonus</text>
+
+  <path d="M290 282 H330" class="line"/>
+  <path d="M570 282 H610" class="line"/>
+  <path d="M870 282 H910" class="line"/>
+  <path d="M1170 282 H1210" class="line"/>
+
+  <g filter="url(#shadow3)">
+    <rect x="430" y="410" width="840" height="268" rx="30" class="card"/>
+    <rect x="1310" y="410" width="320" height="268" rx="30" class="card"/>
+  </g>
+
+  <text x="456" y="448" class="h">Builder functions：把 reranked bundle 收敛成结构化 retrievedContext</text>
+  <rect x="456" y="474" width="228" height="72" rx="20" class="pill-blue"/>
+  <rect x="706" y="474" width="228" height="72" rx="20" class="pill-green"/>
+  <rect x="956" y="474" width="288" height="72" rx="20" class="pill-amber"/>
+  <rect x="456" y="568" width="228" height="72" rx="20" class="pill-purple"/>
+  <rect x="706" y="568" width="538" height="72" rx="20" class="pill-blue"/>
+
+  <text x="570" y="503" text-anchor="middle" class="l">buildHardConstraints</text>
+  <text x="570" y="524" text-anchor="middle" class="t">挑出最容易写错、最该强约束的事实</text>
+
+  <text x="820" y="503" text-anchor="middle" class="l">buildRiskReminders</text>
+  <text x="820" y="524" text-anchor="middle" class="t">邻近钩子、位置、物品状态、世界规则、未收束事件</text>
+
+  <text x="1100" y="503" text-anchor="middle" class="l">buildPriorityContext</text>
+  <text x="1100" y="524" text-anchor="middle" class="t">blockingConstraints · decisionContext · supportingContext · backgroundNoise</text>
+
+  <text x="570" y="597" text-anchor="middle" class="l">buildRecentChanges</text>
+  <text x="570" y="618" text-anchor="middle" class="t">最近章节摘要 + persisted facts / events 压缩成近期变化视图</text>
+
+  <text x="975" y="597" text-anchor="middle" class="l">buildRetrievalObservability</text>
+  <text x="975" y="618" text-anchor="middle" class="t">记录哪些候选被考虑、被选中、被丢弃，以及 sidecar 最终 surfacedIn 到哪里</text>
+
+  <text x="1334" y="448" class="h">最终装配与落库</text>
+  <rect x="1334" y="474" width="272" height="74" rx="20" class="pill-green"/>
+  <rect x="1334" y="566" width="272" height="74" rx="20" class="pill-blue"/>
+  <text x="1470" y="504" text-anchor="middle" class="l">buildRetrievedContext</text>
+  <text x="1470" y="525" text-anchor="middle" class="t">book · outlines · recentChapters · entities · derived views</text>
+  <text x="1470" y="596" text-anchor="middle" class="l">PlanRetrievedContext</text>
+  <text x="1470" y="616" text-anchor="middle" class="mono">chapter_plans.retrieved_context</text>
+
+  <path d="M1292 348 V410" class="line"/>
+  <path d="M1292 446 H1244" class="line"/>
+  <path d="M1292 446 H934" class="line"/>
+  <path d="M1292 446 H684" class="line"/>
+  <path d="M1292 446 H456" class="line"/>
+  <path d="M1244 604 H1334" class="line"/>
+  <path d="M1606 511 V566" class="line"/>
+
+  <g filter="url(#shadow3)">
+    <rect x="70" y="726" width="980" height="182" rx="30" class="card"/>
+    <rect x="1088" y="726" width="542" height="182" rx="30" class="card"/>
+  </g>
+
+  <text x="96" y="764" class="h">approve → sidecar：写入长期记忆资产</text>
+  <rect x="96" y="786" width="180" height="44" rx="18" class="pill-blue"/>
+  <rect x="292" y="786" width="180" height="44" rx="18" class="pill-green"/>
+  <rect x="488" y="786" width="160" height="44" rx="18" class="pill-green"/>
+  <rect x="664" y="786" width="180" height="44" rx="18" class="pill-amber"/>
+  <text x="186" y="814" text-anchor="middle" class="mono">retrieval_documents</text>
+  <text x="382" y="814" text-anchor="middle" class="mono">retrieval_facts</text>
+  <text x="568" y="814" text-anchor="middle" class="mono">story_events</text>
+  <text x="754" y="814" text-anchor="middle" class="mono">chapter_segments</text>
+  <text x="96" y="859" class="t">retrieval_documents：embedding 文档与索引载荷</text>
+  <text x="96" y="879" class="t">retrieval_facts / story_events：当前 plan 已重点接入，能进入 priorityContext、riskReminders、recentChanges</text>
+  <text x="96" y="899" class="t">chapter_segments：章节分段级 sidecar，为后续更细粒度检索与分析预留基础</text>
+
+  <text x="1114" y="764" class="h">provenance / surfacedIn 观测带</text>
+  <rect x="1114" y="786" width="490" height="90" rx="22" class="soft"/>
+  <text x="1136" y="816" class="l">sourceRef / sourceRefs</text>
+  <text x="1136" y="838" class="b">解释某条 reminder / recent change / fact packet 来自哪条 persisted fact 或 event</text>
+  <text x="1136" y="862" class="b">surfacedIn：blockingConstraints · decisionContext · riskReminders · recentChanges</text>
+
+  <path d="M186 786 C186 680 1025 690 1025 348" class="dashed"/>
+  <path d="M382 786 C382 692 958 690 958 546" class="dashed"/>
+  <path d="M568 786 C568 706 820 694 820 546" class="dashed"/>
+  <path d="M754 786 C754 710 1470 700 1470 640" class="dashed"/>
+  <path d="M1292 640 V726" class="dashed"/>
+  <path d="M1606 640 V726" class="dashed"/>
+
+  <text x="70" y="952" class="t">事实来源：docs/retrieval-pipeline-guide.md、docs/retrieval-sidecar-provenance-guide.md、docs/chapter-pipeline-overview.md</text>
+</svg>

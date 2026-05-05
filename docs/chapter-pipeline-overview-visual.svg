@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="930" viewBox="0 0 1600 930" role="img" aria-labelledby="title desc">
+  <title id="title">章节流水线总览图</title>
+  <desc id="desc">展示 plan、draft、review、repair、approve 五个阶段、版本表写入、chapters current 指针，以及 approve 回写设定库与 retrieval sidecar 后进入下一次 plan 的闭环。</desc>
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbfdff"/>
+      <stop offset="100%" stop-color="#f6f8fc"/>
+    </linearGradient>
+    <linearGradient id="stage" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#0ea5a4"/>
+    </linearGradient>
+    <pattern id="dots" width="30" height="30" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.1" fill="#e2e8f0"/>
+    </pattern>
+    <filter id="shadow2" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#94a3b8" flood-opacity="0.16"/>
+    </filter>
+    <marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#94a3b8"/>
+    </marker>
+    <style>
+      .title { font: 700 34px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #0f172a; }
+      .subtitle { font: 500 16px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #475569; }
+      .card { fill: #ffffff; stroke: #dbe7f3; stroke-width: 1.2; }
+      .soft { fill: #f8fbff; stroke: #dbe7f3; stroke-width: 1.1; }
+      .stage-tab { fill: url(#stage); }
+      .tab-text { font: 700 15px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #ffffff; }
+      .h { font: 700 20px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #0f172a; }
+      .l { font: 600 13px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #0f172a; }
+      .b { font: 500 13px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #475569; }
+      .t { font: 600 12px 'Avenir Next', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #64748b; }
+      .mono { font: 700 12px 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace; fill: #1d4ed8; }
+      .line { stroke: #94a3b8; stroke-width: 2; fill: none; marker-end: url(#arrow2); }
+      .dashed { stroke: #94a3b8; stroke-width: 2; fill: none; stroke-dasharray: 8 7; marker-end: url(#arrow2); }
+      .pill-blue { fill: #eff6ff; stroke: #bfdbfe; stroke-width: 1.1; }
+      .pill-green { fill: #ecfeff; stroke: #99f6e4; stroke-width: 1.1; }
+      .pill-amber { fill: #fff7ed; stroke: #fed7aa; stroke-width: 1.1; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="930" fill="url(#bg2)"/>
+  <rect width="1600" height="930" fill="url(#dots)" opacity="0.9"/>
+
+  <text x="70" y="70" class="title">章节流水线总览</text>
+  <text x="70" y="99" class="subtitle">从 plan 到 approve 的版本化生产线：共享一份 retrievedContext，逐阶段生成、校验、回写、再进入下一轮 planning</text>
+
+  <rect x="70" y="122" width="1460" height="58" rx="24" class="pill-green"/>
+  <text x="100" y="147" class="l">共享事实基线</text>
+  <text x="100" y="166" class="b">只有 plan 会真正跑 retrieval 主链；draft / review / repair / approve 默认都复用</text>
+  <text x="1118" y="156" text-anchor="middle" class="mono">currentPlan.retrieved_context</text>
+
+  <g filter="url(#shadow2)">
+    <rect x="70" y="210" width="252" height="296" rx="28" class="card"/>
+    <rect x="364" y="210" width="252" height="296" rx="28" class="card"/>
+    <rect x="658" y="210" width="252" height="296" rx="28" class="card"/>
+    <rect x="952" y="210" width="252" height="296" rx="28" class="card"/>
+    <rect x="1246" y="210" width="284" height="296" rx="28" class="card"/>
+  </g>
+
+  <rect x="90" y="228" width="120" height="30" rx="15" class="stage-tab"/>
+  <text x="150" y="248" text-anchor="middle" class="tab-text">plan</text>
+  <text x="90" y="286" class="h">规划章节</text>
+  <text x="90" y="317" class="b">· 生成或接收 authorIntent</text>
+  <text x="90" y="339" class="b">· 两次 retrieval</text>
+  <text x="90" y="361" class="b">· 固化共享 retrievedContext</text>
+  <text x="90" y="397" class="l">写入</text>
+  <rect x="90" y="411" width="212" height="70" rx="18" class="pill-blue"/>
+  <text x="106" y="437" class="mono">chapter_plans</text>
+  <text x="106" y="459" class="b">current_plan_id</text>
+  <text x="106" y="477" class="b">status = planned</text>
+
+  <rect x="384" y="228" width="120" height="30" rx="15" class="stage-tab"/>
+  <text x="444" y="248" text-anchor="middle" class="tab-text">draft</text>
+  <text x="384" y="286" class="h">生成草稿</text>
+  <text x="384" y="317" class="b">· 读取 current plan</text>
+  <text x="384" y="339" class="b">· 复用 retrievedContext</text>
+  <text x="384" y="361" class="b">· 生成 draft 正文</text>
+  <text x="384" y="397" class="l">写入</text>
+  <rect x="384" y="411" width="212" height="70" rx="18" class="pill-blue"/>
+  <text x="400" y="437" class="mono">chapter_drafts</text>
+  <text x="400" y="459" class="b">current_draft_id</text>
+  <text x="400" y="477" class="b">word_count · status = drafted</text>
+
+  <rect x="678" y="228" width="120" height="30" rx="15" class="stage-tab"/>
+  <text x="738" y="248" text-anchor="middle" class="tab-text">review</text>
+  <text x="678" y="286" class="h">结构化审阅</text>
+  <text x="678" y="317" class="b">· 读取 current plan + draft</text>
+  <text x="678" y="339" class="b">· 复用 retrievedContext</text>
+  <text x="678" y="361" class="b">· 生成 review JSON</text>
+  <text x="678" y="397" class="l">写入</text>
+  <rect x="678" y="411" width="212" height="70" rx="18" class="pill-blue"/>
+  <text x="694" y="437" class="mono">chapter_reviews</text>
+  <text x="694" y="459" class="b">current_review_id</text>
+  <text x="694" y="477" class="b">status = reviewed</text>
+
+  <rect x="972" y="228" width="120" height="30" rx="15" class="stage-tab"/>
+  <text x="1032" y="248" text-anchor="middle" class="tab-text">repair</text>
+  <text x="972" y="286" class="h">受约束修稿</text>
+  <text x="972" y="317" class="b">· 读取 plan + draft + review</text>
+  <text x="972" y="339" class="b">· 复用 retrievedContext</text>
+  <text x="972" y="361" class="b">· 生成 repaired draft</text>
+  <text x="972" y="397" class="l">写入</text>
+  <rect x="972" y="411" width="212" height="70" rx="18" class="pill-amber"/>
+  <text x="988" y="437" class="mono">chapter_drafts</text>
+  <text x="988" y="459" class="b">新的 repaired 版本</text>
+  <text x="988" y="477" class="b">current_draft_id · status = repaired</text>
+
+  <rect x="1266" y="228" width="120" height="30" rx="15" class="stage-tab"/>
+  <text x="1326" y="248" text-anchor="middle" class="tab-text">approve</text>
+  <text x="1266" y="286" class="h">定稿与沉淀</text>
+  <text x="1266" y="317" class="b">· step 1 生成 final 正文</text>
+  <text x="1266" y="339" class="b">· step 2 抽取结构化 diff</text>
+  <text x="1266" y="361" class="b">· 统一事务回写设定与 sidecar</text>
+  <text x="1266" y="397" class="l">写入</text>
+  <rect x="1266" y="411" width="244" height="70" rx="18" class="pill-green"/>
+  <text x="1282" y="437" class="mono">chapter_finals</text>
+  <text x="1282" y="459" class="b">current_final_id · summary</text>
+  <text x="1282" y="477" class="b">actual_*_ids · word_count · status = approved</text>
+
+  <path d="M322 358 H364" class="line"/>
+  <path d="M616 358 H658" class="line"/>
+  <path d="M910 358 H952" class="line"/>
+  <path d="M1204 358 H1246" class="line"/>
+
+  <g filter="url(#shadow2)">
+    <rect x="70" y="548" width="1460" height="126" rx="28" class="card"/>
+  </g>
+  <text x="96" y="588" class="h">版本表写入轨迹</text>
+  <rect x="96" y="607" width="210" height="44" rx="18" class="pill-blue"/>
+  <rect x="350" y="607" width="210" height="44" rx="18" class="pill-blue"/>
+  <rect x="604" y="607" width="210" height="44" rx="18" class="pill-blue"/>
+  <rect x="858" y="607" width="210" height="44" rx="18" class="pill-amber"/>
+  <rect x="1112" y="607" width="210" height="44" rx="18" class="pill-green"/>
+  <text x="201" y="635" text-anchor="middle" class="mono">chapter_plans</text>
+  <text x="455" y="635" text-anchor="middle" class="mono">chapter_drafts</text>
+  <text x="709" y="635" text-anchor="middle" class="mono">chapter_reviews</text>
+  <text x="963" y="635" text-anchor="middle" class="mono">chapter_drafts (repaired)</text>
+  <text x="1217" y="635" text-anchor="middle" class="mono">chapter_finals</text>
+  <path d="M306 629 H350" class="line"/>
+  <path d="M560 629 H604" class="line"/>
+  <path d="M814 629 H858" class="line"/>
+  <path d="M1068 629 H1112" class="line"/>
+
+  <g filter="url(#shadow2)">
+    <rect x="70" y="704" width="1030" height="156" rx="28" class="card"/>
+    <rect x="1130" y="704" width="400" height="156" rx="28" class="card"/>
+  </g>
+
+  <text x="96" y="742" class="h">chapters.current_*_id 指针</text>
+  <rect x="96" y="760" width="222" height="34" rx="14" class="soft"/>
+  <rect x="336" y="760" width="232" height="34" rx="14" class="soft"/>
+  <rect x="586" y="760" width="236" height="34" rx="14" class="soft"/>
+  <rect x="840" y="760" width="238" height="34" rx="14" class="soft"/>
+  <text x="207" y="782" text-anchor="middle" class="mono">current_plan_id → chapter_plans</text>
+  <text x="452" y="782" text-anchor="middle" class="mono">current_draft_id → latest chapter_drafts</text>
+  <text x="704" y="782" text-anchor="middle" class="mono">current_review_id → chapter_reviews</text>
+  <text x="959" y="782" text-anchor="middle" class="mono">current_final_id → chapter_finals</text>
+  <text x="96" y="828" class="t">draft / review / repair / approve 在模型生成后、事务提交前都会再次做 pointer 校验，拒绝把结果提交到过期上下文上。</text>
+
+  <text x="1156" y="742" class="h">approve 回写闭环</text>
+  <rect x="1156" y="760" width="148" height="34" rx="14" class="pill-blue"/>
+  <rect x="1318" y="760" width="186" height="34" rx="14" class="pill-green"/>
+  <text x="1230" y="782" text-anchor="middle" class="l">设定库实体更新</text>
+  <text x="1411" y="782" text-anchor="middle" class="l">retrieval sidecar 写入</text>
+  <text x="1156" y="825" class="t">retrieval_documents · retrieval_facts · story_events · chapter_segments</text>
+
+  <path d="M1390 506 V620 C1390 700 1110 705 1110 760" class="dashed"/>
+  <path d="M1156 844 C1030 890 700 890 450 862 C250 840 150 736 150 506" class="dashed"/>
+  <text x="476" y="891" class="t">next plan retrieval：approve 沉淀出的设定变更与 sidecar 继续喂给下一次 planning</text>
+
+  <text x="70" y="900" class="t">事实来源：docs/chapter-pipeline-overview.md、docs/project-architecture-overview.md、docs/retrieval-sidecar-provenance-guide.md</text>
+</svg>
