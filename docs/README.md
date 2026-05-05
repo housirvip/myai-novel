@@ -45,6 +45,9 @@
 
 ### 架构与数据
 
+- [`project-architecture-overview.md`](./project-architecture-overview.md)
+  - 项目架构总览
+  - 适合先看运行入口、分层结构、章节工作流闭环，以及 retrieval / sidecar / 版本表之间的整体关系
 - [`database-relationship-overview.md`](./database-relationship-overview.md)
   - 数据库表关系总览
   - 适合查核心表、强外键、软关联、多态引用、章节版本表关系和结构化 JSON 字段
@@ -73,19 +76,20 @@
 
 1. [`cli-usage-guide.md`](./cli-usage-guide.md)
 2. [`env-config-guide.md`](./env-config-guide.md)
-3. [`chapter-pipeline-overview.md`](./chapter-pipeline-overview.md)
-4. [`plan-workflow-guide.md`](./plan-workflow-guide.md)
-5. [`draft-workflow-guide.md`](./draft-workflow-guide.md)
-6. [`review-workflow-guide.md`](./review-workflow-guide.md)
-7. [`repair-workflow-guide.md`](./repair-workflow-guide.md)
-8. [`approve-workflow-guide.md`](./approve-workflow-guide.md)
-9. [`database-relationship-overview.md`](./database-relationship-overview.md)
-10. [`retrieval-pipeline-guide.md`](./retrieval-pipeline-guide.md)
-11. [`retrieval-sidecar-provenance-guide.md`](./retrieval-sidecar-provenance-guide.md)
-12. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
-13. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
-14. [`embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
-15. [`engineering-overview.md`](./engineering-overview.md)
+3. [`project-architecture-overview.md`](./project-architecture-overview.md)
+4. [`chapter-pipeline-overview.md`](./chapter-pipeline-overview.md)
+5. [`plan-workflow-guide.md`](./plan-workflow-guide.md)
+6. [`draft-workflow-guide.md`](./draft-workflow-guide.md)
+7. [`review-workflow-guide.md`](./review-workflow-guide.md)
+8. [`repair-workflow-guide.md`](./repair-workflow-guide.md)
+9. [`approve-workflow-guide.md`](./approve-workflow-guide.md)
+10. [`database-relationship-overview.md`](./database-relationship-overview.md)
+11. [`retrieval-pipeline-guide.md`](./retrieval-pipeline-guide.md)
+12. [`retrieval-sidecar-provenance-guide.md`](./retrieval-sidecar-provenance-guide.md)
+13. [`prompt-retrieval-relationship.md`](./prompt-retrieval-relationship.md)
+14. [`retrieval-scoring-rules.md`](./retrieval-scoring-rules.md)
+15. [`embedding-rerank-architecture.md`](./embedding-rerank-architecture.md)
+16. [`engineering-overview.md`](./engineering-overview.md)
 
 ## 与根文档的关系
 

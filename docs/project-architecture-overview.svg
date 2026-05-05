@@ -1,0 +1,194 @@
+<svg width="1600" height="1180" viewBox="0 0 1600 1180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">myai-novel 项目架构图</title>
+  <desc id="desc">展示 myai-novel 的 CLI 入口、工作流编排、planning 检索层、基础设施、外部适配器与数据持久化层之间关系的分层架构图。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="1180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#131C31"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#17233B" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#10192B" stop-opacity="0.98"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#4FD1C5"/>
+      <stop offset="1" stop-color="#60A5FA"/>
+    </linearGradient>
+    <linearGradient id="workflow" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#22C55E"/>
+      <stop offset="1" stop-color="#14B8A6"/>
+    </linearGradient>
+    <linearGradient id="planning" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#F59E0B"/>
+      <stop offset="1" stop-color="#FB7185"/>
+    </linearGradient>
+    <linearGradient id="infra" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#818CF8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="10" refY="7" orient="auto">
+      <path d="M1 1L11 7L1 13" stroke="#91A4C3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .title { font: 700 38px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #F8FAFC; }
+      .subtitle { font: 500 18px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #B8C4D9; }
+      .section { font: 700 19px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #E8EEF8; letter-spacing: 0.5px; }
+      .body { font: 500 16px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #D9E2F1; }
+      .small { font: 500 14px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #B8C4D9; }
+      .tiny { font: 500 12px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #A8B6CC; }
+      .chip { font: 700 13px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #06131D; }
+      .line { stroke: #8FA2C0; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
+      .softline { stroke: #6F86A8; stroke-width: 2; stroke-linecap: round; stroke-dasharray: 8 8; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1180" rx="0" fill="url(#bg)"/>
+  <circle cx="1420" cy="140" r="220" fill="#174A6A" fill-opacity="0.22"/>
+  <circle cx="210" cy="1050" r="260" fill="#2E355A" fill-opacity="0.20"/>
+  <circle cx="720" cy="150" r="180" fill="#0E7490" fill-opacity="0.12"/>
+
+  <text x="74" y="78" class="title">myai-novel 项目架构图</text>
+  <text x="74" y="112" class="subtitle">CLI 驱动的长篇小说创作系统：工作流编排、retrieval 长期记忆、版本化章节与事实回写闭环</text>
+
+  <rect x="74" y="150" width="1452" height="142" rx="26" fill="url(#panel)" stroke="#2C3C5A" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="106" y="186" class="section">入口与命令层</text>
+  <rect x="104" y="208" width="228" height="54" rx="16" fill="#13263A" stroke="#35506B"/>
+  <text x="126" y="239" class="body">User / novel CLI</text>
+  <rect x="382" y="208" width="252" height="54" rx="16" fill="#13263A" stroke="#35506B"/>
+  <text x="404" y="239" class="body">src/index.ts</text>
+  <rect x="684" y="208" width="288" height="54" rx="16" fill="#13263A" stroke="#35506B"/>
+  <text x="706" y="239" class="body">src/cli/index.ts · Commander</text>
+  <rect x="1022" y="196" width="474" height="78" rx="18" fill="#13263A" stroke="#35506B"/>
+  <text x="1046" y="226" class="body">各命令 action → runCliCommand(runtime)</text>
+  <text x="1046" y="250" class="small">统一日志上下文、失败退出码、command.start / finish / error</text>
+  <path d="M332 235H382" class="line"/>
+  <path d="M634 235H684" class="line"/>
+  <path d="M972 235H1022" class="line"/>
+
+  <g filter="url(#shadow)">
+    <rect x="74" y="330" width="1452" height="182" rx="28" fill="url(#panel)" stroke="#29435A" stroke-width="1.5"/>
+  </g>
+  <text x="106" y="368" class="section">工作流编排层 · Workflow Orchestration</text>
+  <rect x="108" y="396" width="228" height="74" rx="18" fill="#0F2F2A" stroke="#1D6B5B"/>
+  <text x="130" y="426" class="body">PlanChapterWorkflow</text>
+  <text x="130" y="450" class="small">authorIntent · 两次召回 · 固化 retrievedContext</text>
+  <rect x="368" y="396" width="228" height="74" rx="18" fill="#0F2F2A" stroke="#1D6B5B"/>
+  <text x="390" y="426" class="body">DraftChapterWorkflow</text>
+  <text x="390" y="450" class="small">复用 plan context 生成草稿</text>
+  <rect x="628" y="396" width="228" height="74" rx="18" fill="#0F2F2A" stroke="#1D6B5B"/>
+  <text x="650" y="426" class="body">ReviewChapterWorkflow</text>
+  <text x="650" y="450" class="small">plan + draft → 结构化审阅</text>
+  <rect x="888" y="396" width="228" height="74" rx="18" fill="#0F2F2A" stroke="#1D6B5B"/>
+  <text x="910" y="426" class="body">RepairChapterWorkflow</text>
+  <text x="910" y="450" class="small">基于 review 生成新 draft 版本</text>
+  <rect x="1148" y="396" width="334" height="74" rx="18" fill="#0F2F2A" stroke="#1D6B5B"/>
+  <text x="1170" y="426" class="body">ApproveChapterWorkflow</text>
+  <text x="1170" y="450" class="small">final + diff + 事实回写 + sidecar + 指针切换</text>
+
+  <path d="M336 433H368" class="line"/>
+  <path d="M596 433H628" class="line"/>
+  <path d="M856 433H888" class="line"/>
+  <path d="M1116 433H1148" class="line"/>
+
+  <g filter="url(#shadow)">
+    <rect x="74" y="542" width="1452" height="216" rx="28" fill="url(#panel)" stroke="#5A3D2B" stroke-width="1.5"/>
+  </g>
+  <text x="106" y="580" class="section">Planning / Retrieval / Context 层</text>
+  <rect x="108" y="608" width="250" height="96" rx="18" fill="#3A2412" stroke="#A05A1D"/>
+  <text x="130" y="640" class="body">RetrievalServiceFactory</text>
+  <text x="130" y="664" class="small">按配置接线规则链路 / embedding / reranker</text>
+  <rect x="392" y="608" width="250" height="96" rx="18" fill="#3A2412" stroke="#A05A1D"/>
+  <text x="414" y="640" class="body">RetrievalService</text>
+  <text x="414" y="664" class="small">候选获取、排序、聚合 planning 输入</text>
+  <rect x="676" y="608" width="250" height="96" rx="18" fill="#3A2412" stroke="#A05A1D"/>
+  <text x="698" y="640" class="body">RetrievalContextBuilder</text>
+  <text x="698" y="664" class="small">组装 PlanRetrievedContext</text>
+  <rect x="960" y="596" width="278" height="120" rx="18" fill="#3A2412" stroke="#A05A1D"/>
+  <text x="982" y="628" class="body">Context Views</text>
+  <text x="982" y="652" class="small">hardConstraints / softReferences</text>
+  <text x="982" y="674" class="small">riskReminders / priorityContext</text>
+  <text x="982" y="696" class="small">recentChanges</text>
+  <rect x="1272" y="596" width="220" height="120" rx="18" fill="#3A2412" stroke="#A05A1D"/>
+  <text x="1294" y="628" class="body">Prompt / Embedding</text>
+  <text x="1294" y="652" class="small">prompts.ts</text>
+  <text x="1294" y="674" class="small">heuristic rerank</text>
+  <text x="1294" y="696" class="small">basic / hybrid search</text>
+  <path d="M358 656H392" class="line"/>
+  <path d="M642 656H676" class="line"/>
+  <path d="M926 656H960" class="line"/>
+  <path d="M1238 656H1272" class="line"/>
+
+  <g filter="url(#shadow)">
+    <rect x="74" y="788" width="934" height="276" rx="28" fill="url(#panel)" stroke="#4A3E73" stroke-width="1.5"/>
+  </g>
+  <text x="106" y="826" class="section">基础设施与服务边界</text>
+  <rect x="108" y="854" width="228" height="86" rx="18" fill="#21193D" stroke="#7660C9"/>
+  <text x="130" y="886" class="body">src/config/env.ts</text>
+  <text x="130" y="910" class="small">dotenv + zod 校验与默认值</text>
+  <rect x="362" y="854" width="228" height="86" rx="18" fill="#21193D" stroke="#7660C9"/>
+  <text x="384" y="886" class="body">DatabaseManager</text>
+  <text x="384" y="910" class="small">SQLite / MySQL client + migrate + destroy</text>
+  <rect x="616" y="854" width="228" height="86" rx="18" fill="#21193D" stroke="#7660C9"/>
+  <text x="638" y="886" class="body">LlmFactory</text>
+  <text x="638" y="910" class="small">mock / openai / anthropic / custom</text>
+  <rect x="108" y="958" width="358" height="82" rx="18" fill="#21193D" stroke="#7660C9"/>
+  <text x="130" y="989" class="body">ChapterService</text>
+  <text x="130" y="1013" class="small">章节 CRUD、导出导入、版本化写回、状态与 current_* 指针更新</text>
+  <rect x="498" y="958" width="346" height="82" rx="18" fill="#21193D" stroke="#7660C9"/>
+  <text x="520" y="989" class="body">Logger / Observability</text>
+  <text x="520" y="1013" class="small">workflow 耗时、LLM 调用、CRUD、retrieval observability</text>
+  <path d="M222 940V958" class="line"/>
+  <path d="M476 897H362" class="softline"/>
+  <path d="M590 897H616" class="line"/>
+
+  <g filter="url(#shadow)">
+    <rect x="1042" y="788" width="484" height="276" rx="28" fill="url(#panel)" stroke="#29435A" stroke-width="1.5"/>
+  </g>
+  <text x="1074" y="826" class="section">外部适配器与数据持久化</text>
+  <rect x="1076" y="854" width="170" height="58" rx="16" fill="#123046" stroke="#2E6992"/>
+  <text x="1130" y="889" class="body">SQLite</text>
+  <rect x="1270" y="854" width="170" height="58" rx="16" fill="#123046" stroke="#2E6992"/>
+  <text x="1329" y="889" class="body">MySQL</text>
+  <rect x="1076" y="928" width="364" height="58" rx="16" fill="#123046" stroke="#2E6992"/>
+  <text x="1102" y="963" class="body">Mock / OpenAI / Anthropic / Custom Provider</text>
+  <rect x="1076" y="1002" width="364" height="40" rx="14" fill="#123046" stroke="#2E6992"/>
+  <text x="1182" y="1028" class="small">Local Markdown Files</text>
+
+  <rect x="74" y="1092" width="1452" height="58" rx="18" fill="#101827" stroke="#2C3C5A"/>
+  <text x="104" y="1128" class="body">Persistence Tables · books / outlines / world_settings / characters / factions / relations / items / story_hooks / chapters / chapter_plans / chapter_drafts / chapter_reviews / chapter_finals / retrieval_documents / retrieval_facts / story_events / chapter_segments</text>
+
+  <path d="M118 292V330" class="softline"/>
+  <path d="M242 470V542" class="softline"/>
+  <path d="M1198 470V542" class="softline"/>
+  <path d="M242 758V788" class="softline"/>
+  <path d="M1198 758V788" class="softline"/>
+
+  <path d="M590 897H1076" class="softline"/>
+  <path d="M844 897H1076" class="softline"/>
+  <path d="M466 999H498" class="line"/>
+  <path d="M844 999H1076" class="softline"/>
+  <path d="M1161 912V928" class="line"/>
+  <path d="M1355 912V928" class="line"/>
+  <path d="M1258 986V1002" class="line"/>
+  <path d="M1161 1042V1092" class="softline"/>
+  <path d="M1355 1042V1092" class="softline"/>
+
+  <rect x="1230" y="152" width="296" height="108" rx="22" fill="#0F192A" stroke="#274059"/>
+  <rect x="1252" y="174" width="20" height="20" rx="8" fill="url(#accent)"/>
+  <text x="1282" y="189" class="small">入口 / 命令层</text>
+  <rect x="1252" y="204" width="20" height="20" rx="8" fill="url(#workflow)"/>
+  <text x="1282" y="219" class="small">工作流编排层</text>
+  <rect x="1252" y="234" width="20" height="20" rx="8" fill="url(#planning)"/>
+  <text x="1282" y="249" class="small">planning / retrieval 层</text>
+
+  <rect x="78" y="152" width="314" height="108" rx="22" fill="#0F192A" stroke="#274059"/>
+  <rect x="100" y="174" width="20" height="20" rx="8" fill="url(#infra)"/>
+  <text x="130" y="189" class="small">基础设施 / 服务边界</text>
+  <path d="M100 214H124" class="line"/>
+  <text x="130" y="219" class="small">实线表示主调用链</text>
+  <path d="M100 244H124" class="softline"/>
+  <text x="130" y="249" class="small">虚线表示跨层依赖或闭环回流</text>
+</svg>
