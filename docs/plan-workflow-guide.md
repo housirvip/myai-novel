@@ -14,6 +14,10 @@
 - prompt 与全工作流关系：看 `docs/prompt-retrieval-relationship.md`
 - embedding / rerank 实验链路：看 `docs/embedding-rerank-architecture.md`
 
+![Plan 工作流图解](./plan-workflow-hero-detailed.png)
+
+> 图示重点：`CLI 输入 → 第一次轻量召回 → 意图结构化 → 第二次完整召回 → chapter_plans 落库`，以及 `retrievedContext` 如何成为后续阶段共享基线。
+
 ## 目录
 
 - [1. 涉及文件](#1-涉及文件)

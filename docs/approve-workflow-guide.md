@@ -14,6 +14,10 @@
 - `plan` 阶段的上下文是怎么来的：看 `docs/plan-workflow-guide.md`
 - 召回与打分规则：看 `docs/retrieval-scoring-rules.md`
 
+![Approve 工作流图解](./approve-workflow-hero.png)
+
+> 图示重点：`approve` 先基于 `plan / draft / review / retrievedContext` 生成 `finalContent`，再抽取结构化 `diff`；`dryRun` 只返回预览结果，正式提交则会写入 `chapter_finals`、切换 `chapters.current_final_id`，并同步完成实体回写、章节字段更新与 `books.current_chapter_count` 重算。
+
 ## 目录
 
 - [1. 涉及文件](#1-涉及文件)

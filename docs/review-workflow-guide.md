@@ -13,6 +13,10 @@
 - `repair` 如何消费 review 结果：看 `docs/repair-workflow-guide.md`
 - 全工作流关系：看 `docs/prompt-retrieval-relationship.md`
 
+![Review 工作流图解](./review-workflow-hero.png)
+
+> 图示重点：`review` 读取当前 `plan + draft` 与共享 `retrievedContext`，构造 `reviewContextView` 做结构化审校，把 `summary / issues / risks` 组织成稳定的 review JSON，并版本化写入 `chapter_reviews`，同时切换 `chapters.current_review_id`。
+
 ## 目录
 
 - [1. 涉及文件](#1-涉及文件)

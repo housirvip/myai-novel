@@ -14,6 +14,10 @@
 - `approve` 如何消费 repair 后的 draft：看 `docs/approve-workflow-guide.md`
 - 全工作流关系：看 `docs/prompt-retrieval-relationship.md`
 
+![Repair 工作流图解](./repair-workflow-hero.png)
+
+> 图示重点：`repair` 同时消费 `plan + current draft + current review` 与共享 `retrievedContext`，通过 `repairContextView` 在既有规划和事实边界内修复问题，生成新的 repaired draft 版本，写入 `chapter_drafts` 并切换 `chapters.current_draft_id`。
+
 ## 目录
 
 - [1. 涉及文件](#1-涉及文件)

@@ -14,6 +14,10 @@
 - 全工作流 prompt 关系：看 `docs/prompt-retrieval-relationship.md`
 - `review / repair / approve` 后续链路：看对应专题文档
 
+![Draft 工作流图解](./draft-workflow-hero.png)
+
+> 图示重点：`draft` 直接读取 `currentPlan` 中已经固化的 `planContent / intentConstraints / retrievedContext`，构造 `draftContextView` 与 `targetWords` 约束生成正文，并把结果版本化写入 `chapter_drafts`，同时切换 `chapters.current_draft_id`。
+
 ## 目录
 
 - [1. 涉及文件](#1-涉及文件)
